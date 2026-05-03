@@ -31,3 +31,8 @@ export async function deleteDay(date: string): Promise<void> {
   const res = await fetch(`/api/days/${date}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete day')
 }
+
+export async function clearSchedule(): Promise<void> {
+  const res = await fetch('/api/days', { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to clear schedule')
+}

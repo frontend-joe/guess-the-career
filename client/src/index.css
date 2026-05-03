@@ -3,6 +3,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans: 'Noto Sans', system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -101,7 +102,7 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Noto Sans', system-ui, sans-serif;
   margin: 0;
   -webkit-font-smoothing: antialiased;
 }

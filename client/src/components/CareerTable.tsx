@@ -3,6 +3,7 @@ import { Trash2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { CareerStint } from '@/api/footballers'
 
 type Stint = Omit<CareerStint, 'id' | 'footballer_id'>
@@ -37,7 +38,7 @@ export function CareerTable({ stints, editable = false, onChange }: Props) {
   }
 
   function addRow() {
-    onChange?.([...stints, { sort_order: stints.length, years: '', club: '', apps: null, goals: null }])
+    onChange?.([...stints, { sort_order: stints.length, years: '', club: '', apps: null, goals: null, stint_type: 'senior' as const }])
   }
 
   function editingValue(index: number, field: keyof Stint): string {
@@ -75,6 +76,7 @@ export function CareerTable({ stints, editable = false, onChange }: Props) {
                 <TableHead>Club</TableHead>
                 <TableHead className="text-right">Apps</TableHead>
                 <TableHead className="text-right">Goals</TableHead>
+                <TableHead>Type</TableHead>
                 {editable && <TableHead className="w-10" />}
               </TableRow>
             </TableHeader>
@@ -123,6 +125,20 @@ export function CareerTable({ stints, editable = false, onChange }: Props) {
                       />
                     </TableCell>
                     <TableCell>
+                      <Select
+                        value={stint.stint_type}
+                        onValueChange={(val) => update(i, 'stint_type', val)}
+                      >
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="senior">Senior</SelectItem>
+                          <SelectItem value="international">International</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -142,6 +158,13 @@ export function CareerTable({ stints, editable = false, onChange }: Props) {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {stint.goals !== null ? stint.goals : '—'}
+                    </TableCell>
+                    <TableCell>
+                      {stint.stint_type === 'international' && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                          Intl
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 )

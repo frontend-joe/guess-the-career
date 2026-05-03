@@ -101,6 +101,12 @@ daysRouter.put(
   }
 )
 
+// DELETE /api/days — clear all footballer assignments
+daysRouter.delete('/', async (c) => {
+  await db.delete(days)
+  return c.json({ ok: true })
+})
+
 // DELETE /api/days/:date
 daysRouter.delete('/:date', async (c) => {
   const date = c.req.param('date')

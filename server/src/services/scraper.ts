@@ -1,5 +1,23 @@
 import * as cheerio from 'cheerio'
 
+const FOOTBALLING_NATIONS = new Set([
+  'Brazil', 'Argentina', 'France', 'Germany', 'Italy', 'England', 'Spain', 'Portugal',
+  'Netherlands', 'Belgium', 'Croatia', 'Uruguay', 'Colombia', 'Chile', 'Peru', 'Ecuador',
+  'Paraguay', 'Bolivia', 'Venezuela', 'Mexico', 'United States', 'Canada', 'Costa Rica',
+  'Panama', 'Honduras', 'El Salvador', 'Guatemala', 'Jamaica', 'Cuba', 'Haiti',
+  'Dominican Republic', 'Morocco', 'Algeria', 'Tunisia', 'Egypt', 'Nigeria', 'Senegal',
+  'Ghana', 'Ivory Coast', 'Cameroon', 'South Africa', 'Kenya', 'Ethiopia', 'DR Congo',
+  'Angola', 'Mali', 'Burkina Faso', 'Uganda', 'Zambia', 'Zimbabwe', 'Australia',
+  'New Zealand', 'Japan', 'South Korea', 'China', 'India', 'Indonesia', 'Thailand',
+  'Vietnam', 'Malaysia', 'Saudi Arabia', 'Qatar', 'United Arab Emirates', 'Iran', 'Iraq',
+  'Turkey', 'Israel', 'Jordan', 'Lebanon', 'Syria', 'Russia', 'Ukraine', 'Poland',
+  'Czech Republic', 'Slovakia', 'Austria', 'Switzerland', 'Sweden', 'Norway', 'Denmark',
+  'Finland', 'Iceland', 'Serbia', 'Bosnia and Herzegovina', 'Montenegro', 'Albania',
+  'Greece', 'Romania', 'Bulgaria', 'Hungary', 'Slovenia', 'North Macedonia', 'Ireland',
+  'Scotland', 'Wales', 'Northern Ireland', 'Luxembourg', 'Estonia', 'Latvia', 'Lithuania',
+  'Belarus', 'Kazakhstan', 'Uzbekistan', 'Georgia', 'Armenia', 'Azerbaijan',
+])
+
 export interface ScrapeResult {
   name: string
   wikipedia_url: string
@@ -12,6 +30,7 @@ export interface ScrapeResult {
     club: string
     apps: number | null
     goals: number | null
+    stint_type: 'senior' | 'international'
   }[]
 }
 
@@ -30,7 +49,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   const html = await res.text()
   const $ = cheerio.load(html)
 
-  const name = $('#firstHeading').text().trim()
+  const name = stripCitations($('#firstHeading').text().trim().replace(/\s*\(.*?\)\s*$/, '').trim())
   if (!name) throw new Error('Could not find footballer name on page')
 
   const infobox = $('table.infobox.vcard').first()
@@ -68,7 +87,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
         const withoutDate = raw.replace(/\d{1,2}\s+\w+\s+\d{4}|\d{4}-\d{2}-\d{2}/g, '').trim()
         const parts = withoutDate.split(',').map((s) => s.trim()).filter(Boolean)
         const country = parts[parts.length - 1]
-        if (country && country.length > 1 && country.length < 60) {
+        if (country && country.length > 1 && country.length < 60 && !/[\d()[\]]/.test(country)) {
           nationality = country
         }
       }
@@ -76,12 +95,12 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
       // Position uses a Wikipedia hlist — collect <li> items and join them
       const items: string[] = []
       value.find('li').each((_, li) => {
-        const text = $(li).text().trim()
+        const text = stripCitations($(li).text().trim())
         if (text) items.push(text)
       })
       position = items.length > 0
         ? items.join(', ')
-        : value.text().trim().replace(/\s+/g, ' ') || null
+        : stripCitations(value.text().trim().replace(/\s+/g, ' ')) || null
 
     } else if (
       // Pattern 3: explicit Nationality / Nationalities / Country of birth row
@@ -104,18 +123,24 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   })
 
   const stints: ScrapeResult['stints'] = []
-  let inSeniorSection = false
+  let currentSection: 'senior' | 'international' | null = null
   let sortOrder = 0
 
   infobox.find('tr').each((_, row) => {
     const header = $(row).find('th.infobox-header')
     if (header.length) {
-      const headerText = header.text().trim()
-      inSeniorSection = headerText.toLowerCase().includes('senior career')
+      const headerText = header.text().trim().toLowerCase()
+      if (headerText.includes('senior career')) {
+        currentSection = 'senior'
+      } else if (headerText.includes('international career') || headerText.includes('national team')) {
+        currentSection = 'international'
+      } else {
+        currentSection = null
+      }
       return
     }
 
-    if (!inSeniorSection) return
+    if (!currentSection) return
 
     const yearsEl = $(row).find('th.infobox-label')
     const clubEl = $(row).find('td.infobox-data-a')
@@ -138,10 +163,37 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     // Strip loan arrows from club name
     const cleanClub = club.replace(/^\s*→\s*/, '').trim()
 
-    stints.push({ sort_order: sortOrder++, years, club: cleanClub, apps, goals })
+    stints.push({ sort_order: sortOrder++, years, club: cleanClub, apps, goals, stint_type: currentSection })
   })
 
+  // Derive nationality from international career — highest priority.
+  // Only accepts countries that appear in the FOOTBALLING_NATIONS list so that
+  // "Great Britain", "Basque Country", "West Germany", "Italy B" etc. don't pollute the field.
+  // Takes the last matching country to handle players who switched allegiance.
+  const intlStints = stints.filter(s => s.stint_type === 'international')
+  if (intlStints.length > 0) {
+    const countries = intlStints
+      .map(s => extractCountryFromTeam(s.club))
+      .filter((c): c is string => c !== null && FOOTBALLING_NATIONS.has(c))
+    if (countries.length > 0) {
+      nationality = countries[countries.length - 1]
+    }
+  }
+
   return { name, wikipedia_url: url, nationality, position, born, stints }
+}
+
+function stripCitations(text: string): string {
+  // Remove Wikipedia footnote markers: [1], [note 1], [a], etc.
+  return text.replace(/\s*\[[^\]]*\]/g, '').trim()
+}
+
+function extractCountryFromTeam(team: string): string | null {
+  const cleaned = stripCitations(team)
+    .replace(/\s*\([^)]*\)\s*$/, '')  // strip trailing parentheticals e.g. "(O.P.)", "(beach)"
+    .replace(/\s+(U[-\s]?\d+|Under[-\s]?\d+|B|XI|Olympics?|Olympic\s+[Tt]eam)$/i, '')
+    .trim()
+  return cleaned.length > 0 ? cleaned : null
 }
 
 function normalizeYears(raw: string): string {

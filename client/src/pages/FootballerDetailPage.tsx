@@ -179,7 +179,7 @@ export function FootballerDetailPage() {
       <div className="border rounded-lg p-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-            Senior career ({footballer.stints.length} clubs)
+            Career ({footballer.stints.length} stints)
           </h2>
           <div className="flex flex-wrap gap-1.5">
             <Button variant="outline" size="sm" onClick={handleRescrape} disabled={rescraping}>

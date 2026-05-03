@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { Plus, Search, Trash2, Eye, Globe } from 'lucide-react'
+import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getFootballers, deleteFootballer, type Footballer } from '@/api/footballers'
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -16,6 +17,143 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced
 }
 
+type RStatus = 'pending' | 'scraping' | 'done' | 'failed'
+type RPlayer = {
+  id: number
+  name: string
+  status: RStatus
+  stints?: number
+  intl?: number
+  nationality?: string | null
+  error?: string
+}
+
+function RescrapeModal({ open, onClose, onComplete }: { open: boolean; onClose: () => void; onComplete: () => void }) {
+  const [players, setPlayers] = useState<RPlayer[]>([])
+  const [total, setTotal] = useState(0)
+  const [done, setDone] = useState(false)
+  const scrapingRef = useRef<HTMLDivElement>(null)
+
+  const doneCount = players.filter(p => p.status === 'done').length
+  const failedCount = players.filter(p => p.status === 'failed').length
+  const scrapingId = players.find(p => p.status === 'scraping')?.id
+
+  useEffect(() => {
+    scrapingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [scrapingId])
+
+  useEffect(() => {
+    if (!open) return
+
+    setPlayers([])
+    setTotal(0)
+    setDone(false)
+
+    const es = new EventSource('/api/footballers/rescrape-all')
+
+    es.onmessage = (e) => {
+      const data = JSON.parse(e.data)
+      if (data.type === 'init') {
+        setTotal(data.total)
+        setPlayers(data.players.map((p: { id: number; name: string }) => ({
+          id: p.id, name: p.name, status: 'pending',
+        })))
+      } else if (data.type === 'start') {
+        setPlayers(prev => prev.map(p => p.id === data.id ? { ...p, status: 'scraping' } : p))
+      } else if (data.type === 'done') {
+        setPlayers(prev => prev.map(p => p.id === data.id
+          ? { ...p, status: 'done', stints: data.stints, intl: data.intl, nationality: data.nationality }
+          : p))
+      } else if (data.type === 'failed') {
+        setPlayers(prev => prev.map(p => p.id === data.id ? { ...p, status: 'failed', error: data.error } : p))
+      } else if (data.type === 'complete') {
+        setDone(true)
+        es.close()
+      }
+    }
+
+    es.onerror = () => {
+      es.close()
+      setDone(true)
+    }
+
+    return () => es.close()
+  }, [open])
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3 shrink-0">
+          <DialogTitle className="flex items-center justify-between">
+            <span>Rescraping all players</span>
+            {total > 0 && (
+              <span className="text-sm font-normal text-muted-foreground tabular-nums">
+                {doneCount + failedCount} / {total}
+              </span>
+            )}
+          </DialogTitle>
+          {done && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Done — {doneCount} updated{failedCount > 0 ? `, ${failedCount} failed` : ''}.
+            </p>
+          )}
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto border-t border-b min-h-0">
+          {players.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Connecting…
+            </div>
+          ) : (
+            <div className="divide-y">
+              {players.map((p) => (
+                <div
+                  key={p.id}
+                  ref={p.status === 'scraping' ? scrapingRef : undefined}
+                  className="flex items-center gap-3 px-4 py-2"
+                >
+                  <span className="shrink-0">
+                    {p.status === 'pending'  && <Circle       className="h-4 w-4 text-muted-foreground/30" />}
+                    {p.status === 'scraping' && <Loader2      className="h-4 w-4 text-blue-500 animate-spin" />}
+                    {p.status === 'done'     && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    {p.status === 'failed'   && <XCircle      className="h-4 w-4 text-destructive" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm truncate ${p.status === 'pending' ? 'text-muted-foreground' : ''}`}>
+                      {p.name}
+                    </p>
+                    {p.status === 'done' && (
+                      <p className="text-xs text-muted-foreground">
+                        {p.stints} stint{p.stints !== 1 ? 's' : ''}{p.intl ? `, ${p.intl} intl` : ''}{p.nationality ? ` · ${p.nationality}` : ''}
+                      </p>
+                    )}
+                    {p.status === 'failed' && (
+                      <p className="text-xs text-destructive truncate">{p.error}</p>
+                    )}
+                    {p.status === 'scraping' && (
+                      <p className="text-xs text-muted-foreground">scraping…</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 shrink-0 flex justify-end">
+          <Button
+            variant={done ? 'default' : 'outline'}
+            onClick={() => { onClose(); if (done) onComplete() }}
+          >
+            {done ? 'Done' : 'Cancel'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function FootballersPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -23,6 +161,7 @@ export function FootballersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [rescrapeOpen, setRescrapeOpen] = useState(false)
 
   const debouncedSearch = useDebounce(search, 250)
 
@@ -62,11 +201,18 @@ export function FootballersPage() {
             {footballers.length} footballer{footballers.length !== 1 ? 's' : ''} in database
           </p>
         </div>
-        <Button onClick={() => navigate('/footballers/add')} size="sm" className="shrink-0">
-          <Plus className="h-4 w-4 mr-1.5" />
-          <span className="hidden sm:inline">Add footballer</span>
-          <span className="sm:hidden">Add</span>
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => setRescrapeOpen(true)}>
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Rescrape all</span>
+            <span className="sm:hidden">Rescrape</span>
+          </Button>
+          <Button onClick={() => navigate('/footballers/add')} size="sm">
+            <Plus className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Add footballer</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4">
@@ -105,7 +251,6 @@ export function FootballersPage() {
                   <TableRow key={f.id}>
                     <TableCell className="font-medium">
                       <div>{f.name}</div>
-                      {/* Show nationality inline on small screens */}
                       <div className="sm:hidden text-xs text-muted-foreground mt-0.5">{f.nationality ?? ''}</div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
@@ -152,6 +297,12 @@ export function FootballersPage() {
           </div>
         </div>
       )}
+
+      <RescrapeModal
+        open={rescrapeOpen}
+        onClose={() => setRescrapeOpen(false)}
+        onComplete={() => load()}
+      />
     </div>
   )
 }

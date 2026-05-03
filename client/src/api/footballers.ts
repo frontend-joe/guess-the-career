@@ -17,6 +17,7 @@ export interface CareerStint {
   club: string
   apps: number | null
   goals: number | null
+  stint_type: 'senior' | 'international'
 }
 
 export interface FootballerWithStints extends Footballer {
@@ -64,6 +65,14 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   return data
 }
 
+export class ApiError extends Error {
+  readonly code: string | undefined
+  constructor(message: string, code?: string) {
+    super(message)
+    this.code = code
+  }
+}
+
 export async function createFromScrape(data: ScrapeResult): Promise<Footballer> {
   const res = await fetch('/api/footballers/from-scrape', {
     method: 'POST',
@@ -71,7 +80,7 @@ export async function createFromScrape(data: ScrapeResult): Promise<Footballer> 
     body: JSON.stringify(data),
   })
   const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? 'Failed to save footballer')
+  if (!res.ok) throw new ApiError(json.message ?? json.error ?? 'Failed to save footballer', json.error)
   return json
 }
 

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { and, eq, like, sql, notInArray, isNotNull } from 'drizzle-orm'
@@ -14,6 +15,7 @@ const stintSchema = z.object({
   club: z.string(),
   apps: z.number().int().nullable(),
   goals: z.number().int().nullable(),
+  stint_type: z.enum(['senior', 'international']).default('senior'),
 })
 
 // GET /api/footballers
@@ -95,16 +97,25 @@ footballersRouter.post(
   ),
   async (c) => {
     const body = c.req.valid('json')
-    const [footballer] = await db
-      .insert(footballers)
-      .values({
-        name: body.name,
-        wikipedia_url: body.wikipedia_url,
-        nationality: body.nationality,
-        position: body.position,
-        born: body.born,
-      })
-      .returning()
+    let footballer
+    try {
+      ;[footballer] = await db
+        .insert(footballers)
+        .values({
+          name: body.name,
+          wikipedia_url: body.wikipedia_url,
+          nationality: body.nationality,
+          position: body.position,
+          born: body.born,
+        })
+        .returning()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      if (msg.includes('UNIQUE constraint failed')) {
+        return c.json({ error: 'already_exists', message: `${body.name} is already in the database` }, 409)
+      }
+      throw e
+    }
     if (body.stints.length > 0) {
       await db.insert(career_stints).values(
         body.stints.map((s) => ({ ...s, footballer_id: footballer.id }))
@@ -113,6 +124,60 @@ footballersRouter.post(
     return c.json(footballer, 201)
   }
 )
+
+// GET /api/footballers/rescrape-all — SSE stream, rescapes every footballer in DB order
+footballersRouter.get('/rescrape-all', async (c) => {
+  const abortSignal = c.req.raw.signal
+  return streamSSE(c, async (stream) => {
+    const all = await db
+      .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
+      .from(footballers)
+      .orderBy(footballers.name)
+
+    await stream.writeSSE({
+      data: JSON.stringify({ type: 'init', total: all.length, players: all.map(p => ({ id: p.id, name: p.name })) }),
+    })
+
+    for (const player of all) {
+      if (abortSignal.aborted) break
+
+      await stream.writeSSE({ data: JSON.stringify({ type: 'start', id: player.id }) })
+
+      try {
+        const result = await scrapeWikipedia(player.url)
+
+        await db.update(footballers)
+          .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, updated_at: sql`(datetime('now'))` })
+          .where(eq(footballers.id, player.id))
+
+        await db.delete(career_stints).where(eq(career_stints.footballer_id, player.id))
+        if (result.stints.length > 0) {
+          await db.insert(career_stints).values(
+            result.stints.map((s, i) => ({ ...s, sort_order: i, footballer_id: player.id }))
+          )
+        }
+
+        await stream.writeSSE({
+          data: JSON.stringify({
+            type: 'done',
+            id: player.id,
+            stints: result.stints.length,
+            intl: result.stints.filter(s => s.stint_type === 'international').length,
+            nationality: result.nationality,
+          }),
+        })
+      } catch (e) {
+        await stream.writeSSE({
+          data: JSON.stringify({ type: 'failed', id: player.id, error: e instanceof Error ? e.message : 'Unknown error' }),
+        })
+      }
+
+      await new Promise<void>(r => setTimeout(r, 500))
+    }
+
+    await stream.writeSSE({ data: JSON.stringify({ type: 'complete' }) })
+  })
+})
 
 // GET /api/footballers/:id
 footballersRouter.get('/:id', async (c) => {
@@ -127,7 +192,7 @@ footballersRouter.get('/:id', async (c) => {
     .select()
     .from(career_stints)
     .where(eq(career_stints.footballer_id, id))
-    .orderBy(career_stints.sort_order)
+    .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
 
   return c.json({ ...footballer, stints })
 })
@@ -185,7 +250,7 @@ footballersRouter.put(
       .select()
       .from(career_stints)
       .where(eq(career_stints.footballer_id, id))
-      .orderBy(career_stints.sort_order)
+      .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
     return c.json(stints)
   }
 )

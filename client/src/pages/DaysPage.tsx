@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Wand2, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { getDays, assignDay, type Day } from '@/api/days'
+import { getDays, assignDay, clearSchedule, type Day } from '@/api/days'
 import { getFootballers, type Footballer } from '@/api/footballers'
 import { DayAssignModal } from '@/components/DayAssignModal'
 
@@ -19,6 +19,16 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return d === 0 ? 6 : d - 1  // Monday = 0
 }
 
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split('T')[0]
+}
+
+type AutoAssignState = 'idle' | 'loading' | 'confirming' | 'running'
+type AutoInfo = { count: number; startDate: string; endDate: string }
+type ClearState = 'idle' | 'confirming' | 'running'
+
 export function DaysPage() {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -28,6 +38,13 @@ export function DaysPage() {
   const [modalFootballers, setModalFootballers] = useState<Footballer[]>([])
   const [loadingModal, setLoadingModal] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  // Auto-assign state
+  const [autoState, setAutoState] = useState<AutoAssignState>('idle')
+  const [autoInfo, setAutoInfo] = useState<AutoInfo | null>(null)
+
+  // Clear schedule state
+  const [clearState, setClearState] = useState<ClearState>('idle')
 
   const monthStart = isoDate(year, month, 1)
   const monthEnd = isoDate(year, month, getDaysInMonth(year, month))
@@ -63,6 +80,66 @@ export function DaysPage() {
     else setMonth(m => m + 1)
   }
 
+  async function handleAutoAssignClick() {
+    setAutoState('loading')
+    try {
+      const [unassigned, allDays] = await Promise.all([
+        getFootballers({ unassigned: true }),
+        getDays(),
+      ])
+      if (!unassigned.length) {
+        setAutoState('idle')
+        return
+      }
+      const assigned = allDays.filter(d => d.footballer_id !== null)
+      const earliestDate = assigned.length
+        ? assigned.sort((a, b) => a.date.localeCompare(b.date))[0].date
+        : new Date().toISOString().split('T')[0]
+      const endDate = addDays(earliestDate, -1)
+      const startDate = addDays(endDate, -(unassigned.length - 1))
+      setAutoInfo({ count: unassigned.length, startDate, endDate })
+      setAutoState('confirming')
+    } catch {
+      setAutoState('idle')
+    }
+  }
+
+  async function handleAutoAssignConfirm() {
+    if (!autoInfo) return
+    setAutoState('running')
+    try {
+      const unassigned = await getFootballers({ unassigned: true })
+      // Fisher-Yates shuffle
+      for (let i = unassigned.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unassigned[i], unassigned[j]] = [unassigned[j], unassigned[i]]
+      }
+      for (let i = 0; i < unassigned.length; i++) {
+        await assignDay(addDays(autoInfo.startDate, i), unassigned[i].id)
+      }
+    } finally {
+      setAutoState('idle')
+      setAutoInfo(null)
+      await loadDays()
+    }
+  }
+
+  function handleAutoAssignCancel() {
+    setAutoState('idle')
+    setAutoInfo(null)
+  }
+
+  async function handleClearConfirm() {
+    setClearState('running')
+    try {
+      await clearSchedule()
+      await loadDays()
+    } finally {
+      setClearState('idle')
+    }
+  }
+
+  const monthIsEmpty = !loading && days.every(d => d.footballer_id === null)
   const dayMap = Object.fromEntries(days.map(d => [d.date, d]))
   const daysInMonth = getDaysInMonth(year, month)
   const firstDow = getFirstDayOfWeek(year, month)
@@ -80,7 +157,42 @@ export function DaysPage() {
     <div className="p-4 md:p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <h1 className="text-xl font-semibold">Schedule</h1>
-        <div className="flex items-center gap-1 md:gap-2">
+        <div className="flex items-center gap-2">
+          {/* Clear schedule button — only when month has assignments */}
+          {clearState === 'idle' && autoState === 'idle' && !monthIsEmpty && (
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setClearState('confirming')}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Clear schedule
+            </Button>
+          )}
+          {clearState === 'running' && (
+            <Button variant="outline" size="sm" disabled>
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              Clearing…
+            </Button>
+          )}
+
+          {/* Auto-assign button — only when month has no assignments */}
+          {autoState === 'idle' && clearState === 'idle' && monthIsEmpty && (
+            <Button variant="outline" size="sm" onClick={handleAutoAssignClick}>
+              <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+              Auto-assign
+            </Button>
+          )}
+          {autoState === 'loading' && (
+            <Button variant="outline" size="sm" disabled>
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              Loading…
+            </Button>
+          )}
+          {autoState === 'running' && (
+            <Button variant="outline" size="sm" disabled>
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              Assigning…
+            </Button>
+          )}
+
+          {/* Month navigation */}
           <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8 md:h-9 md:w-9">
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -92,6 +204,32 @@ export function DaysPage() {
           </Button>
         </div>
       </div>
+
+      {/* Confirmation banner */}
+      {autoState === 'confirming' && autoInfo && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950">
+          <span className="text-amber-900 dark:text-amber-100">
+            Assign <strong>{autoInfo.count}</strong> unassigned footballer{autoInfo.count !== 1 ? 's' : ''} to dates <strong>{autoInfo.startDate}</strong> → <strong>{autoInfo.endDate}</strong>?
+          </span>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={handleAutoAssignCancel}>Cancel</Button>
+            <Button size="sm" onClick={handleAutoAssignConfirm}>Confirm</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Clear schedule confirmation banner */}
+      {clearState === 'confirming' && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+          <span className="text-destructive">
+            Remove all footballer assignments from the schedule?
+          </span>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setClearState('idle')}>Cancel</Button>
+            <Button variant="destructive" size="sm" onClick={handleClearConfirm}>Clear all</Button>
+          </div>
+        </div>
+      )}
 
       <div className="border rounded-lg overflow-hidden">
         {/* Day headers */}
@@ -106,12 +244,10 @@ export function DaysPage() {
 
         {/* Calendar grid */}
         <div className="grid grid-cols-7">
-          {/* Empty leading cells */}
           {Array.from({ length: firstDow }).map((_, i) => (
             <div key={`empty-${i}`} className="min-h-14 md:min-h-20 border-b border-r last:border-r-0 bg-muted/20" />
           ))}
 
-          {/* Day cells */}
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const day = i + 1
             const date = isoDate(year, month, day)

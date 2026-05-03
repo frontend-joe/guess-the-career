@@ -20,6 +20,7 @@ export const career_stints = sqliteTable('career_stints', {
   club: text('club').notNull(),
   apps: integer('apps'),
   goals: integer('goals'),
+  stint_type: text('stint_type').notNull().default('senior'),
 })
 
 export const days = sqliteTable('days', {
