@@ -1,0 +1,19 @@
+{
+  "name": "guess-the-career-root",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"yarn workspace server dev\" \"wait-on http://localhost:3001/api/health && yarn workspace client dev\"",
+    "dev:client": "yarn workspace client dev",
+    "dev:server": "yarn workspace server dev",
+    "build": "yarn workspace server build && yarn workspace client build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "wait-on": "^9.0.5"
+  }
+}

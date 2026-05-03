@@ -1,0 +1,191 @@
+import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
+import { and, eq, like, sql, notInArray, isNotNull } from 'drizzle-orm'
+import { db } from '../db/client.ts'
+import { footballers, career_stints, days } from '../db/schema.ts'
+import { scrapeWikipedia } from '../services/scraper.ts'
+
+export const footballersRouter = new Hono()
+
+const stintSchema = z.object({
+  sort_order: z.number().int(),
+  years: z.string(),
+  club: z.string(),
+  apps: z.number().int().nullable(),
+  goals: z.number().int().nullable(),
+})
+
+// GET /api/footballers
+// ?search=  filter by name
+// ?unassigned=true  only return footballers not assigned to any day
+// ?excludeDate=YYYY-MM-DD  when combined with unassigned, also include the footballer on that date
+footballersRouter.get('/', async (c) => {
+  const search = c.req.query('search')
+  const unassigned = c.req.query('unassigned') === 'true'
+  const excludeDate = c.req.query('excludeDate')
+
+  const conditions = []
+
+  if (search) conditions.push(like(footballers.name, `%${search}%`))
+
+  if (unassigned) {
+    // Build the set of assigned footballer IDs to exclude
+    const assignedRows = await db
+      .selectDistinct({ footballer_id: days.footballer_id })
+      .from(days)
+      .where(isNotNull(days.footballer_id))
+
+    // If excludeDate is provided, keep that date's current footballer visible
+    let excludeId: number | null = null
+    if (excludeDate) {
+      const [currentDay] = await db
+        .select({ footballer_id: days.footballer_id })
+        .from(days)
+        .where(eq(days.date, excludeDate))
+      excludeId = currentDay?.footballer_id ?? null
+    }
+
+    const assignedIds = assignedRows
+      .map((r) => r.footballer_id as number)
+      .filter((id) => id !== excludeId)
+
+    if (assignedIds.length > 0) {
+      conditions.push(notInArray(footballers.id, assignedIds))
+    }
+  }
+
+  const rows = await db
+    .select()
+    .from(footballers)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+
+  return c.json(rows)
+})
+
+// POST /api/scrape — preview Wikipedia URL without writing to DB
+footballersRouter.post(
+  '/scrape',
+  zValidator('json', z.object({ url: z.string().url() })),
+  async (c) => {
+    const { url } = c.req.valid('json')
+    try {
+      const result = await scrapeWikipedia(url)
+      return c.json(result)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Scrape failed'
+      return c.json({ error: message }, 400)
+    }
+  }
+)
+
+// POST /api/footballers/from-scrape — commit scrape result to DB
+footballersRouter.post(
+  '/from-scrape',
+  zValidator(
+    'json',
+    z.object({
+      name: z.string(),
+      wikipedia_url: z.string().url(),
+      nationality: z.string().nullable(),
+      position: z.string().nullable(),
+      born: z.string().nullable(),
+      stints: z.array(stintSchema),
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid('json')
+    const [footballer] = await db
+      .insert(footballers)
+      .values({
+        name: body.name,
+        wikipedia_url: body.wikipedia_url,
+        nationality: body.nationality,
+        position: body.position,
+        born: body.born,
+      })
+      .returning()
+    if (body.stints.length > 0) {
+      await db.insert(career_stints).values(
+        body.stints.map((s) => ({ ...s, footballer_id: footballer.id }))
+      )
+    }
+    return c.json(footballer, 201)
+  }
+)
+
+// GET /api/footballers/:id
+footballersRouter.get('/:id', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  const [footballer] = await db
+    .select()
+    .from(footballers)
+    .where(eq(footballers.id, id))
+  if (!footballer) return c.json({ error: 'Not found' }, 404)
+
+  const stints = await db
+    .select()
+    .from(career_stints)
+    .where(eq(career_stints.footballer_id, id))
+    .orderBy(career_stints.sort_order)
+
+  return c.json({ ...footballer, stints })
+})
+
+// PATCH /api/footballers/:id
+footballersRouter.patch(
+  '/:id',
+  zValidator(
+    'json',
+    z.object({
+      name: z.string().optional(),
+      nationality: z.string().nullable().optional(),
+      position: z.string().nullable().optional(),
+      born: z.string().nullable().optional(),
+    })
+  ),
+  async (c) => {
+    const id = parseInt(c.req.param('id'))
+    const body = c.req.valid('json')
+    const [updated] = await db
+      .update(footballers)
+      .set({ ...body, updated_at: sql`(datetime('now'))` })
+      .where(eq(footballers.id, id))
+      .returning()
+    if (!updated) return c.json({ error: 'Not found' }, 404)
+    return c.json(updated)
+  }
+)
+
+// DELETE /api/footballers/:id
+footballersRouter.delete('/:id', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  const [deleted] = await db
+    .delete(footballers)
+    .where(eq(footballers.id, id))
+    .returning()
+  if (!deleted) return c.json({ error: 'Not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// PUT /api/footballers/:id/stints — replace all stints
+footballersRouter.put(
+  '/:id/stints',
+  zValidator('json', z.array(stintSchema)),
+  async (c) => {
+    const id = parseInt(c.req.param('id'))
+    const body = c.req.valid('json')
+    await db.delete(career_stints).where(eq(career_stints.footballer_id, id))
+    if (body.length > 0) {
+      await db.insert(career_stints).values(
+        body.map((s) => ({ ...s, footballer_id: id }))
+      )
+    }
+    const stints = await db
+      .select()
+      .from(career_stints)
+      .where(eq(career_stints.footballer_id, id))
+      .orderBy(career_stints.sort_order)
+    return c.json(stints)
+  }
+)

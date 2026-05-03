@@ -1,0 +1,26 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "tsc",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@hono/zod-validator": "^0.7.6",
+    "better-sqlite3": "^11.7.0",
+    "cheerio": "^1.0.0",
+    "drizzle-orm": "^0.43.1",
+    "hono": "^4.7.11",
+    "tsx": "^4.19.4",
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^24.12.2",
+    "typescript": "~6.0.2"
+  }
+}

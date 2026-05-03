@@ -1,0 +1,8 @@
+[build]
+  builder      = "NIXPACKS"
+  buildCommand = "yarn workspace server build"
+
+[deploy]
+  startCommand  = "yarn workspace server start"
+  healthcheckPath = "/api/health"
+  restartPolicyType = "ON_FAILURE"
