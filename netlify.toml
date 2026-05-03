@@ -5,7 +5,7 @@
 # Proxy API calls to Railway — update the `to` URL after Railway deployment
 [[redirects]]
   from   = "/api/*"
-  to     = "server-production-2e32.up.railway.app/api/:splat"
+  to     = "https://server-production-2e32.up.railway.app/api/:splat"
   status = 200
   force  = true
 
