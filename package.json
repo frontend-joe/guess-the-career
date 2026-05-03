@@ -12,6 +12,9 @@
     "dev:server": "yarn workspace server dev",
     "build": "yarn workspace server build && yarn workspace client build"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "wait-on": "^9.0.5"
