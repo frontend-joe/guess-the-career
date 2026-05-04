@@ -8,6 +8,7 @@ type RoundState = 'playing' | 'cleared' | 'given_up'
 interface RoundResult {
   footballerId: number
   footballerName: string
+  wikipediaUrl: string
   required: number
   correctClubs: string[]
   allClubs: string[]
@@ -29,6 +30,7 @@ export function GuessHisClubsPage() {
     return footballers.map(f => ({
       footballerId: f.id,
       footballerName: f.name,
+      wikipediaUrl: f.wikipedia_url,
       required: f.required,
       correctClubs: [],
       allClubs: f.clubs,
@@ -286,14 +288,32 @@ export function GuessHisClubsPage() {
 }
 
 function RoundView({ round }: { round: RoundResult }) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const missedClubs = round.state !== 'playing'
     ? round.allClubs.filter(c => !round.correctClubs.some(g => g.toLowerCase() === c.toLowerCase()))
     : []
+
+  useEffect(() => {
+    setPhotoUrl(null)
+    const title = round.wikipediaUrl.split('/wiki/')[1]
+    if (!title) return
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.thumbnail?.source) setPhotoUrl(data.thumbnail.source) })
+      .catch(() => {})
+  }, [round.footballerId])
 
   return (
     <div className="flex flex-col items-center px-4 py-8 gap-6">
       {/* Footballer name */}
       <div className="text-center">
+        {photoUrl && (
+          <img
+            src={photoUrl}
+            alt={round.footballerName}
+            className="w-24 h-24 rounded-full object-cover object-top mx-auto mb-3 border-2 border-gray-200"
+          />
+        )}
         <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Name the clubs of</p>
         <h2 className="text-2xl font-bold text-gray-900">{round.footballerName}</h2>
         <p className="text-xs text-gray-400 mt-1">{round.allClubs.length} clubs</p>

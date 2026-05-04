@@ -1,6 +1,7 @@
 export interface GhcFootballer {
   id: number
   name: string
+  wikipedia_url: string
   clubs: string[]
   required: number
 }

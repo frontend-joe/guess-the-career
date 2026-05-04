@@ -39,7 +39,7 @@ guessHisClubsRouter.get('/session', async (c) => {
 
   // Pick 10 at random
   const selected = await db
-    .select({ id: footballers.id, name: footballers.name })
+    .select({ id: footballers.id, name: footballers.name, wikipedia_url: footballers.wikipedia_url })
     .from(footballers)
     .where(inArray(footballers.id, eligibleIds))
     .orderBy(sql`RANDOM()`)
@@ -76,6 +76,7 @@ guessHisClubsRouter.get('/session', async (c) => {
     return {
       id: f.id,
       name: f.name,
+      wikipedia_url: f.wikipedia_url,
       clubs,
       required: requiredGuesses(clubs.length),
     }
