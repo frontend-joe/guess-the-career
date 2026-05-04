@@ -23,6 +23,7 @@ export function GuessHisClubsPage() {
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<ClubSuggestion[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showFinalScore, setShowFinalScore] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -46,6 +47,7 @@ export function GuessHisClubsPage() {
     setInputValue('')
     setSuggestions([])
     setShowDropdown(false)
+    setShowFinalScore(false)
     getGhcSession()
       .then(data => setRounds(buildRounds(data)))
       .catch(() => setError('Failed to load session. Please try again.'))
@@ -129,7 +131,6 @@ export function GuessHisClubsPage() {
   const currentRound = rounds[roundIndex] ?? null
   const isRoundDone = currentRound?.state !== 'playing'
   const isLastRound = roundIndex === rounds.length - 1
-  const isGameOver = rounds.length > 0 && rounds.every(r => r.state !== 'playing')
   const totalCorrect = rounds.reduce((sum, r) => sum + r.correctClubs.length, 0)
   const totalRequired = rounds.reduce((sum, r) => sum + r.required, 0)
 
@@ -178,7 +179,7 @@ export function GuessHisClubsPage() {
           </div>
         )}
 
-        {!loading && !error && isGameOver && (
+        {!loading && !error && showFinalScore && (
           <FinalScore
             rounds={rounds}
             totalCorrect={totalCorrect}
@@ -187,7 +188,7 @@ export function GuessHisClubsPage() {
           />
         )}
 
-        {!loading && !error && !isGameOver && currentRound && (
+        {!loading && !error && !showFinalScore && currentRound && (
           <div className="flex flex-col items-center px-3 pt-6 pb-4 gap-5 mt-auto">
             <FootballerCard round={currentRound} />
             <ClubReveal round={currentRound} />
@@ -196,7 +197,7 @@ export function GuessHisClubsPage() {
       </div>
 
       {/* Bottom panel */}
-      {!loading && !error && !isGameOver && currentRound && (
+      {!loading && !error && !showFinalScore && currentRound && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
 
           {/* Stacked correct club chips */}
@@ -277,10 +278,11 @@ export function GuessHisClubsPage() {
             )}
             {isRoundDone && isLastRound && (
               <button
-                onClick={() => {}}
-                className="flex-1 flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-2 rounded-lg opacity-50 cursor-default"
+                onClick={() => setShowFinalScore(true)}
+                className="flex-1 flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-2 rounded-lg"
               >
-                Game Over
+                See Results
+                <ChevronRight size={14} />
               </button>
             )}
           </div>
