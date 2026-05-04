@@ -186,6 +186,110 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   return { name, wikipedia_url: url, nationality, position, born, stints }
 }
 
+export interface ScrapeManagerResult {
+  name: string
+  wikipedia_url: string
+  place_of_birth: string | null
+  born: string | null
+  stints: {
+    sort_order: number
+    years: string
+    club: string
+    apps: number | null
+    goals: number | null
+    stint_type: 'managerial'
+  }[]
+}
+
+export async function scrapeManagerWikipedia(url: string): Promise<ScrapeManagerResult> {
+  if (!url.includes('wikipedia.org/wiki/')) {
+    throw new Error('URL must be a Wikipedia article URL')
+  }
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' },
+  })
+  if (!res.ok) {
+    throw new Error(`Wikipedia returned ${res.status}`)
+  }
+
+  const html = await res.text()
+  const $ = cheerio.load(html)
+
+  const name = stripCitations($('#firstHeading').text().trim().replace(/\s*\(.*?\)\s*$/, '').trim())
+  if (!name) throw new Error('Could not find manager name on page')
+
+  const infobox = $('table.infobox.vcard').first()
+  if (!infobox.length) throw new Error('No infobox found on this Wikipedia page')
+
+  let place_of_birth: string | null = null
+  let born: string | null = null
+
+  infobox.find('tr').each((_, row) => {
+    const labelEl = $(row).find('th.infobox-label').first()
+    if (!labelEl.length) return
+    const label = labelEl.text().trim().toLowerCase()
+    const value = $(row).find('td').first()
+    if (!value.length) return
+
+    if (label === 'born' || label.includes('date of birth')) {
+      born = value.find('.bday').text().trim() || null
+
+      // Some pages embed birthplace in the born row (td.birthplace or .birthplace span)
+      const birthplaceEl = value.find('.birthplace')
+      if (birthplaceEl.length) {
+        const text = stripCitations(birthplaceEl.text().trim())
+        if (text) place_of_birth = text
+      }
+    } else if (label === 'place of birth' || label.includes('place of birth')) {
+      // Many manager pages have a dedicated "Place of birth" row (td.infobox-data.birthplace)
+      const text = stripCitations(value.text().trim())
+      if (text) place_of_birth = text
+    }
+  })
+
+  const stints: ScrapeManagerResult['stints'] = []
+  let inManagerialSection = false
+  let sortOrder = 0
+
+  infobox.find('tr').each((_, row) => {
+    const header = $(row).find('th.infobox-header')
+    if (header.length) {
+      const headerText = header.text().trim().toLowerCase()
+      inManagerialSection = (
+        headerText.includes('managerial career') ||
+        headerText.includes('managing career') ||
+        headerText.includes('coaching career')
+      )
+      return
+    }
+
+    if (!inManagerialSection) return
+
+    const yearsEl = $(row).find('th.infobox-label')
+    // Manager infoboxes use td.infobox-data (colspan=3); footballer infoboxes use td.infobox-data-a/b/c
+    const clubEl = $(row).find('td.infobox-data-a, td.infobox-data').first()
+    const appsEl = $(row).find('td.infobox-data-b')
+    const goalsEl = $(row).find('td.infobox-data-c')
+
+    if (!yearsEl.length || !clubEl.length) return
+
+    const yearsText = yearsEl.find('span').text().trim() || yearsEl.text().trim()
+    if (!yearsText || yearsText.toLowerCase() === 'years') return
+
+    const club = clubEl.text().trim()
+    if (!club || club.toLowerCase() === 'team') return
+
+    const years = normalizeYears(stripCitations(yearsText))
+    const apps = parseNumber(appsEl.text().trim())
+    const goals = parseNumber(goalsEl.text().trim())
+
+    stints.push({ sort_order: sortOrder++, years, club: club.trim(), apps, goals, stint_type: 'managerial' })
+  })
+
+  return { name, wikipedia_url: url, place_of_birth, born, stints }
+}
+
 function stripCitations(text: string): string {
   // Remove Wikipedia footnote markers: [1], [note 1], [a], etc.
   return text.replace(/\s*\[[^\]]*\]/g, '').trim()

@@ -1,10 +1,10 @@
 import { NavLink, Outlet } from 'react-router'
-import { Users, CalendarDays, Database } from 'lucide-react'
+import { Users, UserCog, Database } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const nav = [
   { to: '/footballers', label: 'Footballers', icon: Users },
-  { to: '/days', label: 'Schedule', icon: CalendarDays },
+  { to: '/managers', label: 'Managers', icon: UserCog },
   { to: '/database', label: 'Database', icon: Database },
 ]
 

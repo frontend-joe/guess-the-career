@@ -4,25 +4,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Day } from '@/api/days'
-import type { Footballer } from '@/api/footballers'
+
+interface Person {
+  id: number
+  name: string
+  subtitle?: string | null
+}
 
 interface Props {
   date: string
-  current: Day | null
-  footballers: Footballer[]
+  currentId: number | null
+  people: Person[]
+  label: string
   loading?: boolean
-  onAssign: (date: string, footballer_id: number | null) => Promise<void>
+  onAssign: (date: string, id: number | null) => Promise<void>
   onClose: () => void
 }
 
-export function DayAssignModal({ date, current, footballers, loading = false, onAssign, onClose }: Props) {
+export function DayAssignModal({ date, currentId, people, label, loading = false, onAssign, onClose }: Props) {
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<number | null>(current?.footballer_id ?? null)
+  const [selected, setSelected] = useState<number | null>(currentId)
   const [saving, setSaving] = useState(false)
 
-  const filtered = footballers.filter(f =>
-    f.name.toLowerCase().includes(search.toLowerCase())
+  const filtered = people.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase())
   )
 
   const formatted = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -42,7 +47,7 @@ export function DayAssignModal({ date, current, footballers, loading = false, on
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
         <DialogHeader>
-          <DialogTitle>Assign footballer</DialogTitle>
+          <DialogTitle>Assign {label.toLowerCase()}</DialogTitle>
           <p className="text-sm text-muted-foreground">{formatted}</p>
         </DialogHeader>
 
@@ -51,7 +56,7 @@ export function DayAssignModal({ date, current, footballers, loading = false, on
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search footballers…"
+            placeholder={`Search ${label.toLowerCase()}s…`}
             className="pl-9"
             autoFocus
           />
@@ -62,21 +67,21 @@ export function DayAssignModal({ date, current, footballers, loading = false, on
             <div className="py-4 text-center text-sm text-muted-foreground">Loading…</div>
           ) : filtered.length === 0 ? (
             <div className="py-4 text-center text-sm text-muted-foreground">
-              {search ? 'No results' : 'No unassigned footballers'}
+              {search ? 'No results' : `No unassigned ${label.toLowerCase()}s`}
             </div>
           ) : (
-            filtered.map(f => (
+            filtered.map(p => (
               <button
-                key={f.id}
-                onClick={() => setSelected(f.id === selected ? null : f.id)}
+                key={p.id}
+                onClick={() => setSelected(p.id === selected ? null : p.id)}
                 className={cn(
                   'w-full text-left px-3 py-2.5 text-sm transition-colors hover:bg-muted/50',
-                  selected === f.id && 'bg-primary/10 font-medium'
+                  selected === p.id && 'bg-primary/10 font-medium'
                 )}
               >
-                <span>{f.name}</span>
-                {f.nationality && (
-                  <span className="text-muted-foreground ml-2 text-xs">{f.nationality}</span>
+                <span>{p.name}</span>
+                {p.subtitle && (
+                  <span className="text-muted-foreground ml-2 text-xs">{p.subtitle}</span>
                 )}
               </button>
             ))

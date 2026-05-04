@@ -1,13 +1,41 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router'
-import { Menu, BarChart2, Shuffle, ChevronLeft, ChevronRight, X, Lightbulb } from 'lucide-react'
-import { getDays, type Day } from '@/api/days'
-import { getFootballers, getFootballer, type Footballer, type FootballerWithStints, type CareerStint } from '@/api/footballers'
+import { Home, BarChart2, Shuffle, ChevronLeft, ChevronRight, X, Lightbulb, Check } from 'lucide-react'
+import { getDays } from '@/api/days'
+import { getFootballers, getFootballer } from '@/api/footballers'
+import { getManagerDays } from '@/api/manager-days'
+import { getManagers, getManager } from '@/api/managers'
 
 type GuessState = 'playing' | 'won' | 'lost'
 
-const SOLVED_KEY = 'gtc_solved'
-const GIVEN_UP_KEY = 'gtc_given_up'
+interface GameStint {
+  id: number
+  years: string
+  club: string
+  apps: number | null
+  goals: number | null
+  stint_type: string
+}
+
+interface GamePerson {
+  id: number
+  name: string
+  stints: GameStint[]
+  nationality?: string | null
+  position?: string | null
+  place_of_birth?: string | null
+  born?: string | null
+}
+
+interface GameDay {
+  date: string
+  person_id: number | null
+}
+
+interface SearchPerson {
+  id: number
+  name: string
+}
 
 function loadSet(key: string): Set<number> {
   try {
@@ -22,45 +50,77 @@ function saveSet(key: string, set: Set<number>) {
   localStorage.setItem(key, JSON.stringify([...set]))
 }
 
-export function PlayPage() {
+function computeAge(born: string | null | undefined): number | null {
+  if (!born) return null
+  const ms = Date.now() - new Date(born).getTime()
+  const age = Math.floor(ms / (365.25 * 24 * 3600 * 1000))
+  return age > 0 ? age : null
+}
+
+interface Props {
+  mode: 'footballer' | 'manager'
+}
+
+export function PlayPage({ mode }: Props) {
+  const isFootballer = mode === 'footballer'
+  const SOLVED_KEY = isFootballer ? 'gtc_solved_f' : 'gtc_solved_m'
+  const GIVEN_UP_KEY = isFootballer ? 'gtc_given_up_f' : 'gtc_given_up_m'
+
   const [searchParams, setSearchParams] = useSearchParams()
-  const [schedule, setSchedule] = useState<Day[]>([])
+  const [schedule, setSchedule] = useState<GameDay[]>([])
   const [scheduleIndex, setScheduleIndex] = useState(0)
-  const [footballer, setFootballer] = useState<FootballerWithStints | null>(null)
+  const [person, setPerson] = useState<GamePerson | null>(null)
   const [loading, setLoading] = useState(true)
   const [revealedCount, setRevealedCount] = useState(1)
   const [guesses, setGuesses] = useState<string[]>([])
   const [guessState, setGuessState] = useState<GuessState>('playing')
   const [inputValue, setInputValue] = useState('')
-  const [suggestions, setSuggestions] = useState<Footballer[]>([])
+  const [suggestions, setSuggestions] = useState<SearchPerson[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const solvedRef = useRef<Set<number>>(loadSet(SOLVED_KEY))
   const givenUpRef = useRef<Set<number>>(loadSet(GIVEN_UP_KEY))
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const seniorStints = footballer?.stints.filter(s => s.stint_type === 'senior') ?? []
-  const intlStints = footballer?.stints.filter(s => s.stint_type === 'international') ?? []
-  const orderedStints = [...seniorStints, ...intlStints]
-  const totalStints = orderedStints.length
+  const seniorStints = isFootballer
+    ? (person?.stints.filter(s => s.stint_type === 'senior') ?? [])
+    : (person?.stints ?? [])
+  const intlStints = isFootballer
+    ? (person?.stints.filter(s => s.stint_type === 'international') ?? [])
+    : []
+
+  const totalStints = seniorStints.length + intlStints.length
   const revealedSenior = Math.min(revealedCount, seniorStints.length)
   const revealedIntl = Math.max(0, revealedCount - seniorStints.length)
 
-  const hasNationality = Boolean(footballer?.nationality)
-  const hasPosition = Boolean(footballer?.position)
-  const totalGuesses = totalStints + (hasNationality ? 1 : 0) + (hasPosition ? 1 : 0)
-  const nationalityRevealed = guessState !== 'playing' || revealedCount > totalStints
-  const positionRevealed = guessState !== 'playing' || revealedCount > totalStints + (hasNationality ? 1 : 0)
+  const clue1Value = isFootballer ? person?.nationality : person?.place_of_birth
+  const clue2Value = isFootballer ? person?.position : (computeAge(person?.born) ? `${computeAge(person?.born)} years old` : null)
+  const clue1Label = isFootballer ? 'Nationality' : 'Place of birth'
+  const clue2Label = isFootballer ? 'Position' : 'Age'
+
+  const hasClue1 = Boolean(clue1Value)
+  const hasClue2 = Boolean(clue2Value)
+  const totalGuesses = totalStints + (hasClue1 ? 1 : 0) + (hasClue2 ? 1 : 0)
+  const clue1Revealed = guessState !== 'playing' || revealedCount > totalStints
+  const clue2Revealed = guessState !== 'playing' || revealedCount > totalStints + (hasClue1 ? 1 : 0)
+
+  async function loadSchedule() {
+    const days = isFootballer ? await getDays() : await getManagerDays()
+    const assigned: GameDay[] = days
+      .filter(d => (isFootballer ? (d as any).footballer_id : (d as any).manager_id) !== null)
+      .map(d => ({
+        date: d.date,
+        person_id: isFootballer ? (d as any).footballer_id : (d as any).manager_id,
+      }))
+    setSchedule(assigned)
+    const n = parseInt(searchParams.get('n') ?? '1', 10)
+    const idx = Number.isFinite(n) ? Math.max(0, Math.min(n - 1, assigned.length - 1)) : 0
+    setScheduleIndex(idx)
+  }
 
   useEffect(() => {
-    getDays().then(days => {
-      const assigned = days.filter(d => d.footballer_id !== null)
-      setSchedule(assigned)
-      const n = parseInt(searchParams.get('n') ?? '1', 10)
-      const idx = Number.isFinite(n) ? Math.max(0, Math.min(n - 1, assigned.length - 1)) : 0
-      setScheduleIndex(idx)
-    })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    loadSchedule()
+  }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!schedule.length) return
@@ -70,7 +130,7 @@ export function PlayPage() {
   useEffect(() => {
     if (!schedule.length) return
     const day = schedule[scheduleIndex]
-    if (!day?.footballer_id) return
+    if (!day?.person_id) return
     setLoading(true)
     setRevealedCount(1)
     setGuesses([])
@@ -78,21 +138,29 @@ export function PlayPage() {
     setInputValue('')
     setSuggestions([])
     setShowDropdown(false)
-    getFootballer(day.footballer_id).then(f => {
-      setFootballer(f)
-      if (solvedRef.current.has(f.id)) setGuessState('won')
-      else if (givenUpRef.current.has(f.id)) setGuessState('lost')
+
+    const load = isFootballer
+      ? getFootballer(day.person_id).then(f => f as unknown as GamePerson)
+      : getManager(day.person_id).then(m => m as unknown as GamePerson)
+
+    load.then(p => {
+      setPerson(p)
+      if (solvedRef.current.has(p.id)) setGuessState('won')
+      else if (givenUpRef.current.has(p.id)) setGuessState('lost')
       setLoading(false)
     })
-  }, [scheduleIndex, schedule])
+  }, [scheduleIndex, schedule, mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSuggestions = useCallback((term: string) => {
     if (term.length < 2) { setSuggestions([]); setShowDropdown(false); return }
-    getFootballers({ search: term }).then(results => {
+    const search = isFootballer
+      ? getFootballers({ search: term })
+      : getManagers({ search: term })
+    search.then(results => {
       setSuggestions(results.slice(0, 8))
       setShowDropdown(results.length > 0)
     })
-  }, [])
+  }, [isFootballer])
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
@@ -109,8 +177,8 @@ export function PlayPage() {
     setSuggestions([])
     setShowDropdown(false)
 
-    if (name.toLowerCase().trim() === footballer!.name.toLowerCase().trim()) {
-      solvedRef.current.add(footballer!.id)
+    if (name.toLowerCase().trim() === person!.name.toLowerCase().trim()) {
+      solvedRef.current.add(person!.id)
       saveSet(SOLVED_KEY, solvedRef.current)
       setGuessState('won')
     } else if (newGuesses.length >= totalGuesses) {
@@ -132,12 +200,14 @@ export function PlayPage() {
     setScheduleIndex(Math.floor(Math.random() * schedule.length))
   }
 
+  const sectionLabel = isFootballer ? 'Senior Career' : 'Managerial Career'
+
   return (
     <div className="h-dvh flex flex-col bg-gray-100 w-full max-w-100 mx-auto font-sans">
       {/* Top bar */}
       <header className="bg-[#1a1a2e] flex items-center justify-between px-4 py-3 shrink-0">
-        <button className="text-white p-1">
-          <Menu size={22} />
+        <button className="text-white p-1" onClick={() => window.location.href = '/play'}>
+          <Home size={22} />
         </button>
         <h1 className="text-white font-bold text-sm tracking-[0.2em] uppercase">
           Guess the Career
@@ -151,16 +221,16 @@ export function PlayPage() {
       <div className="flex-1 overflow-y-auto min-h-0 p-3">
         {loading ? (
           <div className="text-center text-gray-400 py-12 text-sm">Loading...</div>
-        ) : !footballer ? (
-          <div className="text-center text-gray-400 py-12 text-sm">No footballer scheduled.</div>
+        ) : !person ? (
+          <div className="text-center text-gray-400 py-12 text-sm">No {isFootballer ? 'footballer' : 'manager'} scheduled.</div>
         ) : (
           <div className="bg-white rounded shadow-sm overflow-hidden">
             <table className="w-full border-collapse">
               <tbody>
                 <SectionHeader label="Personal information" />
-                <InfoRow label="Nationality" value={footballer.nationality} revealed={nationalityRevealed} />
-                <InfoRow label="Position" value={footballer.position} revealed={positionRevealed} />
-                <SectionHeader label="Senior Career" />
+                <InfoRow label={clue1Label} value={clue1Value ?? null} revealed={clue1Revealed} />
+                <InfoRow label={clue2Label} value={clue2Value ?? null} revealed={clue2Revealed} />
+                <SectionHeader label={sectionLabel} />
                 <ColHeaders />
                 {seniorStints.map((stint, i) => (
                   <StintRow
@@ -190,11 +260,10 @@ export function PlayPage() {
 
       {/* Bottom panel */}
       <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-2">
-        {/* Previous guesses as chips */}
         {guesses.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {guesses.map((g, i) => {
-              const correct = g.toLowerCase().trim() === footballer?.name.toLowerCase().trim()
+              const correct = g.toLowerCase().trim() === person?.name.toLowerCase().trim()
               return (
                 <span
                   key={i}
@@ -207,19 +276,17 @@ export function PlayPage() {
           </div>
         )}
 
-        {/* Status messages */}
         {guessState === 'won' && (
-          <div className="text-green-400 text-sm font-semibold text-center mb-2">
-            ✓ Correct! It was {footballer?.name}
+          <div className="text-green-400 text-sm font-semibold text-center mb-2 flex items-center justify-center gap-1">
+            <Check size={14} />Correct! It was {person?.name}
           </div>
         )}
         {guessState === 'lost' && (
           <div className="text-red-400 text-sm font-semibold text-center mb-2">
-            It was {footballer?.name}
+            It was {person?.name}
           </div>
         )}
 
-        {/* Guess input */}
         {guessState === 'playing' && (
           <div className="flex mb-1">
             <button
@@ -232,7 +299,7 @@ export function PlayPage() {
             </button>
             <button
               onClick={() => {
-                givenUpRef.current.add(footballer!.id)
+                givenUpRef.current.add(person!.id)
                 saveSet(GIVEN_UP_KEY, givenUpRef.current)
                 setGuessState('lost')
               }}
@@ -271,7 +338,6 @@ export function PlayPage() {
           </div>
         )}
 
-        {/* Navigation footer */}
         <div className="flex items-center justify-between pt-1">
           <button
             onClick={handlePrevious}
@@ -341,7 +407,7 @@ function ColHeaders() {
   )
 }
 
-function StintRow({ stint, revealed }: { stint: CareerStint; revealed: boolean }) {
+function StintRow({ stint, revealed }: { stint: GameStint; revealed: boolean }) {
   if (revealed) {
     return (
       <tr className="border-b border-gray-200">
