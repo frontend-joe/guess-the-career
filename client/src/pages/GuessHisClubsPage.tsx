@@ -79,13 +79,11 @@ export function GuessHisClubsPage() {
 
     const normalised = clubName.toLowerCase().trim()
 
-    // Already guessed
     if (round.correctClubs.some(c => c.toLowerCase() === normalised)) {
       inputRef.current?.focus()
       return
     }
 
-    // Check against this footballer's clubs
     const matched = round.allClubs.find(c => c.toLowerCase() === normalised)
     if (!matched) {
       inputRef.current?.focus()
@@ -160,8 +158,8 @@ export function GuessHisClubsPage() {
         )}
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50">
+      {/* Scrollable area */}
+      <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
         {loading && (
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">
             Loading session…
@@ -190,20 +188,24 @@ export function GuessHisClubsPage() {
         )}
 
         {!loading && !error && !isGameOver && currentRound && (
-          <RoundView round={currentRound} />
+          <div className="flex flex-col items-center px-3 pt-6 pb-4 gap-5 mt-auto">
+            <FootballerCard round={currentRound} />
+            <ClubReveal round={currentRound} />
+          </div>
         )}
       </div>
 
       {/* Bottom panel */}
       {!loading && !error && !isGameOver && currentRound && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
-          {/* Correct club chips */}
+
+          {/* Stacked correct club chips */}
           {currentRound.correctClubs.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               {currentRound.correctClubs.map(club => (
                 <span
                   key={club}
-                  className="flex items-center gap-1 bg-green-600 text-white text-xs font-semibold px-2 py-1 rounded-full"
+                  className="flex items-center gap-1 bg-green-500/20 text-green-400 text-xs font-semibold px-2.5 py-1 rounded-full"
                 >
                   <Check size={11} />
                   {club}
@@ -212,7 +214,7 @@ export function GuessHisClubsPage() {
             </div>
           )}
 
-          {/* Required count */}
+          {/* Status text */}
           <p className="text-white/50 text-xs mb-2">
             {isRoundDone
               ? currentRound.state === 'cleared'
@@ -221,7 +223,7 @@ export function GuessHisClubsPage() {
               : `${currentRound.correctClubs.length} / ${currentRound.required} required`}
           </p>
 
-          {/* Input row */}
+          {/* Input */}
           {!isRoundDone && (
             <div className="relative mb-3">
               <input
@@ -231,7 +233,8 @@ export function GuessHisClubsPage() {
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a club name…"
-                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none" style={{ fontSize: '16px' }}
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
+                style={{ fontSize: '16px' }}
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
@@ -274,7 +277,7 @@ export function GuessHisClubsPage() {
             )}
             {isRoundDone && isLastRound && (
               <button
-                onClick={() => {/* isGameOver triggers automatically */}}
+                onClick={() => {}}
                 className="flex-1 flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-2 rounded-lg opacity-50 cursor-default"
               >
                 Game Over
@@ -287,11 +290,8 @@ export function GuessHisClubsPage() {
   )
 }
 
-function RoundView({ round }: { round: RoundResult }) {
+function FootballerCard({ round }: { round: RoundResult }) {
   const [photoUrl, setPhotoUrl] = useState<string | null | false>(null)
-  const missedClubs = round.state !== 'playing'
-    ? round.allClubs.filter(c => !round.correctClubs.some(g => g.toLowerCase() === c.toLowerCase()))
-    : []
 
   useEffect(() => {
     setPhotoUrl(null)
@@ -304,56 +304,62 @@ function RoundView({ round }: { round: RoundResult }) {
   }, [round.footballerId])
 
   return (
-    <div className="flex flex-col items-center px-4 py-8 gap-6">
-      {/* Footballer name */}
-      <div className="text-center">
-        {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt={round.footballerName}
-            className="w-24 h-24 rounded-full object-cover object-top mx-auto mb-3 border-2 border-gray-200"
-          />
-        ) : photoUrl === false ? (
-          <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center mx-auto mb-3 border-2 border-gray-200">
-            <span className="text-3xl text-gray-400 font-bold select-none">
-              {round.footballerName.charAt(0)}
-            </span>
-          </div>
-        ) : (
-          <div className="w-24 h-24 rounded-full bg-gray-100 animate-pulse mx-auto mb-3" />
-        )}
-        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Name the clubs of</p>
-        <h2 className="text-2xl font-bold text-gray-900">{round.footballerName}</h2>
-        <p className="text-xs text-gray-400 mt-1">{round.allClubs.length} clubs</p>
-        <p className="text-lg font-bold text-gray-900 mt-2">Guess {round.required} to clear</p>
-      </div>
-
-      {/* Club reveal (shown after round ends) */}
-      {round.state !== 'playing' && (
-        <div className="w-full">
-          <p className="text-xs text-gray-400 uppercase tracking-widest mb-3 text-center">All clubs</p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {round.correctClubs.map(club => (
-              <span
-                key={club}
-                className="flex items-center gap-1 bg-green-100 text-green-800 text-sm font-semibold px-3 py-1.5 rounded-full border border-green-200"
-              >
-                <Check size={12} />
-                {club}
-              </span>
-            ))}
-            {missedClubs.map(club => (
-              <span
-                key={club}
-                className="flex items-center gap-1 bg-gray-100 text-gray-500 text-sm px-3 py-1.5 rounded-full border border-gray-200"
-              >
-                <X size={12} />
-                {club}
-              </span>
-            ))}
-          </div>
+    <div className="flex flex-col items-center text-center gap-2">
+      {photoUrl ? (
+        <img
+          src={photoUrl}
+          alt={round.footballerName}
+          className="w-20 h-20 rounded-full object-cover object-top border-2 border-gray-200"
+        />
+      ) : photoUrl === false ? (
+        <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
+          <span className="text-gray-400 text-3xl font-bold select-none">
+            {round.footballerName.charAt(0)}
+          </span>
         </div>
+      ) : (
+        <div className="w-20 h-20 rounded-full bg-gray-200 animate-pulse" />
       )}
+      <div>
+        <p className="text-gray-400 text-xs uppercase tracking-widest leading-none mb-0.5">Name the clubs of</p>
+        <p className="text-gray-900 font-bold text-lg leading-tight">{round.footballerName}</p>
+        <p className="text-gray-400 text-xs mt-0.5">{round.allClubs.length} clubs</p>
+        <p className="text-gray-900 font-bold text-base mt-1">Guess {round.required} to clear</p>
+      </div>
+    </div>
+  )
+}
+
+function ClubReveal({ round }: { round: RoundResult }) {
+  if (round.state === 'playing') return null
+
+  const missedClubs = round.allClubs.filter(
+    c => !round.correctClubs.some(g => g.toLowerCase() === c.toLowerCase())
+  )
+
+  return (
+    <div className="w-full">
+      <p className="text-xs text-gray-400 uppercase tracking-widest mb-3 text-center">All clubs</p>
+      <div className="flex flex-wrap gap-2 justify-center">
+        {round.correctClubs.map(club => (
+          <span
+            key={club}
+            className="flex items-center gap-1 bg-green-100 text-green-800 text-sm font-semibold px-3 py-1.5 rounded-full"
+          >
+            <Check size={12} />
+            {club}
+          </span>
+        ))}
+        {missedClubs.map(club => (
+          <span
+            key={club}
+            className="flex items-center gap-1 bg-gray-100 text-gray-500 text-sm px-3 py-1.5 rounded-full border border-gray-200"
+          >
+            <X size={12} />
+            {club}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }

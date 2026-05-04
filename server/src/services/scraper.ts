@@ -153,7 +153,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     const yearsText = yearsEl.find('span').text().trim() || yearsEl.text().trim()
     if (!yearsText || yearsText.toLowerCase() === 'years') return
 
-    const club = clubEl.text().trim()
+    const club = clubEl.clone().find('style, script').remove().end().text().trim()
     if (!club || club.toLowerCase() === 'team') return
 
     const years = normalizeYears(stripCitations(yearsText))
@@ -277,7 +277,7 @@ export async function scrapeManagerWikipedia(url: string): Promise<ScrapeManager
     const yearsText = yearsEl.find('span').text().trim() || yearsEl.text().trim()
     if (!yearsText || yearsText.toLowerCase() === 'years') return
 
-    const club = clubEl.text().trim()
+    const club = clubEl.clone().find('style, script').remove().end().text().trim()
     if (!club || club.toLowerCase() === 'team') return
 
     const years = normalizeYears(stripCitations(yearsText))

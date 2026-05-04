@@ -1,7 +1,5 @@
 import { Hono } from 'hono'
-import { sql, inArray } from 'drizzle-orm'
-import { db } from '../db/client.ts'
-import { footballers, career_stints } from '../db/schema.ts'
+import { sqlite } from '../db/client.ts'
 
 export const guessHisClubsRouter = new Hono()
 
@@ -22,47 +20,38 @@ function requiredGuesses(clubCount: number): number {
 
 // GET /api/guess-his-clubs/session
 // Returns 10 random footballers with 4+ distinct senior clubs (loans included, normalised)
-guessHisClubsRouter.get('/session', async (c) => {
-  // Find footballer IDs with 4+ senior stints (counting loans)
-  const eligible = await db
-    .select({ footballer_id: career_stints.footballer_id })
-    .from(career_stints)
-    .where(sql`${career_stints.stint_type} = 'senior'`)
-    .groupBy(career_stints.footballer_id)
-    .having(sql`COUNT(*) >= 4`)
+guessHisClubsRouter.get('/session', (c) => {
+  // Subquery avoids passing hundreds of IDs as SQL parameters (SQLite limit: 999 variables).
+  // HAVING uses the same normalisation as the app so multi-spell duplicates don't inflate the count.
+  const selected = sqlite.prepare(`
+    SELECT f.id, f.name, f.wikipedia_url
+    FROM footballers f
+    WHERE f.id IN (
+      SELECT footballer_id
+      FROM career_stints
+      WHERE stint_type = 'senior'
+      GROUP BY footballer_id
+      HAVING COUNT(DISTINCT LOWER(TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')))) >= 4
+    )
+    ORDER BY RANDOM()
+    LIMIT 10
+  `).all() as { id: number; name: string; wikipedia_url: string }[]
 
-  const eligibleIds = eligible.map(r => r.footballer_id)
-
-  if (eligibleIds.length < 10) {
+  if (selected.length < 10) {
     return c.json({ error: 'Not enough eligible footballers' }, 422)
   }
 
-  // Pick 10 at random
-  const selected = await db
-    .select({ id: footballers.id, name: footballers.name, wikipedia_url: footballers.wikipedia_url })
-    .from(footballers)
-    .where(inArray(footballers.id, eligibleIds))
-    .orderBy(sql`RANDOM()`)
-    .limit(10)
-
+  const placeholders = selected.map(() => '?').join(', ')
   const selectedIds = selected.map(f => f.id)
 
-  // Fetch all senior stints for the selected footballers
-  const stints = await db
-    .select({
-      footballer_id: career_stints.footballer_id,
-      sort_order: career_stints.sort_order,
-      years: career_stints.years,
-      club: career_stints.club,
-    })
-    .from(career_stints)
-    .where(
-      sql`${career_stints.footballer_id} IN (${sql.join(selectedIds.map(id => sql`${id}`), sql`, `)})
-          AND ${career_stints.stint_type} = 'senior'`
-    )
-    .orderBy(career_stints.footballer_id, career_stints.sort_order)
+  const stints = sqlite.prepare(`
+    SELECT footballer_id, sort_order, club
+    FROM career_stints
+    WHERE footballer_id IN (${placeholders})
+      AND stint_type = 'senior'
+    ORDER BY footballer_id, sort_order
+  `).all(...selectedIds) as { footballer_id: number; sort_order: number; club: string }[]
 
-  // Group stints by footballer
   const stintMap = new Map<number, typeof stints>()
   for (const stint of stints) {
     const arr = stintMap.get(stint.footballer_id) ?? []
@@ -71,8 +60,15 @@ guessHisClubsRouter.get('/session', async (c) => {
   }
 
   const result = selected.map(f => {
-    const rawStints = stintMap.get(f.id) ?? []
-    const clubs = rawStints.map(s => normalizeClubName(s.club))
+    const seen = new Set<string>()
+    const clubs = (stintMap.get(f.id) ?? [])
+      .map(s => normalizeClubName(s.club))
+      .filter(c => {
+        const key = c.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
     return {
       id: f.id,
       name: f.name,
