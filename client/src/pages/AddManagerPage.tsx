@@ -176,7 +176,7 @@ export function AddManagerPage() {
                 <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
                   Managerial career ({stints.length} stint{stints.length !== 1 ? 's' : ''})
                 </h2>
-                <CareerTable stints={stints} editable onChange={setStints} />
+                <CareerTable stints={stints} editable onChange={s => setStints(s as EditableStint[])} />
               </div>
 
               <div className="flex justify-end gap-2">

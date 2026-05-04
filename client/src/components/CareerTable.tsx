@@ -38,7 +38,8 @@ export function CareerTable({ stints, editable = false, onChange }: Props) {
   }
 
   function addRow() {
-    onChange?.([...stints, { sort_order: stints.length, years: '', club: '', apps: null, goals: null, stint_type: 'senior' as const }])
+    const defaultType = stints[0]?.stint_type ?? 'senior'
+    onChange?.([...stints, { sort_order: stints.length, years: '', club: '', apps: null, goals: null, stint_type: defaultType }])
   }
 
   function editingValue(index: number, field: keyof Stint): string {

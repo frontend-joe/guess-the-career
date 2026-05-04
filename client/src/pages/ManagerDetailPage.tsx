@@ -213,7 +213,7 @@ export function ManagerDetailPage() {
         <CareerTable
           stints={stints}
           editable={editingCareer}
-          onChange={setStints}
+          onChange={s => setStints(s as Stint[])}
         />
       </div>
     </div>
