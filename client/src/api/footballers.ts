@@ -117,6 +117,11 @@ export async function deleteFootballer(id: number): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete footballer')
 }
 
+export async function deleteAllFootballers(): Promise<void> {
+  const res = await fetch('/api/footballers', { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to delete all footballers')
+}
+
 export async function getDuplicates(): Promise<Footballer[][]> {
   const res = await fetch('/api/footballers/duplicates')
   if (!res.ok) throw new Error('Failed to fetch duplicates')

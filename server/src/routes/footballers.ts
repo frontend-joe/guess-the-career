@@ -207,6 +207,12 @@ footballersRouter.get('/rescrape-all', async (c) => {
   })
 })
 
+// DELETE /api/footballers — delete all footballers (cascades to stints; days set null via schema)
+footballersRouter.delete('/', async (c) => {
+  await db.delete(footballers)
+  return c.json({ ok: true })
+})
+
 // GET /api/footballers/:id
 footballersRouter.get('/:id', async (c) => {
   const id = parseInt(c.req.param('id'))

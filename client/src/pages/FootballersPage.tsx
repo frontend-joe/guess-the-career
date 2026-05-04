@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { getFootballers, deleteFootballer, getDuplicates, type Footballer } from '@/api/footballers'
+import { getFootballers, deleteFootballer, getDuplicates, deleteAllFootballers, type Footballer } from '@/api/footballers'
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -234,6 +234,8 @@ export function FootballersPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [rescrapeOpen, setRescrapeOpen] = useState(false)
   const [dupesOpen, setDupesOpen] = useState(false)
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
 
   const debouncedSearch = useDebounce(search, 250)
 
@@ -274,6 +276,17 @@ export function FootballersPage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setDeleteAllConfirm(true)}
+            disabled={deletingAll}
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Delete all</span>
+            <span className="sm:hidden">Delete</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setDupesOpen(true)}>
             <Copy className="h-4 w-4 mr-1.5" />
             <span className="hidden sm:inline">Duplicates</span>
@@ -303,6 +316,28 @@ export function FootballersPage() {
       </div>
 
       {error && <p className="text-destructive text-sm mb-4">{error}</p>}
+
+      {deleteAllConfirm && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+          <span className="text-destructive">Delete all {footballers.length} footballers? This cannot be undone.</span>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setDeleteAllConfirm(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deletingAll}
+              onClick={async () => {
+                setDeletingAll(true)
+                try { await deleteAllFootballers(); await load() }
+                finally { setDeletingAll(false); setDeleteAllConfirm(false) }
+              }}
+            >
+              {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Delete all
+            </Button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-sm text-muted-foreground py-8 text-center">Loading…</div>
