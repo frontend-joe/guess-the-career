@@ -309,16 +309,16 @@ function FootballerCard({ round }: { round: RoundResult }) {
         <img
           src={photoUrl}
           alt={round.footballerName}
-          className="w-20 h-20 rounded-full object-cover object-top border-2 border-gray-200"
+          className="w-24 h-24 rounded-full object-cover object-top border-2 border-gray-200"
         />
       ) : photoUrl === false ? (
-        <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
+        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
           <span className="text-gray-400 text-3xl font-bold select-none">
             {round.footballerName.charAt(0)}
           </span>
         </div>
       ) : (
-        <div className="w-20 h-20 rounded-full bg-gray-200 animate-pulse" />
+        <div className="w-24 h-24 rounded-full bg-gray-200 animate-pulse" />
       )}
       <div>
         <p className="text-gray-400 text-xs uppercase tracking-widest leading-none mb-0.5">Name the clubs of</p>
