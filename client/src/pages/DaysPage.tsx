@@ -253,8 +253,9 @@ export function DaysPage() {
       {selectedDate && (
         <DayAssignModal
           date={selectedDate}
-          current={selectedDay}
-          footballers={modalFootballers}
+          currentId={selectedDay?.footballer_id ?? null}
+          people={modalFootballers}
+          label="Footballer"
           loading={loadingModal}
           onAssign={handleAssign}
           onClose={() => setSelectedDate(null)}

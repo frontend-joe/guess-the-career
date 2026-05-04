@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { CareerStint } from '@/api/footballers'
 
-type Stint = Omit<CareerStint, 'id' | 'footballer_id'>
+type Stint = Omit<CareerStint, 'id' | 'footballer_id' | 'stint_type'> & { stint_type: string }
 
 interface Props {
   stints: Stint[]
