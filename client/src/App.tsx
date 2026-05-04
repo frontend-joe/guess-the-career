@@ -4,6 +4,7 @@ import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
 import { FootballerDetailPage } from '@/pages/FootballerDetailPage'
 import { DaysPage } from '@/pages/DaysPage'
+import { DatabasePage } from '@/pages/DatabasePage'
 import { PlayPage } from '@/pages/PlayPage'
 
 const router = createBrowserRouter([
@@ -17,6 +18,7 @@ const router = createBrowserRouter([
       { path: 'footballers/add', element: <AddFootballerPage /> },
       { path: 'footballers/:id', element: <FootballerDetailPage /> },
       { path: 'days', element: <DaysPage /> },
+      { path: 'database', element: <DatabasePage /> },
     ],
   },
 ])

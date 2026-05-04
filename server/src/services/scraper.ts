@@ -160,8 +160,10 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     const apps = parseNumber(appsEl.text().trim())
     const goals = parseNumber(goalsEl.text().trim())
 
-    // Strip loan arrows from club name
-    const cleanClub = club.replace(/^\s*→\s*/, '').trim()
+    const isLoan = /^\s*→/.test(club)
+    const cleanClub = isLoan
+      ? `→ ${club.replace(/^\s*→\s*/, '').trim()} (loan)`
+      : club.trim()
 
     stints.push({ sort_order: sortOrder++, years, club: cleanClub, apps, goals, stint_type: currentSection })
   })

@@ -8,7 +8,7 @@ import * as schema from './schema.ts'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const dbPath = process.env.DATABASE_PATH ?? './data/db.sqlite'
-const sqlite = new Database(dbPath)
+export const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
 

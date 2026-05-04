@@ -148,7 +148,7 @@ export function PlayPage() {
       </header>
 
       {/* Scrollable career table */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto min-h-0 p-3">
         {loading ? (
           <div className="text-center text-gray-400 py-12 text-sm">Loading...</div>
         ) : !footballer ? (
@@ -266,7 +266,7 @@ export function PlayPage() {
               onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
               onFocus={() => { if (suggestions.length > 0) setShowDropdown(true) }}
               placeholder={`Guess ${guesses.length + 1} of ${totalGuesses}`}
-              className="w-full bg-[#2a2a4e] text-white placeholder-gray-400 rounded px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full bg-[#2a2a4e] text-white placeholder-gray-400 rounded px-3 py-2.5 text-base outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
         )}

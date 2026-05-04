@@ -5,6 +5,7 @@ import { logger } from 'hono/logger'
 import { runMigrations } from './db/client.ts'
 import { footballersRouter } from './routes/footballers.ts'
 import { daysRouter } from './routes/days.ts'
+import { adminRouter } from './routes/admin.ts'
 
 runMigrations()
 
@@ -15,6 +16,7 @@ app.use('*', cors({ origin: process.env.CLIENT_URL ?? '*' }))
 
 app.route('/api/footballers', footballersRouter)
 app.route('/api/days', daysRouter)
+app.route('/api/admin', adminRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
