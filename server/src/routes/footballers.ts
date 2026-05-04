@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { and, eq, like, sql, notInArray, isNotNull } from 'drizzle-orm'
+import { and, eq, sql, notInArray, isNotNull } from 'drizzle-orm'
 import { db } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia } from '../services/scraper.ts'
@@ -29,7 +29,10 @@ footballersRouter.get('/', async (c) => {
 
   const conditions = []
 
-  if (search) conditions.push(like(footballers.name, `%${search}%`))
+  if (search) {
+    const normalized = search.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    conditions.push(sql`normalize(${footballers.name}) LIKE ${`%${normalized}%`}`)
+  }
 
   if (unassigned) {
     // Build the set of assigned footballer IDs to exclude
@@ -97,6 +100,17 @@ footballersRouter.post(
   ),
   async (c) => {
     const body = c.req.valid('json')
+
+    // Reject if a player with the same name already exists (case-insensitive)
+    const [existing] = await db
+      .select({ id: footballers.id })
+      .from(footballers)
+      .where(sql`LOWER(${footballers.name}) = LOWER(${body.name})`)
+      .limit(1)
+    if (existing) {
+      return c.json({ error: 'already_exists', message: `${body.name} is already in the database` }, 409)
+    }
+
     let footballer
     try {
       ;[footballer] = await db
@@ -124,6 +138,20 @@ footballersRouter.post(
     return c.json(footballer, 201)
   }
 )
+
+// GET /api/footballers/duplicates — returns groups of players sharing the same name (case-insensitive)
+footballersRouter.get('/duplicates', async (c) => {
+  const all = await db.select().from(footballers).orderBy(footballers.name)
+  const groups = new Map<string, typeof all>()
+  for (const f of all) {
+    const key = f.name.toLowerCase().trim()
+    const group = groups.get(key) ?? []
+    group.push(f)
+    groups.set(key, group)
+  }
+  const dupes = [...groups.values()].filter(g => g.length > 1)
+  return c.json(dupes)
+})
 
 // GET /api/footballers/rescrape-all — SSE stream, rescapes every footballer in DB order
 footballersRouter.get('/rescrape-all', async (c) => {

@@ -12,6 +12,12 @@ export const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
 
+// Custom function for accent-insensitive search
+sqlite.function('normalize', (s: unknown) => {
+  if (typeof s !== 'string') return s
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+})
+
 export const db = drizzle(sqlite, { schema })
 
 export function runMigrations() {

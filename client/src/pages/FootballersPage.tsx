@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2 } from 'lucide-react'
+import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { getFootballers, deleteFootballer, type Footballer } from '@/api/footballers'
+import { getFootballers, deleteFootballer, getDuplicates, type Footballer } from '@/api/footballers'
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -154,6 +154,77 @@ function RescrapeModal({ open, onClose, onComplete }: { open: boolean; onClose: 
   )
 }
 
+function DuplicatesModal({ open, onClose, onDelete }: { open: boolean; onClose: () => void; onDelete: () => void }) {
+  const [groups, setGroups] = useState<Footballer[][]>([])
+  const [loading, setLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    getDuplicates().then(setGroups).finally(() => setLoading(false))
+  }, [open])
+
+  async function handleDelete(f: Footballer) {
+    setDeletingId(f.id)
+    try {
+      await deleteFootballer(f.id)
+      setGroups(prev =>
+        prev.map(g => g.filter(x => x.id !== f.id)).filter(g => g.length > 1)
+      )
+      onDelete()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3 shrink-0">
+          <DialogTitle>Duplicate players</DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto border-t min-h-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-10 gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-10">No duplicates found.</p>
+          ) : (
+            <div className="divide-y">
+              {groups.map((group, gi) => (
+                <div key={gi} className="px-4 py-3 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{group[0].name}</p>
+                  {group.map(f => (
+                    <div key={f.id} className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate text-muted-foreground">{f.wikipedia_url.split('/wiki/')[1]?.replace(/_/g, ' ')}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        disabled={deletingId === f.id}
+                        onClick={() => handleDelete(f)}
+                      >
+                        {deletingId === f.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3 shrink-0 border-t flex justify-end">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function FootballersPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -162,6 +233,7 @@ export function FootballersPage() {
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [rescrapeOpen, setRescrapeOpen] = useState(false)
+  const [dupesOpen, setDupesOpen] = useState(false)
 
   const debouncedSearch = useDebounce(search, 250)
 
@@ -202,6 +274,11 @@ export function FootballersPage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => setDupesOpen(true)}>
+            <Copy className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Duplicates</span>
+            <span className="sm:hidden">Dupes</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setRescrapeOpen(true)}>
             <RefreshCw className="h-4 w-4 mr-1.5" />
             <span className="hidden sm:inline">Rescrape all</span>
@@ -298,6 +375,11 @@ export function FootballersPage() {
         </div>
       )}
 
+      <DuplicatesModal
+        open={dupesOpen}
+        onClose={() => setDupesOpen(false)}
+        onDelete={load}
+      />
       <RescrapeModal
         open={rescrapeOpen}
         onClose={() => setRescrapeOpen(false)}

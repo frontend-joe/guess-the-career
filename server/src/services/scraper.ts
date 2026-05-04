@@ -156,13 +156,14 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     const club = clubEl.text().trim()
     if (!club || club.toLowerCase() === 'team') return
 
-    const years = normalizeYears(yearsText)
+    const years = normalizeYears(stripCitations(yearsText))
     const apps = parseNumber(appsEl.text().trim())
     const goals = parseNumber(goalsEl.text().trim())
 
     const isLoan = /^\s*→/.test(club)
+    const strippedClub = club.replace(/^\s*→\s*/, '').trim()
     const cleanClub = isLoan
-      ? `→ ${club.replace(/^\s*→\s*/, '').trim()} (loan)`
+      ? `→ ${strippedClub}${/\(loan\)/i.test(strippedClub) ? '' : ' (loan)'}`
       : club.trim()
 
     stints.push({ sort_order: sortOrder++, years, club: cleanClub, apps, goals, stint_type: currentSection })
