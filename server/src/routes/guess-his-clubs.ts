@@ -10,11 +10,11 @@ function normalizeClubName(club: string): string {
 function requiredGuesses(clubCount: number): number {
   let min: number
   let max: number
-  if (clubCount <= 4) { min = 2; max = 3 }
-  else if (clubCount <= 7) { min = 2; max = 4 }
-  else if (clubCount === 8) { min = 3; max = 5 }
-  else if (clubCount <= 10) { min = 4; max = 6 }
-  else { min = 4; max = 6 }
+  if (clubCount <= 4) { min = 2; max = 2 }
+  else if (clubCount <= 7) { min = 2; max = 3 }
+  else if (clubCount === 8) { min = 3; max = 4 }
+  else if (clubCount <= 10) { min = 3; max = 5 }
+  else { min = 3; max = 5 }
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
