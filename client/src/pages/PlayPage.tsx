@@ -133,7 +133,7 @@ export function PlayPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 w-full max-w-100 mx-auto font-sans">
+    <div className="h-dvh flex flex-col bg-gray-100 w-full max-w-100 mx-auto font-sans">
       {/* Top bar */}
       <header className="bg-[#1a1a2e] flex items-center justify-between px-4 py-3 shrink-0">
         <button className="text-white p-1">
