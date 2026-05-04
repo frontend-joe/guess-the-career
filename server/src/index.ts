@@ -8,6 +8,8 @@ import { daysRouter } from './routes/days.ts'
 import { adminRouter } from './routes/admin.ts'
 import { managersRouter } from './routes/managers.ts'
 import { managerDaysRouter } from './routes/manager-days.ts'
+import { clubsRouter } from './routes/clubs.ts'
+import { guessHisClubsRouter } from './routes/guess-his-clubs.ts'
 
 runMigrations()
 
@@ -21,6 +23,8 @@ app.route('/api/days', daysRouter)
 app.route('/api/admin', adminRouter)
 app.route('/api/managers', managersRouter)
 app.route('/api/manager-days', managerDaysRouter)
+app.route('/api/clubs', clubsRouter)
+app.route('/api/guess-his-clubs', guessHisClubsRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 

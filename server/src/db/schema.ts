@@ -58,6 +58,13 @@ export const manager_days = sqliteTable('manager_days', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const clubs = sqliteTable('clubs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+})
+
+export type Club = typeof clubs.$inferSelect
+
 export type Footballer = typeof footballers.$inferSelect
 export type NewFootballer = typeof footballers.$inferInsert
 export type CareerStint = typeof career_stints.$inferSelect
