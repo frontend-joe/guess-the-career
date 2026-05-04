@@ -328,8 +328,15 @@ export function FootballersPage() {
               disabled={deletingAll}
               onClick={async () => {
                 setDeletingAll(true)
-                try { await deleteAllFootballers(); await load() }
-                finally { setDeletingAll(false); setDeleteAllConfirm(false) }
+                try {
+                  await deleteAllFootballers()
+                  await load()
+                  setDeleteAllConfirm(false)
+                } catch (e) {
+                  alert(e instanceof Error ? e.message : 'Failed to delete')
+                } finally {
+                  setDeletingAll(false)
+                }
               }}
             >
               {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}

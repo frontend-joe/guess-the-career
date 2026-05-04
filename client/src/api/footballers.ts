@@ -119,7 +119,10 @@ export async function deleteFootballer(id: number): Promise<void> {
 
 export async function deleteAllFootballers(): Promise<void> {
   const res = await fetch('/api/footballers', { method: 'DELETE' })
-  if (!res.ok) throw new Error('Failed to delete all footballers')
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error ?? json.message ?? 'Failed to delete all footballers')
+  }
 }
 
 export async function getDuplicates(): Promise<Footballer[][]> {

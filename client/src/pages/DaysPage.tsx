@@ -25,8 +25,7 @@ function addDays(dateStr: string, n: number): string {
   return d.toISOString().split('T')[0]
 }
 
-type AutoAssignState = 'idle' | 'loading' | 'confirming' | 'running'
-type AutoInfo = { count: number; startDate: string; endDate: string }
+type AutoAssignState = 'idle' | 'running'
 type ClearState = 'idle' | 'confirming' | 'running'
 
 export function DaysPage() {
@@ -41,7 +40,6 @@ export function DaysPage() {
 
   // Auto-assign state
   const [autoState, setAutoState] = useState<AutoAssignState>('idle')
-  const [autoInfo, setAutoInfo] = useState<AutoInfo | null>(null)
 
   // Clear schedule state
   const [clearState, setClearState] = useState<ClearState>('idle')
@@ -81,52 +79,30 @@ export function DaysPage() {
   }
 
   async function handleAutoAssignClick() {
-    setAutoState('loading')
+    setAutoState('running')
     try {
       const [unassigned, allDays] = await Promise.all([
         getFootballers({ unassigned: true }),
         getDays(),
       ])
-      if (!unassigned.length) {
-        setAutoState('idle')
-        return
+      if (!unassigned.length) return
+      // Fisher-Yates shuffle
+      for (let i = unassigned.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unassigned[i], unassigned[j]] = [unassigned[j], unassigned[i]]
       }
       const assigned = allDays.filter(d => d.footballer_id !== null)
       const earliestDate = assigned.length
         ? assigned.sort((a, b) => a.date.localeCompare(b.date))[0].date
         : new Date().toISOString().split('T')[0]
       const endDate = addDays(earliestDate, -1)
-      const startDate = addDays(endDate, -(unassigned.length - 1))
-      setAutoInfo({ count: unassigned.length, startDate, endDate })
-      setAutoState('confirming')
-    } catch {
-      setAutoState('idle')
-    }
-  }
-
-  async function handleAutoAssignConfirm() {
-    if (!autoInfo) return
-    setAutoState('running')
-    try {
-      const unassigned = await getFootballers({ unassigned: true })
-      // Fisher-Yates shuffle
-      for (let i = unassigned.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [unassigned[i], unassigned[j]] = [unassigned[j], unassigned[i]]
-      }
       for (let i = 0; i < unassigned.length; i++) {
-        await assignDay(addDays(autoInfo.startDate, i), unassigned[i].id)
+        await assignDay(addDays(endDate, -(unassigned.length - 1 - i)), unassigned[i].id)
       }
     } finally {
       setAutoState('idle')
-      setAutoInfo(null)
       await loadDays()
     }
-  }
-
-  function handleAutoAssignCancel() {
-    setAutoState('idle')
-    setAutoInfo(null)
   }
 
   async function handleClearConfirm() {
@@ -172,20 +148,13 @@ export function DaysPage() {
             </Button>
           )}
 
-          {/* Auto-assign button — only when month has no assignments */}
-          {autoState === 'idle' && clearState === 'idle' && monthIsEmpty && (
-            <Button variant="outline" size="sm" onClick={handleAutoAssignClick}>
+          {/* Auto-assign button */}
+          {autoState === 'idle' ? (
+            <Button variant="outline" size="sm" onClick={handleAutoAssignClick} disabled={clearState !== 'idle'}>
               <Wand2 className="h-3.5 w-3.5 mr-1.5" />
               Auto-assign
             </Button>
-          )}
-          {autoState === 'loading' && (
-            <Button variant="outline" size="sm" disabled>
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              Loading…
-            </Button>
-          )}
-          {autoState === 'running' && (
+          ) : (
             <Button variant="outline" size="sm" disabled>
               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
               Assigning…
@@ -204,19 +173,6 @@ export function DaysPage() {
           </Button>
         </div>
       </div>
-
-      {/* Confirmation banner */}
-      {autoState === 'confirming' && autoInfo && (
-        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950">
-          <span className="text-amber-900 dark:text-amber-100">
-            Assign <strong>{autoInfo.count}</strong> unassigned footballer{autoInfo.count !== 1 ? 's' : ''} to dates <strong>{autoInfo.startDate}</strong> → <strong>{autoInfo.endDate}</strong>?
-          </span>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" size="sm" onClick={handleAutoAssignCancel}>Cancel</Button>
-            <Button size="sm" onClick={handleAutoAssignConfirm}>Confirm</Button>
-          </div>
-        </div>
-      )}
 
       {/* Clear schedule confirmation banner */}
       {clearState === 'confirming' && (
