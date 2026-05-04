@@ -229,7 +229,7 @@ export function GuessHisClubsPage() {
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a club name…"
-                className="w-full bg-white text-gray-900 text-sm rounded-lg px-3 py-2 outline-none"
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none" style={{ fontSize: '16px' }}
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
