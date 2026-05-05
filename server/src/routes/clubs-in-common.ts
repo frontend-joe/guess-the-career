@@ -20,6 +20,62 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+type Pair = {
+  footballer1: { id: number; name: string; wikipedia_url: string }
+  footballer2: { id: number; name: string; wikipedia_url: string }
+  commonClubs: string[]
+  clubWikiUrls: Record<string, string>
+  required: number
+}
+
+function selectPairs(validPairs: Pair[], target: number): Pair[] {
+  const multiPairs = shuffle(validPairs.filter(p => p.commonClubs.length >= 2))
+  const singlePairs = shuffle(validPairs.filter(p => p.commonClubs.length === 1))
+
+  const usedIds = new Set<number>()
+  const selected: Pair[] = []
+
+  function tryAdd(pair: Pair): boolean {
+    if (usedIds.has(pair.footballer1.id) || usedIds.has(pair.footballer2.id)) return false
+    selected.push(pair)
+    usedIds.add(pair.footballer1.id)
+    usedIds.add(pair.footballer2.id)
+    return true
+  }
+
+  // Phase 1: fill up to 5 single-club pairs first to guarantee the easy rounds
+  const singleTarget = Math.min(5, singlePairs.length)
+  let singleUsed = 0
+  for (const pair of singlePairs) {
+    if (singleUsed >= singleTarget || selected.length >= target) break
+    if (tryAdd(pair)) singleUsed++
+  }
+
+  // Phase 2: fill remaining slots with multi-club pairs (no repeats)
+  for (const pair of multiPairs) {
+    if (selected.length >= target) break
+    tryAdd(pair)
+  }
+
+  // Phase 3: top up from leftover singles if multi didn't fill (no repeats)
+  const usedSet = new Set(selected)
+  for (const pair of singlePairs.filter(p => !usedSet.has(p))) {
+    if (selected.length >= target) break
+    tryAdd(pair)
+  }
+
+  // Phase 4: allow player repeats if we still can't fill (best effort)
+  if (selected.length < target) {
+    const usedSet2 = new Set(selected)
+    for (const pair of shuffle(validPairs.filter(p => !usedSet2.has(p)))) {
+      if (selected.length >= target) break
+      selected.push(pair)
+    }
+  }
+
+  return selected
+}
+
 // GET /api/clubs-in-common/session
 // Returns 10 pairs of footballers that share at least 1 senior club
 clubsInCommonRouter.get('/session', (c) => {
@@ -64,14 +120,6 @@ clubsInCommonRouter.get('/session', (c) => {
   }
 
   // Find all valid pairs with ≥ 1 common club
-  type Pair = {
-    footballer1: { id: number; name: string; wikipedia_url: string }
-    footballer2: { id: number; name: string; wikipedia_url: string }
-    commonClubs: string[]
-    clubWikiUrls: Record<string, string>
-    required: number
-  }
-
   const validPairs: Pair[] = []
 
   for (let i = 0; i < footballers.length; i++) {
@@ -107,6 +155,6 @@ clubsInCommonRouter.get('/session', (c) => {
     return c.json({ error: 'Not enough eligible footballer pairs' }, 422)
   }
 
-  const selected = shuffle(validPairs).slice(0, 10)
+  const selected = selectPairs(validPairs, 10)
   return c.json(selected)
 })

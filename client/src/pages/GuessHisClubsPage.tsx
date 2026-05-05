@@ -202,8 +202,8 @@ export function GuessHisClubsPage() {
       {!loading && !error && !showFinalScore && currentRound && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
 
-          {/* Stacked correct club chips */}
-          {currentRound.correctClubs.length > 0 && (
+          {/* Correct club chips + missed chips on give up */}
+          {(currentRound.correctClubs.length > 0 || currentRound.state === 'given_up') && (
             <div className="flex flex-wrap gap-2 mb-3">
               {currentRound.correctClubs.map(club => (
                 <span
@@ -214,6 +214,17 @@ export function GuessHisClubsPage() {
                   {club}
                 </span>
               ))}
+              {currentRound.state === 'given_up' && currentRound.allClubs
+                .filter(c => !currentRound.correctClubs.some(g => g.toLowerCase() === c.toLowerCase()))
+                .map(club => (
+                  <span
+                    key={club}
+                    className="flex items-center gap-1 bg-red-500/20 text-red-400 text-xs font-semibold px-2.5 py-1 rounded-full"
+                  >
+                    <X size={11} />
+                    {club}
+                  </span>
+                ))}
             </div>
           )}
 
@@ -301,10 +312,12 @@ function FootballerCard({ round }: { round: RoundResult }) {
     setPhotoUrl(null)
     const title = round.wikipediaUrl.split('/wiki/')[1]
     if (!title) return
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
+    const controller = new AbortController()
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
       .then(r => r.ok ? r.json() : null)
       .then(data => setPhotoUrl(data?.thumbnail?.source ?? false))
-      .catch(() => setPhotoUrl(false))
+      .catch(err => { if (err.name !== 'AbortError') setPhotoUrl(false) })
+    return () => controller.abort()
   }, [round.footballerId])
 
   return (
@@ -341,10 +354,12 @@ function ClubBadge({ name, wikipediaUrl, guessed }: { name: string; wikipediaUrl
     if (!wikipediaUrl) { setLogoUrl(false); return }
     const title = wikipediaUrl.split('/wiki/')[1]
     if (!title) { setLogoUrl(false); return }
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
+    const controller = new AbortController()
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
       .then(r => r.ok ? r.json() : null)
       .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
-      .catch(() => setLogoUrl(false))
+      .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
+    return () => controller.abort()
   }, [wikipediaUrl])
 
   const ring = guessed ? 'ring-2 ring-green-400' : 'ring-2 ring-red-400'

@@ -5,6 +5,27 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getAllClubs, deleteAllClubs, rebuildClubs, type Club } from '@/api/clubs'
 
+function ClubLogo({ wikipediaUrl }: { wikipediaUrl: string | null }) {
+  const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
+
+  useEffect(() => {
+    if (!wikipediaUrl) { setLogoUrl(false); return }
+    const title = wikipediaUrl.split('/wiki/')[1]
+    if (!title) { setLogoUrl(false); return }
+    const controller = new AbortController()
+    setLogoUrl(null)
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
+      .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
+    return () => controller.abort()
+  }, [wikipediaUrl])
+
+  if (logoUrl === null) return <div className="w-8 h-8 rounded bg-muted animate-pulse" />
+  if (logoUrl === false) return <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-muted-foreground text-xs">?</div>
+  return <img src={logoUrl} alt="" className="w-8 h-8 object-contain" />
+}
+
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
@@ -144,6 +165,7 @@ export function ClubsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">Logo</TableHead>
                   <TableHead>Club name</TableHead>
                   <TableHead className="text-muted-foreground">Wikipedia URL</TableHead>
                 </TableRow>
@@ -151,6 +173,9 @@ export function ClubsPage() {
               <TableBody>
                 {clubs.map((club) => (
                   <TableRow key={club.id}>
+                    <TableCell>
+                      <ClubLogo wikipediaUrl={club.wikipedia_url} />
+                    </TableCell>
                     <TableCell className="font-medium">{club.name}</TableCell>
                     <TableCell className="text-sm">
                       {club.wikipedia_url
