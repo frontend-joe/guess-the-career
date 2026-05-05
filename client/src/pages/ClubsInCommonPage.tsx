@@ -32,7 +32,7 @@ export function ClubsInCommonPage() {
       footballer1: { id: p.footballer1.id, name: p.footballer1.name, wikipediaUrl: p.footballer1.wikipedia_url },
       footballer2: { id: p.footballer2.id, name: p.footballer2.name, wikipediaUrl: p.footballer2.wikipedia_url },
       commonClubs: p.commonClubs,
-      clubWikiUrls: p.clubWikiUrls,
+      clubWikiUrls: p.clubWikiUrls ?? {},
       required: p.required,
       guessedClubs: [],
       state: 'playing' as RoundState,
@@ -374,7 +374,7 @@ function ClubBadge({ wikipediaUrl }: { wikipediaUrl: string | null }) {
   return <img src={logoUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
 }
 
-function ClubReveal({ round, clubWikiUrls }: { round: CicRoundResult; clubWikiUrls: Record<string, string> }) {
+function ClubReveal({ round, clubWikiUrls = {} }: { round: CicRoundResult; clubWikiUrls?: Record<string, string> }) {
   if (round.state === 'playing') return null
 
   const missedClubs = round.commonClubs.filter(

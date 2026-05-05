@@ -36,7 +36,7 @@ export function GuessHisClubsPage() {
       required: f.required,
       correctClubs: [],
       allClubs: f.clubs,
-      clubWikiUrls: f.clubWikiUrls,
+      clubWikiUrls: f.clubWikiUrls ?? {},
       state: 'playing' as RoundState,
     }))
   }
@@ -351,7 +351,7 @@ function ClubBadge({ wikipediaUrl }: { wikipediaUrl: string | null }) {
   return <img src={logoUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
 }
 
-function ClubReveal({ round, clubWikiUrls }: { round: RoundResult; clubWikiUrls: Record<string, string> }) {
+function ClubReveal({ round, clubWikiUrls = {} }: { round: RoundResult; clubWikiUrls?: Record<string, string> }) {
   if (round.state === 'playing') return null
 
   const missedClubs = round.allClubs.filter(
