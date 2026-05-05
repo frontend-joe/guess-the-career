@@ -82,7 +82,7 @@ export function WhoScoredMorePage() {
   useEffect(() => { loadSession() }, [])
 
   function handleGuess(guess: 'more' | 'less') {
-    if (status !== 'playing' || players.length === 0 || status === 'lobby') return
+    if (status !== 'playing' || players.length === 0) return
     const current = players[currentIndex]
     const challenger = players[currentIndex + 1]
     const correct =
@@ -105,7 +105,6 @@ export function WhoScoredMorePage() {
 
   const current = players[currentIndex]
   const challenger = players[currentIndex + 1]
-  const comparisonsTotal = players.length > 0 ? players.length - 1 : 10
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
