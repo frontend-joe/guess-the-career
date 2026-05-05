@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Home, Check, X, ChevronRight } from 'lucide-react'
+import { Home, Check, X, ChevronRight, Link2 } from 'lucide-react'
 import { getCicSession, searchClubs } from '@/api/clubs-in-common'
 import type { CicPair, ClubSuggestion } from '@/api/clubs-in-common'
 
@@ -336,8 +336,8 @@ function PairCard({ round }: { round: CicRoundResult }) {
           name={round.footballer1.name}
           wikipediaUrl={round.footballer1.wikipediaUrl}
         />
-        <div className="flex flex-col items-center shrink-0 gap-0.5">
-          <span className="text-gray-300 text-xl font-light">∩</span>
+        <div className="flex flex-col items-center shrink-0">
+          <Link2 size={18} className="text-gray-300" />
         </div>
         <PlayerPhoto
           id={round.footballer2.id}
@@ -370,17 +370,21 @@ function ClubBadge({ name, wikipediaUrl, guessed }: { name: string; wikipediaUrl
       .catch(() => setLogoUrl(false))
   }, [wikipediaUrl])
 
-  const ring = guessed ? 'ring-2 ring-green-400' : 'ring-1 ring-gray-200'
-  const fade = guessed ? '' : 'opacity-35 grayscale'
+  const ring = guessed ? 'ring-2 ring-green-400' : 'ring-2 ring-red-400'
 
   return (
-    <div
-      className={`w-14 h-14 rounded-xl bg-white flex items-center justify-center ${ring} ${fade}`}
-      title={name}
-    >
-      {logoUrl === null && <div className="w-8 h-8 rounded bg-gray-100 animate-pulse" />}
-      {logoUrl === false && <span className="text-sm font-bold text-gray-300">{name.charAt(0)}</span>}
-      {logoUrl && <img src={logoUrl} alt={name} className="w-11 h-11 object-contain p-0.5" />}
+    <div className="relative" title={name}>
+      <div className={`w-14 h-14 rounded-xl bg-white flex items-center justify-center ${ring}`}>
+        {logoUrl === null && <div className="w-8 h-8 rounded bg-gray-100 animate-pulse" />}
+        {logoUrl === false && <span className="text-sm font-bold text-gray-300">{name.charAt(0)}</span>}
+        {logoUrl && <img src={logoUrl} alt={name} className="w-11 h-11 object-contain p-0.5" />}
+      </div>
+      <div className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm ${guessed ? 'bg-green-500' : 'bg-red-500'}`}>
+        {guessed
+          ? <Check size={10} className="text-white" strokeWidth={3} />
+          : <X size={10} className="text-white" strokeWidth={3} />
+        }
+      </div>
     </div>
   )
 }
