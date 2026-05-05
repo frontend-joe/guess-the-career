@@ -1,13 +1,14 @@
-import { NavLink, Outlet } from 'react-router'
-import { Users, UserCog, Building2, Database } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { NavLink, Outlet } from "react-router";
+import { Users, UserCog, Building2, Database, Gamepad2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const nav = [
-  { to: '/footballers', label: 'Footballers', icon: Users },
-  { to: '/managers', label: 'Managers', icon: UserCog },
-  { to: '/clubs', label: 'Clubs', icon: Building2 },
-  { to: '/database', label: 'Database', icon: Database },
-]
+  { to: "/footballers", label: "Footballers", icon: Users },
+  { to: "/managers", label: "Managers", icon: UserCog },
+  { to: "/clubs", label: "Clubs", icon: Building2 },
+  { to: "/database", label: "Database", icon: Database },
+  { to: "/play", label: "Play", icon: Gamepad2 },
+];
 
 export function Layout() {
   return (
@@ -15,8 +16,12 @@ export function Layout() {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-56 border-r flex-col shrink-0">
         <div className="px-4 py-5 border-b">
-          <span className="font-semibold text-sm tracking-tight">Guess the Career</span>
-          <span className="block text-xs text-muted-foreground mt-0.5">Admin</span>
+          <span className="font-semibold text-sm tracking-tight">
+            Guess the Career
+          </span>
+          <span className="block text-xs text-muted-foreground mt-0.5">
+            Admin
+          </span>
         </div>
         <nav className="flex-1 p-2 space-y-0.5">
           {nav.map(({ to, label, icon: Icon }) => (
@@ -25,10 +30,10 @@ export function Layout() {
               to={to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
                   isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )
               }
             >
@@ -41,7 +46,9 @@ export function Layout() {
 
       {/* Mobile top bar */}
       <header className="md:hidden flex items-center border-b px-4 py-3 shrink-0">
-        <span className="font-semibold text-sm tracking-tight">Guess the Career</span>
+        <span className="font-semibold text-sm tracking-tight">
+          Guess the Career
+        </span>
         <span className="text-xs text-muted-foreground ml-2">Admin</span>
       </header>
 
@@ -58,8 +65,8 @@ export function Layout() {
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex-1 flex flex-col items-center justify-center gap-1 py-2 text-xs transition-colors',
-                isActive ? 'text-primary' : 'text-muted-foreground'
+                "flex-1 flex flex-col items-center justify-center gap-1 py-2 text-xs transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground",
               )
             }
           >
@@ -69,5 +76,5 @@ export function Layout() {
         ))}
       </nav>
     </div>
-  )
+  );
 }
