@@ -179,7 +179,12 @@ export function WhoScoredMorePage() {
 
             {!loading && !error && status !== 'won' && status !== 'lobby' && current && challenger && (
               <div className="flex-1 flex flex-col justify-center px-4 py-6 gap-4">
-                <PlayerCard player={current} goalsVisible={true} goalsStyle="neutral" />
+                <PlayerCard
+                  player={current}
+                  goalsVisible={true}
+                  goalsStyle="neutral"
+                  onClick={status === 'playing' ? () => handleGuess('less') : undefined}
+                />
                 <div className="flex items-center justify-center py-1">
                   <span className="text-gray-400 text-xs uppercase tracking-widest font-semibold">or</span>
                 </div>
@@ -187,6 +192,7 @@ export function WhoScoredMorePage() {
                   player={challenger}
                   goalsVisible={status !== 'playing'}
                   goalsStyle={status === 'correct' ? 'green' : status === 'wrong' ? 'red' : 'neutral'}
+                  onClick={status === 'playing' ? () => handleGuess('more') : undefined}
                 />
               </div>
             )}
@@ -248,10 +254,12 @@ function PlayerCard({
   player,
   goalsVisible,
   goalsStyle,
+  onClick,
 }: {
   player: WsmPlayer
   goalsVisible: boolean
   goalsStyle: 'neutral' | 'green' | 'red'
+  onClick?: () => void
 }) {
   const goalsColor =
     goalsStyle === 'green' ? 'text-green-500' :
@@ -259,7 +267,10 @@ function PlayerCard({
     'text-gray-900'
 
   return (
-    <div className="flex items-center gap-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 ${onClick ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}`}
+    >
       <PlayerAvatar
         id={player.id}
         name={player.name}
