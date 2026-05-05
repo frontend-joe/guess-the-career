@@ -13,6 +13,7 @@ const stintSchema = z.object({
   sort_order: z.number().int(),
   years: z.string(),
   club: z.string(),
+  club_wikipedia_url: z.string().nullable().optional(),
   apps: z.number().int().nullable(),
   goals: z.number().int().nullable(),
   stint_type: z.enum(['senior', 'international']).default('senior'),

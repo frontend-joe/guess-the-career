@@ -18,6 +18,7 @@ export const career_stints = sqliteTable('career_stints', {
   sort_order: integer('sort_order').notNull(),
   years: text('years').notNull(),
   club: text('club').notNull(),
+  club_wikipedia_url: text('club_wikipedia_url'),
   apps: integer('apps'),
   goals: integer('goals'),
   stint_type: text('stint_type').notNull().default('senior'),
@@ -61,6 +62,7 @@ export const manager_days = sqliteTable('manager_days', {
 export const clubs = sqliteTable('clubs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
+  wikipedia_url: text('wikipedia_url'),
 })
 
 export type Club = typeof clubs.$inferSelect

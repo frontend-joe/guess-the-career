@@ -7,6 +7,10 @@ function normalizeClubName(club: string): string {
   return club.replace(/^→\s*/, '').replace(/\s*\(loan\)\s*$/i, '').trim()
 }
 
+function isReserveTeam(club: string): boolean {
+  return / [BC]$/.test(club) || club === 'Bilbao Athletic'
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -36,15 +40,15 @@ clubsInCommonRouter.get('/session', (c) => {
   const placeholders = footballerIds.map(() => '?').join(', ')
 
   const stints = sqlite.prepare(`
-    SELECT footballer_id, club
+    SELECT footballer_id, club, club_wikipedia_url
     FROM career_stints
     WHERE footballer_id IN (${placeholders})
       AND stint_type = 'senior'
     ORDER BY footballer_id, sort_order
-  `).all(...footballerIds) as { footballer_id: number; club: string }[]
+  `).all(...footballerIds) as { footballer_id: number; club: string; club_wikipedia_url: string | null }[]
 
-  // Build normalised club set per footballer, preserving original casing of first occurrence
-  const clubMap = new Map<number, { canonical: Map<string, string> }>()
+  // Build normalised club set per footballer, preserving original casing + wiki URL of first occurrence
+  const clubMap = new Map<number, { canonical: Map<string, { name: string; url: string | null }> }>()
   for (const f of footballers) {
     clubMap.set(f.id, { canonical: new Map() })
   }
@@ -52,9 +56,10 @@ clubsInCommonRouter.get('/session', (c) => {
     const entry = clubMap.get(stint.footballer_id)
     if (!entry) continue
     const normalised = normalizeClubName(stint.club)
+    if (isReserveTeam(normalised)) continue
     const key = normalised.toLowerCase()
     if (!entry.canonical.has(key)) {
-      entry.canonical.set(key, normalised)
+      entry.canonical.set(key, { name: normalised, url: stint.club_wikipedia_url })
     }
   }
 
@@ -63,6 +68,7 @@ clubsInCommonRouter.get('/session', (c) => {
     footballer1: { id: number; name: string; wikipedia_url: string }
     footballer2: { id: number; name: string; wikipedia_url: string }
     commonClubs: string[]
+    clubWikiUrls: Record<string, string>
     required: number
   }
 
@@ -76,8 +82,13 @@ clubsInCommonRouter.get('/session', (c) => {
       const clubs2 = clubMap.get(f2.id)!.canonical
 
       const common: string[] = []
-      for (const [key, name] of clubs1) {
-        if (clubs2.has(key)) common.push(name)
+      const wikiUrls: Record<string, string> = {}
+      for (const [key, { name, url }] of clubs1) {
+        if (clubs2.has(key)) {
+          common.push(name)
+          const resolvedUrl = url ?? clubs2.get(key)!.url
+          if (resolvedUrl) wikiUrls[key] = resolvedUrl
+        }
       }
 
       if (common.length >= 1) {
@@ -85,6 +96,7 @@ clubsInCommonRouter.get('/session', (c) => {
           footballer1: f1,
           footballer2: f2,
           commonClubs: common,
+          clubWikiUrls: wikiUrls,
           required: common.length,
         })
       }

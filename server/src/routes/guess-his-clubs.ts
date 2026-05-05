@@ -7,6 +7,10 @@ function normalizeClubName(club: string): string {
   return club.replace(/^→\s*/, '').replace(/\s*\(loan\)\s*$/i, '').trim()
 }
 
+function isReserveTeam(club: string): boolean {
+  return / [BC]$/.test(club) || club === 'Bilbao Athletic'
+}
+
 function requiredGuesses(clubCount: number): number {
   let min: number
   let max: number
@@ -30,6 +34,9 @@ guessHisClubsRouter.get('/session', (c) => {
       SELECT footballer_id
       FROM career_stints
       WHERE stint_type = 'senior'
+        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% B'
+        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% C'
+        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) != 'Bilbao Athletic'
       GROUP BY footballer_id
       HAVING COUNT(DISTINCT LOWER(TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')))) >= 4
     )
@@ -45,12 +52,12 @@ guessHisClubsRouter.get('/session', (c) => {
   const selectedIds = selected.map(f => f.id)
 
   const stints = sqlite.prepare(`
-    SELECT footballer_id, sort_order, club
+    SELECT footballer_id, sort_order, club, club_wikipedia_url
     FROM career_stints
     WHERE footballer_id IN (${placeholders})
       AND stint_type = 'senior'
     ORDER BY footballer_id, sort_order
-  `).all(...selectedIds) as { footballer_id: number; sort_order: number; club: string }[]
+  `).all(...selectedIds) as { footballer_id: number; sort_order: number; club: string; club_wikipedia_url: string | null }[]
 
   const stintMap = new Map<number, typeof stints>()
   for (const stint of stints) {
@@ -61,19 +68,26 @@ guessHisClubsRouter.get('/session', (c) => {
 
   const result = selected.map(f => {
     const seen = new Set<string>()
+    const wikiUrls: Record<string, string> = {}
     const clubs = (stintMap.get(f.id) ?? [])
-      .map(s => normalizeClubName(s.club))
-      .filter(c => {
-        const key = c.toLowerCase()
+      .map(s => ({ name: normalizeClubName(s.club), url: s.club_wikipedia_url }))
+      .filter(({ name }) => !isReserveTeam(name))
+      .filter(({ name }) => {
+        const key = name.toLowerCase()
         if (seen.has(key)) return false
         seen.add(key)
         return true
+      })
+      .map(({ name, url }) => {
+        if (url) wikiUrls[name.toLowerCase()] = url
+        return name
       })
     return {
       id: f.id,
       name: f.name,
       wikipedia_url: f.wikipedia_url,
       clubs,
+      clubWikiUrls: wikiUrls,
       required: requiredGuesses(clubs.length),
     }
   })

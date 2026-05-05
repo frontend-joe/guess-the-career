@@ -9,6 +9,7 @@ interface CicRoundResult {
   footballer1: { id: number; name: string; wikipediaUrl: string }
   footballer2: { id: number; name: string; wikipediaUrl: string }
   commonClubs: string[]
+  clubWikiUrls: Record<string, string>
   required: number
   guessedClubs: string[]
   state: RoundState
@@ -31,6 +32,7 @@ export function ClubsInCommonPage() {
       footballer1: { id: p.footballer1.id, name: p.footballer1.name, wikipediaUrl: p.footballer1.wikipedia_url },
       footballer2: { id: p.footballer2.id, name: p.footballer2.name, wikipediaUrl: p.footballer2.wikipedia_url },
       commonClubs: p.commonClubs,
+      clubWikiUrls: p.clubWikiUrls,
       required: p.required,
       guessedClubs: [],
       state: 'playing' as RoundState,
@@ -189,7 +191,7 @@ export function ClubsInCommonPage() {
         {!loading && !error && !showFinalScore && currentRound && (
           <div className="flex flex-col items-center px-3 pt-6 pb-4 gap-5 mt-auto">
             <PairCard round={currentRound} />
-            <ClubReveal round={currentRound} />
+            <ClubReveal round={currentRound} clubWikiUrls={currentRound.clubWikiUrls} />
           </div>
         )}
       </div>
@@ -355,7 +357,24 @@ function PairCard({ round }: { round: CicRoundResult }) {
   )
 }
 
-function ClubReveal({ round }: { round: CicRoundResult }) {
+function ClubBadge({ wikipediaUrl }: { wikipediaUrl: string | null }) {
+  const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
+
+  useEffect(() => {
+    if (!wikipediaUrl) { setLogoUrl(false); return }
+    const title = wikipediaUrl.split('/wiki/')[1]
+    if (!title) { setLogoUrl(false); return }
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
+      .catch(() => setLogoUrl(false))
+  }, [wikipediaUrl])
+
+  if (!logoUrl) return null
+  return <img src={logoUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
+}
+
+function ClubReveal({ round, clubWikiUrls }: { round: CicRoundResult; clubWikiUrls: Record<string, string> }) {
   if (round.state === 'playing') return null
 
   const missedClubs = round.commonClubs.filter(
@@ -369,8 +388,9 @@ function ClubReveal({ round }: { round: CicRoundResult }) {
         {round.guessedClubs.map(club => (
           <span
             key={club}
-            className="flex items-center gap-1 bg-green-100 text-green-800 text-sm font-semibold px-3 py-1.5 rounded-full"
+            className="flex items-center gap-1.5 bg-green-100 text-green-800 text-sm font-semibold px-3 py-1.5 rounded-full"
           >
+            <ClubBadge wikipediaUrl={clubWikiUrls[club.toLowerCase()] ?? null} />
             <Check size={12} />
             {club}
           </span>
@@ -378,8 +398,9 @@ function ClubReveal({ round }: { round: CicRoundResult }) {
         {missedClubs.map(club => (
           <span
             key={club}
-            className="flex items-center gap-1 bg-gray-100 text-gray-500 text-sm px-3 py-1.5 rounded-full border border-gray-200"
+            className="flex items-center gap-1.5 bg-gray-100 text-gray-500 text-sm px-3 py-1.5 rounded-full border border-gray-200"
           >
+            <ClubBadge wikipediaUrl={clubWikiUrls[club.toLowerCase()] ?? null} />
             <X size={12} />
             {club}
           </span>

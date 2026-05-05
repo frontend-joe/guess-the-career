@@ -46,6 +46,7 @@ export interface ScrapeResult {
     sort_order: number
     years: string
     club: string
+    club_wikipedia_url: string | null
     apps: number | null
     goals: number | null
     stint_type: 'senior' | 'international'
@@ -174,6 +175,11 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     const club = stripCitations(clubEl.clone().find('style, script').remove().end().text().trim())
     if (!club || club.toLowerCase() === 'team') return
 
+    const clubHref = clubEl.find('a').first().attr('href')
+    const clubWikiUrl = clubHref && clubHref.startsWith('/wiki/')
+      ? `https://en.wikipedia.org${clubHref}`
+      : null
+
     const years = normalizeYears(stripCitations(yearsText))
     const apps = parseNumber(appsEl.text().trim())
     const goals = parseNumber(goalsEl.text().trim())
@@ -185,7 +191,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
       ? `→ ${baseName}${/\(loan\)/i.test(strippedClub) ? '' : ' (loan)'}`
       : baseName
 
-    stints.push({ sort_order: sortOrder++, years, club: cleanClub, apps, goals, stint_type: currentSection })
+    stints.push({ sort_order: sortOrder++, years, club: cleanClub, club_wikipedia_url: clubWikiUrl, apps, goals, stint_type: currentSection })
   })
 
   // Derive nationality from international career — highest priority.
@@ -311,6 +317,11 @@ export async function scrapeManagerWikipedia(url: string): Promise<ScrapeManager
 
 function normalizeClubAlias(club: string): string {
   return CLUB_ALIASES[club] ?? club
+}
+
+function stripReserveTeamSuffix(club: string): string {
+  // Strip " B" or " C" suffix (reserve/B-team/C-team notation e.g. "Barcelona B" → "Barcelona")
+  return club.replace(/ [BC]$/, '')
 }
 
 function stripCitations(text: string): string {

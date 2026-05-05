@@ -3,6 +3,7 @@ export interface GhcFootballer {
   name: string
   wikipedia_url: string
   clubs: string[]
+  clubWikiUrls: Record<string, string>
   required: number
 }
 

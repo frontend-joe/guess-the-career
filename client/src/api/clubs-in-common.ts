@@ -10,6 +10,7 @@ export interface CicPair {
   footballer1: CicFootballer
   footballer2: CicFootballer
   commonClubs: string[]
+  clubWikiUrls: Record<string, string>
   required: number
 }
 
