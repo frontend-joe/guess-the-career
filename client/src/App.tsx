@@ -8,6 +8,7 @@ import { ManagersPage } from '@/pages/ManagersPage'
 import { AddManagerPage } from '@/pages/AddManagerPage'
 import { ManagerDetailPage } from '@/pages/ManagerDetailPage'
 import { ManagerSchedulePage } from '@/pages/ManagerSchedulePage'
+import { ClubsPage } from '@/pages/ClubsPage'
 import { DatabasePage } from '@/pages/DatabasePage'
 import { PlayPage } from '@/pages/PlayPage'
 import { PlayHubPage } from '@/pages/PlayHubPage'
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: 'managers/add', element: <AddManagerPage /> },
       { path: 'managers/schedule', element: <ManagerSchedulePage /> },
       { path: 'managers/:id', element: <ManagerDetailPage /> },
+      { path: 'clubs', element: <ClubsPage /> },
       { path: 'database', element: <DatabasePage /> },
     ],
   },

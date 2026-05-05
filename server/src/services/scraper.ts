@@ -1,5 +1,17 @@
 import * as cheerio from 'cheerio'
 
+const CLUB_ALIASES: Record<string, string> = {
+  // Inter Milan
+  'Internazionale': 'Inter Milan',
+  'FC Internazionale': 'Inter Milan',
+  'FC Internazionale Milano': 'Inter Milan',
+  // AC Milan
+  'A.C. Milan': 'AC Milan',
+  'Milan': 'AC Milan',
+  // Real Zaragoza
+  'Zaragoza': 'Real Zaragoza',
+}
+
 const FOOTBALLING_NATIONS = new Set([
   'Brazil', 'Argentina', 'France', 'Germany', 'Italy', 'England', 'Spain', 'Portugal',
   'Netherlands', 'Belgium', 'Croatia', 'Uruguay', 'Colombia', 'Chile', 'Peru', 'Ecuador',
@@ -153,7 +165,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     const yearsText = yearsEl.find('span').text().trim() || yearsEl.text().trim()
     if (!yearsText || yearsText.toLowerCase() === 'years') return
 
-    const club = clubEl.clone().find('style, script').remove().end().text().trim()
+    const club = stripCitations(clubEl.clone().find('style, script').remove().end().text().trim())
     if (!club || club.toLowerCase() === 'team') return
 
     const years = normalizeYears(stripCitations(yearsText))
@@ -162,9 +174,10 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
 
     const isLoan = /^\s*→/.test(club)
     const strippedClub = club.replace(/^\s*→\s*/, '').trim()
+    const baseName = normalizeClubAlias(strippedClub.replace(/\s*\(loan\)\s*$/i, '').trim())
     const cleanClub = isLoan
-      ? `→ ${strippedClub}${/\(loan\)/i.test(strippedClub) ? '' : ' (loan)'}`
-      : club.trim()
+      ? `→ ${baseName}${/\(loan\)/i.test(strippedClub) ? '' : ' (loan)'}`
+      : baseName
 
     stints.push({ sort_order: sortOrder++, years, club: cleanClub, apps, goals, stint_type: currentSection })
   })
@@ -277,7 +290,7 @@ export async function scrapeManagerWikipedia(url: string): Promise<ScrapeManager
     const yearsText = yearsEl.find('span').text().trim() || yearsEl.text().trim()
     if (!yearsText || yearsText.toLowerCase() === 'years') return
 
-    const club = clubEl.clone().find('style, script').remove().end().text().trim()
+    const club = stripCitations(clubEl.clone().find('style, script').remove().end().text().trim())
     if (!club || club.toLowerCase() === 'team') return
 
     const years = normalizeYears(stripCitations(yearsText))
@@ -288,6 +301,10 @@ export async function scrapeManagerWikipedia(url: string): Promise<ScrapeManager
   })
 
   return { name, wikipedia_url: url, place_of_birth, born, stints }
+}
+
+function normalizeClubAlias(club: string): string {
+  return CLUB_ALIASES[club] ?? club
 }
 
 function stripCitations(text: string): string {
