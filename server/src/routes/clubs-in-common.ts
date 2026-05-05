@@ -73,7 +73,7 @@ function selectPairs(validPairs: Pair[], target: number): Pair[] {
     }
   }
 
-  return selected
+  return shuffle(selected)
 }
 
 // GET /api/clubs-in-common/session
