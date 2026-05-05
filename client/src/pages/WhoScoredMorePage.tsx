@@ -177,7 +177,7 @@ export function WhoScoredMorePage() {
               <WonScreen players={players} elapsedMs={elapsedMs} onPlayAgain={loadSession} />
             )}
 
-            {!loading && !error && status !== 'won' && current && challenger && (
+            {!loading && !error && status !== 'won' && status !== 'lobby' && current && challenger && (
               <div className="flex-1 flex flex-col justify-center px-4 py-6 gap-4">
                 <PlayerCard player={current} goalsVisible={true} goalsStyle="neutral" />
                 <div className="flex items-center justify-center py-1">
