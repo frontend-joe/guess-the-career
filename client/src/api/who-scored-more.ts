@@ -1,3 +1,5 @@
+import { getExcludeParam, recordPlayed } from '@/lib/recentPlayers'
+
 export interface WsmPlayer {
   id: number
   name: string
@@ -6,7 +8,10 @@ export interface WsmPlayer {
 }
 
 export async function getWsmSession(): Promise<WsmPlayer[]> {
-  const res = await fetch('/api/who-scored-more/session')
+  const exclude = getExcludeParam('wsm')
+  const res = await fetch(`/api/who-scored-more/session${exclude ? `?exclude=${exclude}` : ''}`)
   if (!res.ok) throw new Error('Failed to load session')
-  return res.json()
+  const data: WsmPlayer[] = await res.json()
+  recordPlayed('wsm', data.map(p => p.id))
+  return data
 }

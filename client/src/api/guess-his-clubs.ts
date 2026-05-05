@@ -1,3 +1,5 @@
+import { getExcludeParam, recordPlayed } from '@/lib/recentPlayers'
+
 export interface GhcFootballer {
   id: number
   name: string
@@ -13,9 +15,12 @@ export interface ClubSuggestion {
 }
 
 export async function getGhcSession(): Promise<GhcFootballer[]> {
-  const res = await fetch('/api/guess-his-clubs/session')
+  const exclude = getExcludeParam('ghc')
+  const res = await fetch(`/api/guess-his-clubs/session${exclude ? `?exclude=${exclude}` : ''}`)
   if (!res.ok) throw new Error('Failed to load session')
-  return res.json()
+  const data: GhcFootballer[] = await res.json()
+  recordPlayed('ghc', data.map(p => p.id))
+  return data
 }
 
 export async function searchClubs(q: string): Promise<ClubSuggestion[]> {

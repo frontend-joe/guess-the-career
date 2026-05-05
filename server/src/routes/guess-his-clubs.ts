@@ -23,27 +23,39 @@ function requiredGuesses(clubCount: number): number {
 }
 
 // GET /api/guess-his-clubs/session
-// Returns 10 random footballers with 4+ distinct senior clubs (loans included, normalised)
+// Returns 10 random footballers with 4+ distinct senior clubs (loans included, normalised).
+// Accepts ?exclude=1,2,3 to avoid recently-seen player IDs; falls back to full pool if needed.
 guessHisClubsRouter.get('/session', (c) => {
-  // Subquery avoids passing hundreds of IDs as SQL parameters (SQLite limit: 999 variables).
-  // HAVING uses the same normalisation as the app so multi-spell duplicates don't inflate the count.
-  const selected = sqlite.prepare(`
-    SELECT f.id, f.name, f.wikipedia_url
-    FROM footballers f
-    WHERE f.id IN (
-      SELECT footballer_id
-      FROM career_stints
-      WHERE stint_type = 'senior'
-        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% B'
-        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% C'
-        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% II'
-        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) != 'Bilbao Athletic'
-      GROUP BY footballer_id
-      HAVING COUNT(DISTINCT LOWER(TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')))) >= 4
-    )
-    ORDER BY RANDOM()
-    LIMIT 10
-  `).all() as { id: number; name: string; wikipedia_url: string }[]
+  const excludeIds = (c.req.query('exclude') ?? '')
+    .split(',').map(Number).filter(n => n > 0)
+
+  function fetchSelected(withExclusion: boolean) {
+    const clause = withExclusion && excludeIds.length > 0
+      ? `AND f.id NOT IN (${excludeIds.map(() => '?').join(', ')})`
+      : ''
+    const params = withExclusion && excludeIds.length > 0 ? excludeIds : []
+    return sqlite.prepare(`
+      SELECT f.id, f.name, f.wikipedia_url
+      FROM footballers f
+      WHERE f.id IN (
+        SELECT footballer_id
+        FROM career_stints
+        WHERE stint_type = 'senior'
+          AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% B'
+          AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% C'
+          AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% II'
+          AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) != 'Bilbao Athletic'
+        GROUP BY footballer_id
+        HAVING COUNT(DISTINCT LOWER(TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')))) >= 4
+      )
+      ${clause}
+      ORDER BY RANDOM()
+      LIMIT 10
+    `).all(...params) as { id: number; name: string; wikipedia_url: string }[]
+  }
+
+  let selected = fetchSelected(true)
+  if (selected.length < 10) selected = fetchSelected(false)
 
   if (selected.length < 10) {
     return c.json({ error: 'Not enough eligible footballers' }, 422)

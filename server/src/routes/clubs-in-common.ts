@@ -77,8 +77,12 @@ function selectPairs(validPairs: Pair[], target: number): Pair[] {
 }
 
 // GET /api/clubs-in-common/session
-// Returns 10 pairs of footballers that share at least 1 senior club
+// Returns 10 pairs of footballers that share at least 1 senior club.
+// Accepts ?exclude=1,2,3 to avoid recently-seen player IDs; falls back to full pool if needed.
 clubsInCommonRouter.get('/session', (c) => {
+  const excludeIds = new Set(
+    (c.req.query('exclude') ?? '').split(',').map(Number).filter(n => n > 0)
+  )
   const footballers = sqlite.prepare(`
     SELECT f.id, f.name, f.wikipedia_url
     FROM footballers f
@@ -155,6 +159,10 @@ clubsInCommonRouter.get('/session', (c) => {
     return c.json({ error: 'Not enough eligible footballer pairs' }, 422)
   }
 
-  const selected = selectPairs(validPairs, 10)
+  const preferredPairs = excludeIds.size > 0
+    ? validPairs.filter(p => !excludeIds.has(p.footballer1.id) && !excludeIds.has(p.footballer2.id))
+    : validPairs
+
+  const selected = selectPairs(preferredPairs.length >= 10 ? preferredPairs : validPairs, 10)
   return c.json(selected)
 })
