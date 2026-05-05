@@ -1,0 +1,453 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Home, Check, X, ChevronRight } from 'lucide-react'
+import { getCicSession, searchClubs } from '@/api/clubs-in-common'
+import type { CicPair, ClubSuggestion } from '@/api/clubs-in-common'
+
+type RoundState = 'playing' | 'cleared' | 'given_up'
+
+interface CicRoundResult {
+  footballer1: { id: number; name: string; wikipediaUrl: string }
+  footballer2: { id: number; name: string; wikipediaUrl: string }
+  commonClubs: string[]
+  required: number
+  guessedClubs: string[]
+  state: RoundState
+}
+
+export function ClubsInCommonPage() {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [rounds, setRounds] = useState<CicRoundResult[]>([])
+  const [roundIndex, setRoundIndex] = useState(0)
+  const [inputValue, setInputValue] = useState('')
+  const [suggestions, setSuggestions] = useState<ClubSuggestion[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [showFinalScore, setShowFinalScore] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function buildRounds(pairs: CicPair[]): CicRoundResult[] {
+    return pairs.map(p => ({
+      footballer1: { id: p.footballer1.id, name: p.footballer1.name, wikipediaUrl: p.footballer1.wikipedia_url },
+      footballer2: { id: p.footballer2.id, name: p.footballer2.name, wikipediaUrl: p.footballer2.wikipedia_url },
+      commonClubs: p.commonClubs,
+      required: p.required,
+      guessedClubs: [],
+      state: 'playing' as RoundState,
+    }))
+  }
+
+  function loadSession() {
+    setLoading(true)
+    setError(null)
+    setRoundIndex(0)
+    setRounds([])
+    setInputValue('')
+    setSuggestions([])
+    setShowDropdown(false)
+    setShowFinalScore(false)
+    getCicSession()
+      .then(data => setRounds(buildRounds(data)))
+      .catch(() => setError('Failed to load session. Please try again.'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { loadSession() }, [])
+
+  const fetchSuggestions = useCallback((term: string) => {
+    if (term.length < 1) { setSuggestions([]); setShowDropdown(false); return }
+    searchClubs(term).then(results => {
+      setSuggestions(results)
+      setShowDropdown(results.length > 0)
+    })
+  }, [])
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setInputValue(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 200)
+  }
+
+  function handleClubGuess(clubName: string) {
+    const round = rounds[roundIndex]
+    if (!round || round.state !== 'playing') return
+
+    setInputValue('')
+    setSuggestions([])
+    setShowDropdown(false)
+
+    const normalised = clubName.toLowerCase().trim()
+
+    if (round.guessedClubs.some(c => c.toLowerCase() === normalised)) {
+      inputRef.current?.focus()
+      return
+    }
+
+    const matched = round.commonClubs.find(c => c.toLowerCase() === normalised)
+    if (!matched) {
+      inputRef.current?.focus()
+      return
+    }
+
+    const newGuessed = [...round.guessedClubs, matched]
+    const newState: RoundState = newGuessed.length >= round.required ? 'cleared' : 'playing'
+    const updated = [...rounds]
+    updated[roundIndex] = { ...round, guessedClubs: newGuessed, state: newState }
+    setRounds(updated)
+    inputRef.current?.focus()
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' && inputValue.trim()) {
+      handleClubGuess(inputValue.trim())
+    }
+    if (e.key === 'Escape') {
+      setSuggestions([])
+      setShowDropdown(false)
+    }
+  }
+
+  function handleGiveUp() {
+    const round = rounds[roundIndex]
+    if (!round || round.state !== 'playing') return
+    const updated = [...rounds]
+    updated[roundIndex] = { ...round, state: 'given_up' }
+    setRounds(updated)
+  }
+
+  function handleNextRound() {
+    if (roundIndex < rounds.length - 1) {
+      setRoundIndex(i => i + 1)
+      setInputValue('')
+      setSuggestions([])
+      setShowDropdown(false)
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }
+
+  const currentRound = rounds[roundIndex] ?? null
+  const isRoundDone = currentRound?.state !== 'playing'
+  const isLastRound = roundIndex === rounds.length - 1
+  const totalGuessed = rounds.reduce((sum, r) => sum + r.guessedClubs.length, 0)
+  const totalRequired = rounds.reduce((sum, r) => sum + r.required, 0)
+
+  return (
+    <div
+      className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans"
+      onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
+    >
+      {/* Header */}
+      <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
+        <button
+          className="text-white p-1"
+          onClick={() => window.location.href = '/play'}
+        >
+          <Home size={22} />
+        </button>
+        <span className="text-white font-bold text-sm tracking-widest uppercase">
+          Clubs In Common
+        </span>
+        {rounds.length > 0 ? (
+          <span className="text-white/60 text-sm font-mono">
+            {roundIndex + 1} / {rounds.length}
+          </span>
+        ) : (
+          <span className="w-8" />
+        )}
+      </div>
+
+      {/* Scrollable area */}
+      <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
+        {loading && (
+          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+            Loading session…
+          </div>
+        )}
+
+        {error && (
+          <div className="flex flex-col items-center justify-center h-full gap-4 px-4">
+            <p className="text-red-500 text-sm text-center">{error}</p>
+            <button
+              onClick={loadSession}
+              className="bg-[#1a1a2e] text-white text-sm px-4 py-2 rounded-lg"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && showFinalScore && (
+          <FinalScore
+            rounds={rounds}
+            totalGuessed={totalGuessed}
+            totalRequired={totalRequired}
+            onPlayAgain={loadSession}
+          />
+        )}
+
+        {!loading && !error && !showFinalScore && currentRound && (
+          <div className="flex flex-col items-center px-3 pt-6 pb-4 gap-5 mt-auto">
+            <PairCard round={currentRound} />
+            <ClubReveal round={currentRound} />
+          </div>
+        )}
+      </div>
+
+      {/* Bottom panel */}
+      {!loading && !error && !showFinalScore && currentRound && (
+        <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
+
+          {/* Guessed club chips */}
+          {currentRound.guessedClubs.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {currentRound.guessedClubs.map(club => (
+                <span
+                  key={club}
+                  className="flex items-center gap-1 bg-green-500/20 text-green-400 text-xs font-semibold px-2.5 py-1 rounded-full"
+                >
+                  <Check size={11} />
+                  {club}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Status text */}
+          <p className="text-white/50 text-xs mb-2">
+            {isRoundDone
+              ? currentRound.state === 'cleared'
+                ? `Cleared! Found all ${currentRound.required} club${currentRound.required !== 1 ? 's' : ''} in common`
+                : `Gave up — ${currentRound.guessedClubs.length} / ${currentRound.required} found`
+              : `${currentRound.guessedClubs.length} / ${currentRound.required} clubs in common found`}
+          </p>
+
+          {/* Input */}
+          {!isRoundDone && (
+            <div className="relative mb-3">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a club name…"
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
+                style={{ fontSize: '16px' }}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              {showDropdown && suggestions.length > 0 && (
+                <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
+                  {suggestions.map(s => (
+                    <button
+                      key={s.id}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
+                      onMouseDown={e => { e.preventDefault(); handleClubGuess(s.name) }}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            {!isRoundDone && (
+              <button
+                onClick={handleGiveUp}
+                className="flex-1 flex items-center justify-center gap-1 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
+              >
+                <X size={14} />
+                Give Up
+              </button>
+            )}
+            {isRoundDone && !isLastRound && (
+              <button
+                onClick={handleNextRound}
+                className="flex-1 flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-2 rounded-lg"
+              >
+                Next Round
+                <ChevronRight size={14} />
+              </button>
+            )}
+            {isRoundDone && isLastRound && (
+              <button
+                onClick={() => setShowFinalScore(true)}
+                className="flex-1 flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-2 rounded-lg"
+              >
+                See Results
+                <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PlayerPhoto({ id, name, wikipediaUrl }: { id: number; name: string; wikipediaUrl: string }) {
+  const [photoUrl, setPhotoUrl] = useState<string | null | false>(null)
+
+  useEffect(() => {
+    setPhotoUrl(null)
+    const title = wikipediaUrl.split('/wiki/')[1]
+    if (!title) return
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setPhotoUrl(data?.thumbnail?.source ?? false))
+      .catch(() => setPhotoUrl(false))
+  }, [id])
+
+  return (
+    <div className="flex flex-col items-center gap-1.5 flex-1">
+      {photoUrl ? (
+        <img
+          src={photoUrl}
+          alt={name}
+          className="w-16 h-16 rounded-full object-cover object-top border-2 border-gray-200"
+        />
+      ) : photoUrl === false ? (
+        <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
+          <span className="text-gray-400 text-2xl font-bold select-none">
+            {name.charAt(0)}
+          </span>
+        </div>
+      ) : (
+        <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse" />
+      )}
+      <p className="text-gray-900 font-bold text-sm text-center leading-tight">{name}</p>
+    </div>
+  )
+}
+
+function PairCard({ round }: { round: CicRoundResult }) {
+  return (
+    <div className="flex flex-col items-center text-center gap-3 w-full">
+      <div className="flex items-center gap-3 w-full">
+        <PlayerPhoto
+          id={round.footballer1.id}
+          name={round.footballer1.name}
+          wikipediaUrl={round.footballer1.wikipediaUrl}
+        />
+        <div className="flex flex-col items-center shrink-0 gap-0.5">
+          <span className="text-gray-300 text-xl font-light">∩</span>
+        </div>
+        <PlayerPhoto
+          id={round.footballer2.id}
+          name={round.footballer2.name}
+          wikipediaUrl={round.footballer2.wikipediaUrl}
+        />
+      </div>
+      <div>
+        <p className="text-gray-400 text-xs uppercase tracking-widest leading-none mb-0.5">
+          clubs in common
+        </p>
+        <p className="text-gray-900 font-bold text-base">
+          Guess {round.required} shared club{round.required !== 1 ? 's' : ''}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function ClubReveal({ round }: { round: CicRoundResult }) {
+  if (round.state === 'playing') return null
+
+  const missedClubs = round.commonClubs.filter(
+    c => !round.guessedClubs.some(g => g.toLowerCase() === c.toLowerCase())
+  )
+
+  return (
+    <div className="w-full">
+      <p className="text-xs text-gray-400 uppercase tracking-widest mb-3 text-center">Clubs in common</p>
+      <div className="flex flex-wrap gap-2 justify-center">
+        {round.guessedClubs.map(club => (
+          <span
+            key={club}
+            className="flex items-center gap-1 bg-green-100 text-green-800 text-sm font-semibold px-3 py-1.5 rounded-full"
+          >
+            <Check size={12} />
+            {club}
+          </span>
+        ))}
+        {missedClubs.map(club => (
+          <span
+            key={club}
+            className="flex items-center gap-1 bg-gray-100 text-gray-500 text-sm px-3 py-1.5 rounded-full border border-gray-200"
+          >
+            <X size={12} />
+            {club}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FinalScore({
+  rounds,
+  totalGuessed,
+  totalRequired,
+  onPlayAgain,
+}: {
+  rounds: CicRoundResult[]
+  totalGuessed: number
+  totalRequired: number
+  onPlayAgain: () => void
+}) {
+  const pct = totalRequired > 0 ? Math.round((totalGuessed / totalRequired) * 100) : 0
+  const pctColor = pct >= 80 ? 'text-green-500' : pct >= 60 ? 'text-orange-400' : 'text-red-500'
+
+  return (
+    <div className="flex flex-col items-center px-4 py-8 gap-6">
+      <div className="text-center">
+        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Final Score</p>
+        <p className={`text-5xl font-bold mt-2 ${pctColor}`}>{pct}%</p>
+      </div>
+
+      <div className="w-full flex flex-col gap-2">
+        {rounds.map((r, i) => {
+          const cleared = r.state === 'cleared'
+          const partial = r.guessedClubs.length > 0 && !cleared
+          return (
+            <div
+              key={i}
+              className={`flex items-center justify-between rounded-lg px-3 py-2 border ${cleared ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-gray-400 text-xs font-mono shrink-0">{i + 1}</span>
+                <span className="text-sm font-semibold text-gray-800 truncate">
+                  {r.footballer1.name} & {r.footballer2.name}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                <span className="text-xs text-gray-500">
+                  {r.guessedClubs.length}/{r.required}
+                </span>
+                {cleared ? (
+                  <Check size={14} className="text-green-500" />
+                ) : partial ? (
+                  <span className="text-yellow-500 text-xs font-bold">~</span>
+                ) : (
+                  <X size={14} className="text-red-400" />
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <button
+        onClick={onPlayAgain}
+        className="bg-[#1a1a2e] text-white font-bold text-sm tracking-widest uppercase px-8 py-3 rounded-xl"
+      >
+        Play Again
+      </button>
+    </div>
+  )
+}

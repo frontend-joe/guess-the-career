@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, Trophy } from 'lucide-react'
+import { Users, Trophy, Handshake } from 'lucide-react'
 
 export function PlayHubPage() {
   const navigate = useNavigate()
@@ -25,6 +25,14 @@ export function PlayHubPage() {
           <Trophy size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">Guess His Clubs</span>
           <span className="text-gray-400 text-xs">Name the clubs they played for</span>
+        </button>
+        <button
+          onClick={() => navigate('/play/clubs-in-common')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <Handshake size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">Clubs In Common</span>
+          <span className="text-gray-400 text-xs">What clubs did they share?</span>
         </button>
       </div>
     </div>
