@@ -243,7 +243,7 @@ export interface ExtraColumn<T> {
   render: (item: T) => React.ReactNode
 }
 
-export interface PersonAdminConfig<T extends { id: number; name: string; wikipedia_url: string }> {
+export interface PersonAdminConfig<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null }> {
   label: string
   schedulePath: string
   addPath: string
@@ -256,7 +256,7 @@ export interface PersonAdminConfig<T extends { id: number; name: string; wikiped
   getDuplicates: () => Promise<T[][]>
 }
 
-export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string }>({
+export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null }>({
   config,
 }: {
   config: PersonAdminConfig<T>
@@ -410,7 +410,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                   <TableRow key={item.id}>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
-                        <PlayerAvatar id={item.id} name={item.name} wikipediaUrl={item.wikipedia_url} size="sm" variant="admin" className="shrink-0" />
+                        <PlayerAvatar id={item.id} name={item.name} wikipediaUrl={item.wikipedia_url} storedPhotoUrl={item.photo_url} size="sm" variant="admin" className="shrink-0" />
                         <span className="font-medium">{item.name}</span>
                       </div>
                     </TableCell>
