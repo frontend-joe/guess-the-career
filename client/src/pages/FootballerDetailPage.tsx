@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { ArrowLeft, Globe, Pencil, Check, X, RefreshCw, Loader2 } from 'lucide-react'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CareerTable } from '@/components/CareerTable'
@@ -12,6 +13,7 @@ import {
   type FootballerWithStints,
   type CareerStint,
 } from '@/api/footballers'
+
 
 type EditMeta = {
   name: string
@@ -118,7 +120,9 @@ export function FootballerDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-6">
-        <div className="min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <PlayerAvatar id={footballer.id} name={footballer.name} wikipediaUrl={footballer.wikipedia_url} size="md" variant="admin" className="shrink-0" />
+          <div className="min-w-0">
           <h1 className="text-xl font-semibold truncate">{footballer.name}</h1>
           <a
             href={footballer.wikipedia_url}
@@ -129,6 +133,7 @@ export function FootballerDetailPage() {
             <Globe className="h-3.5 w-3.5 shrink-0" />
             Wikipedia
           </a>
+          </div>
         </div>
         {!editingMeta && (
           <Button variant="outline" size="sm" onClick={() => setEditingMeta(true)} className="shrink-0">

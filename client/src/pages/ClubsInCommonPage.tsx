@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Home, Check, X, ChevronRight, Link2 } from 'lucide-react'
 import { getCicSession, searchClubs } from '@/api/clubs-in-common'
 import type { CicPair, ClubSuggestion } from '@/api/clubs-in-common'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 type RoundState = 'playing' | 'cleared' | 'given_up'
 
@@ -304,37 +305,9 @@ export function ClubsInCommonPage() {
 }
 
 function PlayerPhoto({ id, name, wikipediaUrl }: { id: number; name: string; wikipediaUrl: string }) {
-  const [photoUrl, setPhotoUrl] = useState<string | null | false>(null)
-
-  useEffect(() => {
-    setPhotoUrl(null)
-    const title = wikipediaUrl.split('/wiki/')[1]
-    if (!title) return
-    const controller = new AbortController()
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setPhotoUrl(data?.thumbnail?.source ?? false))
-      .catch(err => { if (err.name !== 'AbortError') setPhotoUrl(false) })
-    return () => controller.abort()
-  }, [id])
-
   return (
     <div className="flex flex-col items-center gap-1.5 flex-1">
-      {photoUrl ? (
-        <img
-          src={photoUrl}
-          alt={name}
-          className="w-16 h-16 rounded-full object-cover object-top border-2 border-gray-200"
-        />
-      ) : photoUrl === false ? (
-        <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
-          <span className="text-gray-400 text-2xl font-bold select-none">
-            {name.charAt(0)}
-          </span>
-        </div>
-      ) : (
-        <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse" />
-      )}
+      <PlayerAvatar id={id} name={name} wikipediaUrl={wikipediaUrl} size="md" />
       <p className="text-gray-900 font-bold text-sm text-center leading-tight">{name}</p>
     </div>
   )

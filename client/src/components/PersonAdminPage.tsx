@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { useNavigate } from 'react-router'
 import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -406,7 +408,12 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
               <TableBody>
                 {people.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <PlayerAvatar id={item.id} name={item.name} wikipediaUrl={item.wikipedia_url} size="sm" variant="admin" className="shrink-0" />
+                        <span className="font-medium">{item.name}</span>
+                      </div>
+                    </TableCell>
                     {config.extraColumns.map((col) => (
                       <TableCell key={col.header} className={col.className}>{col.render(item)}</TableCell>
                     ))}

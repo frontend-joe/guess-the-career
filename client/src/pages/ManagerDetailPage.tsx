@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { ArrowLeft, Globe, Pencil, Check, X, RefreshCw, Loader2 } from 'lucide-react'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CareerTable } from '@/components/CareerTable'
@@ -12,6 +13,7 @@ import {
   type ManagerWithStints,
   type ManagerCareerStint,
 } from '@/api/managers'
+
 
 type EditMeta = {
   name: string
@@ -114,7 +116,9 @@ export function ManagerDetailPage() {
       </Button>
 
       <div className="flex items-start justify-between gap-3 mb-6">
-        <div className="min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <PlayerAvatar id={manager.id} name={manager.name} wikipediaUrl={manager.wikipedia_url} size="md" variant="admin" className="shrink-0" />
+          <div className="min-w-0">
           <h1 className="text-xl font-semibold truncate">{manager.name}</h1>
           <a
             href={manager.wikipedia_url}
@@ -125,6 +129,7 @@ export function ManagerDetailPage() {
             <Globe className="h-3.5 w-3.5 shrink-0" />
             Wikipedia
           </a>
+          </div>
         </div>
         {!editingMeta && (
           <Button variant="outline" size="sm" onClick={() => setEditingMeta(true)} className="shrink-0">

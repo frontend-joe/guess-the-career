@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Home, Check, X, ChevronRight } from 'lucide-react'
 import { getGhcSession, searchClubs } from '@/api/guess-his-clubs'
 import type { GhcFootballer, ClubSuggestion } from '@/api/guess-his-clubs'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 type RoundState = 'playing' | 'cleared' | 'given_up'
 
@@ -306,37 +307,14 @@ export function GuessHisClubsPage() {
 }
 
 function FootballerCard({ round }: { round: RoundResult }) {
-  const [photoUrl, setPhotoUrl] = useState<string | null | false>(null)
-
-  useEffect(() => {
-    setPhotoUrl(null)
-    const title = round.wikipediaUrl.split('/wiki/')[1]
-    if (!title) return
-    const controller = new AbortController()
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setPhotoUrl(data?.thumbnail?.source ?? false))
-      .catch(err => { if (err.name !== 'AbortError') setPhotoUrl(false) })
-    return () => controller.abort()
-  }, [round.footballerId])
-
   return (
     <div className="flex flex-col items-center text-center gap-2">
-      {photoUrl ? (
-        <img
-          src={photoUrl}
-          alt={round.footballerName}
-          className="w-24 h-24 rounded-full object-cover object-top border-2 border-gray-200"
-        />
-      ) : photoUrl === false ? (
-        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
-          <span className="text-gray-400 text-3xl font-bold select-none">
-            {round.footballerName.charAt(0)}
-          </span>
-        </div>
-      ) : (
-        <div className="w-24 h-24 rounded-full bg-gray-200 animate-pulse" />
-      )}
+      <PlayerAvatar
+        id={round.footballerId}
+        name={round.footballerName}
+        wikipediaUrl={round.wikipediaUrl}
+        size="lg"
+      />
       <div>
         <p className="text-gray-400 text-xs uppercase tracking-widest leading-none mb-0.5">Name the clubs of</p>
         <p className="text-gray-900 font-bold text-lg leading-tight">{round.footballerName}</p>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Home, TrendingUp, TrendingDown, ChevronRight, Trophy } from 'lucide-react'
 import { getWsmSession } from '@/api/who-scored-more'
 import type { WsmPlayer } from '@/api/who-scored-more'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 type GameStatus = 'playing' | 'correct' | 'wrong' | 'won'
 
@@ -166,20 +167,6 @@ function PlayerCard({
   goalsVisible: boolean
   goalsStyle: 'neutral' | 'green' | 'red'
 }) {
-  const [photoUrl, setPhotoUrl] = useState<string | null | false>(null)
-
-  useEffect(() => {
-    setPhotoUrl(null)
-    const title = player.wikipedia_url.split('/wiki/')[1]
-    if (!title) return
-    const controller = new AbortController()
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setPhotoUrl(data?.thumbnail?.source ?? false))
-      .catch(err => { if (err.name !== 'AbortError') setPhotoUrl(false) })
-    return () => controller.abort()
-  }, [player.id])
-
   const goalsColor =
     goalsStyle === 'green' ? 'text-green-500' :
     goalsStyle === 'red' ? 'text-red-500' :
@@ -187,19 +174,13 @@ function PlayerCard({
 
   return (
     <div className="flex items-center gap-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      {photoUrl ? (
-        <img
-          src={photoUrl}
-          alt={player.name}
-          className="w-16 h-16 rounded-full object-cover object-top border-2 border-gray-200 shrink-0"
-        />
-      ) : photoUrl === false ? (
-        <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center shrink-0 border-2 border-gray-200">
-          <span className="text-gray-400 text-2xl font-bold select-none">{player.name.charAt(0)}</span>
-        </div>
-      ) : (
-        <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse shrink-0" />
-      )}
+      <PlayerAvatar
+        id={player.id}
+        name={player.name}
+        wikipediaUrl={player.wikipedia_url}
+        size="md"
+        className="shrink-0"
+      />
       <div className="flex-1 min-w-0">
         <p className="font-bold text-gray-900 text-base leading-tight truncate">{player.name}</p>
         <p className={`text-3xl font-bold mt-1 ${goalsColor}`}>
