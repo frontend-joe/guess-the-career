@@ -319,10 +319,6 @@ function normalizeClubAlias(club: string): string {
   return CLUB_ALIASES[club] ?? club
 }
 
-function stripReserveTeamSuffix(club: string): string {
-  // Strip " B" or " C" suffix (reserve/B-team/C-team notation e.g. "Barcelona B" → "Barcelona")
-  return club.replace(/ [BC]$/, '')
-}
 
 function stripCitations(text: string): string {
   // Remove Wikipedia footnote markers: [1], [note 1], [a], etc.
