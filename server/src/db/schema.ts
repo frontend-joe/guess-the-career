@@ -67,7 +67,15 @@ export const clubs = sqliteTable('clubs', {
   wikipedia_url: text('wikipedia_url'),
 })
 
+export const wsm_leaderboard = sqliteTable('wsm_leaderboard', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  player_name: text('player_name').notNull(),
+  time_ms: integer('time_ms').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export type Club = typeof clubs.$inferSelect
+export type WsmLeaderboardEntry = typeof wsm_leaderboard.$inferSelect
 
 export type Footballer = typeof footballers.$inferSelect
 export type NewFootballer = typeof footballers.$inferInsert

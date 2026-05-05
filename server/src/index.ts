@@ -12,6 +12,7 @@ import { clubsRouter } from './routes/clubs.ts'
 import { guessHisClubsRouter } from './routes/guess-his-clubs.ts'
 import { clubsInCommonRouter } from './routes/clubs-in-common.ts'
 import { whoScoredMoreRouter } from './routes/who-scored-more.ts'
+import { wsmLeaderboardRouter } from './routes/wsm-leaderboard.ts'
 
 runMigrations()
 
@@ -29,6 +30,7 @@ app.route('/api/clubs', clubsRouter)
 app.route('/api/guess-his-clubs', guessHisClubsRouter)
 app.route('/api/clubs-in-common', clubsInCommonRouter)
 app.route('/api/who-scored-more', whoScoredMoreRouter)
+app.route('/api/wsm-leaderboard', wsmLeaderboardRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
