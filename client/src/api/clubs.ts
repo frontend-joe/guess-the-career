@@ -1,6 +1,7 @@
 export interface Club {
   id: number
   name: string
+  wikipedia_url: string | null
 }
 
 export async function getAllClubs(opts?: { search?: string }): Promise<Club[]> {

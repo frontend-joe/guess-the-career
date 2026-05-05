@@ -8,7 +8,7 @@ function normalizeClubName(club: string): string {
 }
 
 function isReserveTeam(club: string): boolean {
-  return / [BC]$/.test(club) || club === 'Bilbao Athletic'
+  return / [BC]$/.test(club) || / II$/.test(club) || club === 'Bilbao Athletic'
 }
 
 function requiredGuesses(clubCount: number): number {
@@ -36,6 +36,7 @@ guessHisClubsRouter.get('/session', (c) => {
       WHERE stint_type = 'senior'
         AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% B'
         AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% C'
+        AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% II'
         AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) != 'Bilbao Athletic'
       GROUP BY footballer_id
       HAVING COUNT(DISTINCT LOWER(TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')))) >= 4

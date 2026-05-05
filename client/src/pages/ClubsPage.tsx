@@ -145,12 +145,19 @@ export function ClubsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Club name</TableHead>
+                  <TableHead className="text-muted-foreground">Wikipedia URL</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {clubs.map((club) => (
                   <TableRow key={club.id}>
                     <TableCell className="font-medium">{club.name}</TableCell>
+                    <TableCell className="text-sm">
+                      {club.wikipedia_url
+                        ? <a href={club.wikipedia_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate block max-w-xs">{club.wikipedia_url}</a>
+                        : <span className="text-muted-foreground">—</span>
+                      }
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

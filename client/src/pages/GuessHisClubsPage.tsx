@@ -334,7 +334,7 @@ function FootballerCard({ round }: { round: RoundResult }) {
   )
 }
 
-function ClubBadge({ wikipediaUrl }: { wikipediaUrl: string | null }) {
+function ClubBadge({ name, wikipediaUrl, guessed }: { name: string; wikipediaUrl: string | null; guessed: boolean }) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
 
   useEffect(() => {
@@ -347,8 +347,19 @@ function ClubBadge({ wikipediaUrl }: { wikipediaUrl: string | null }) {
       .catch(() => setLogoUrl(false))
   }, [wikipediaUrl])
 
-  if (!logoUrl) return null
-  return <img src={logoUrl} alt="" className="w-5 h-5 object-contain shrink-0" />
+  const ring = guessed ? 'ring-2 ring-green-400' : 'ring-1 ring-gray-200'
+  const fade = guessed ? '' : 'opacity-35 grayscale'
+
+  return (
+    <div
+      className={`w-14 h-14 rounded-xl bg-white flex items-center justify-center ${ring} ${fade}`}
+      title={name}
+    >
+      {logoUrl === null && <div className="w-8 h-8 rounded bg-gray-100 animate-pulse" />}
+      {logoUrl === false && <span className="text-sm font-bold text-gray-300">{name.charAt(0)}</span>}
+      {logoUrl && <img src={logoUrl} alt={name} className="w-11 h-11 object-contain p-0.5" />}
+    </div>
+  )
 }
 
 function ClubReveal({ round, clubWikiUrls = {} }: { round: RoundResult; clubWikiUrls?: Record<string, string> }) {
@@ -361,26 +372,22 @@ function ClubReveal({ round, clubWikiUrls = {} }: { round: RoundResult; clubWiki
   return (
     <div className="w-full">
       <p className="text-xs text-gray-400 uppercase tracking-widest mb-3 text-center">All clubs</p>
-      <div className="flex flex-wrap gap-2 justify-center">
+      <div className="flex flex-wrap gap-3 justify-center">
         {round.correctClubs.map(club => (
-          <span
+          <ClubBadge
             key={club}
-            className="flex items-center gap-1.5 bg-green-100 text-green-800 text-sm font-semibold px-3 py-1.5 rounded-full"
-          >
-            <ClubBadge wikipediaUrl={clubWikiUrls[club.toLowerCase()] ?? null} />
-            <Check size={12} />
-            {club}
-          </span>
+            name={club}
+            wikipediaUrl={clubWikiUrls[club.toLowerCase()] ?? null}
+            guessed={true}
+          />
         ))}
         {missedClubs.map(club => (
-          <span
+          <ClubBadge
             key={club}
-            className="flex items-center gap-1.5 bg-gray-100 text-gray-500 text-sm px-3 py-1.5 rounded-full border border-gray-200"
-          >
-            <ClubBadge wikipediaUrl={clubWikiUrls[club.toLowerCase()] ?? null} />
-            <X size={12} />
-            {club}
-          </span>
+            name={club}
+            wikipediaUrl={clubWikiUrls[club.toLowerCase()] ?? null}
+            guessed={false}
+          />
         ))}
       </div>
     </div>

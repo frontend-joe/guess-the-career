@@ -54,6 +54,7 @@ clubsRouter.post('/rebuild', async (c) => {
     WHERE stint_type = 'senior'
       AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% B'
       AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% C'
+      AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% II'
       AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) != 'Bilbao Athletic'
     GROUP BY LOWER(TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')))
     ON CONFLICT(name) DO UPDATE SET wikipedia_url = COALESCE(excluded.wikipedia_url, clubs.wikipedia_url)

@@ -8,7 +8,7 @@ function normalizeClubName(club: string): string {
 }
 
 function isReserveTeam(club: string): boolean {
-  return / [BC]$/.test(club) || club === 'Bilbao Athletic'
+  return / [BC]$/.test(club) || / II$/.test(club) || club === 'Bilbao Athletic'
 }
 
 function shuffle<T>(arr: T[]): T[] {
