@@ -11,10 +11,11 @@ const variants = {
   game:  { border: 'border-2 border-gray-200',  bg: 'bg-gray-200',  textColor: 'text-gray-400' },
 }
 
-export function usePlayerPhoto(id: number, wikipediaUrl: string, name: string): string | null | false {
+export function usePlayerPhoto(id: number, wikipediaUrl: string, name: string, storedPhotoUrl?: string | null): string | null | false {
   const [photoUrl, setPhotoUrl] = useState<string | null | false>(null)
 
   useEffect(() => {
+    if (storedPhotoUrl) { setPhotoUrl(storedPhotoUrl); return }
     setPhotoUrl(null)
     const controller = new AbortController()
     const { signal } = controller
@@ -37,7 +38,7 @@ export function usePlayerPhoto(id: number, wikipediaUrl: string, name: string): 
 
     fetchPhoto()
     return () => controller.abort()
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, storedPhotoUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return photoUrl
 }
@@ -46,6 +47,7 @@ export function PlayerAvatar({
   id,
   name,
   wikipediaUrl,
+  storedPhotoUrl,
   size = 'md',
   variant = 'game',
   className = '',
@@ -53,11 +55,12 @@ export function PlayerAvatar({
   id: number
   name: string
   wikipediaUrl: string
+  storedPhotoUrl?: string | null
   size?: 'sm' | 'md' | 'lg'
   variant?: 'admin' | 'game'
   className?: string
 }) {
-  const photoUrl = usePlayerPhoto(id, wikipediaUrl, name)
+  const photoUrl = usePlayerPhoto(id, wikipediaUrl, name, storedPhotoUrl)
   const s = sizes[size]
   const v = variants[variant]
   const base = `rounded-full ${s.container} ${v.border} ${className}`

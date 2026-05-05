@@ -242,6 +242,7 @@ footballersRouter.patch(
       nationality: z.string().nullable().optional(),
       position: z.string().nullable().optional(),
       born: z.string().nullable().optional(),
+      photo_url: z.string().nullable().optional(),
     })
   ),
   async (c) => {

@@ -1,10 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Home, TrendingUp, TrendingDown, ChevronRight, Trophy } from 'lucide-react'
+import { Home, ChevronRight, Trophy } from 'lucide-react'
 import { getWsmSession } from '@/api/who-scored-more'
 import type { WsmPlayer } from '@/api/who-scored-more'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 type GameStatus = 'playing' | 'correct' | 'wrong' | 'won'
+
+const PARTICLES = new Set(['van', 'de', 'von', 'dos', 'da', 'di', 'del', 'della', 'le', 'la', 'el'])
+
+function getLastName(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length <= 1) return name
+  const last = parts[parts.length - 1]
+  const secondLast = parts[parts.length - 2]
+  if (parts.length >= 3 && PARTICLES.has(secondLast.toLowerCase())) return `${secondLast} ${last}`
+  return last
+}
 
 export function WhoScoredMorePage() {
   const [loading, setLoading] = useState(true)
@@ -98,7 +109,7 @@ export function WhoScoredMorePage() {
           <div className="flex-1 flex flex-col justify-center px-4 py-6 gap-4">
             <PlayerCard player={current} goalsVisible={true} goalsStyle="neutral" />
             <div className="flex items-center justify-center py-1">
-              <span className="text-gray-400 text-xs uppercase tracking-widest font-semibold">vs</span>
+              <span className="text-gray-400 text-xs uppercase tracking-widest font-semibold">or</span>
             </div>
             <PlayerCard
               player={challenger}
@@ -112,22 +123,23 @@ export function WhoScoredMorePage() {
       {/* Bottom panel */}
       {!loading && !error && status !== 'won' && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
-          {status === 'playing' && (
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleGuess('more')}
-                className="flex-1 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold py-3 rounded-xl text-sm transition-colors"
-              >
-                <TrendingUp size={16} />
-                More
-              </button>
-              <button
-                onClick={() => handleGuess('less')}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-400 text-white font-bold py-3 rounded-xl text-sm transition-colors"
-              >
-                <TrendingDown size={16} />
-                Less
-              </button>
+          {status === 'playing' && current && challenger && (
+            <div className="flex flex-col gap-2">
+              <p className="text-white/60 text-xs text-center uppercase tracking-widest font-semibold">Who scored more?</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleGuess('less')}
+                  className="flex-1 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                >
+                  {getLastName(current.name)}
+                </button>
+                <button
+                  onClick={() => handleGuess('more')}
+                  className="flex-1 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                >
+                  {getLastName(challenger.name)}
+                </button>
+              </div>
             </div>
           )}
           {status === 'correct' && (
@@ -186,7 +198,7 @@ function PlayerCard({
         <p className={`text-3xl font-bold mt-1 ${goalsColor}`}>
           {goalsVisible ? player.total_goals : '???'}
         </p>
-        <p className="text-xs text-gray-400 mt-0.5">career goals</p>
+        <p className="text-xs text-gray-400 mt-0.5">Career Goals</p>
       </div>
     </div>
   )

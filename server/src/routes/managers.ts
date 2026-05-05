@@ -232,6 +232,7 @@ managersRouter.patch(
       name: z.string().optional(),
       place_of_birth: z.string().nullable().optional(),
       born: z.string().nullable().optional(),
+      photo_url: z.string().nullable().optional(),
     })
   ),
   async (c) => {

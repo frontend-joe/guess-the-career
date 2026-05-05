@@ -4,6 +4,7 @@ export interface Manager {
   wikipedia_url: string
   place_of_birth: string | null
   born: string | null
+  photo_url: string | null
   created_at: string
   updated_at: string
 }
@@ -84,7 +85,7 @@ export async function createManagerFromScrape(data: ScrapeManagerResult): Promis
 
 export async function updateManager(
   id: number,
-  data: Partial<Pick<Manager, 'name' | 'place_of_birth' | 'born'>>
+  data: Partial<Pick<Manager, 'name' | 'place_of_birth' | 'born' | 'photo_url'>>
 ): Promise<Manager> {
   const res = await fetch(`/api/managers/${id}`, {
     method: 'PATCH',

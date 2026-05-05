@@ -8,6 +8,7 @@ export const footballers = sqliteTable('footballers', {
   nationality: text('nationality'),
   position: text('position'),
   born: text('born'),
+  photo_url: text('photo_url'),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
   updated_at: text('updated_at').notNull().default(sql`(datetime('now'))`),
 })
@@ -37,6 +38,7 @@ export const managers = sqliteTable('managers', {
   wikipedia_url: text('wikipedia_url').notNull().unique(),
   place_of_birth: text('place_of_birth'),
   born: text('born'),
+  photo_url: text('photo_url'),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
   updated_at: text('updated_at').notNull().default(sql`(datetime('now'))`),
 })

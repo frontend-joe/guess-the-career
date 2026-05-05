@@ -19,6 +19,7 @@ type EditMeta = {
   name: string
   place_of_birth: string
   born: string
+  photo_url: string
 }
 
 type Stint = Omit<ManagerCareerStint, 'id' | 'manager_id'>
@@ -29,7 +30,7 @@ export function ManagerDetailPage() {
   const [manager, setManager] = useState<ManagerWithStints | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingMeta, setEditingMeta] = useState(false)
-  const [meta, setMeta] = useState<EditMeta>({ name: '', place_of_birth: '', born: '' })
+  const [meta, setMeta] = useState<EditMeta>({ name: '', place_of_birth: '', born: '', photo_url: '' })
   const [savingMeta, setSavingMeta] = useState(false)
   const [editingCareer, setEditingCareer] = useState(false)
   const [stints, setStints] = useState<Stint[]>([])
@@ -47,6 +48,7 @@ export function ManagerDetailPage() {
           name: m.name,
           place_of_birth: m.place_of_birth ?? '',
           born: m.born ?? '',
+          photo_url: m.photo_url ?? '',
         })
       })
       .catch(() => navigate('/managers'))
@@ -61,6 +63,7 @@ export function ManagerDetailPage() {
         name: meta.name || undefined,
         place_of_birth: meta.place_of_birth || null,
         born: meta.born || null,
+        photo_url: meta.photo_url || null,
       })
       setManager({ ...manager, ...updated })
       setEditingMeta(false)
@@ -117,7 +120,7 @@ export function ManagerDetailPage() {
 
       <div className="flex items-start justify-between gap-3 mb-6">
         <div className="flex items-center gap-3 min-w-0">
-          <PlayerAvatar id={manager.id} name={manager.name} wikipediaUrl={manager.wikipedia_url} size="md" variant="admin" className="shrink-0" />
+          <PlayerAvatar id={manager.id} name={manager.name} wikipediaUrl={manager.wikipedia_url} storedPhotoUrl={manager.photo_url} size="md" variant="admin" className="shrink-0" />
           <div className="min-w-0">
           <h1 className="text-xl font-semibold truncate">{manager.name}</h1>
           <a
@@ -163,8 +166,9 @@ export function ManagerDetailPage() {
             { key: 'name', label: 'Name' },
             { key: 'place_of_birth', label: 'Place of birth' },
             { key: 'born', label: 'Born' },
+            { key: 'photo_url', label: 'Photo URL' },
           ] as const).map(({ key, label }) => (
-            <div key={key}>
+            <div key={key} className={key === 'photo_url' ? 'sm:col-span-2' : ''}>
               <label className="text-xs text-muted-foreground block mb-1">{label}</label>
               {editingMeta ? (
                 <Input
@@ -172,7 +176,7 @@ export function ManagerDetailPage() {
                   onChange={(e) => setMeta({ ...meta, [key]: e.target.value })}
                 />
               ) : (
-                <p className="text-sm">{manager[key] ?? <span className="text-muted-foreground">—</span>}</p>
+                <p className="text-sm truncate">{manager[key] ?? <span className="text-muted-foreground">—</span>}</p>
               )}
             </div>
           ))}

@@ -20,6 +20,7 @@ type EditMeta = {
   nationality: string
   position: string
   born: string
+  photo_url: string
 }
 
 type Stint = Omit<CareerStint, 'id' | 'footballer_id'>
@@ -30,7 +31,7 @@ export function FootballerDetailPage() {
   const [footballer, setFootballer] = useState<FootballerWithStints | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingMeta, setEditingMeta] = useState(false)
-  const [meta, setMeta] = useState<EditMeta>({ name: '', nationality: '', position: '', born: '' })
+  const [meta, setMeta] = useState<EditMeta>({ name: '', nationality: '', position: '', born: '', photo_url: '' })
   const [savingMeta, setSavingMeta] = useState(false)
   const [editingCareer, setEditingCareer] = useState(false)
   const [stints, setStints] = useState<Stint[]>([])
@@ -49,6 +50,7 @@ export function FootballerDetailPage() {
           nationality: f.nationality ?? '',
           position: f.position ?? '',
           born: f.born ?? '',
+          photo_url: f.photo_url ?? '',
         })
       })
       .catch(() => navigate('/footballers'))
@@ -64,6 +66,7 @@ export function FootballerDetailPage() {
         nationality: meta.nationality || null,
         position: meta.position || null,
         born: meta.born || null,
+        photo_url: meta.photo_url || null,
       })
       setFootballer({ ...footballer, ...updated })
       setEditingMeta(false)
@@ -121,7 +124,7 @@ export function FootballerDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-6">
         <div className="flex items-center gap-3 min-w-0">
-          <PlayerAvatar id={footballer.id} name={footballer.name} wikipediaUrl={footballer.wikipedia_url} size="md" variant="admin" className="shrink-0" />
+          <PlayerAvatar id={footballer.id} name={footballer.name} wikipediaUrl={footballer.wikipedia_url} storedPhotoUrl={footballer.photo_url} size="md" variant="admin" className="shrink-0" />
           <div className="min-w-0">
           <h1 className="text-xl font-semibold truncate">{footballer.name}</h1>
           <a
@@ -164,16 +167,22 @@ export function FootballerDetailPage() {
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {(['name', 'nationality', 'position', 'born'] as const).map((field) => (
-            <div key={field}>
-              <label className="text-xs text-muted-foreground block mb-1 capitalize">{field}</label>
+          {([
+            { key: 'name', label: 'Name' },
+            { key: 'nationality', label: 'Nationality' },
+            { key: 'position', label: 'Position' },
+            { key: 'born', label: 'Born' },
+            { key: 'photo_url', label: 'Photo URL' },
+          ] as const).map(({ key, label }) => (
+            <div key={key} className={key === 'photo_url' ? 'sm:col-span-2' : ''}>
+              <label className="text-xs text-muted-foreground block mb-1">{label}</label>
               {editingMeta ? (
                 <Input
-                  value={meta[field]}
-                  onChange={(e) => setMeta({ ...meta, [field]: e.target.value })}
+                  value={meta[key]}
+                  onChange={(e) => setMeta({ ...meta, [key]: e.target.value })}
                 />
               ) : (
-                <p className="text-sm">{footballer[field] ?? <span className="text-muted-foreground">—</span>}</p>
+                <p className="text-sm truncate">{footballer[key] ?? <span className="text-muted-foreground">—</span>}</p>
               )}
             </div>
           ))}
