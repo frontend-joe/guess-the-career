@@ -12,6 +12,10 @@ const CLUB_ALIASES: Record<string, string> = {
   'Zaragoza': 'Real Zaragoza',
   // Real Betis
   'Betis': 'Real Betis',
+  // Mallorca
+  'Real Mallorca': 'Mallorca',
+  // Oviedo
+  'Real Oviedo': 'Oviedo',
 }
 
 const FOOTBALLING_NATIONS = new Set([

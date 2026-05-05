@@ -46,6 +46,22 @@ WHERE club = 'Betis';
 UPDATE career_stints SET club = '→ Real Betis (loan)'
 WHERE club = '→ Betis (loan)';
 
+-- Normalise Mallorca aliases (non-loan)
+UPDATE career_stints SET club = 'Mallorca'
+WHERE club = 'Real Mallorca';
+
+-- Normalise Mallorca aliases (loan)
+UPDATE career_stints SET club = '→ Mallorca (loan)'
+WHERE club = '→ Real Mallorca (loan)';
+
+-- Normalise Oviedo aliases (non-loan)
+UPDATE career_stints SET club = 'Oviedo'
+WHERE club = 'Real Oviedo';
+
+-- Normalise Oviedo aliases (loan)
+UPDATE career_stints SET club = '→ Oviedo (loan)'
+WHERE club = '→ Real Oviedo (loan)';
+
 -- Rebuild clubs table from footballer senior careers only.
 DELETE FROM clubs;
 
