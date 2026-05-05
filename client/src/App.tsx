@@ -15,6 +15,7 @@ import { PlayHubPage } from '@/pages/PlayHubPage'
 import { GuessTheCareerModePage } from '@/pages/GuessTheCareerModePage'
 import { GuessHisClubsPage } from '@/pages/GuessHisClubsPage'
 import { ClubsInCommonPage } from '@/pages/ClubsInCommonPage'
+import { WhoScoredMorePage } from '@/pages/WhoScoredMorePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -23,6 +24,7 @@ const router = createBrowserRouter([
   { path: '/play/guess-the-career/managers', element: <PlayPage mode="manager" /> },
   { path: '/play/guess-his-clubs', element: <GuessHisClubsPage /> },
   { path: '/play/clubs-in-common', element: <ClubsInCommonPage /> },
+  { path: '/play/who-scored-more', element: <WhoScoredMorePage /> },
   {
     path: '/',
     element: <Layout />,
