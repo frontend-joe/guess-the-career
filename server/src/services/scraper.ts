@@ -10,6 +10,8 @@ const CLUB_ALIASES: Record<string, string> = {
   'Milan': 'AC Milan',
   // Real Zaragoza
   'Zaragoza': 'Real Zaragoza',
+  // Real Betis
+  'Betis': 'Real Betis',
 }
 
 const FOOTBALLING_NATIONS = new Set([

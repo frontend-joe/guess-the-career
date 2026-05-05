@@ -38,6 +38,14 @@ WHERE club = 'Zaragoza';
 UPDATE career_stints SET club = '→ Real Zaragoza (loan)'
 WHERE club = '→ Zaragoza (loan)';
 
+-- Normalise Real Betis aliases (non-loan)
+UPDATE career_stints SET club = 'Real Betis'
+WHERE club = 'Betis';
+
+-- Normalise Real Betis aliases (loan)
+UPDATE career_stints SET club = '→ Real Betis (loan)'
+WHERE club = '→ Betis (loan)';
+
 -- Rebuild clubs table from footballer senior careers only.
 DELETE FROM clubs;
 
