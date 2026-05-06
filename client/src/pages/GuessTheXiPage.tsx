@@ -424,7 +424,10 @@ export function GuessTheXiPage() {
 function ClubBadge({ name, wikipediaUrl }: { name: string; wikipediaUrl: string | null }) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
 
+  const flag = nationalityToFlag(name)
+
   useEffect(() => {
+    if (flag) return
     if (!wikipediaUrl) { setLogoUrl(false); return }
     const title = wikipediaUrl.split('/wiki/')[1]
     if (!title) { setLogoUrl(false); return }
@@ -434,13 +437,18 @@ function ClubBadge({ name, wikipediaUrl }: { name: string; wikipediaUrl: string 
       .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
       .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
     return () => controller.abort()
-  }, [wikipediaUrl])
+  }, [wikipediaUrl, flag])
 
   return (
     <div className="w-12 h-12 bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden" style={{ borderRadius: '12px' }}>
-      {logoUrl === null && <div className="w-full h-full bg-gray-200 animate-pulse rounded-full" />}
-      {logoUrl === false && <span className="text-gray-400 font-bold text-sm">{name.charAt(0)}</span>}
-      {logoUrl && <img src={logoUrl} alt={name} className="w-10 h-10 object-contain" />}
+      {flag
+        ? <span className="text-3xl leading-none">{flag}</span>
+        : logoUrl === null
+          ? <div className="w-full h-full bg-gray-200 animate-pulse" style={{ borderRadius: '12px' }} />
+          : logoUrl === false
+            ? <span className="text-gray-400 font-bold text-sm">{name.charAt(0)}</span>
+            : <img src={logoUrl} alt={name} className="w-10 h-10 object-contain" />
+      }
     </div>
   )
 }
