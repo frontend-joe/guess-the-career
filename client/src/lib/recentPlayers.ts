@@ -1,4 +1,4 @@
-const WINDOW = 20
+const WINDOW = 60
 
 function getRecent(key: string): number[] {
   try { return JSON.parse(localStorage.getItem(key) ?? '[]') } catch { return [] }

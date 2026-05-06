@@ -10,6 +10,7 @@ interface PlayerClubRow {
   photo_url: string | null
   club: string
   club_apps: number
+  club_wikipedia_url: string | null
 }
 
 // GET /api/who-played-more/session
@@ -26,7 +27,8 @@ whoPlayedMoreRouter.get('/session', (c) => {
     const params = withExclusion && excludeIds.length > 0 ? excludeIds : []
     return sqlite.prepare(`
       SELECT f.id, f.name, f.wikipedia_url, f.photo_url,
-             cs.club, SUM(cs.apps) AS club_apps
+             cs.club, SUM(cs.apps) AS club_apps,
+             MAX(cs.club_wikipedia_url) AS club_wikipedia_url
       FROM footballers f
       JOIN career_stints cs ON cs.footballer_id = f.id
       WHERE cs.stint_type = 'senior'
@@ -68,15 +70,13 @@ whoPlayedMoreRouter.get('/session', (c) => {
       }
     }
 
-    // Sort descending so ~50-gap pairs come first (easier) and ~10-gap come last (harder)
-    allPairs.sort((a, b) => b.diff - a.diff)
-
-    // Prefer pairs within 50 apps of each other; fall back to ≤200 then all
-    const pools = [
-      allPairs.filter(p => p.diff <= 50),
-      allPairs.filter(p => p.diff <= 200),
-      allPairs,
-    ]
+    function shuffle<T>(arr: T[]): T[] {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]]
+      }
+      return arr
+    }
 
     function greedyPick(pool: Pair[]): Pair[] {
       const usedIds = new Set<number>()
@@ -88,15 +88,24 @@ whoPlayedMoreRouter.get('/session', (c) => {
         usedIds.add(pair.player2.id)
         selected.push(pair)
       }
-      return selected
+      // Sort selected pairs easy→hard (largest diff first)
+      return selected.sort((a, b) => b.diff - a.diff)
     }
+
+    // Prefer pairs within 50 apps of each other; fall back to ≤200 then all.
+    // Shuffle each pool first so we get different pairs every session.
+    const pools = [
+      shuffle(allPairs.filter(p => p.diff <= 50)),
+      shuffle(allPairs.filter(p => p.diff <= 200)),
+      shuffle([...allPairs]),
+    ]
 
     for (const pool of pools) {
       const selected = greedyPick(pool)
       if (selected.length === 10) return selected
     }
 
-    return greedyPick(allPairs)
+    return greedyPick(shuffle([...allPairs]))
   }
 
   let pairs = buildPairs(fetchRows(true))
@@ -114,6 +123,7 @@ whoPlayedMoreRouter.get('/session', (c) => {
       player1: flip ? toPlayer(player2) : toPlayer(player1),
       player2: flip ? toPlayer(player1) : toPlayer(player2),
       club,
+      club_wikipedia_url: player1.club_wikipedia_url ?? player2.club_wikipedia_url ?? null,
     }
   })
 

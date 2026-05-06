@@ -12,6 +12,7 @@ export interface WpmPair {
   player1: WpmPlayer;
   player2: WpmPlayer;
   club: string;
+  club_wikipedia_url: string | null;
 }
 
 export interface WpmLeaderboardEntry {

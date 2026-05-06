@@ -207,6 +207,7 @@ export function WhoPlayedMorePage() {
                   <PlayerCard
                     player={pair.player1}
                     club={pair.club}
+                    clubWikipediaUrl={pair.club_wikipedia_url}
                     appsVisible={status !== "playing"}
                     appsStyle={
                       status === "playing" ? "neutral" : pair.player1.apps >= pair.player2.apps ? "green" : "red"
@@ -264,15 +265,41 @@ export function WhoPlayedMorePage() {
   );
 }
 
+function ClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: string | null }) {
+  const [logoUrl, setLogoUrl] = useState<string | false | null>(null);
+
+  useEffect(() => {
+    if (!wikipediaUrl) { setLogoUrl(false); return; }
+    const title = wikipediaUrl.split("/wiki/")[1];
+    if (!title) { setLogoUrl(false); return; }
+    const controller = new AbortController();
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setLogoUrl(data?.thumbnail?.source ?? false))
+      .catch((err) => { if (err.name !== "AbortError") setLogoUrl(false); });
+    return () => controller.abort();
+  }, [wikipediaUrl]);
+
+  return (
+    <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
+      {logoUrl === null && <div className="w-10 h-10 rounded bg-gray-100 animate-pulse" />}
+      {logoUrl === false && <span className="text-lg font-bold text-gray-300">{club.charAt(0)}</span>}
+      {logoUrl && <img src={logoUrl} alt={club} className="w-12 h-12 object-contain p-0.5" />}
+    </div>
+  );
+}
+
 function PlayerCard({
   player,
   club,
+  clubWikipediaUrl,
   appsVisible,
   appsStyle,
   onClick,
 }: {
   player: { id: number; name: string; wikipedia_url: string; photo_url: string | null; apps: number };
   club: string;
+  clubWikipediaUrl: string | null;
   appsVisible: boolean;
   appsStyle: "neutral" | "green" | "red";
   onClick?: () => void;
@@ -306,6 +333,7 @@ function PlayerCard({
         </p>
         <p className="text-xs text-gray-400 mt-0.5">Apps at {club}</p>
       </div>
+      <ClubBadge club={club} wikipediaUrl={clubWikipediaUrl} />
     </div>
   );
 }
