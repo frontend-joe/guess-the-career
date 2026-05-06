@@ -12,7 +12,10 @@ export interface XiRound {
   matchName: string
   year: number
   competition: string
+  homeTeam: string
+  awayTeam: string
   team: string
+  teamWikipediaUrl: string | null
   players: XiRoundPlayer[]
   playerNames: string[]
 }

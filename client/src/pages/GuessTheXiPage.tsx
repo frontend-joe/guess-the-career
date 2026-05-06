@@ -9,10 +9,34 @@ interface RoundResult {
   matchId: number
   matchName: string
   team: string
+  year: number
+  competition: string
+  homeTeam: string
+  awayTeam: string
+  teamWikipediaUrl: string | null
   players: XiRoundPlayer[]
   playerNames: string[]
   guessedIndices: Set<number>
   state: RoundState
+}
+
+const COMPETITION_ABBR: Record<string, string> = {
+  'UEFA Champions League': 'Champions League',
+  'UEFA Europa League': 'UEL',
+  'UEFA Cup': 'UEFA Cup',
+  'UEFA Conference League': 'UECL',
+  'FIFA World Cup': 'World Cup',
+  'UEFA European Championship': 'Euros',
+  'FA Cup': 'FA Cup',
+  'Premier League': 'PL',
+  'La Liga': 'La Liga',
+  'Serie A': 'Serie A',
+  'Bundesliga': 'Bundesliga',
+  'Ligue 1': 'Ligue 1',
+}
+
+function abbreviateCompetition(competition: string): string {
+  return COMPETITION_ABBR[competition] ?? competition
 }
 
 const POSITION_COLORS: Record<string, string> = {
@@ -86,6 +110,11 @@ export function GuessTheXiPage() {
       matchId: r.matchId,
       matchName: r.matchName,
       team: r.team,
+      year: r.year,
+      competition: r.competition,
+      homeTeam: r.homeTeam,
+      awayTeam: r.awayTeam,
+      teamWikipediaUrl: r.teamWikipediaUrl,
       players: r.players,
       playerNames: r.playerNames,
       guessedIndices: new Set<number>(),
@@ -248,10 +277,20 @@ export function GuessTheXiPage() {
 
         {!loading && !error && !showFinalScore && currentRound && (
           <div className="px-3 pt-4 pb-2">
-            {/* Match header */}
-            <div className="mb-3 text-center">
-              <p className="text-xs text-gray-400 uppercase tracking-widest">{currentRound.matchName}</p>
-              <p className="text-lg font-bold text-gray-900 mt-0.5">{currentRound.team}</p>
+            {/* Match header card */}
+            <div className="mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3">
+              <ClubBadge name={currentRound.team} wikipediaUrl={currentRound.teamWikipediaUrl} />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 uppercase tracking-widest leading-tight truncate">
+                  {abbreviateCompetition(currentRound.competition)} Final {currentRound.year}
+                </p>
+                <p className="text-base font-bold text-gray-900 leading-snug truncate">
+                  {currentRound.team} XI{' '}
+                  <span className="text-xs text-gray-400 font-normal ml-1.5">
+                    vs {currentRound.homeTeam === currentRound.team ? currentRound.awayTeam : currentRound.homeTeam}
+                  </span>
+                </p>
+              </div>
             </div>
 
             {/* Player list */}
@@ -264,7 +303,7 @@ export function GuessTheXiPage() {
                 return (
                   <div
                     key={player.id}
-                    className="flex items-center gap-3 px-3 py-2.5 border-b border-gray-100 last:border-0"
+                    className="flex items-center gap-3 px-3 h-9 border-b border-gray-100 last:border-0"
                   >
                     {/* Squad number */}
                     <span className="text-gray-400 text-xs tabular-nums w-5 text-right shrink-0">
@@ -292,7 +331,7 @@ export function GuessTheXiPage() {
                         )}
                       </span>
                     ) : (
-                      <div className="flex-1 h-3.5 bg-gray-200 rounded-full animate-pulse" />
+                      <div className="flex-1 h-px bg-gray-300 rounded-full" />
                     )}
                   </div>
                 )
@@ -378,6 +417,30 @@ export function GuessTheXiPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ClubBadge({ name, wikipediaUrl }: { name: string; wikipediaUrl: string | null }) {
+  const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
+
+  useEffect(() => {
+    if (!wikipediaUrl) { setLogoUrl(false); return }
+    const title = wikipediaUrl.split('/wiki/')[1]
+    if (!title) { setLogoUrl(false); return }
+    const controller = new AbortController()
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
+      .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
+    return () => controller.abort()
+  }, [wikipediaUrl])
+
+  return (
+    <div className="w-12 h-12 bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden" style={{ borderRadius: '12px' }}>
+      {logoUrl === null && <div className="w-full h-full bg-gray-200 animate-pulse rounded-full" />}
+      {logoUrl === false && <span className="text-gray-400 font-bold text-sm">{name.charAt(0)}</span>}
+      {logoUrl && <img src={logoUrl} alt={name} className="w-10 h-10 object-contain" />}
     </div>
   )
 }

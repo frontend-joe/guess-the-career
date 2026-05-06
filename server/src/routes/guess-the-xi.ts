@@ -29,7 +29,7 @@ guessTheXiRouter.get('/session', (c) => {
     .map(Number)
     .filter(n => n > 0)
 
-  function fetchMatches(withExclusion: boolean): MatchRow[] {
+  function fetchCandidates(withExclusion: boolean): MatchRow[] {
     const clause = withExclusion && excludeIds.length > 0
       ? `AND id NOT IN (${excludeIds.map(() => '?').join(', ')})`
       : ''
@@ -43,26 +43,37 @@ guessTheXiRouter.get('/session', (c) => {
       ) >= 22
       ${clause}
       ORDER BY RANDOM()
-      LIMIT 5
+      LIMIT 30
     `).all(...params) as MatchRow[]
   }
 
-  let matches = fetchMatches(true)
-  if (matches.length < 5) matches = fetchMatches(false)
+  function pickRounds(candidates: MatchRow[]): { match: MatchRow; team: string }[] {
+    const usedTeams = new Set<string>()
+    const picked: { match: MatchRow; team: string }[] = []
+    for (const match of candidates) {
+      if (picked.length === 5) break
+      const activePicks: string[] = []
+      if (match.home_team_active && !usedTeams.has(match.home_team)) activePicks.push(match.home_team)
+      if (match.away_team_active && !usedTeams.has(match.away_team)) activePicks.push(match.away_team)
+      if (activePicks.length === 0) continue
+      const team = activePicks[Math.floor(Math.random() * activePicks.length)]
+      usedTeams.add(team)
+      picked.push({ match, team })
+    }
+    return picked
+  }
 
-  if (matches.length < 5) {
+  let picked = pickRounds(fetchCandidates(true))
+  if (picked.length < 5) picked = pickRounds(fetchCandidates(false))
+
+  if (picked.length < 5) {
     return c.json(
-      { error: 'Not enough matches in database', needed: 5, found: matches.length },
+      { error: 'Not enough matches in database', needed: 5, found: picked.length },
       422
     )
   }
 
-  const rounds = matches.map((match) => {
-    const activePicks: string[] = []
-    if (match.home_team_active) activePicks.push(match.home_team)
-    if (match.away_team_active) activePicks.push(match.away_team)
-    const team = activePicks[Math.floor(Math.random() * activePicks.length)]
-
+  const rounds = picked.map(({ match, team }) => {
     const players = sqlite.prepare(`
       SELECT xp.id, xp.name, xp.position, xp.squad_number, f.nationality
       FROM xi_players xp
@@ -75,12 +86,19 @@ guessTheXiRouter.get('/session', (c) => {
       LIMIT 11
     `).all(match.id, team) as PlayerRow[]
 
+    const clubRow = sqlite.prepare(
+      `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`
+    ).get(team) as { wikipedia_url: string | null } | undefined
+
     return {
       matchId: match.id,
       matchName: match.name,
       year: match.year,
       competition: match.competition,
+      homeTeam: match.home_team,
+      awayTeam: match.away_team,
       team,
+      teamWikipediaUrl: clubRow?.wikipedia_url ?? null,
       players: players.map(p => ({
         id: p.id,
         position: p.position,

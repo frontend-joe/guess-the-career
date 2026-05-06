@@ -5,11 +5,11 @@ export function PlayHubPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="h-dvh flex flex-col items-center justify-center bg-[#1a1a2e] px-4 gap-6 font-sans">
-      <h1 className="text-white font-bold text-base tracking-[0.2em] uppercase mb-2">
+    <div className="min-h-dvh bg-[#1a1a2e] px-4 py-8 font-sans flex flex-col items-center">
+      <h1 className="text-white font-bold text-base tracking-[0.2em] uppercase mb-6">
         Football Guessing Games
       </h1>
-      <div className="flex flex-col gap-4 w-full max-w-xs">
+      <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
         <button
           onClick={() => navigate('/play/guess-the-career')}
           className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
