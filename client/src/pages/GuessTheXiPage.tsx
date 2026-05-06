@@ -319,14 +319,14 @@ export function GuessTheXiPage() {
                     {guessed ? (
                       <span className="text-green-600 font-semibold text-sm flex-1">
                         {name}
-                        {nationalityToFlag(player.nationality) && (
+                        {!nationalityToFlag(currentRound.team) && nationalityToFlag(player.nationality) && (
                           <span className="ml-1 text-base leading-none">{nationalityToFlag(player.nationality)}</span>
                         )}
                       </span>
                     ) : revealed ? (
                       <span className="text-red-500 font-medium text-sm flex-1">
                         {name}
-                        {nationalityToFlag(player.nationality) && (
+                        {!nationalityToFlag(currentRound.team) && nationalityToFlag(player.nationality) && (
                           <span className="ml-1 text-base leading-none">{nationalityToFlag(player.nationality)}</span>
                         )}
                       </span>
