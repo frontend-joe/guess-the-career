@@ -1,0 +1,31 @@
+import { getExcludeParam, recordPlayed } from '@/lib/recentPlayers'
+
+export interface XiRoundPlayer {
+  id: number
+  position: 'GK' | 'DF' | 'MF' | 'FW'
+  squadNumber: number | null
+  nationality: string | null
+}
+
+export interface XiRound {
+  matchId: number
+  matchName: string
+  year: number
+  competition: string
+  team: string
+  players: XiRoundPlayer[]
+  playerNames: string[]
+}
+
+export async function getXiSession(): Promise<XiRound[]> {
+  const exclude = getExcludeParam('gxi')
+  const url = exclude ? `/api/guess-the-xi/session?exclude=${exclude}` : '/api/guess-the-xi/session'
+  const res = await fetch(url)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error((body as { error?: string }).error ?? `Failed to load session: ${res.status}`)
+  }
+  const data: XiRound[] = await res.json()
+  recordPlayed('gxi', data.map(r => r.matchId))
+  return data
+}

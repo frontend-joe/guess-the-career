@@ -1,4 +1,6 @@
 import * as cheerio from 'cheerio'
+import type { CheerioAPI } from 'cheerio'
+import type { AnyNode } from 'domhandler'
 
 const CLUB_ALIASES: Record<string, string> = {
   // Inter Milan
@@ -16,6 +18,11 @@ const CLUB_ALIASES: Record<string, string> = {
   'Real Mallorca': 'Mallorca',
   // Oviedo
   'Real Oviedo': 'Oviedo',
+  // Monaco
+  'AS Monaco': 'Monaco',
+  'AS Monaco FC': 'Monaco',
+  // PSV
+  'PSV Eindhoven': 'PSV',
 }
 
 const FOOTBALLING_NATIONS = new Set([
@@ -313,6 +320,332 @@ export async function scrapeManagerWikipedia(url: string): Promise<ScrapeManager
   })
 
   return { name, wikipedia_url: url, place_of_birth, born, stints }
+}
+
+export interface ScrapedXiPlayer {
+  name: string
+  position: 'GK' | 'DF' | 'MF' | 'FW'
+  squadNumber: number | null
+  wikipediaUrl: string | null
+}
+
+export interface MatchScrapeResult {
+  matchName: string
+  year: number
+  competition: string
+  homeTeam: string
+  awayTeam: string
+  homePlayers: ScrapedXiPlayer[]
+  awayPlayers: ScrapedXiPlayer[]
+}
+
+export async function scrapeMatchLineups(url: string): Promise<MatchScrapeResult> {
+  if (!url.includes('wikipedia.org/wiki/')) {
+    throw new Error('URL must be a Wikipedia article URL')
+  }
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' },
+  })
+  if (!res.ok) {
+    throw new Error(`Wikipedia returned ${res.status}`)
+  }
+
+  const html = await res.text()
+  const $ = cheerio.load(html)
+
+  const rawTitle = $('#firstHeading').text().trim()
+  const matchName = stripCitations(rawTitle)
+  const yearMatch = matchName.match(/\d{4}/)
+  const year = yearMatch ? parseInt(yearMatch[0]) : new Date().getFullYear()
+  const competition = deriveCompetition(matchName)
+
+  // Try to find exactly two lineup tables (one per team)
+  const lineupTables = findLineupTables($)
+
+  if (lineupTables.length < 2) {
+    throw new Error(
+      `Could not find two lineup tables on this page (found ${lineupTables.length}). ` +
+      `Try adding the match manually.`
+    )
+  }
+
+  const [homeTable, awayTable] = lineupTables.slice(0, 2)
+  const [homeTeam, awayTeam] = extractTeamNames($, lineupTables)
+  const homePlayers = parseLineupTable($, homeTable)
+  const awayPlayers = parseLineupTable($, awayTable)
+
+  if (homePlayers.length < 11 || awayPlayers.length < 11) {
+    throw new Error(
+      `Expected 11 players per team but found ${homePlayers.length} and ${awayPlayers.length}. ` +
+      `Try adding the match manually.`
+    )
+  }
+
+  return {
+    matchName,
+    year,
+    competition,
+    homeTeam,
+    awayTeam,
+    homePlayers: homePlayers.slice(0, 11),
+    awayPlayers: awayPlayers.slice(0, 11),
+  }
+}
+
+function isPositionCode(text: string): boolean {
+  return /^(GK|DF|MF|FW|RB|CB|LB|SW|RM|CM|LM|AM|DM|CF|ST|SS|RW|LW|WB|RWB|LWB|CAM|CDM|RF|LF)$/i.test(text.trim())
+}
+
+function findLineupTables($: CheerioAPI): AnyNode[] {
+  // Strategy 0: Wikipedia standard match lineup format.
+  // These tables use style="font-size:90%" and have rows where the first <td>
+  // is a position code (GK, RB, CB, LB, CM, etc.) followed by squad number in <b>.
+  const newFormatCandidates: AnyNode[] = []
+  $('table').each((_i: number, table: AnyNode) => {
+    const style = ($(table).attr('style') ?? '').replace(/\s+/g, '')
+    if (!style.includes('font-size:90%')) return
+    let positionRowCount = 0
+    let hitSubs = false
+    $(table).find('tr').each((_j: number, row: AnyNode) => {
+      if (hitSubs) return
+      const cells = $(row).find('td')
+      if (!cells.length) return
+      const firstText = $(cells[0]).text().trim()
+      if (/^substitutes?/i.test(firstText)) { hitSubs = true; return }
+      if (isPositionCode(firstText)) positionRowCount++
+    })
+    if (positionRowCount >= 10) newFormatCandidates.push(table)
+  })
+  if (newFormatCandidates.length >= 2) return newFormatCandidates.slice(0, 2)
+
+  // Strategy 1: wikitable format with No./Pos. column headers and 11+ numbered rows
+  const candidates: AnyNode[] = []
+  $('table.wikitable').each((_i: number, table: AnyNode) => {
+    const rows = $(table).find('tr')
+    let playerRows = 0
+    let hasPositionCol = false
+    let hasNumberCol = false
+
+    rows.each((_j: number, row: AnyNode) => {
+      const cells = $(row).find('td')
+      if (cells.length < 2) return
+
+      const firstCell = $(cells[0]).text().trim()
+      const isNumberRow = /^\d{1,2}$/.test(firstCell)
+      if (isNumberRow) playerRows++
+
+      $(row).find('th').each((_k: number, th: AnyNode) => {
+        const text = $(th).text().trim().toLowerCase()
+        if (/^pos\.?$|^position$/.test(text)) hasPositionCol = true
+        if (/^no\.?$|^#$/.test(text)) hasNumberCol = true
+      })
+    })
+
+    if ((hasPositionCol || hasNumberCol) && playerRows >= 11) {
+      candidates.push(table)
+    }
+  })
+  if (candidates.length >= 2) return candidates
+
+  // Fallback: find wikitables near section headings
+  const sectionTables: AnyNode[] = []
+  const sectionHeadings = ['Starting_lineups', 'Match_details', 'Match', 'Line-ups', 'Lineups']
+
+  for (const headingId of sectionHeadings) {
+    const span = $(`span#${headingId}`).first()
+    if (!span.length) continue
+
+    span.closest('h2, h3').nextAll().each((_i: number, sibling: AnyNode) => {
+      const name = 'name' in sibling ? (sibling as { name: string }).name : ''
+      if (/^h[23]$/i.test(name)) return false
+      $(sibling).find('table.wikitable').each((_j: number, t: AnyNode) => { sectionTables.push(t) })
+      if ($(sibling).is('table.wikitable')) sectionTables.push(sibling)
+    })
+
+    if (sectionTables.length >= 2) return sectionTables.slice(0, 2)
+  }
+
+  return candidates.length > 0 ? candidates : sectionTables
+}
+
+function extractTeamNames($: CheerioAPI, lineupTables: AnyNode[]): [string, string] {
+  // The two lineup tables sit in sibling <td>s inside a <table width="100%"> (lineup outer table).
+  // Team names are in centred <b> elements inside the kit table that immediately precedes it.
+  let outerTable: ReturnType<typeof $> | null = null
+
+  $('table').each((_i: number, t: AnyNode) => {
+    if (outerTable) return
+    const tWidth = $(t).attr('width') ?? ''
+    const tStyle = ($(t).attr('style') ?? '').replace(/\s+/g, '')
+    if (tWidth !== '100%' && !/width:100%/.test(tStyle)) return
+    // Check if both lineup tables are descendants of this table
+    let count = 0
+    lineupTables.forEach(lt => {
+      if ($(t).find('table').filter((_j: number, inner: AnyNode) => inner === lt).length > 0) count++
+    })
+    if (count >= 2) outerTable = $(t)
+  })
+
+  if (outerTable) {
+    const prevTable = (outerTable as ReturnType<typeof $>).prev('table')
+    if (prevTable.length) {
+      const names: string[] = []
+      prevTable.find('div').each((_i: number, div: AnyNode) => {
+        if (names.length >= 2) return
+        if (!/text-align\s*:\s*center/i.test($(div).attr('style') ?? '')) return
+        const bText = stripCitations($(div).find('b').first().text().trim())
+        if (bText && bText.length > 1 && bText.length < 60 && !/^\d/.test(bText)) {
+          names.push(bText)
+        }
+      })
+      if (names.length === 2) return [names[0], names[1]]
+    }
+  }
+
+  // Fallback: per-table extraction
+  return [extractTeamName($, lineupTables[0]), extractTeamName($, lineupTables[1])]
+}
+
+function extractTeamName($: CheerioAPI, table: AnyNode): string {
+  // For font-size:90% lineup tables, the team name lives in the parent <td> —
+  // either inside a centred div (formation diagram label) or as a standalone <b>.
+  const tableStyle = ($(table).attr('style') ?? '').replace(/\s+/g, '')
+  if (tableStyle.includes('font-size:90%')) {
+    const parentTd = $(table).closest('td')
+    if (parentTd.length) {
+      let teamName = ''
+      parentTd.find('div').each((_i: number, div: AnyNode) => {
+        if (!/text-align\s*:\s*center/i.test($(div).attr('style') ?? '')) return
+        const bText = $(div).find('b').first().text().trim()
+        if (bText && bText.length > 1 && bText.length < 60) {
+          teamName = bText
+          return false
+        }
+      })
+      if (teamName) return stripCitations(teamName)
+
+      // Fallback: first <b> in parent td not inside the lineup table itself
+      parentTd.find('b').each((_i: number, b: AnyNode) => {
+        if ($(b).closest('table').get(0) === $(table).get(0)) return
+        const text = $(b).text().trim()
+        if (text && text.length > 2 && text.length < 60 && !/^\d/.test(text)) {
+          teamName = text
+          return false
+        }
+      })
+      if (teamName) return stripCitations(teamName)
+    }
+  }
+
+  const caption = $(table).find('caption').first().text().trim()
+  if (caption) return stripCitations(caption)
+
+  let teamName = ''
+  $(table).find('tr').each((_i: number, row: AnyNode) => {
+    const th = $(row).find('th[colspan]').first()
+    if (th.length) {
+      const text = stripCitations(th.text().trim())
+      if (text && !/^(no\.?|pos\.?|player|#)$/i.test(text)) {
+        teamName = text
+        return false
+      }
+    }
+  })
+  if (teamName) return teamName
+
+  $(table).find('tr:first-child th').each((_i: number, th: AnyNode) => {
+    const text = stripCitations($(th).text().trim())
+    if (text && !/^(no\.?|pos\.?|player|#)$/i.test(text)) {
+      teamName = text
+      return false
+    }
+  })
+
+  return teamName || 'Unknown Team'
+}
+
+function parseLineupTable($: CheerioAPI, table: AnyNode): ScrapedXiPlayer[] {
+  const players: ScrapedXiPlayer[] = []
+  let hitSubs = false
+
+  $(table).find('tr').each((_i: number, row: AnyNode) => {
+    if (hitSubs) return
+    const cells = $(row).find('td')
+    if (cells.length < 2) return
+
+    const firstCellText = $(cells[0]).text().trim()
+
+    // Stop collecting at the substitutes divider
+    if (/^substitutes?/i.test(firstCellText)) {
+      hitSubs = true
+      return
+    }
+
+    let squadNumber: number | null = null
+    let position: 'GK' | 'DF' | 'MF' | 'FW'
+    let nameCell: ReturnType<CheerioAPI>
+
+    if (isPositionCode(firstCellText)) {
+      // Wikipedia standard format: Pos | Squad# (in <b>) | Name
+      position = normalizePosition(firstCellText)
+      const numText = $(cells[1]).find('b').first().text().trim() || $(cells[1]).text().trim()
+      squadNumber = /^\d+$/.test(numText) ? parseInt(numText) : null
+      nameCell = $(cells.length >= 3 ? cells[2] : cells[1])
+    } else if (/^\d{1,2}$/.test(firstCellText)) {
+      // Wikitable format: Squad# | Pos | Name
+      squadNumber = parseInt(firstCellText) || null
+      const rawPos = stripCitations($(cells[1]).text().trim())
+      position = normalizePosition(rawPos)
+      nameCell = $(cells.length >= 3 ? cells[2] : cells[1])
+    } else {
+      return
+    }
+
+    // Skip flag image anchors (empty text) — player link is the first anchor with text
+    const nameLink = nameCell.find('a').filter((_: number, a: AnyNode) => $(a).text().trim().length > 0).first()
+    let name = nameLink.length
+      ? stripCitations(nameLink.text().trim())
+      : stripCitations(nameCell.clone().find('sup, small').remove().end().text().trim())
+
+    name = name.replace(/\s*\([^)]*\)\s*$/, '').trim()
+    if (!name) return
+
+    const href = nameLink.attr('href')
+    const wikipediaUrl = href && href.startsWith('/wiki/')
+      ? `https://en.wikipedia.org${href}`
+      : null
+
+    players.push({ name, position, squadNumber, wikipediaUrl })
+  })
+
+  return players
+}
+
+function normalizePosition(raw: string): 'GK' | 'DF' | 'MF' | 'FW' {
+  const s = raw.trim().toUpperCase()
+  if (/^GK$|^G$|^GOALKEEPER/.test(s)) return 'GK'
+  if (/^DF$|^D$|^DEF|^CB$|^RB$|^LB$|^SW$|^BACK/.test(s)) return 'DF'
+  if (/^FW$|^F$|^FOR|^ST$|^CF$|^SS$|^WIN|^STR/.test(s)) return 'FW'
+  // Default mid for anything else (including MF, M, MID, AM, DM, CM etc.)
+  return 'MF'
+}
+
+function deriveCompetition(matchName: string): string {
+  if (/UEFA Champions League/i.test(matchName)) return 'UEFA Champions League'
+  if (/UEFA Cup|UEFA Europa League/i.test(matchName)) return 'UEFA Europa League'
+  if (/UEFA Super Cup/i.test(matchName)) return 'UEFA Super Cup'
+  if (/FIFA World Cup/i.test(matchName) || /World Cup Final/i.test(matchName)) return 'FIFA World Cup'
+  if (/European Championship|UEFA Euro|Euro \d{4}/i.test(matchName)) return 'UEFA European Championship'
+  if (/Copa América/i.test(matchName)) return 'Copa América'
+  if (/FA Cup/i.test(matchName)) return 'FA Cup'
+  if (/Copa del Rey/i.test(matchName)) return 'Copa del Rey'
+  if (/Coppa Italia/i.test(matchName)) return 'Coppa Italia'
+  if (/DFB-Pokal/i.test(matchName)) return 'DFB-Pokal'
+  if (/Intercontinental Cup/i.test(matchName)) return 'Intercontinental Cup'
+  if (/Club World Cup/i.test(matchName)) return 'FIFA Club World Cup'
+  // Strip leading year(s) to get the competition name
+  return matchName.replace(/^\d{4}(?:[–\-]\d{2,4})?\s+/, '').replace(/\s+final$/i, '').trim()
 }
 
 function normalizeClubAlias(club: string): string {

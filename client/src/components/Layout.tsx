@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from "react-router";
-import { Users, UserCog, Building2, Database, Gamepad2 } from "lucide-react";
+import { Users, UserCog, Building2, Database, Gamepad2, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/footballers", label: "Footballers", icon: Users },
   { to: "/managers", label: "Managers", icon: UserCog },
   { to: "/clubs", label: "Clubs", icon: Building2 },
+  { to: "/elevens", label: "Elevens", icon: LayoutGrid },
   { to: "/database", label: "Database", icon: Database },
   { to: "/play", label: "Play", icon: Gamepad2 },
 ];

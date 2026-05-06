@@ -81,6 +81,35 @@ export const wpm_leaderboard = sqliteTable('wpm_leaderboard', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const xi_matches = sqliteTable('xi_matches', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  wikipedia_url: text('wikipedia_url').notNull().unique(),
+  year: integer('year').notNull(),
+  competition: text('competition').notNull(),
+  home_team: text('home_team').notNull(),
+  away_team: text('away_team').notNull(),
+  home_team_active: integer('home_team_active', { mode: 'boolean' }).notNull().default(true),
+  away_team_active: integer('away_team_active', { mode: 'boolean' }).notNull().default(true),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const xi_players = sqliteTable('xi_players', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  match_id: integer('match_id').notNull().references(() => xi_matches.id, { onDelete: 'cascade' }),
+  team: text('team').notNull(),
+  name: text('name').notNull(),
+  position: text('position').notNull(),
+  squad_number: integer('squad_number'),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type XiMatch = typeof xi_matches.$inferSelect
+export type NewXiMatch = typeof xi_matches.$inferInsert
+export type XiPlayer = typeof xi_players.$inferSelect
+export type NewXiPlayer = typeof xi_players.$inferInsert
+
 export type Club = typeof clubs.$inferSelect
 export type WsmLeaderboardEntry = typeof wsm_leaderboard.$inferSelect
 export type WpmLeaderboardEntry = typeof wpm_leaderboard.$inferSelect

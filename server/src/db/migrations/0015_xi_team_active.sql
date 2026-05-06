@@ -1,0 +1,2 @@
+ALTER TABLE xi_matches ADD COLUMN home_team_active INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE xi_matches ADD COLUMN away_team_active INTEGER NOT NULL DEFAULT 1;

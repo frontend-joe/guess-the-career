@@ -17,6 +17,10 @@ import { GuessHisClubsPage } from '@/pages/GuessHisClubsPage'
 import { ClubsInCommonPage } from '@/pages/ClubsInCommonPage'
 import { WhoScoredMorePage } from '@/pages/WhoScoredMorePage'
 import { WhoPlayedMorePage } from '@/pages/WhoPlayedMorePage'
+import { GuessTheXiPage } from '@/pages/GuessTheXiPage'
+import { ElevensPage } from '@/pages/ElevensPage'
+import { AddXiMatchPage } from '@/pages/AddXiMatchPage'
+import { XiMatchDetailPage } from '@/pages/XiMatchDetailPage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -27,6 +31,7 @@ const router = createBrowserRouter([
   { path: '/play/clubs-in-common', element: <ClubsInCommonPage /> },
   { path: '/play/who-scored-more', element: <WhoScoredMorePage /> },
   { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
+  { path: '/play/guess-the-xi', element: <GuessTheXiPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -42,6 +47,9 @@ const router = createBrowserRouter([
       { path: 'managers/schedule', element: <ManagerSchedulePage /> },
       { path: 'managers/:id', element: <ManagerDetailPage /> },
       { path: 'clubs', element: <ClubsPage /> },
+      { path: 'elevens', element: <ElevensPage /> },
+      { path: 'elevens/add', element: <AddXiMatchPage /> },
+      { path: 'elevens/:id', element: <XiMatchDetailPage /> },
       { path: 'database', element: <DatabasePage /> },
     ],
   },

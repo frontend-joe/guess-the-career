@@ -46,7 +46,7 @@ const TOP_CLUBS_LIST = [
 
   // France
   'bordeaux', 'girondins de bordeaux', 'rc lens', 'lens', 'lille', 'losc lille',
-  'lyon', 'olympique lyonnais', 'marseille', 'olympique de marseille', 'as monaco',
+  'lyon', 'olympique lyonnais', 'marseille', 'olympique de marseille',
   'monaco', 'montpellier', 'montpellier hsc', 'nantes', 'fc nantes', 'nice', 'ogc nice',
   'paris saint-germain', 'paris saint germain', 'psg', 'rennes', 'stade rennais',
   'saint-étienne', 'saint-etienne', 'as saint-étienne', 'strasbourg', 'rc strasbourg',
@@ -57,7 +57,7 @@ const TOP_CLUBS_LIST = [
   'sporting clube de portugal', 'sporting de lisboa', 'braga', 'sc braga', 'vitória de setúbal',
 
   // Netherlands
-  'ajax', 'afc ajax', 'az', 'az alkmaar', 'feyenoord', 'psv', 'psv eindhoven',
+  'ajax', 'afc ajax', 'az', 'az alkmaar', 'feyenoord', 'psv',
   'fc utrecht', 'utrecht', 'twente', 'fc twente',
 
   // Belgium
