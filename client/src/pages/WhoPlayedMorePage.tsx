@@ -111,6 +111,22 @@ export function WhoPlayedMorePage() {
 
   const pair = pairs[currentIndex];
 
+  // Fetch the club logo once per pair (shared by both player cards)
+  const [clubLogoUrl, setClubLogoUrl] = useState<string | false | null>(null);
+  useEffect(() => {
+    const url = pair?.club_wikipedia_url;
+    if (!url) { setClubLogoUrl(false); return; }
+    const title = url.split("/wiki/")[1];
+    if (!title) { setClubLogoUrl(false); return; }
+    setClubLogoUrl(null);
+    const controller = new AbortController();
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setClubLogoUrl(data?.thumbnail?.source ?? false))
+      .catch((err) => { if (err.name !== "AbortError") setClubLogoUrl(false); });
+    return () => controller.abort();
+  }, [pair?.club_wikipedia_url]);
+
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
@@ -207,7 +223,7 @@ export function WhoPlayedMorePage() {
                   <PlayerCard
                     player={pair.player1}
                     club={pair.club}
-                    clubWikipediaUrl={pair.club_wikipedia_url}
+                    clubLogoUrl={clubLogoUrl}
                     appsVisible={status !== "playing"}
                     appsStyle={
                       status === "playing" ? "neutral" : pair.player1.apps >= pair.player2.apps ? "green" : "red"
@@ -245,6 +261,7 @@ export function WhoPlayedMorePage() {
                   <PlayerCard
                     player={pair.player2}
                     club={pair.club}
+                    clubLogoUrl={clubLogoUrl}
                     appsVisible={status !== "playing"}
                     appsStyle={
                       status === "playing" ? "neutral" : pair.player2.apps >= pair.player1.apps ? "green" : "red"
@@ -265,21 +282,7 @@ export function WhoPlayedMorePage() {
   );
 }
 
-function ClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: string | null }) {
-  const [logoUrl, setLogoUrl] = useState<string | false | null>(null);
-
-  useEffect(() => {
-    if (!wikipediaUrl) { setLogoUrl(false); return; }
-    const title = wikipediaUrl.split("/wiki/")[1];
-    if (!title) { setLogoUrl(false); return; }
-    const controller = new AbortController();
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setLogoUrl(data?.thumbnail?.source ?? false))
-      .catch((err) => { if (err.name !== "AbortError") setLogoUrl(false); });
-    return () => controller.abort();
-  }, [wikipediaUrl]);
-
+function ClubBadge({ club, logoUrl }: { club: string; logoUrl: string | false | null }) {
   return (
     <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
       {logoUrl === null && <div className="w-10 h-10 rounded bg-gray-100 animate-pulse" />}
@@ -292,14 +295,14 @@ function ClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: string 
 function PlayerCard({
   player,
   club,
-  clubWikipediaUrl,
+  clubLogoUrl,
   appsVisible,
   appsStyle,
   onClick,
 }: {
   player: { id: number; name: string; wikipedia_url: string; photo_url: string | null; apps: number };
   club: string;
-  clubWikipediaUrl: string | null;
+  clubLogoUrl: string | false | null;
   appsVisible: boolean;
   appsStyle: "neutral" | "green" | "red";
   onClick?: () => void;
@@ -333,7 +336,7 @@ function PlayerCard({
         </p>
         <p className="text-xs text-gray-400 mt-0.5">Apps at {club}</p>
       </div>
-      <ClubBadge club={club} wikipediaUrl={clubWikipediaUrl} />
+      <ClubBadge club={club} logoUrl={clubLogoUrl} />
     </div>
   );
 }
