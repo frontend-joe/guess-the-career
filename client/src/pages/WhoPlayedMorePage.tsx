@@ -11,29 +11,6 @@ import { PlayerAvatar } from "@/components/PlayerAvatar";
 type GameStatus = "lobby" | "playing" | "correct" | "wrong" | "won";
 type View = "game" | "leaderboard";
 
-const PARTICLES = new Set([
-  "van",
-  "de",
-  "von",
-  "dos",
-  "da",
-  "di",
-  "del",
-  "della",
-  "le",
-  "la",
-  "el",
-]);
-
-function getLastName(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length <= 1) return name;
-  const last = parts[parts.length - 1];
-  const secondLast = parts[parts.length - 2];
-  if (parts.length >= 3 && PARTICLES.has(secondLast.toLowerCase()))
-    return `${secondLast} ${last}`;
-  return last;
-}
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -135,7 +112,7 @@ export function WhoPlayedMorePage() {
   const pair = pairs[currentIndex];
 
   return (
-    <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
+    <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button
