@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { sqlite } from '../db/client.ts'
+import { TOP_CLUBS } from '../data/topClubs.ts'
 
 export const whoPlayedMoreRouter = new Hono()
 
@@ -40,9 +41,10 @@ whoPlayedMoreRouter.get('/session', (c) => {
   }
 
   function buildPairs(rows: PlayerClubRow[]) {
-    // Group players by club
+    // Group players by club — only top clubs, no B/reserve teams
     const byClub = new Map<string, PlayerClubRow[]>()
     for (const row of rows) {
+      if (!TOP_CLUBS.has(row.club.toLowerCase().trim())) continue
       const list = byClub.get(row.club) ?? []
       list.push(row)
       byClub.set(row.club, list)
