@@ -345,7 +345,7 @@ export function GuessTheXiPage() {
       {!loading && !error && !showFinalScore && currentRound && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
           {/* Progress text */}
-          <p className="text-white/50 text-xs mb-2">
+          <p className={`text-xs mb-2 ${currentRound.guessedIndices.size > 0 ? 'text-green-400' : 'text-white/50'}`}>
             {isRoundDone
               ? currentRound.state === 'cleared'
                 ? `All 11 guessed! ✓`
