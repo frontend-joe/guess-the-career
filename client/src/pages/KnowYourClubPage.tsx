@@ -62,7 +62,7 @@ export function KnowYourClubPage() {
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<Footballer[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
-  const [guessFlash, setGuessFlash] = useState(false)
+  const [guessFlash, setGuessFlash] = useState<'correct' | 'wrong' | false>(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -111,9 +111,17 @@ export function KnowYourClubPage() {
     if (!guess.trim()) return
     const current = players[currentIndex]
     if (!current || current.guessed) return
-    if (!matchesPlayer(guess, current.player.name)) return
 
-    setGuessFlash(true)
+    if (!matchesPlayer(guess, current.player.name)) {
+      setInputValue('')
+      setSuggestions([])
+      setShowDropdown(false)
+      setGuessFlash('wrong')
+      setTimeout(() => setGuessFlash(false), 400)
+      return
+    }
+
+    setGuessFlash('correct')
     setTimeout(() => setGuessFlash(false), 400)
 
     const updated = players.map((p, i) => i === currentIndex ? { ...p, guessed: true } : p)
@@ -226,7 +234,7 @@ export function KnowYourClubPage() {
           {gameState === 'playing' && currentPlayer && (
             <div className="flex-1 min-h-0 flex flex-col justify-end px-4 pb-4 gap-3">
               <p className="text-white/70 text-sm font-semibold text-center tracking-widest uppercase">Who is this?</p>
-              <div className={`relative rounded-2xl overflow-hidden ${guessFlash ? 'bg-green-500' : 'bg-gray-900'}`} style={{ maxHeight: '65dvh' }}>
+              <div className={`relative rounded-2xl overflow-hidden ${guessFlash === 'correct' ? 'bg-green-500' : guessFlash === 'wrong' ? 'bg-red-500' : 'bg-gray-900'}`} style={{ maxHeight: '65dvh' }}>
                 <img
                   key={currentPlayer.player.id}
                   src={currentPlayer.player.photoUrl}
@@ -234,8 +242,11 @@ export function KnowYourClubPage() {
                   className="w-full object-cover object-top"
                   style={{ maxHeight: '65dvh' }}
                 />
-                {guessFlash && (
+                {guessFlash === 'correct' && (
                   <div className="absolute inset-0 bg-green-500/50 pointer-events-none" />
+                )}
+                {guessFlash === 'wrong' && (
+                  <div className="absolute inset-0 bg-red-500/50 pointer-events-none" />
                 )}
               </div>
             </div>

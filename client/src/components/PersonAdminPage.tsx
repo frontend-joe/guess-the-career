@@ -370,6 +370,7 @@ export interface PersonAdminConfig<T extends { id: number; name: string; wikiped
   extraFilters?: React.ReactNode
   filterPeople?: (people: T[]) => T[]
   rescrapePerson?: (id: number) => Promise<unknown>
+  updatePhotoUrl?: (id: number, url: string | null) => Promise<void>
 }
 
 export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null }>({
@@ -389,6 +390,8 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [photoEdits, setPhotoEdits] = useState<Map<number, string>>(new Map())
+  const [savingPhotos, setSavingPhotos] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   const debouncedSearch = useDebounce(search, 250)
@@ -442,6 +445,29 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+
+  const dirtyPhotoIds = useMemo(
+    () => [...photoEdits.entries()].filter(([id, val]) => {
+      const original = people.find(p => p.id === id)?.photo_url ?? ''
+      return val !== (original ?? '')
+    }).map(([id]) => id),
+    [photoEdits, people],
+  )
+
+  async function savePhotoUrls() {
+    if (!config.updatePhotoUrl || dirtyPhotoIds.length === 0) return
+    setSavingPhotos(true)
+    try {
+      await Promise.all(dirtyPhotoIds.map(id => {
+        const val = photoEdits.get(id) ?? ''
+        return config.updatePhotoUrl!(id, val.trim() || null)
+      }))
+      setPhotoEdits(new Map())
+      await load()
+    } finally {
+      setSavingPhotos(false)
+    }
   }
 
   function toggleSelectAll() {
@@ -579,6 +605,19 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                   {config.extraColumns.map((col) => (
                     <TableHead key={col.header} className={col.className}>{col.header}</TableHead>
                   ))}
+                  {config.updatePhotoUrl && (
+                    <TableHead className="min-w-64">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Photo URL</span>
+                        {dirtyPhotoIds.length > 0 && (
+                          <Button size="sm" className="h-6 text-xs px-2" onClick={savePhotoUrls} disabled={savingPhotos}>
+                            {savingPhotos ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                            Save {dirtyPhotoIds.length > 1 ? `(${dirtyPhotoIds.length})` : ''}
+                          </Button>
+                        )}
+                      </div>
+                    </TableHead>
+                  )}
                   <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
@@ -602,6 +641,16 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                     {config.extraColumns.map((col) => (
                       <TableCell key={col.header} className={col.className}>{col.render(item)}</TableCell>
                     ))}
+                    {config.updatePhotoUrl && (
+                      <TableCell>
+                        <Input
+                          value={photoEdits.has(item.id) ? photoEdits.get(item.id) : (item.photo_url ?? '')}
+                          onChange={e => setPhotoEdits(prev => new Map(prev).set(item.id, e.target.value))}
+                          placeholder="https://…"
+                          className={`h-7 text-xs ${dirtyPhotoIds.includes(item.id) ? 'border-amber-400' : ''}`}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="flex gap-1 justify-end">
                         <Button

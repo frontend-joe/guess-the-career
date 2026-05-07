@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
 import { nationalityToFlagUrl } from '@/lib/flags'
 import {
-  getFootballers, deleteFootballer, deleteAllFootballers, getDuplicates, rescrapeFootballer,
+  getFootballers, deleteFootballer, deleteAllFootballers, getDuplicates, rescrapeFootballer, updateFootballer,
   type Footballer,
 } from '@/api/footballers'
 
@@ -45,6 +45,7 @@ export function FootballersPage() {
     deleteAllPeople: deleteAllFootballers,
     getDuplicates,
     rescrapePerson: (id) => rescrapeFootballer(id),
+    updatePhotoUrl: (id, url) => updateFootballer(id, { photo_url: url }).then(() => {}),
     filterPeople: (missingNationality || missingPhoto)
       ? (people) => people.filter(f =>
           (!missingNationality || !f.nationality) &&
