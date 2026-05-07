@@ -11,7 +11,7 @@ async function fetchWikipediaThumbnail(wikipediaUrl: string): Promise<string | n
   const title = wikipediaUrl.split('/wiki/')[1]
   if (!title) return null
   try {
-    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
     const data = await res.json() as { thumbnail?: { source?: string } }
     return data?.thumbnail?.source ?? null
   } catch {
