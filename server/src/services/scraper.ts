@@ -41,7 +41,7 @@ const FOOTBALLING_NATIONS = new Set([
   'Greece', 'Romania', 'Bulgaria', 'Hungary', 'Slovenia', 'North Macedonia', 'Ireland',
   'Scotland', 'Wales', 'Northern Ireland', 'Republic of Ireland', 'Luxembourg',
   'Estonia', 'Latvia', 'Lithuania', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Georgia',
-  'Armenia', 'Azerbaijan', 'West Germany', 'East Germany', 'Yugoslavia',
+  'Armenia', 'Azerbaijan', 'West Germany', 'East Germany', 'Yugoslavia', 'Serbia and Montenegro',
 ])
 
 const COUNTRY_NORMALIZE: Record<string, string> = {
