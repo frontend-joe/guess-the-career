@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router";
-import { Home, ChevronRight, ChevronLeft } from "lucide-react";
+import { Home, ChevronRight, ChevronLeft, Shuffle } from "lucide-react";
 import {
   type XiRoundPlayer,
 } from "@/api/guess-the-xi";
@@ -235,6 +235,13 @@ export function GuessTheXiPage() {
     goToRound(roundIndex - 1);
   }
 
+  function handleRandom() {
+    if (rounds.length <= 1) return;
+    let idx: number;
+    do { idx = Math.floor(Math.random() * rounds.length) } while (idx === roundIndex);
+    goToRound(idx);
+  }
+
   function handleNext() {
     if (roundIndex < rounds.length - 1) {
       goToRound(roundIndex + 1);
@@ -448,9 +455,12 @@ export function GuessTheXiPage() {
               Previous
             </button>
 
-            <span className="text-white/60 text-xs font-mono">
-              #{roundIndex + 1}
-            </span>
+            <div className="flex items-center gap-2 text-white/60 text-xs font-mono">
+              <span>#{roundIndex + 1}</span>
+              <button onClick={handleRandom} className="text-white/40 hover:text-white transition-colors">
+                <Shuffle size={13} />
+              </button>
+            </div>
 
             {isRoundDone && isLastRound && allCleared ? (
               <button
