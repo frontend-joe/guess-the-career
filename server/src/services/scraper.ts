@@ -41,13 +41,15 @@ const FOOTBALLING_NATIONS = new Set([
   'Greece', 'Romania', 'Bulgaria', 'Hungary', 'Slovenia', 'North Macedonia', 'Ireland',
   'Scotland', 'Wales', 'Northern Ireland', 'Republic of Ireland', 'Luxembourg',
   'Estonia', 'Latvia', 'Lithuania', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Georgia',
-  'Armenia', 'Azerbaijan', 'West Germany', 'East Germany', 'Yugoslavia', 'Serbia and Montenegro',
+  'Armenia', 'Azerbaijan', 'West Germany', 'East Germany', 'Yugoslavia', 'SFR Yugoslavia', 'FR Yugoslavia', 'Serbia and Montenegro',
 ])
 
 const COUNTRY_NORMALIZE: Record<string, string> = {
   'Republic of Ireland': 'Ireland',
   'West Germany': 'Germany',
   'East Germany': 'Germany',
+  'SFR Yugoslavia': 'Yugoslavia',
+  'FR Yugoslavia': 'Yugoslavia',
 }
 
 export interface ScrapeResult {

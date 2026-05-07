@@ -18,6 +18,7 @@ import { ClubsInCommonPage } from '@/pages/ClubsInCommonPage'
 import { WhoScoredMorePage } from '@/pages/WhoScoredMorePage'
 import { WhoPlayedMorePage } from '@/pages/WhoPlayedMorePage'
 import { GuessTheXiPage } from '@/pages/GuessTheXiPage'
+import { KnowYourClubPage } from '@/pages/KnowYourClubPage'
 import { ElevensPage } from '@/pages/ElevensPage'
 import { AddXiMatchPage } from '@/pages/AddXiMatchPage'
 import { XiMatchDetailPage } from '@/pages/XiMatchDetailPage'
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
   { path: '/play/who-scored-more', element: <WhoScoredMorePage /> },
   { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
   { path: '/play/guess-the-xi', element: <GuessTheXiPage /> },
+  { path: '/play/know-your-club', element: <KnowYourClubPage /> },
   {
     path: '/',
     element: <Layout />,

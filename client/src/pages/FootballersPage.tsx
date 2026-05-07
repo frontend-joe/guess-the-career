@@ -31,6 +31,7 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
 
 export function FootballersPage() {
   const [missingNationality, setMissingNationality] = useState(false)
+  const [missingPhoto, setMissingPhoto] = useState(false)
 
   const config: PersonAdminConfig<Footballer> = {
     label: 'Footballer',
@@ -44,17 +45,33 @@ export function FootballersPage() {
     deleteAllPeople: deleteAllFootballers,
     getDuplicates,
     rescrapePerson: (id) => rescrapeFootballer(id),
-    filterPeople: missingNationality ? (people) => people.filter(f => !f.nationality) : undefined,
+    filterPeople: (missingNationality || missingPhoto)
+      ? (people) => people.filter(f =>
+          (!missingNationality || !f.nationality) &&
+          (!missingPhoto || !f.photo_url)
+        )
+      : undefined,
     extraFilters: (
-      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
-        <input
-          type="checkbox"
-          checked={missingNationality}
-          onChange={e => setMissingNationality(e.target.checked)}
-          className="h-4 w-4 accent-primary"
-        />
-        Missing nationality
-      </label>
+      <>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={missingNationality}
+            onChange={e => setMissingNationality(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          Missing nationality
+        </label>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={missingPhoto}
+            onChange={e => setMissingPhoto(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          Missing photo
+        </label>
+      </>
     ),
   }
 

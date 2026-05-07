@@ -7,6 +7,18 @@ import { db } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia } from '../services/scraper.ts'
 
+async function fetchWikipediaThumbnail(wikipediaUrl: string): Promise<string | null> {
+  const title = wikipediaUrl.split('/wiki/')[1]
+  if (!title) return null
+  try {
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
+    const data = await res.json() as { thumbnail?: { source?: string } }
+    return data?.thumbnail?.source ?? null
+  } catch {
+    return null
+  }
+}
+
 export const footballersRouter = new Hono()
 
 const stintSchema = z.object({
@@ -174,9 +186,11 @@ footballersRouter.get('/rescrape-all', async (c) => {
 
       try {
         const result = await scrapeWikipedia(player.url)
+        const existing = await db.select({ photo_url: footballers.photo_url }).from(footballers).where(eq(footballers.id, player.id)).limit(1)
+        const photoUrl = existing[0]?.photo_url ?? await fetchWikipediaThumbnail(player.url)
 
         await db.update(footballers)
-          .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, updated_at: sql`(datetime('now'))` })
+          .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
           .where(eq(footballers.id, player.id))
 
         await db.delete(career_stints).where(eq(career_stints.footballer_id, player.id))
@@ -278,9 +292,10 @@ footballersRouter.post('/:id/rescrape', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
   const result = await scrapeWikipedia(existing.wikipedia_url)
+  const photoUrl = existing.photo_url ?? await fetchWikipediaThumbnail(existing.wikipedia_url)
 
   await db.update(footballers)
-    .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, updated_at: sql`(datetime('now'))` })
+    .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
     .where(eq(footballers.id, id))
 
   await db.delete(career_stints).where(eq(career_stints.footballer_id, id))
