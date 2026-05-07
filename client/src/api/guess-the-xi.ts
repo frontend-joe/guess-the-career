@@ -5,6 +5,8 @@ export interface XiRoundPlayer {
   position: 'GK' | 'DF' | 'MF' | 'FW'
   squadNumber: number | null
   nationality: string | null
+  clubAtTime?: string | null
+  clubAtTimeWikipediaUrl?: string | null
 }
 
 export interface XiRound {

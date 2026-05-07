@@ -13,6 +13,42 @@ interface PlayerRow {
   position: string
   squad_number: number | null
   nationality: string | null
+  footballer_id: number | null
+}
+
+interface StintRow {
+  footballer_id: number
+  years: string
+  club: string
+  wikipedia_url: string | null
+  sort_order: number
+}
+
+function parseYearsRange(years: string): { start: number; end: number | null } {
+  const nums = (years.match(/\d{4}/g) ?? []).map(Number)
+  if (nums.length === 0) return { start: 9999, end: 9999 }
+  const start = nums[0]
+  if (nums.length === 1) {
+    // "2018" = single season, "2018–" = ongoing
+    const hasTrailingDash = /[–\-—]/.test(years.slice(4))
+    return { start, end: hasTrailingDash ? null : start }
+  }
+  return { start, end: nums[1] }
+}
+
+function findClubAtYear(stints: StintRow[], year: number): { club: string; wikipedia_url: string | null } | null {
+  if (stints.length === 0) return null
+  const currentYear = new Date().getFullYear()
+  for (const s of stints) {
+    const { start, end } = parseYearsRange(s.years)
+    if (start <= year && year <= (end ?? currentYear)) {
+      return { club: s.club, wikipedia_url: s.wikipedia_url }
+    }
+  }
+  // Fallback: most recent stint before the year
+  const before = stints.filter(s => parseYearsRange(s.years).start <= year)
+  if (before.length > 0) return { club: before[before.length - 1].club, wikipedia_url: before[before.length - 1].wikipedia_url }
+  return { club: stints[0].club, wikipedia_url: stints[0].wikipedia_url }
 }
 
 // GET /api/xi-schedule — admin list with match metadata
@@ -58,7 +94,7 @@ xiScheduleRouter.get('/rounds', (c) => {
 
   const rounds = rows.map(row => {
     const players = sqlite.prepare(`
-      SELECT xp.id, xp.name, xp.position, xp.squad_number, f.nationality
+      SELECT xp.id, xp.name, xp.position, xp.squad_number, xp.footballer_id, f.nationality
       FROM xi_players xp
       LEFT JOIN footballers f ON xp.footballer_id = f.id
       WHERE xp.match_id = ? AND xp.team = ?
@@ -73,6 +109,24 @@ xiScheduleRouter.get('/rounds', (c) => {
       `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`
     ).get(row.team) as { wikipedia_url: string | null } | undefined
 
+    // Batch-fetch senior career stints for all linked players to find club at competition time
+    const footballerIds = players.map(p => p.footballer_id).filter((id): id is number => id !== null)
+    const stintsByPlayer = new Map<number, StintRow[]>()
+    if (footballerIds.length > 0) {
+      const stints = sqlite.prepare(`
+        SELECT cs.footballer_id, cs.years, cs.club, cs.sort_order, c.wikipedia_url
+        FROM career_stints cs
+        LEFT JOIN clubs c ON LOWER(c.name) = LOWER(cs.club)
+        WHERE cs.footballer_id IN (${footballerIds.map(() => '?').join(', ')})
+          AND cs.stint_type = 'senior'
+        ORDER BY cs.footballer_id, cs.sort_order ASC
+      `).all(...footballerIds) as StintRow[]
+      for (const s of stints) {
+        if (!stintsByPlayer.has(s.footballer_id)) stintsByPlayer.set(s.footballer_id, [])
+        stintsByPlayer.get(s.footballer_id)!.push(s)
+      }
+    }
+
     return {
       date: row.date,
       matchId: row.match_id,
@@ -83,12 +137,19 @@ xiScheduleRouter.get('/rounds', (c) => {
       awayTeam: row.away_team,
       team: row.team,
       teamWikipediaUrl: clubRow?.wikipedia_url ?? null,
-      players: players.map(p => ({
-        id: p.id,
-        position: p.position,
-        squadNumber: p.squad_number,
-        nationality: p.nationality ?? null,
-      })),
+      players: players.map(p => {
+        const clubAtTime = p.footballer_id !== null
+          ? findClubAtYear(stintsByPlayer.get(p.footballer_id) ?? [], row.year)
+          : null
+        return {
+          id: p.id,
+          position: p.position,
+          squadNumber: p.squad_number,
+          nationality: p.nationality ?? null,
+          clubAtTime: clubAtTime?.club ?? null,
+          clubAtTimeWikipediaUrl: clubAtTime?.wikipedia_url ?? null,
+        }
+      }),
       playerNames: players.map(p => p.name),
     }
   })

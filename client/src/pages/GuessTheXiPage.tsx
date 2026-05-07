@@ -361,17 +361,22 @@ export function GuessTheXiPage() {
                     >
                       {player.position}
                     </span>
-                    {!nationalityToFlagUrl(currentRound.team) && (
-                      <span className="w-5 shrink-0 flex items-center">
-                        {nationalityToFlagUrl(player.nationality) && (
-                          <img
-                            src={nationalityToFlagUrl(player.nationality)!}
-                            alt={player.nationality ?? ""}
-                            className="h-3.5 w-auto border border-[#ebebeb]"
-                          />
-                        )}
-                      </span>
-                    )}
+                    <span className="w-4 shrink-0 flex items-center justify-center">
+                      {!nationalityToFlagUrl(currentRound.team)
+                        ? nationalityToFlagUrl(player.nationality) && (
+                            <img
+                              src={nationalityToFlagUrl(player.nationality)!}
+                              alt={player.nationality ?? ""}
+                              className="w-4 h-3.5 object-cover border border-[#ebebeb]"
+                            />
+                          )
+                        : player.clubAtTime && (
+                            <MiniClubBadge
+                              club={player.clubAtTime}
+                              wikipediaUrl={player.clubAtTimeWikipediaUrl ?? null}
+                            />
+                          )}
+                    </span>
                     {guessed ? (
                       <span className="text-green-600 font-semibold text-sm flex-1">{name}</span>
                     ) : (
@@ -470,6 +475,33 @@ export function GuessTheXiPage() {
       )}
     </div>
   );
+}
+
+function MiniClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: string | null }) {
+  const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
+
+  useEffect(() => {
+    if (!wikipediaUrl) { setLogoUrl(false); return }
+    const title = wikipediaUrl.split('/wiki/')[1]
+    if (!title) { setLogoUrl(false); return }
+    const controller = new AbortController()
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
+      .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
+    return () => controller.abort()
+  }, [wikipediaUrl])
+
+  return (
+    <div className="w-4 h-3.5 flex items-center justify-center shrink-0">
+      {logoUrl === null
+        ? <div className="w-full h-full bg-gray-100 animate-pulse rounded" />
+        : logoUrl === false
+          ? <span className="text-[9px] text-gray-400 font-bold leading-none">{club.charAt(0)}</span>
+          : <img src={logoUrl} alt={club} className="max-h-full max-w-full object-contain" title={club} />
+      }
+    </div>
+  )
 }
 
 function ClubBadge({
