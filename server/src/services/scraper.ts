@@ -32,7 +32,7 @@ const FOOTBALLING_NATIONS = new Set([
   'Panama', 'Honduras', 'El Salvador', 'Guatemala', 'Jamaica', 'Cuba', 'Haiti',
   'Dominican Republic', 'Morocco', 'Algeria', 'Tunisia', 'Egypt', 'Nigeria', 'Senegal',
   'Ghana', 'Ivory Coast', 'Cameroon', 'South Africa', 'Kenya', 'Ethiopia', 'DR Congo',
-  'Angola', 'Mali', 'Burkina Faso', 'Uganda', 'Zambia', 'Zimbabwe', 'Liberia', 'Australia',
+  'Angola', 'Mali', 'Burkina Faso', 'Uganda', 'Zambia', 'Zimbabwe', 'Liberia', 'Réunion', 'Australia',
   'New Zealand', 'Japan', 'South Korea', 'China', 'India', 'Indonesia', 'Thailand',
   'Vietnam', 'Malaysia', 'Saudi Arabia', 'Qatar', 'United Arab Emirates', 'Iran', 'Iraq',
   'Turkey', 'Israel', 'Jordan', 'Lebanon', 'Syria', 'Russia', 'Ukraine', 'Poland',
