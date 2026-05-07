@@ -58,6 +58,7 @@ export interface ScrapeResult {
   nationality: string | null
   position: string | null
   born: string | null
+  photo_url: string | null
   stints: {
     sort_order: number
     years: string
@@ -89,6 +90,18 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
 
   const infobox = $('table.infobox.vcard').first()
   if (!infobox.length) throw new Error('No infobox found on this Wikipedia page')
+
+  // Extract photo from infobox image row (avoids a separate API call)
+  let photo_url: string | null = null
+  const infoboxImg = infobox.find('td.infobox-image img, td.infobox-above img').first()
+  if (infoboxImg.length) {
+    const src = infoboxImg.attr('src') ?? ''
+    if (src.includes('upload.wikimedia.org')) {
+      const absolute = src.startsWith('//') ? `https:${src}` : src
+      // Bump thumbnail width to 330px for better quality
+      photo_url = absolute.replace(/\/\d+px-/, '/330px-')
+    }
+  }
 
   let nationality: string | null = null
   let position: string | null = null
@@ -252,7 +265,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     }
   }
 
-  return { name, wikipedia_url: url, nationality, position, born, stints }
+  return { name, wikipedia_url: url, nationality, position, born, photo_url, stints }
 }
 
 export interface ScrapeManagerResult {

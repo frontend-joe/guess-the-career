@@ -21,8 +21,8 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 type Pair = {
-  footballer1: { id: number; name: string; wikipedia_url: string }
-  footballer2: { id: number; name: string; wikipedia_url: string }
+  footballer1: { id: number; name: string; wikipedia_url: string; photo_url: string | null }
+  footballer2: { id: number; name: string; wikipedia_url: string; photo_url: string | null }
   commonClubs: string[]
   clubWikiUrls: Record<string, string>
   required: number
@@ -84,13 +84,13 @@ clubsInCommonRouter.get('/session', (c) => {
     (c.req.query('exclude') ?? '').split(',').map(Number).filter(n => n > 0)
   )
   const footballers = sqlite.prepare(`
-    SELECT f.id, f.name, f.wikipedia_url
+    SELECT f.id, f.name, f.wikipedia_url, f.photo_url
     FROM footballers f
     WHERE EXISTS (
       SELECT 1 FROM career_stints cs
       WHERE cs.footballer_id = f.id AND cs.stint_type = 'senior'
     )
-  `).all() as { id: number; name: string; wikipedia_url: string }[]
+  `).all() as { id: number; name: string; wikipedia_url: string; photo_url: string | null }[]
 
   if (footballers.length < 2) {
     return c.json({ error: 'Not enough footballers' }, 422)

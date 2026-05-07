@@ -16,6 +16,8 @@ export function usePlayerPhoto(id: number, wikipediaUrl: string, name: string, s
 
   useEffect(() => {
     if (storedPhotoUrl) { setPhotoUrl(storedPhotoUrl); return }
+    // null means the DB explicitly has no photo — skip network fetch
+    if (storedPhotoUrl === null) { setPhotoUrl(false); return }
     setPhotoUrl(null)
     const controller = new AbortController()
     const { signal } = controller

@@ -35,7 +35,7 @@ guessHisClubsRouter.get('/session', (c) => {
       : ''
     const params = withExclusion && excludeIds.length > 0 ? excludeIds : []
     return sqlite.prepare(`
-      SELECT f.id, f.name, f.wikipedia_url
+      SELECT f.id, f.name, f.wikipedia_url, f.photo_url
       FROM footballers f
       WHERE f.id IN (
         SELECT footballer_id
@@ -51,7 +51,7 @@ guessHisClubsRouter.get('/session', (c) => {
       ${clause}
       ORDER BY RANDOM()
       LIMIT 10
-    `).all(...params) as { id: number; name: string; wikipedia_url: string }[]
+    `).all(...params) as { id: number; name: string; wikipedia_url: string; photo_url: string | null }[]
   }
 
   let selected = fetchSelected(true)
@@ -99,6 +99,7 @@ guessHisClubsRouter.get('/session', (c) => {
       id: f.id,
       name: f.name,
       wikipedia_url: f.wikipedia_url,
+      photo_url: f.photo_url,
       clubs,
       clubWikiUrls: wikiUrls,
       required: requiredGuesses(clubs.length),

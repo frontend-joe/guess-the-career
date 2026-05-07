@@ -6,6 +6,7 @@ export interface CicFootballer {
   id: number
   name: string
   wikipedia_url: string
+  photo_url: string | null
 }
 
 export interface CicPair {

@@ -10,6 +10,7 @@ interface RoundResult {
   footballerId: number
   footballerName: string
   wikipediaUrl: string
+  photoUrl: string | null
   required: number
   correctClubs: string[]
   allClubs: string[]
@@ -34,6 +35,7 @@ export function GuessHisClubsPage() {
       footballerId: f.id,
       footballerName: f.name,
       wikipediaUrl: f.wikipedia_url,
+      photoUrl: f.photo_url,
       required: f.required,
       correctClubs: [],
       allClubs: f.clubs,
@@ -313,6 +315,7 @@ function FootballerCard({ round }: { round: RoundResult }) {
         id={round.footballerId}
         name={round.footballerName}
         wikipediaUrl={round.wikipediaUrl}
+        storedPhotoUrl={round.photoUrl}
         size="lg"
       />
       <div>

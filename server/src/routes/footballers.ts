@@ -7,13 +7,13 @@ import { db } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia } from '../services/scraper.ts'
 
-async function fetchWikipediaThumbnail(wikipediaUrl: string): Promise<string | null> {
-  const title = wikipediaUrl.split('/wiki/')[1]
-  if (!title) return null
+async function fetchSportsDbPhoto(name: string): Promise<string | null> {
   try {
-    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
-    const data = await res.json() as { thumbnail?: { source?: string } }
-    return data?.thumbnail?.source ?? null
+    const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(name)}`, {
+      headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' },
+    })
+    const data = await res.json() as { player?: { strThumb?: string }[] }
+    return data?.player?.[0]?.strThumb ?? null
   } catch {
     return null
   }
@@ -187,7 +187,7 @@ footballersRouter.get('/rescrape-all', async (c) => {
       try {
         const result = await scrapeWikipedia(player.url)
         const existing = await db.select({ photo_url: footballers.photo_url }).from(footballers).where(eq(footballers.id, player.id)).limit(1)
-        const photoUrl = existing[0]?.photo_url ?? await fetchWikipediaThumbnail(player.url)
+        const photoUrl = existing[0]?.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(player.name)
 
         await db.update(footballers)
           .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
@@ -215,7 +215,7 @@ footballersRouter.get('/rescrape-all', async (c) => {
         })
       }
 
-      await new Promise<void>(r => setTimeout(r, 500))
+      await new Promise<void>(r => setTimeout(r, 1000))
     }
 
     await stream.writeSSE({ data: JSON.stringify({ type: 'complete' }) })
@@ -292,7 +292,7 @@ footballersRouter.post('/:id/rescrape', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
   const result = await scrapeWikipedia(existing.wikipedia_url)
-  const photoUrl = existing.photo_url ?? await fetchWikipediaThumbnail(existing.wikipedia_url)
+  const photoUrl = existing.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(result.name)
 
   await db.update(footballers)
     .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })

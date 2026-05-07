@@ -7,8 +7,8 @@ import { PlayerAvatar } from '@/components/PlayerAvatar'
 type RoundState = 'playing' | 'cleared' | 'given_up'
 
 interface CicRoundResult {
-  footballer1: { id: number; name: string; wikipediaUrl: string }
-  footballer2: { id: number; name: string; wikipediaUrl: string }
+  footballer1: { id: number; name: string; wikipediaUrl: string; photoUrl: string | null }
+  footballer2: { id: number; name: string; wikipediaUrl: string; photoUrl: string | null }
   commonClubs: string[]
   clubWikiUrls: Record<string, string>
   required: number
@@ -30,8 +30,8 @@ export function ClubsInCommonPage() {
 
   function buildRounds(pairs: CicPair[]): CicRoundResult[] {
     return pairs.map(p => ({
-      footballer1: { id: p.footballer1.id, name: p.footballer1.name, wikipediaUrl: p.footballer1.wikipedia_url },
-      footballer2: { id: p.footballer2.id, name: p.footballer2.name, wikipediaUrl: p.footballer2.wikipedia_url },
+      footballer1: { id: p.footballer1.id, name: p.footballer1.name, wikipediaUrl: p.footballer1.wikipedia_url, photoUrl: p.footballer1.photo_url },
+      footballer2: { id: p.footballer2.id, name: p.footballer2.name, wikipediaUrl: p.footballer2.wikipedia_url, photoUrl: p.footballer2.photo_url },
       commonClubs: p.commonClubs,
       clubWikiUrls: p.clubWikiUrls ?? {},
       required: p.required,
@@ -304,10 +304,10 @@ export function ClubsInCommonPage() {
   )
 }
 
-function PlayerPhoto({ id, name, wikipediaUrl }: { id: number; name: string; wikipediaUrl: string }) {
+function PlayerPhoto({ id, name, wikipediaUrl, photoUrl }: { id: number; name: string; wikipediaUrl: string; photoUrl: string | null }) {
   return (
     <div className="flex flex-col items-center gap-1.5 flex-1">
-      <PlayerAvatar id={id} name={name} wikipediaUrl={wikipediaUrl} size="md" />
+      <PlayerAvatar id={id} name={name} wikipediaUrl={wikipediaUrl} storedPhotoUrl={photoUrl} size="md" />
       <p className="text-gray-900 font-bold text-sm text-center leading-tight">{name}</p>
     </div>
   )
@@ -321,6 +321,7 @@ function PairCard({ round }: { round: CicRoundResult }) {
           id={round.footballer1.id}
           name={round.footballer1.name}
           wikipediaUrl={round.footballer1.wikipediaUrl}
+          photoUrl={round.footballer1.photoUrl}
         />
         <div className="flex flex-col items-center shrink-0">
           <Link2 size={18} className="text-gray-300" />
@@ -329,6 +330,7 @@ function PairCard({ round }: { round: CicRoundResult }) {
           id={round.footballer2.id}
           name={round.footballer2.name}
           wikipediaUrl={round.footballer2.wikipediaUrl}
+          photoUrl={round.footballer2.photoUrl}
         />
       </div>
       <div>

@@ -146,7 +146,7 @@ export function KnowYourClubPage() {
 
   return (
     <div
-      className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans bg-[#1a1a2e]"
+      className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#1a1a2e]"
       onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
     >
       {/* Lobby */}
@@ -177,15 +177,14 @@ export function KnowYourClubPage() {
             {clubsLoading ? (
               <div className="text-white/50 text-sm text-center py-10">Loading clubs…</div>
             ) : (
-              <div className="flex flex-col gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 {filteredClubs.map(club => (
                   <button
                     key={club.id}
                     onClick={() => selectClub(club)}
-                    className="flex items-center justify-between bg-white/5 hover:bg-white/10 text-white rounded-xl px-4 py-3 transition-colors text-left"
+                    className="flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-xl px-3 py-3 transition-colors text-center"
                   >
-                    <span className="font-medium text-sm">{club.name}</span>
-                    <span className="text-white/40 text-xs">{club.playerCount} players</span>
+                    <span className="font-medium text-sm leading-snug">{club.name}</span>
                   </button>
                 ))}
                 {filteredClubs.length === 0 && !clubsLoading && (
@@ -225,16 +224,20 @@ export function KnowYourClubPage() {
 
           {/* Photo */}
           {gameState === 'playing' && currentPlayer && (
-            <div className={`flex-1 min-h-0 relative ${guessFlash ? 'bg-green-500' : 'bg-gray-900'}`}>
-              <img
-                key={currentPlayer.player.id}
-                src={currentPlayer.player.photoUrl}
-                alt="Player"
-                className="w-full h-full object-cover object-top"
-              />
-              {guessFlash && (
-                <div className="absolute inset-0 bg-green-500/50 pointer-events-none" />
-              )}
+            <div className="flex-1 min-h-0 flex flex-col justify-end px-4 pb-4 gap-3">
+              <p className="text-white/70 text-sm font-semibold text-center tracking-widest uppercase">Who is this?</p>
+              <div className={`relative rounded-2xl overflow-hidden ${guessFlash ? 'bg-green-500' : 'bg-gray-900'}`} style={{ maxHeight: '65dvh' }}>
+                <img
+                  key={currentPlayer.player.id}
+                  src={currentPlayer.player.photoUrl}
+                  alt="Player"
+                  className="w-full object-cover object-top"
+                  style={{ maxHeight: '65dvh' }}
+                />
+                {guessFlash && (
+                  <div className="absolute inset-0 bg-green-500/50 pointer-events-none" />
+                )}
+              </div>
             </div>
           )}
 
@@ -311,7 +314,7 @@ export function KnowYourClubPage() {
                     }
                   }}
                   placeholder="Type a player name…"
-                  className="w-full bg-white rounded-lg px-4 py-2.5 text-sm text-gray-900 outline-none"
+                  className="w-full bg-white rounded-lg px-4 py-2.5 text-base text-gray-900 outline-none"
                   autoComplete="off"
                 />
                 {showDropdown && suggestions.length > 0 && (

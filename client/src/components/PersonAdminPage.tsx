@@ -169,6 +169,7 @@ function RescrapeSelectedModal({
   rescrapePerson: (id: number) => Promise<unknown>
 }) {
   const [statuses, setStatuses] = useState<Map<number, RStatus>>(new Map())
+  const [errors, setErrors] = useState<Map<number, string>>(new Map())
   const [done, setDone] = useState(false)
   const scrapingRef = useRef<HTMLDivElement>(null)
 
@@ -184,6 +185,7 @@ function RescrapeSelectedModal({
     let cancelled = false
 
     setStatuses(new Map(items.map(i => [i.id, 'pending'])))
+    setErrors(new Map())
     setDone(false)
 
     ;(async () => {
@@ -193,8 +195,11 @@ function RescrapeSelectedModal({
         try {
           await rescrapePerson(item.id)
           if (!cancelled) setStatuses(prev => new Map(prev).set(item.id, 'done'))
-        } catch {
-          if (!cancelled) setStatuses(prev => new Map(prev).set(item.id, 'failed'))
+        } catch (e) {
+          if (!cancelled) {
+            setStatuses(prev => new Map(prev).set(item.id, 'failed'))
+            setErrors(prev => new Map(prev).set(item.id, e instanceof Error ? e.message : 'Unknown error'))
+          }
         }
       }
       if (!cancelled) setDone(true)
@@ -238,9 +243,14 @@ function RescrapeSelectedModal({
                     {status === 'done'     && <CheckCircle2 className="h-4 w-4 text-green-500" />}
                     {status === 'failed'   && <XCircle      className="h-4 w-4 text-destructive" />}
                   </span>
-                  <p className={`text-sm truncate ${status === 'pending' ? 'text-muted-foreground' : ''}`}>
-                    {item.name}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm truncate ${status === 'pending' ? 'text-muted-foreground' : ''}`}>
+                      {item.name}
+                    </p>
+                    {status === 'failed' && errors.get(item.id) && (
+                      <p className="text-xs text-destructive truncate">{errors.get(item.id)}</p>
+                    )}
+                  </div>
                 </div>
               )
             })}
