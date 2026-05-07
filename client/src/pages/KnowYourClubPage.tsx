@@ -130,6 +130,7 @@ export function KnowYourClubPage() {
     setSuggestions([])
     setShowDropdown(false)
     inputRef.current?.blur()
+    window.scrollTo(0, 0)
 
     if (currentIndex + 1 >= players.length) {
       setTimeout(() => setGameState('complete'), 500)
@@ -233,9 +234,9 @@ export function KnowYourClubPage() {
 
           {/* Photo */}
           {gameState === 'playing' && currentPlayer && (
-            <div className="flex-1 min-h-0 flex flex-col justify-end px-4 pb-4 gap-3">
-              <p className="text-white/70 text-sm font-semibold text-center tracking-widest uppercase">Who is this?</p>
-              <div className={`relative rounded-2xl overflow-hidden ${guessFlash === 'correct' ? 'bg-green-500' : guessFlash === 'wrong' ? 'bg-red-500' : 'bg-gray-900'}`} style={{ height: '340px' }}>
+            <div className="flex-1 min-h-0 flex flex-col px-4 pb-4 gap-3">
+              <p className="text-white/70 text-sm font-semibold text-center tracking-widest uppercase shrink-0">Who is this?</p>
+              <div className={`relative flex-1 min-h-0 rounded-2xl overflow-hidden ${guessFlash === 'correct' ? 'bg-green-500' : guessFlash === 'wrong' ? 'bg-red-500' : 'bg-gray-900'}`}>
                 <img
                   key={currentPlayer.player.id}
                   src={currentPlayer.player.photoUrl}

@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Home, ChevronRight, X } from "lucide-react";
+import { useSearchParams } from "react-router";
+import { Home, ChevronRight, ChevronLeft } from "lucide-react";
 import {
-  getXiSession,
-  type XiRound,
   type XiRoundPlayer,
 } from "@/api/guess-the-xi";
+import { getXiScheduleRounds, type XiScheduleRound } from "@/api/xi-schedule";
 import { getFootballers, type Footballer } from "@/api/footballers";
 import {
   submitXiScore,
@@ -12,9 +12,10 @@ import {
   type XiLeaderboardEntry,
 } from "@/api/xi-leaderboard";
 
-type RoundState = "playing" | "cleared" | "given_up";
+type RoundState = "playing" | "cleared";
 
 interface RoundResult {
+  date: string;
   matchId: number;
   matchName: string;
   team: string;
@@ -27,6 +28,32 @@ interface RoundResult {
   playerNames: string[];
   guessedIndices: Set<number>;
   state: RoundState;
+}
+
+const PROGRESS_KEY = "gxi_schedule_progress";
+
+interface SavedProgress {
+  [roundKey: string]: {
+    guessedIndices: number[];
+    state: RoundState;
+  };
+}
+
+function loadProgress(): SavedProgress {
+  try {
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveProgress(progress: SavedProgress) {
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+}
+
+function roundKey(matchId: number, team: string): string {
+  return `${matchId}:${team}`;
 }
 
 const COMPETITION_ABBR: Record<string, string> = {
@@ -55,7 +82,7 @@ const POSITION_COLORS: Record<string, string> = {
   FW: "bg-orange-100 text-orange-700",
 };
 
-import { nationalityToFlagUrl } from '@/lib/flags'
+import { nationalityToFlagUrl } from "@/lib/flags";
 
 function normalizeGuess(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -65,26 +92,16 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   const g = normalizeGuess(guess);
   const p = normalizeGuess(playerName);
   if (g === p) return true;
-  // Last-name-only match (min 4 chars to avoid false positives on short particles)
   const lastName = p.split(" ").at(-1) ?? "";
   return lastName.length >= 4 && g === lastName;
 }
 
-export function GuessTheXiPage() {
-  const [difficulty, setDifficulty] = useState<'easy' | 'hard' | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [rounds, setRounds] = useState<RoundResult[]>([]);
-  const [roundIndex, setRoundIndex] = useState(0);
-  const [inputValue, setInputValue] = useState("");
-  const [suggestions, setSuggestions] = useState<Footballer[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showFinalScore, setShowFinalScore] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function buildRounds(data: XiRound[]): RoundResult[] {
-    return data.map((r) => ({
+function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult[] {
+  return data.map((r) => {
+    const key = roundKey(r.matchId, r.team);
+    const prog = saved[key];
+    return {
+      date: r.date,
       matchId: r.matchId,
       matchName: r.matchName,
       team: r.team,
@@ -95,49 +112,45 @@ export function GuessTheXiPage() {
       teamWikipediaUrl: r.teamWikipediaUrl,
       players: r.players,
       playerNames: r.playerNames,
-      guessedIndices: new Set<number>(),
-      state: "playing" as RoundState,
-    }));
-  }
+      guessedIndices: prog ? new Set(prog.guessedIndices) : new Set<number>(),
+      state: prog?.state ?? "playing",
+    };
+  });
+}
 
-  function loadSession() {
-    setLoading(true);
-    setError(null);
-    setRoundIndex(0);
-    setRounds([]);
-    setInputValue("");
-    setSuggestions([]);
-    setShowDropdown(false);
-    setShowFinalScore(false);
-    getXiSession()
-      .then((data) => setRounds(buildRounds(data)))
-      .catch((e) =>
-        setError(
-          e instanceof Error
-            ? e.message
-            : "Failed to load session. Please try again.",
-        ),
-      )
-      .finally(() => setLoading(false));
-  }
-
-  function startGame(d: 'easy' | 'hard') {
-    setDifficulty(d);
-    loadSession();
-  }
-
-  function handlePlayAgain() {
-    setDifficulty(null);
-    setRounds([]);
-    setRoundIndex(0);
-    setShowFinalScore(false);
-  }
+export function GuessTheXiPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [rounds, setRounds] = useState<RoundResult[]>([]);
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [inputValue, setInputValue] = useState("");
+  const [suggestions, setSuggestions] = useState<Footballer[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showFinalScore, setShowFinalScore] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (difficulty && !loading && !error && !showFinalScore) {
+    setLoading(true);
+    setError(null);
+    getXiScheduleRounds()
+      .then((data) => {
+        const saved = loadProgress();
+        const built = buildRounds(data, saved);
+        setRounds(built);
+        const n = parseInt(searchParams.get("n") ?? "0");
+        setRoundIndex(Math.min(Math.max(n, 0), built.length - 1));
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load schedule."))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!loading && !error && rounds.length > 0 && !showFinalScore) {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [difficulty, roundIndex, loading, error, showFinalScore]);
+  }, [roundIndex, loading, error, rounds.length, showFinalScore]);
 
   const fetchSuggestions = useCallback((term: string) => {
     if (term.length < 2) {
@@ -183,13 +196,19 @@ export function GuessTheXiPage() {
     const newGuessed = new Set(round.guessedIndices);
     matched.forEach((i) => newGuessed.add(i));
     const allGuessed = newGuessed.size === round.players.length;
+    const newState: RoundState = allGuessed ? "cleared" : "playing";
+
     const updated = [...rounds];
-    updated[roundIndex] = {
-      ...round,
-      guessedIndices: newGuessed,
-      state: allGuessed ? "cleared" : "playing",
-    };
+    updated[roundIndex] = { ...round, guessedIndices: newGuessed, state: newState };
     setRounds(updated);
+
+    const progress = loadProgress();
+    progress[roundKey(round.matchId, round.team)] = {
+      guessedIndices: [...newGuessed],
+      state: newState,
+    };
+    saveProgress(progress);
+
     inputRef.current?.focus();
   }
 
@@ -203,31 +222,34 @@ export function GuessTheXiPage() {
     }
   }
 
-  function handleGiveUp() {
-    const round = rounds[roundIndex];
-    if (!round || round.state !== "playing") return;
-    const updated = [...rounds];
-    updated[roundIndex] = { ...round, state: "given_up" };
-    setRounds(updated);
+  function goToRound(index: number) {
+    if (index < 0 || index >= rounds.length) return;
+    setRoundIndex(index);
+    setSearchParams({ n: String(index) }, { replace: true });
+    setInputValue("");
+    setSuggestions([]);
+    setShowDropdown(false);
   }
 
-  function handleNextRound() {
+  function handlePrevious() {
+    goToRound(roundIndex - 1);
+  }
+
+  function handleNext() {
     if (roundIndex < rounds.length - 1) {
-      setRoundIndex((i) => i + 1);
-      setInputValue("");
-      setSuggestions([]);
-      setShowDropdown(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      goToRound(roundIndex + 1);
     }
   }
 
+  function handleSeeResults() {
+    setShowFinalScore(true);
+  }
+
   const currentRound = rounds[roundIndex] ?? null;
-  const isRoundDone = currentRound?.state !== "playing";
+  const isRoundDone = currentRound?.state === "cleared";
   const isLastRound = roundIndex === rounds.length - 1;
-  const totalGuessed = rounds.reduce(
-    (sum, r) => sum + r.guessedIndices.size,
-    0,
-  );
+  const allCleared = rounds.length > 0 && rounds.every((r) => r.state === "cleared");
+  const totalGuessed = rounds.reduce((sum, r) => sum + r.guessedIndices.size, 0);
   const totalPlayers = rounds.reduce((sum, r) => sum + r.players.length, 0);
 
   return (
@@ -262,43 +284,27 @@ export function GuessTheXiPage() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
-        {!difficulty && (
-          <div className="flex flex-col items-center justify-center flex-1 px-6 gap-6">
-            <h2 className="text-2xl font-bold text-gray-900">Choose difficulty</h2>
-            <div className="flex flex-col gap-3 w-full max-w-xs">
-              <button
-                onClick={() => startGame('easy')}
-                className="flex flex-col items-center gap-0.5 bg-white border-2 border-green-400 rounded-xl px-4 py-5 hover:bg-green-50 transition-colors"
-              >
-                <span className="font-bold text-lg text-gray-900 tracking-wide">EASY</span>
-                <span className="text-xs text-gray-400">Nationality flags shown</span>
-              </button>
-              <button
-                onClick={() => startGame('hard')}
-                className="flex flex-col items-center gap-0.5 bg-white border-2 border-red-400 rounded-xl px-4 py-5 hover:bg-red-50 transition-colors"
-              >
-                <span className="font-bold text-lg text-gray-900 tracking-wide">HARD</span>
-                <span className="text-xs text-gray-400">No flags</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {difficulty && loading && (
+        {loading && (
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-            Loading session…
+            Loading schedule…
           </div>
         )}
 
-        {difficulty && error && (
+        {error && (
           <div className="flex flex-col items-center justify-center h-full gap-4 px-4">
             <p className="text-red-500 text-sm text-center">{error}</p>
             <button
-              onClick={loadSession}
+              onClick={() => window.location.reload()}
               className="bg-[#1a1a2e] text-white text-sm px-4 py-2 rounded-lg"
             >
               Try again
             </button>
+          </div>
+        )}
+
+        {!loading && !error && rounds.length === 0 && (
+          <div className="flex items-center justify-center h-full px-6">
+            <p className="text-gray-500 text-sm text-center">No rounds scheduled yet — check back soon.</p>
           </div>
         )}
 
@@ -307,7 +313,7 @@ export function GuessTheXiPage() {
             rounds={rounds}
             totalGuessed={totalGuessed}
             totalPlayers={totalPlayers}
-            onPlayAgain={handlePlayAgain}
+            onBack={() => setShowFinalScore(false)}
           />
         )}
 
@@ -340,7 +346,6 @@ export function GuessTheXiPage() {
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               {currentRound.players.map((player, i) => {
                 const guessed = currentRound.guessedIndices.has(i);
-                const revealed = currentRound.state === "given_up" && !guessed;
                 const name = currentRound.playerNames[i];
 
                 return (
@@ -348,33 +353,27 @@ export function GuessTheXiPage() {
                     key={player.id}
                     className="flex items-center gap-3 px-3 h-8 border-b border-gray-100 last:border-0"
                   >
-                    {/* Squad number */}
                     <span className="text-gray-400 text-xs tabular-nums w-5 text-right shrink-0">
                       {player.squadNumber ?? "—"}
                     </span>
-
-                    {/* Position badge */}
                     <span
                       className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
                     >
                       {player.position}
                     </span>
-
-                    {/* Flag (easy mode only) */}
-                    {difficulty === 'easy' && (
+                    {!nationalityToFlagUrl(currentRound.team) && (
                       <span className="w-5 shrink-0 flex items-center">
-                        {!nationalityToFlagUrl(currentRound.team) &&
-                          nationalityToFlagUrl(player.nationality) && (
-                            <img src={nationalityToFlagUrl(player.nationality)!} alt={player.nationality ?? ''} className="h-3.5 w-auto border border-[#ebebeb]" />
-                          )}
+                        {nationalityToFlagUrl(player.nationality) && (
+                          <img
+                            src={nationalityToFlagUrl(player.nationality)!}
+                            alt={player.nationality ?? ""}
+                            className="h-3.5 w-auto border border-[#ebebeb]"
+                          />
+                        )}
                       </span>
                     )}
-
-                    {/* Player name or placeholder */}
                     {guessed ? (
                       <span className="text-green-600 font-semibold text-sm flex-1">{name}</span>
-                    ) : revealed ? (
-                      <span className="text-red-500 font-medium text-sm flex-1">{name}</span>
                     ) : (
                       <div className="flex-1 h-px bg-gray-300 rounded-full" />
                     )}
@@ -387,21 +386,19 @@ export function GuessTheXiPage() {
       </div>
 
       {/* Bottom panel */}
-      {!loading && !error && !showFinalScore && currentRound && (
+      {!loading && !error && !showFinalScore && rounds.length > 0 && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
           {/* Progress text */}
-          <p
-            className={`text-xs mb-2 ${currentRound.guessedIndices.size > 0 ? "text-green-400" : "text-white/50"}`}
-          >
-            {isRoundDone
-              ? currentRound.state === "cleared"
+          {currentRound && (
+            <p className={`text-xs mb-2 ${currentRound.guessedIndices.size > 0 ? "text-green-400" : "text-white/50"}`}>
+              {isRoundDone
                 ? `All 11 guessed! ✓`
-                : `${currentRound.guessedIndices.size} / 11 guessed`
-              : `${currentRound.guessedIndices.size} / 11 guessed`}
-          </p>
+                : `${currentRound.guessedIndices.size} / 11 guessed`}
+            </p>
+          )}
 
-          {/* Input with footballer autocomplete */}
-          {!isRoundDone && (
+          {/* Input */}
+          {currentRound && !isRoundDone && (
             <div className="relative mb-3">
               <input
                 ref={inputRef}
@@ -435,33 +432,37 @@ export function GuessTheXiPage() {
             </div>
           )}
 
-          {/* Action buttons */}
-          <div className="flex gap-2">
-            {!isRoundDone && (
+          {/* Nav row */}
+          <div className="flex items-center justify-between pt-1">
+            <button
+              onClick={handlePrevious}
+              disabled={roundIndex === 0}
+              className="flex items-center gap-0.5 text-white text-sm font-bold uppercase tracking-wide disabled:opacity-30"
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </button>
+
+            <span className="text-white/60 text-xs font-mono">
+              #{roundIndex + 1}
+            </span>
+
+            {isRoundDone && isLastRound && allCleared ? (
               <button
-                onClick={handleGiveUp}
-                className="flex-1 flex items-center justify-center gap-1 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
+                onClick={handleSeeResults}
+                className="flex items-center gap-0.5 text-white text-sm font-bold uppercase tracking-wide"
               >
-                <X size={14} />
-                Give Up
+                Results
+                <ChevronRight size={16} />
               </button>
-            )}
-            {isRoundDone && !isLastRound && (
+            ) : (
               <button
-                onClick={handleNextRound}
-                className="flex-1 flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-2 rounded-lg"
+                onClick={handleNext}
+                disabled={roundIndex === rounds.length - 1}
+                className="flex items-center gap-0.5 text-white text-sm font-bold uppercase tracking-wide disabled:opacity-30"
               >
-                Next Round
-                <ChevronRight size={14} />
-              </button>
-            )}
-            {isRoundDone && isLastRound && (
-              <button
-                onClick={() => setShowFinalScore(true)}
-                className="flex-1 flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-2 rounded-lg"
-              >
-                See Results
-                <ChevronRight size={14} />
+                Next
+                <ChevronRight size={16} />
               </button>
             )}
           </div>
@@ -479,29 +480,20 @@ function ClubBadge({
   wikipediaUrl: string | null;
 }) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null);
-
   const flagUrl = nationalityToFlagUrl(name);
 
   useEffect(() => {
     if (flagUrl) return;
-    if (!wikipediaUrl) {
-      setLogoUrl(false);
-      return;
-    }
+    if (!wikipediaUrl) { setLogoUrl(false); return; }
     const title = wikipediaUrl.split("/wiki/")[1];
-    if (!title) {
-      setLogoUrl(false);
-      return;
-    }
+    if (!title) { setLogoUrl(false); return; }
     const controller = new AbortController();
     fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, {
       signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data) => setLogoUrl(data?.thumbnail?.source ?? false))
-      .catch((err) => {
-        if (err.name !== "AbortError") setLogoUrl(false);
-      });
+      .catch((err) => { if (err.name !== "AbortError") setLogoUrl(false); });
     return () => controller.abort();
   }, [wikipediaUrl, flagUrl]);
 
@@ -511,16 +503,13 @@ function ClubBadge({
       style={{ borderRadius: "12px" }}
     >
       {flagUrl ? (
-        <img src={flagUrl} alt={name} className="w-full h-full object-cover" />
+        <div className="w-9 h-9 rounded-md overflow-hidden shrink-0">
+          <img src={flagUrl} alt={name} className="w-full h-full object-cover" />
+        </div>
       ) : logoUrl === null ? (
-        <div
-          className="w-full h-full bg-gray-200 animate-pulse"
-          style={{ borderRadius: "12px" }}
-        />
+        <div className="w-full h-full bg-gray-200 animate-pulse" style={{ borderRadius: "12px" }} />
       ) : logoUrl === false ? (
-        <span className="text-gray-400 font-bold text-sm">
-          {name.charAt(0)}
-        </span>
+        <span className="text-gray-400 font-bold text-sm">{name.charAt(0)}</span>
       ) : (
         <img src={logoUrl} alt={name} className="w-10 h-10 object-contain" />
       )}
@@ -532,31 +521,24 @@ function FinalScore({
   rounds,
   totalGuessed,
   totalPlayers,
-  onPlayAgain,
+  onBack,
 }: {
   rounds: RoundResult[];
   totalGuessed: number;
   totalPlayers: number;
-  onPlayAgain: () => void;
+  onBack: () => void;
 }) {
-  const pct =
-    totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0;
+  const pct = totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0;
   const pctColor =
-    pct >= 80
-      ? "text-green-500"
-      : pct >= 50
-        ? "text-orange-400"
-        : "text-red-500";
-  const qualifies = pct >= 75;
+    pct >= 80 ? "text-green-500" : pct >= 50 ? "text-orange-400" : "text-red-500";
+  const allCleared = rounds.every((r) => r.state === "cleared");
 
   const [tab, setTab] = useState<"score" | "leaderboard">("score");
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [leaderboard, setLeaderboard] = useState<XiLeaderboardEntry[] | null>(
-    null,
-  );
+  const [leaderboard, setLeaderboard] = useState<XiLeaderboardEntry[] | null>(null);
   const [leaderboardError, setLeaderboardError] = useState(false);
 
   useEffect(() => {
@@ -585,16 +567,11 @@ function FinalScore({
   return (
     <div className="flex flex-col items-center px-4 py-8 gap-6">
       <div className="text-center">
-        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">
-          Final Score
-        </p>
+        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Final Score</p>
         <p className={`text-5xl font-bold mt-2 ${pctColor}`}>{pct}%</p>
-        <p className="text-gray-500 text-sm mt-2">
-          {totalGuessed} / {totalPlayers} players
-        </p>
+        <p className="text-gray-500 text-sm mt-2">{totalGuessed} / {totalPlayers} players</p>
       </div>
 
-      {/* Tabs */}
       <div className="flex w-full rounded-xl overflow-hidden border border-gray-200">
         <button
           onClick={() => setTab("score")}
@@ -618,40 +595,29 @@ function FinalScore({
               const total = r.players.length;
               const cleared = r.state === "cleared";
               return (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100"
-                >
+                <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-gray-900 truncate">
                       {r.homeTeam} vs {r.awayTeam}
                     </p>
                     <p className="text-xs text-gray-500">{r.team} XI</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span
-                      className={`text-sm font-bold tabular-nums ${guessedCount === total ? "text-green-600" : guessedCount > 0 ? "text-orange-500" : "text-red-500"}`}
-                    >
-                      {guessedCount}/{total}
-                    </span>
-                  </div>
-                  <span className="text-base">
-                    {cleared ? "✓" : guessedCount > 0 ? "~" : "✗"}
+                  <span className={`text-sm font-bold tabular-nums ${guessedCount === total ? "text-green-600" : guessedCount > 0 ? "text-orange-500" : "text-red-500"}`}>
+                    {guessedCount}/{total}
                   </span>
+                  <span className="text-base">{cleared ? "✓" : guessedCount > 0 ? "~" : "✗"}</span>
                 </div>
               );
             })}
           </div>
 
-          {qualifies && (
+          {allCleared && (
             <div className="w-full bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
               <p className="text-xs text-gray-400 uppercase tracking-widest text-center">
-                You qualify for the leaderboard
+                Perfect score — enter the leaderboard
               </p>
               {submitted ? (
-                <p className="text-sm text-green-600 font-semibold text-center">
-                  ✓ Score saved!
-                </p>
+                <p className="text-sm text-green-600 font-semibold text-center">✓ Score saved!</p>
               ) : (
                 <>
                   <input
@@ -663,9 +629,7 @@ function FinalScore({
                     maxLength={50}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
                   />
-                  {submitError && (
-                    <p className="text-xs text-red-500">{submitError}</p>
-                  )}
+                  {submitError && <p className="text-xs text-red-500">{submitError}</p>}
                   <button
                     onClick={handleSubmit}
                     disabled={!name.trim() || submitting}
@@ -683,46 +647,32 @@ function FinalScore({
       {tab === "leaderboard" && (
         <div className="w-full flex flex-col gap-2">
           {leaderboardError && (
-            <p className="text-sm text-red-500 text-center">
-              Failed to load leaderboard.
-            </p>
+            <p className="text-sm text-red-500 text-center">Failed to load leaderboard.</p>
           )}
           {leaderboard === null && !leaderboardError && (
             <p className="text-sm text-gray-400 text-center">Loading…</p>
           )}
           {leaderboard && leaderboard.length === 0 && (
-            <p className="text-sm text-gray-400 text-center">
-              No scores yet. Be the first!
-            </p>
+            <p className="text-sm text-gray-400 text-center">No scores yet. Be the first!</p>
           )}
-          {leaderboard &&
-            leaderboard.map((entry, i) => (
-              <div
-                key={entry.id}
-                className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100"
-              >
-                <span className="text-xs font-bold text-gray-400 w-5 tabular-nums">
-                  {i + 1}
-                </span>
-                <span className="flex-1 text-sm font-semibold text-gray-900 truncate">
-                  {entry.player_name}
-                </span>
-                <span className="text-sm font-bold tabular-nums text-green-600">
-                  {entry.score}/{entry.total}
-                </span>
-                <span className="text-xs text-gray-400 tabular-nums">
-                  {Math.round((entry.score / entry.total) * 100)}%
-                </span>
-              </div>
-            ))}
+          {leaderboard && leaderboard.map((entry, i) => (
+            <div key={entry.id} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+              <span className="text-xs font-bold text-gray-400 w-5 tabular-nums">{i + 1}</span>
+              <span className="flex-1 text-sm font-semibold text-gray-900 truncate">{entry.player_name}</span>
+              <span className="text-sm font-bold tabular-nums text-green-600">{entry.score}/{entry.total}</span>
+              <span className="text-xs text-gray-400 tabular-nums">
+                {Math.round((entry.score / entry.total) * 100)}%
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
       <button
-        onClick={onPlayAgain}
+        onClick={onBack}
         className="bg-[#1a1a2e] text-white font-bold px-8 py-3 rounded-xl w-full text-sm"
       >
-        Play Again
+        Back to Game
       </button>
     </div>
   );

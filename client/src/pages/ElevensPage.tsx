@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { Plus, Trash2, ExternalLink, Search } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, Search, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getXiMatches, deleteXiMatch, type XiMatchListItem } from '@/api/xi-matches'
@@ -43,10 +43,16 @@ export function ElevensPage() {
           <h1 className="text-xl font-semibold">Elevens</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{matches.length} matches</p>
         </div>
-        <Button onClick={() => navigate('/elevens/add')} size="sm">
-          <Plus className="h-4 w-4 mr-1.5" />
-          Add match
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate('/elevens/schedule')}>
+            <CalendarDays className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Schedule</span>
+          </Button>
+          <Button onClick={() => navigate('/elevens/add')} size="sm">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add match
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4">

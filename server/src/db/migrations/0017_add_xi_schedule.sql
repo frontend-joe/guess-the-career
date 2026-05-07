@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS xi_schedule (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  date TEXT NOT NULL UNIQUE,
+  match_id INTEGER REFERENCES xi_matches(id) ON DELETE SET NULL,
+  team TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

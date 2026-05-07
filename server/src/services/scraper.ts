@@ -265,6 +265,8 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     }
   }
 
+  if (nationality) nationality = COUNTRY_NORMALIZE[nationality] ?? nationality
+
   return { name, wikipedia_url: url, nationality, position, born, photo_url, stints }
 }
 

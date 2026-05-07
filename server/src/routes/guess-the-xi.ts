@@ -111,3 +111,62 @@ guessTheXiRouter.get('/session', (c) => {
 
   return c.json(rounds)
 })
+
+// GET /api/guess-the-xi/load?s=matchId:side,matchId:side,...
+// side: 0=home, 1=away — restores a specific session from URL state
+guessTheXiRouter.get('/load', (c) => {
+  const sParam = c.req.query('s') ?? ''
+  const specs = sParam.split(',')
+    .map(s => {
+      const [idStr, sideStr] = s.split(':')
+      return { matchId: Number(idStr), side: Number(sideStr) }
+    })
+    .filter(({ matchId, side }) => matchId > 0 && (side === 0 || side === 1))
+
+  if (specs.length === 0) return c.json({ error: 'Invalid session spec' }, 400)
+
+  const rounds = []
+  for (const { matchId, side } of specs) {
+    const match = sqlite.prepare(
+      `SELECT id, name, year, competition, home_team, away_team FROM xi_matches WHERE id = ?`
+    ).get(matchId) as MatchRow | undefined
+    if (!match) continue
+
+    const team = side === 0 ? match.home_team : match.away_team
+    const players = sqlite.prepare(`
+      SELECT xp.id, xp.name, xp.position, xp.squad_number, f.nationality
+      FROM xi_players xp
+      LEFT JOIN footballers f ON xp.footballer_id = f.id
+      WHERE xp.match_id = ? AND xp.team = ?
+      ORDER BY
+        CASE xp.position WHEN 'GK' THEN 1 WHEN 'DF' THEN 2 WHEN 'MF' THEN 3 WHEN 'FW' THEN 4 ELSE 5 END,
+        CASE WHEN xp.squad_number IS NULL THEN 1 ELSE 0 END,
+        xp.squad_number ASC
+      LIMIT 11
+    `).all(match.id, team) as PlayerRow[]
+
+    const clubRow = sqlite.prepare(
+      `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`
+    ).get(team) as { wikipedia_url: string | null } | undefined
+
+    rounds.push({
+      matchId: match.id,
+      matchName: match.name,
+      year: match.year,
+      competition: match.competition,
+      homeTeam: match.home_team,
+      awayTeam: match.away_team,
+      team,
+      teamWikipediaUrl: clubRow?.wikipedia_url ?? null,
+      players: players.map(p => ({
+        id: p.id,
+        position: p.position,
+        squadNumber: p.squad_number,
+        nationality: p.nationality ?? null,
+      })),
+      playerNames: players.map(p => p.name),
+    })
+  }
+
+  return c.json(rounds)
+})

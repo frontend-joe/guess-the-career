@@ -22,6 +22,7 @@ import { KnowYourClubPage } from '@/pages/KnowYourClubPage'
 import { ElevensPage } from '@/pages/ElevensPage'
 import { AddXiMatchPage } from '@/pages/AddXiMatchPage'
 import { XiMatchDetailPage } from '@/pages/XiMatchDetailPage'
+import { XiSchedulePage } from '@/pages/XiSchedulePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -50,6 +51,7 @@ const router = createBrowserRouter([
       { path: 'managers/:id', element: <ManagerDetailPage /> },
       { path: 'clubs', element: <ClubsPage /> },
       { path: 'elevens', element: <ElevensPage /> },
+      { path: 'elevens/schedule', element: <XiSchedulePage /> },
       { path: 'elevens/add', element: <AddXiMatchPage /> },
       { path: 'elevens/:id', element: <XiMatchDetailPage /> },
       { path: 'database', element: <DatabasePage /> },

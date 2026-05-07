@@ -42,6 +42,8 @@ xiMatchesRouter.get('/', async (c) => {
       competition: xi_matches.competition,
       home_team: xi_matches.home_team,
       away_team: xi_matches.away_team,
+      home_team_active: xi_matches.home_team_active,
+      away_team_active: xi_matches.away_team_active,
       created_at: xi_matches.created_at,
       player_count: sql<number>`(SELECT COUNT(*) FROM xi_players WHERE match_id = ${xi_matches.id})`,
     })

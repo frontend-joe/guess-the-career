@@ -20,6 +20,12 @@ export interface XiRound {
   playerNames: string[]
 }
 
+export async function getXiSessionBySpec(spec: string): Promise<XiRound[]> {
+  const res = await fetch(`/api/guess-the-xi/load?s=${encodeURIComponent(spec)}`)
+  if (!res.ok) throw new Error('Failed to restore session')
+  return res.json()
+}
+
 export async function getXiSession(): Promise<XiRound[]> {
   const exclude = getExcludeParam('gxi')
   const url = exclude ? `/api/guess-the-xi/session?exclude=${exclude}` : '/api/guess-the-xi/session'

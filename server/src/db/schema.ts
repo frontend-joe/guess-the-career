@@ -105,6 +105,14 @@ export const xi_players = sqliteTable('xi_players', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const xi_schedule = sqliteTable('xi_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  match_id: integer('match_id').references(() => xi_matches.id, { onDelete: 'set null' }),
+  team: text('team'),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export const xi_leaderboard = sqliteTable('xi_leaderboard', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   player_name: text('player_name').notNull(),
@@ -113,6 +121,7 @@ export const xi_leaderboard = sqliteTable('xi_leaderboard', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export type XiScheduleEntry = typeof xi_schedule.$inferSelect
 export type XiLeaderboardEntry = typeof xi_leaderboard.$inferSelect
 
 export type XiMatch = typeof xi_matches.$inferSelect
