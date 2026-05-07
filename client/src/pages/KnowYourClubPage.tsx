@@ -76,7 +76,7 @@ export function KnowYourClubPage() {
     if (gameState === 'playing') {
       setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }, [gameState, currentIndex])
+  }, [gameState])
 
   const fetchSuggestions = useCallback((term: string) => {
     if (term.length < 2) { setSuggestions([]); setShowDropdown(false); return }
@@ -129,6 +129,7 @@ export function KnowYourClubPage() {
     setInputValue('')
     setSuggestions([])
     setShowDropdown(false)
+    inputRef.current?.blur()
 
     if (currentIndex + 1 >= players.length) {
       setTimeout(() => setGameState('complete'), 500)
@@ -234,13 +235,12 @@ export function KnowYourClubPage() {
           {gameState === 'playing' && currentPlayer && (
             <div className="flex-1 min-h-0 flex flex-col justify-end px-4 pb-4 gap-3">
               <p className="text-white/70 text-sm font-semibold text-center tracking-widest uppercase">Who is this?</p>
-              <div className={`relative rounded-2xl overflow-hidden ${guessFlash === 'correct' ? 'bg-green-500' : guessFlash === 'wrong' ? 'bg-red-500' : 'bg-gray-900'}`} style={{ maxHeight: '65dvh' }}>
+              <div className={`relative rounded-2xl overflow-hidden ${guessFlash === 'correct' ? 'bg-green-500' : guessFlash === 'wrong' ? 'bg-red-500' : 'bg-gray-900'}`} style={{ height: '340px' }}>
                 <img
                   key={currentPlayer.player.id}
                   src={currentPlayer.player.photoUrl}
                   alt="Player"
-                  className="w-full object-cover object-top"
-                  style={{ maxHeight: '65dvh' }}
+                  className="w-full h-full object-cover object-top"
                 />
                 {guessFlash === 'correct' && (
                   <div className="absolute inset-0 bg-green-500/50 pointer-events-none" />
@@ -263,10 +263,10 @@ export function KnowYourClubPage() {
                 ) : (
                   <h2 className="text-xl font-bold text-gray-900">Too bad!</h2>
                 )}
-                <p className="text-sm text-gray-500 mt-0.5">{guessedCount} / {players.length} guessed</p>
+                <p className="text-sm text-gray-500 mt-0.5">{guessedCount} / {gameState === 'given_up' ? currentIndex + 1 : players.length} guessed</p>
               </div>
               <div className="grid grid-cols-2 gap-3 px-4 pb-4">
-                {players.map(({ player, guessed }) => (
+                {(gameState === 'given_up' ? players.slice(0, currentIndex + 1) : players).map(({ player, guessed }) => (
                   <div key={player.id} className="flex flex-col rounded-xl overflow-hidden bg-white border border-gray-200">
                     <div className="aspect-square bg-gray-100">
                       <img
