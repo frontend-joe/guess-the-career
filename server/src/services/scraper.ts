@@ -238,8 +238,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   // Final fallback: if nationality is still unset, scan each comma-segment of the birthplace
   // against FOOTBALLING_NATIONS (last-to-first, so "Piacenza, Emilia-Romagna, Italy" → "Italy")
   if (!nationality && birthplaceRaw) {
-    const place = birthplaceRaw
-    const segments = place.split(',').map((s: string) => stripCitations(s).trim()).filter(Boolean).reverse()
+    const segments = (birthplaceRaw as string).split(',').map((s: string) => stripCitations(s).trim()).filter(Boolean).reverse()
     for (const seg of segments) {
       const normalized = COUNTRY_NORMALIZE[seg] ?? seg
       if (FOOTBALLING_NATIONS.has(seg) || FOOTBALLING_NATIONS.has(normalized)) {
