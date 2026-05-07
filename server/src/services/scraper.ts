@@ -32,7 +32,7 @@ const FOOTBALLING_NATIONS = new Set([
   'Panama', 'Honduras', 'El Salvador', 'Guatemala', 'Jamaica', 'Cuba', 'Haiti',
   'Dominican Republic', 'Morocco', 'Algeria', 'Tunisia', 'Egypt', 'Nigeria', 'Senegal',
   'Ghana', 'Ivory Coast', 'Cameroon', 'South Africa', 'Kenya', 'Ethiopia', 'DR Congo',
-  'Angola', 'Mali', 'Burkina Faso', 'Uganda', 'Zambia', 'Zimbabwe', 'Australia',
+  'Angola', 'Mali', 'Burkina Faso', 'Uganda', 'Zambia', 'Zimbabwe', 'Liberia', 'Australia',
   'New Zealand', 'Japan', 'South Korea', 'China', 'India', 'Indonesia', 'Thailand',
   'Vietnam', 'Malaysia', 'Saudi Arabia', 'Qatar', 'United Arab Emirates', 'Iran', 'Iraq',
   'Turkey', 'Israel', 'Jordan', 'Lebanon', 'Syria', 'Russia', 'Ukraine', 'Poland',
@@ -41,7 +41,7 @@ const FOOTBALLING_NATIONS = new Set([
   'Greece', 'Romania', 'Bulgaria', 'Hungary', 'Slovenia', 'North Macedonia', 'Ireland',
   'Scotland', 'Wales', 'Northern Ireland', 'Republic of Ireland', 'Luxembourg',
   'Estonia', 'Latvia', 'Lithuania', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Georgia',
-  'Armenia', 'Azerbaijan', 'West Germany', 'East Germany',
+  'Armenia', 'Azerbaijan', 'West Germany', 'East Germany', 'Yugoslavia',
 ])
 
 const COUNTRY_NORMALIZE: Record<string, string> = {
