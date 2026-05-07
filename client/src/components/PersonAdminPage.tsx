@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { useNavigate } from 'react-router'
 import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy, CalendarDays } from 'lucide-react'
+import { RescrapeButton } from '@/components/RescrapeButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -158,6 +159,108 @@ function RescrapeModal({ open, onClose, onComplete, rescrapeUrl }: {
   )
 }
 
+function RescrapeSelectedModal({
+  open, onClose, onComplete, items, rescrapePerson,
+}: {
+  open: boolean
+  onClose: () => void
+  onComplete: () => void
+  items: { id: number; name: string }[]
+  rescrapePerson: (id: number) => Promise<unknown>
+}) {
+  const [statuses, setStatuses] = useState<Map<number, RStatus>>(new Map())
+  const [done, setDone] = useState(false)
+  const scrapingRef = useRef<HTMLDivElement>(null)
+
+  const doneCount = useMemo(() => [...statuses.values()].filter(s => s === 'done').length, [statuses])
+  const failedCount = useMemo(() => [...statuses.values()].filter(s => s === 'failed').length, [statuses])
+
+  useEffect(() => {
+    scrapingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [[...statuses.values()].findIndex(s => s === 'scraping')])
+
+  useEffect(() => {
+    if (!open || items.length === 0) return
+    let cancelled = false
+
+    setStatuses(new Map(items.map(i => [i.id, 'pending'])))
+    setDone(false)
+
+    ;(async () => {
+      for (const item of items) {
+        if (cancelled) break
+        setStatuses(prev => new Map(prev).set(item.id, 'scraping'))
+        try {
+          await rescrapePerson(item.id)
+          if (!cancelled) setStatuses(prev => new Map(prev).set(item.id, 'done'))
+        } catch {
+          if (!cancelled) setStatuses(prev => new Map(prev).set(item.id, 'failed'))
+        }
+      }
+      if (!cancelled) setDone(true)
+    })()
+
+    return () => { cancelled = true }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o && done) onClose() }}>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3 shrink-0">
+          <DialogTitle className="flex items-center justify-between">
+            <span>Rescraping selected</span>
+            {items.length > 0 && (
+              <span className="text-sm font-normal text-muted-foreground tabular-nums">
+                {doneCount + failedCount} / {items.length}
+              </span>
+            )}
+          </DialogTitle>
+          {done && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Done — {doneCount} updated{failedCount > 0 ? `, ${failedCount} failed` : ''}.
+            </p>
+          )}
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto border-t border-b min-h-0">
+          <div className="divide-y">
+            {items.map((item) => {
+              const status = statuses.get(item.id) ?? 'pending'
+              return (
+                <div
+                  key={item.id}
+                  ref={status === 'scraping' ? scrapingRef : undefined}
+                  className="flex items-center gap-3 px-4 py-2"
+                >
+                  <span className="shrink-0">
+                    {status === 'pending'  && <Circle       className="h-4 w-4 text-muted-foreground/30" />}
+                    {status === 'scraping' && <Loader2      className="h-4 w-4 text-blue-500 animate-spin" />}
+                    {status === 'done'     && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    {status === 'failed'   && <XCircle      className="h-4 w-4 text-destructive" />}
+                  </span>
+                  <p className={`text-sm truncate ${status === 'pending' ? 'text-muted-foreground' : ''}`}>
+                    {item.name}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="px-5 py-3 shrink-0 flex justify-end">
+          <Button
+            variant={done ? 'default' : 'outline'}
+            disabled={!done}
+            onClick={() => { onClose(); onComplete() }}
+          >
+            {done ? 'Done' : 'Running…'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function DuplicatesModal<T extends { id: number; name: string; wikipedia_url: string }>({
   open, onClose, onDelete, getDuplicates, deletePerson,
 }: {
@@ -254,6 +357,9 @@ export interface PersonAdminConfig<T extends { id: number; name: string; wikiped
   deletePerson: (id: number) => Promise<void>
   deleteAllPeople: () => Promise<void>
   getDuplicates: () => Promise<T[][]>
+  extraFilters?: React.ReactNode
+  filterPeople?: (people: T[]) => T[]
+  rescrapePerson?: (id: number) => Promise<unknown>
 }
 
 export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null }>({
@@ -268,9 +374,12 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [rescrapeOpen, setRescrapeOpen] = useState(false)
+  const [rescrapeSelectedOpen, setRescrapeSelectedOpen] = useState(false)
   const [dupesOpen, setDupesOpen] = useState(false)
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const selectAllRef = useRef<HTMLInputElement>(null)
 
   const debouncedSearch = useDebounce(search, 250)
 
@@ -301,6 +410,46 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
     }
   }
 
+  const visiblePeople = config.filterPeople ? config.filterPeople(people) : people
+
+  const allSelected = visiblePeople.length > 0 && visiblePeople.every(p => selectedIds.has(p.id))
+  const someSelected = visiblePeople.some(p => selectedIds.has(p.id))
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected && !allSelected
+    }
+  }, [someSelected, allSelected])
+
+  const selectedItems = useMemo(
+    () => visiblePeople.filter(p => selectedIds.has(p.id)).map(p => ({ id: p.id, name: p.name })),
+    [visiblePeople, selectedIds],
+  )
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        visiblePeople.forEach(p => next.delete(p.id))
+        return next
+      })
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        visiblePeople.forEach(p => next.add(p.id))
+        return next
+      })
+    }
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-5xl">
       <div className="flex items-start justify-between gap-3 mb-5">
@@ -327,10 +476,16 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
             <span className="hidden sm:inline">Duplicates</span>
             <span className="sm:hidden">Dupes</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setRescrapeOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => selectedIds.size > 0 && config.rescrapePerson ? setRescrapeSelectedOpen(true) : setRescrapeOpen(true)}
+          >
             <RefreshCw className="h-4 w-4 mr-1.5" />
-            <span className="hidden sm:inline">Rescrape all</span>
-            <span className="sm:hidden">Rescrape</span>
+            {selectedIds.size > 0
+              ? <span>Rescrape ({selectedIds.size})</span>
+              : <span>Rescrape</span>
+            }
           </Button>
           <Button variant="outline" size="sm" onClick={() => navigate(config.schedulePath)}>
             <CalendarDays className="h-4 w-4 mr-1.5" />
@@ -345,14 +500,17 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
         </div>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder={`Search by name…`}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={`Search by name…`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {config.extraFilters}
       </div>
 
       {error && <p className="text-destructive text-sm mb-4">{error}</p>}
@@ -388,7 +546,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
 
       {loading ? (
         <div className="text-sm text-muted-foreground py-8 text-center">Loading…</div>
-      ) : people.length === 0 ? (
+      ) : visiblePeople.length === 0 ? (
         <div className="text-sm text-muted-foreground py-8 text-center border rounded-lg">
           {search ? `No ${config.label.toLowerCase()}s match "${search}"` : `No ${config.label.toLowerCase()}s yet. Add one to get started.`}
         </div>
@@ -398,6 +556,15 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   {config.extraColumns.map((col) => (
                     <TableHead key={col.header} className={col.className}>{col.header}</TableHead>
@@ -406,8 +573,16 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {people.map((item) => (
-                  <TableRow key={item.id}>
+                {visiblePeople.map((item) => (
+                  <TableRow key={item.id} className={selectedIds.has(item.id) ? 'bg-muted/40' : ''}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        checked={selectedIds.has(item.id)}
+                        onChange={() => toggleSelect(item.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
                         <PlayerAvatar id={item.id} name={item.name} wikipediaUrl={item.wikipedia_url} storedPhotoUrl={item.photo_url} size="sm" variant="admin" className="shrink-0" />
@@ -436,6 +611,12 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
+                        {config.rescrapePerson && (
+                          <RescrapeButton
+                            variant="icon"
+                            onRescrape={() => config.rescrapePerson!(item.id).then(() => load())}
+                          />
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -468,6 +649,15 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
         onComplete={() => load()}
         rescrapeUrl={config.rescrapeUrl}
       />
+      {config.rescrapePerson && (
+        <RescrapeSelectedModal
+          open={rescrapeSelectedOpen}
+          onClose={() => setRescrapeSelectedOpen(false)}
+          onComplete={() => { setSelectedIds(new Set()); load() }}
+          items={selectedItems}
+          rescrapePerson={config.rescrapePerson}
+        />
+      )}
     </div>
   )
 }

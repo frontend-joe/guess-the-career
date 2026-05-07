@@ -56,10 +56,10 @@ const POSITION_COLORS: Record<string, string> = {
 };
 
 const NATIONALITY_ISO: Record<string, string> = {
-  England: "GB",
-  Scotland: "GB",
-  Wales: "GB",
-  "Northern Ireland": "GB",
+  England: "GB-ENG",
+  Scotland: "GB-SCT",
+  Wales: "GB-WLS",
+  "Northern Ireland": "GB-NIR",
   Brazil: "BR",
   Argentina: "AR",
   France: "FR",
@@ -107,6 +107,7 @@ const NATIONALITY_ISO: Record<string, string> = {
   Slovakia: "SK",
   Slovenia: "SI",
   Ireland: "IE",
+  "Republic of Ireland": "IE",
   Ecuador: "EC",
   Paraguay: "PY",
   Bolivia: "BO",
@@ -129,14 +130,11 @@ const NATIONALITY_ISO: Record<string, string> = {
   Iraq: "IQ",
 };
 
-function nationalityToFlag(nationality: string | null): string {
-  if (!nationality) return "";
+function nationalityToFlagUrl(nationality: string | null): string | null {
+  if (!nationality) return null;
   const iso = NATIONALITY_ISO[nationality];
-  if (!iso) return "";
-  const offset = 0x1f1e6 - 65;
-  return [...iso]
-    .map((c) => String.fromCodePoint(c.charCodeAt(0) + offset))
-    .join("");
+  if (!iso) return null;
+  return `https://flagcdn.com/${iso.toLowerCase()}.svg`;
 }
 
 function normalizeGuess(s: string): string {
@@ -153,7 +151,8 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 }
 
 export function GuessTheXiPage() {
-  const [loading, setLoading] = useState(true);
+  const [difficulty, setDifficulty] = useState<'easy' | 'hard' | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rounds, setRounds] = useState<RoundResult[]>([]);
   const [roundIndex, setRoundIndex] = useState(0);
@@ -202,15 +201,23 @@ export function GuessTheXiPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => {
+  function startGame(d: 'easy' | 'hard') {
+    setDifficulty(d);
     loadSession();
-  }, []);
+  }
+
+  function handlePlayAgain() {
+    setDifficulty(null);
+    setRounds([]);
+    setRoundIndex(0);
+    setShowFinalScore(false);
+  }
 
   useEffect(() => {
-    if (!loading && !error && !showFinalScore) {
+    if (difficulty && !loading && !error && !showFinalScore) {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [roundIndex, loading, error, showFinalScore]);
+  }, [difficulty, roundIndex, loading, error, showFinalScore]);
 
   const fetchSuggestions = useCallback((term: string) => {
     if (term.length < 2) {
@@ -335,13 +342,35 @@ export function GuessTheXiPage() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
-        {loading && (
+        {!difficulty && (
+          <div className="flex flex-col items-center justify-center flex-1 px-6 gap-6">
+            <h2 className="text-2xl font-bold text-gray-900">Choose difficulty</h2>
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+              <button
+                onClick={() => startGame('easy')}
+                className="flex flex-col items-center gap-0.5 bg-white border-2 border-green-400 rounded-xl px-4 py-5 hover:bg-green-50 transition-colors"
+              >
+                <span className="font-bold text-lg text-gray-900 tracking-wide">EASY</span>
+                <span className="text-xs text-gray-400">Nationality flags shown</span>
+              </button>
+              <button
+                onClick={() => startGame('hard')}
+                className="flex flex-col items-center gap-0.5 bg-white border-2 border-red-400 rounded-xl px-4 py-5 hover:bg-red-50 transition-colors"
+              >
+                <span className="font-bold text-lg text-gray-900 tracking-wide">HARD</span>
+                <span className="text-xs text-gray-400">No flags</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {difficulty && loading && (
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">
             Loading session…
           </div>
         )}
 
-        {error && (
+        {difficulty && error && (
           <div className="flex flex-col items-center justify-center h-full gap-4 px-4">
             <p className="text-red-500 text-sm text-center">{error}</p>
             <button
@@ -358,7 +387,7 @@ export function GuessTheXiPage() {
             rounds={rounds}
             totalGuessed={totalGuessed}
             totalPlayers={totalPlayers}
-            onPlayAgain={loadSession}
+            onPlayAgain={handlePlayAgain}
           />
         )}
 
@@ -406,32 +435,26 @@ export function GuessTheXiPage() {
 
                     {/* Position badge */}
                     <span
-                      className={`text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
+                      className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
                     >
                       {player.position}
                     </span>
 
+                    {/* Flag (easy mode only) */}
+                    {difficulty === 'easy' && (
+                      <span className="w-5 shrink-0 flex items-center">
+                        {!nationalityToFlagUrl(currentRound.team) &&
+                          nationalityToFlagUrl(player.nationality) && (
+                            <img src={nationalityToFlagUrl(player.nationality)!} alt={player.nationality ?? ''} className="h-3.5 w-auto border border-[#ebebeb]" />
+                          )}
+                      </span>
+                    )}
+
                     {/* Player name or placeholder */}
                     {guessed ? (
-                      <span className="text-green-600 font-semibold text-sm flex-1">
-                        {name}
-                        {!nationalityToFlag(currentRound.team) &&
-                          nationalityToFlag(player.nationality) && (
-                            <span className="ml-1 text-base leading-none">
-                              {nationalityToFlag(player.nationality)}
-                            </span>
-                          )}
-                      </span>
+                      <span className="text-green-600 font-semibold text-sm flex-1">{name}</span>
                     ) : revealed ? (
-                      <span className="text-red-500 font-medium text-sm flex-1">
-                        {name}
-                        {!nationalityToFlag(currentRound.team) &&
-                          nationalityToFlag(player.nationality) && (
-                            <span className="ml-1 text-base leading-none">
-                              {nationalityToFlag(player.nationality)}
-                            </span>
-                          )}
-                      </span>
+                      <span className="text-red-500 font-medium text-sm flex-1">{name}</span>
                     ) : (
                       <div className="flex-1 h-px bg-gray-300 rounded-full" />
                     )}
@@ -537,10 +560,10 @@ function ClubBadge({
 }) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null);
 
-  const flag = nationalityToFlag(name);
+  const flagUrl = nationalityToFlagUrl(name);
 
   useEffect(() => {
-    if (flag) return;
+    if (flagUrl) return;
     if (!wikipediaUrl) {
       setLogoUrl(false);
       return;
@@ -560,15 +583,15 @@ function ClubBadge({
         if (err.name !== "AbortError") setLogoUrl(false);
       });
     return () => controller.abort();
-  }, [wikipediaUrl, flag]);
+  }, [wikipediaUrl, flagUrl]);
 
   return (
     <div
       className="w-12 h-12 bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden"
       style={{ borderRadius: "12px" }}
     >
-      {flag ? (
-        <span className="text-3xl leading-none">{flag}</span>
+      {flagUrl ? (
+        <img src={flagUrl} alt={name} className="w-full h-full object-cover" />
       ) : logoUrl === null ? (
         <div
           className="w-full h-full bg-gray-200 animate-pulse"

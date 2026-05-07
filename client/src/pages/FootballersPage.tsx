@@ -1,41 +1,54 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
 import {
-  getFootballers, deleteFootballer, deleteAllFootballers, getDuplicates,
+  getFootballers, deleteFootballer, deleteAllFootballers, getDuplicates, rescrapeFootballer,
   type Footballer,
 } from '@/api/footballers'
 
-const config: PersonAdminConfig<Footballer> = {
-  label: 'Footballer',
-  schedulePath: '/footballers/schedule',
-  addPath: '/footballers/add',
-  detailPath: (id) => `/footballers/${id}`,
-  rescrapeUrl: '/api/footballers/rescrape-all',
-  extraColumns: [
-    {
-      header: 'Nationality',
-      className: 'hidden sm:table-cell',
-      render: (f) => f.nationality
-        ? <Badge variant="secondary">{f.nationality}</Badge>
-        : <span className="text-muted-foreground">—</span>,
-    },
-    {
-      header: 'Position',
-      className: 'hidden md:table-cell text-sm text-muted-foreground',
-      render: (f) => f.position ?? '—',
-    },
-    {
-      header: 'Born',
-      className: 'hidden md:table-cell text-sm text-muted-foreground',
-      render: (f) => f.born ?? '—',
-    },
-  ],
-  getPeople: (opts) => getFootballers(opts),
-  deletePerson: deleteFootballer,
-  deleteAllPeople: deleteAllFootballers,
-  getDuplicates,
-}
+const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
+  {
+    header: 'Nationality',
+    className: 'hidden sm:table-cell',
+    render: (f) => f.nationality
+      ? <Badge variant="secondary">{f.nationality}</Badge>
+      : <span className="text-muted-foreground">—</span>,
+  },
+  {
+    header: 'Position',
+    className: 'hidden md:table-cell text-sm text-muted-foreground',
+    render: (f) => f.position ?? '—',
+  },
+]
 
 export function FootballersPage() {
+  const [missingNationality, setMissingNationality] = useState(false)
+
+  const config: PersonAdminConfig<Footballer> = {
+    label: 'Footballer',
+    schedulePath: '/footballers/schedule',
+    addPath: '/footballers/add',
+    detailPath: (id) => `/footballers/${id}`,
+    rescrapeUrl: '/api/footballers/rescrape-all',
+    extraColumns: BASE_COLUMNS,
+    getPeople: (opts) => getFootballers(opts),
+    deletePerson: deleteFootballer,
+    deleteAllPeople: deleteAllFootballers,
+    getDuplicates,
+    rescrapePerson: (id) => rescrapeFootballer(id),
+    filterPeople: missingNationality ? (people) => people.filter(f => !f.nationality) : undefined,
+    extraFilters: (
+      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
+        <input
+          type="checkbox"
+          checked={missingNationality}
+          onChange={e => setMissingNationality(e.target.checked)}
+          className="h-4 w-4 accent-primary"
+        />
+        Missing nationality
+      </label>
+    ),
+  }
+
   return <PersonAdminPage config={config} />
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
-import { ArrowLeft, Globe, Pencil, Check, X, RefreshCw, Loader2 } from 'lucide-react'
+import { ArrowLeft, Globe, Pencil, Check, X, Loader2 } from 'lucide-react'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { RescrapeButton } from '@/components/RescrapeButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CareerTable } from '@/components/CareerTable'
@@ -9,7 +10,7 @@ import {
   getFootballer,
   updateFootballer,
   updateStints,
-  scrapeWikipedia,
+  rescrapeFootballer,
   type FootballerWithStints,
   type CareerStint,
 } from '@/api/footballers'
@@ -36,8 +37,6 @@ export function FootballerDetailPage() {
   const [editingCareer, setEditingCareer] = useState(false)
   const [stints, setStints] = useState<Stint[]>([])
   const [savingStints, setSavingStints] = useState(false)
-  const [rescraping, setRescraping] = useState(false)
-
   useEffect(() => {
     if (!id) return
     setLoading(true)
@@ -92,22 +91,6 @@ export function FootballerDetailPage() {
     }
   }
 
-  async function handleRescrape() {
-    if (!footballer) return
-    if (!confirm('Re-scrape Wikipedia? This will replace the current career data after review.')) return
-    setRescraping(true)
-    try {
-      const result = await scrapeWikipedia(footballer.wikipedia_url)
-      setStints(result.stints)
-      setEditingCareer(true)
-      alert('Career data re-scraped. Review the changes below and click "Save career" to apply.')
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Re-scrape failed')
-    } finally {
-      setRescraping(false)
-    }
-  }
-
   if (loading) {
     return <div className="p-6 text-sm text-muted-foreground">Loading…</div>
   }
@@ -138,13 +121,23 @@ export function FootballerDetailPage() {
           </a>
           </div>
         </div>
-        {!editingMeta && (
-          <Button variant="outline" size="sm" onClick={() => setEditingMeta(true)} className="shrink-0">
-            <Pencil className="h-3.5 w-3.5 mr-1.5" />
-            <span className="hidden sm:inline">Edit details</span>
-            <span className="sm:hidden">Edit</span>
-          </Button>
-        )}
+        <div className="flex gap-1.5 shrink-0">
+          <RescrapeButton
+            onRescrape={async () => {
+              const { footballer: updated, stints: updatedStints } = await rescrapeFootballer(footballer!.id)
+              setFootballer({ ...updated, stints: updatedStints })
+              setStints(updatedStints.map(({ id: _id, footballer_id: _fid, ...rest }) => rest))
+              setMeta({ name: updated.name, nationality: updated.nationality ?? '', position: updated.position ?? '', born: updated.born ?? '', photo_url: updated.photo_url ?? '' })
+            }}
+          />
+          {!editingMeta && (
+            <Button variant="outline" size="sm" onClick={() => setEditingMeta(true)}>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              <span className="hidden sm:inline">Edit details</span>
+              <span className="sm:hidden">Edit</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Metadata */}
@@ -196,12 +189,6 @@ export function FootballerDetailPage() {
             Career ({footballer.stints.length} stints)
           </h2>
           <div className="flex flex-wrap gap-1.5">
-            <Button variant="outline" size="sm" onClick={handleRescrape} disabled={rescraping}>
-              {rescraping
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-              Re-scrape
-            </Button>
             {editingCareer ? (
               <>
                 <Button variant="ghost" size="sm" onClick={() => {

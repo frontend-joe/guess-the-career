@@ -39,9 +39,14 @@ const FOOTBALLING_NATIONS = new Set([
   'Czech Republic', 'Slovakia', 'Austria', 'Switzerland', 'Sweden', 'Norway', 'Denmark',
   'Finland', 'Iceland', 'Serbia', 'Bosnia and Herzegovina', 'Montenegro', 'Albania',
   'Greece', 'Romania', 'Bulgaria', 'Hungary', 'Slovenia', 'North Macedonia', 'Ireland',
-  'Scotland', 'Wales', 'Northern Ireland', 'Luxembourg', 'Estonia', 'Latvia', 'Lithuania',
-  'Belarus', 'Kazakhstan', 'Uzbekistan', 'Georgia', 'Armenia', 'Azerbaijan',
+  'Scotland', 'Wales', 'Northern Ireland', 'Republic of Ireland', 'Luxembourg',
+  'Estonia', 'Latvia', 'Lithuania', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Georgia',
+  'Armenia', 'Azerbaijan',
 ])
+
+const COUNTRY_NORMALIZE: Record<string, string> = {
+  'Republic of Ireland': 'Ireland',
+}
 
 export interface ScrapeResult {
   name: string
@@ -84,6 +89,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   let nationality: string | null = null
   let position: string | null = null
   let born: string | null = null
+  let birthplaceRaw: string | null = null
 
   // Pattern 1: "Representing" header (th.adr) used on many modern footballer pages.
   // The country name lives in .country-name a (link text is just "Brazil", "France", etc.)
@@ -105,15 +111,28 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     if (label === 'born' || label.includes('date of birth')) {
       born = value.find('.bday').text().trim() || null
 
-      // Pattern 2: nationality embedded in .birthplace ("Newcastle upon Tyne, England")
+      // Pattern 2a: birthplace in same row as date of birth
+      const birthplaceEl = value.find('.birthplace')
+      const rawBorn = (birthplaceEl.length ? birthplaceEl : value).text().trim()
+      const withoutDate = rawBorn.replace(/\(\d{4}-\d{2}-\d{2}\)|\d{1,2}\s+\w+\s+\d{4}|\d{4}-\d{2}-\d{2}|\(age\s+\d+\)/g, '').trim()
+      if (withoutDate.includes(',')) {
+        birthplaceRaw = withoutDate
+        if (!nationality) {
+          const parts = withoutDate.split(',').map((s) => stripCitations(s).trim()).filter(Boolean)
+          const country = parts[parts.length - 1]
+          if (country && country.length > 1 && country.length < 60 && !/\d/.test(country)) {
+            nationality = country
+          }
+        }
+      }
+    } else if (label === 'place of birth' || label.includes('place of birth')) {
+      // Pattern 2b: separate "Place of birth" row (e.g. Paolo Poggi, Diego Klimowicz)
+      const raw = stripCitations(value.text().trim().replace(/\s+/g, ' '))
+      birthplaceRaw = raw
       if (!nationality) {
-        const birthplace = value.find('.birthplace')
-        const raw = (birthplace.length ? birthplace : value).text().trim()
-        // Remove the date portion, then take the last comma-separated segment
-        const withoutDate = raw.replace(/\d{1,2}\s+\w+\s+\d{4}|\d{4}-\d{2}-\d{2}/g, '').trim()
-        const parts = withoutDate.split(',').map((s) => s.trim()).filter(Boolean)
+        const parts = raw.split(',').map((s) => s.trim()).filter(Boolean)
         const country = parts[parts.length - 1]
-        if (country && country.length > 1 && country.length < 60 && !/[\d()[\]]/.test(country)) {
+        if (country && country.length > 1 && country.length < 60 && !/\d/.test(country)) {
           nationality = country
         }
       }
@@ -210,8 +229,22 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     const countries = intlStints
       .map(s => extractCountryFromTeam(s.club))
       .filter((c): c is string => c !== null && FOOTBALLING_NATIONS.has(c))
+      .map(c => COUNTRY_NORMALIZE[c] ?? c)
     if (countries.length > 0) {
       nationality = countries[countries.length - 1]
+    }
+  }
+
+  // Final fallback: if nationality is still unset, scan each comma-segment of the birthplace
+  // against FOOTBALLING_NATIONS (last-to-first, so "Piacenza, Emilia-Romagna, Italy" → "Italy")
+  if (!nationality && birthplaceRaw) {
+    const segments = birthplaceRaw.split(',').map(s => stripCitations(s).trim()).filter(Boolean).reverse()
+    for (const seg of segments) {
+      const normalized = COUNTRY_NORMALIZE[seg] ?? seg
+      if (FOOTBALLING_NATIONS.has(seg) || FOOTBALLING_NATIONS.has(normalized)) {
+        nationality = COUNTRY_NORMALIZE[seg] ?? seg
+        break
+      }
     }
   }
 

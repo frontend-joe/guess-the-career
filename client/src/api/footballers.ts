@@ -66,6 +66,13 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   return data
 }
 
+export async function rescrapeFootballer(id: number): Promise<{ footballer: Footballer; stints: CareerStint[] }> {
+  const res = await fetch(`/api/footballers/${id}/rescrape`, { method: 'POST' })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error ?? 'Rescrape failed')
+  return data
+}
+
 export class ApiError extends Error {
   readonly code: string | undefined
   constructor(message: string, code?: string) {

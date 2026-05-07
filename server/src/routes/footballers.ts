@@ -269,6 +269,34 @@ footballersRouter.delete('/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+// POST /api/footballers/:id/rescrape — full rescrape: update footballer fields + replace stints
+footballersRouter.post('/:id/rescrape', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const [existing] = await db.select().from(footballers).where(eq(footballers.id, id)).limit(1)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  const result = await scrapeWikipedia(existing.wikipedia_url)
+
+  await db.update(footballers)
+    .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, updated_at: sql`(datetime('now'))` })
+    .where(eq(footballers.id, id))
+
+  await db.delete(career_stints).where(eq(career_stints.footballer_id, id))
+  if (result.stints.length > 0) {
+    await db.insert(career_stints).values(
+      result.stints.map((s, i) => ({ ...s, sort_order: i, footballer_id: id }))
+    )
+  }
+
+  const [updated] = await db.select().from(footballers).where(eq(footballers.id, id)).limit(1)
+  const stints = await db.select().from(career_stints).where(eq(career_stints.footballer_id, id))
+    .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
+
+  return c.json({ footballer: updated, stints })
+})
+
 // PUT /api/footballers/:id/stints — replace all stints
 footballersRouter.put(
   '/:id/stints',
