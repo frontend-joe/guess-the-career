@@ -105,6 +105,16 @@ export const xi_players = sqliteTable('xi_players', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const xi_leaderboard = sqliteTable('xi_leaderboard', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  player_name: text('player_name').notNull(),
+  score: integer('score').notNull(),
+  total: integer('total').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type XiLeaderboardEntry = typeof xi_leaderboard.$inferSelect
+
 export type XiMatch = typeof xi_matches.$inferSelect
 export type NewXiMatch = typeof xi_matches.$inferInsert
 export type XiPlayer = typeof xi_players.$inferSelect

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Home, ChevronRight, X } from 'lucide-react'
 import { getXiSession, type XiRound, type XiRoundPlayer } from '@/api/guess-the-xi'
 import { getFootballers, type Footballer } from '@/api/footballers'
+import { submitXiScore, getXiLeaderboard, type XiLeaderboardEntry } from '@/api/xi-leaderboard'
 
 type RoundState = 'playing' | 'cleared' | 'given_up'
 
@@ -303,7 +304,7 @@ export function GuessTheXiPage() {
                 return (
                   <div
                     key={player.id}
-                    className="flex items-center gap-3 px-3 h-9 border-b border-gray-100 last:border-0"
+                    className="flex items-center gap-3 px-3 h-8 border-b border-gray-100 last:border-0"
                   >
                     {/* Squad number */}
                     <span className="text-gray-400 text-xs tabular-nums w-5 text-right shrink-0">
@@ -466,6 +467,38 @@ function FinalScore({
 }) {
   const pct = totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0
   const pctColor = pct >= 80 ? 'text-green-500' : pct >= 50 ? 'text-orange-400' : 'text-red-500'
+  const qualifies = pct >= 75
+
+  const [tab, setTab] = useState<'score' | 'leaderboard'>('score')
+  const [name, setName] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [leaderboard, setLeaderboard] = useState<XiLeaderboardEntry[] | null>(null)
+  const [leaderboardError, setLeaderboardError] = useState(false)
+
+  useEffect(() => {
+    if (tab === 'leaderboard' && leaderboard === null) {
+      getXiLeaderboard()
+        .then(setLeaderboard)
+        .catch(() => setLeaderboardError(true))
+    }
+  }, [tab, leaderboard])
+
+  async function handleSubmit() {
+    if (!name.trim() || submitting) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      await submitXiScore(name.trim(), totalGuessed, totalPlayers)
+      setSubmitted(true)
+      setLeaderboard(null)
+    } catch {
+      setSubmitError('Failed to save score. Try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col items-center px-4 py-8 gap-6">
@@ -475,29 +508,100 @@ function FinalScore({
         <p className="text-gray-500 text-sm mt-2">{totalGuessed} / {totalPlayers} players</p>
       </div>
 
-      <div className="w-full flex flex-col gap-2">
-        {rounds.map((r, i) => {
-          const guessedCount = r.guessedIndices.size
-          const total = r.players.length
-          const cleared = r.state === 'cleared'
-          return (
-            <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-900 truncate">{r.matchName}</p>
-                <p className="text-xs text-gray-500">{r.team}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <span className={`text-sm font-bold tabular-nums ${guessedCount === total ? 'text-green-600' : guessedCount > 0 ? 'text-orange-500' : 'text-red-500'}`}>
-                  {guessedCount}/{total}
-                </span>
-              </div>
-              <span className="text-base">
-                {cleared ? '✓' : guessedCount > 0 ? '~' : '✗'}
+      {/* Tabs */}
+      <div className="flex w-full rounded-xl overflow-hidden border border-gray-200">
+        <button
+          onClick={() => setTab('score')}
+          className={`flex-1 py-2 text-xs font-semibold transition-colors ${tab === 'score' ? 'bg-[#1a1a2e] text-white' : 'bg-white text-gray-500'}`}
+        >
+          Results
+        </button>
+        <button
+          onClick={() => setTab('leaderboard')}
+          className={`flex-1 py-2 text-xs font-semibold transition-colors ${tab === 'leaderboard' ? 'bg-[#1a1a2e] text-white' : 'bg-white text-gray-500'}`}
+        >
+          Leaderboard
+        </button>
+      </div>
+
+      {tab === 'score' && (
+        <>
+          <div className="w-full flex flex-col gap-2">
+            {rounds.map((r, i) => {
+              const guessedCount = r.guessedIndices.size
+              const total = r.players.length
+              const cleared = r.state === 'cleared'
+              return (
+                <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-900 truncate">{r.homeTeam} vs {r.awayTeam}</p>
+                    <p className="text-xs text-gray-500">{r.team} XI</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className={`text-sm font-bold tabular-nums ${guessedCount === total ? 'text-green-600' : guessedCount > 0 ? 'text-orange-500' : 'text-red-500'}`}>
+                      {guessedCount}/{total}
+                    </span>
+                  </div>
+                  <span className="text-base">
+                    {cleared ? '✓' : guessedCount > 0 ? '~' : '✗'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {qualifies && (
+            <div className="w-full bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
+              <p className="text-xs text-gray-400 uppercase tracking-widest text-center">You qualify for the leaderboard</p>
+              {submitted ? (
+                <p className="text-sm text-green-600 font-semibold text-center">✓ Score saved!</p>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Enter your name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                    maxLength={50}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
+                  />
+                  {submitError && <p className="text-xs text-red-500">{submitError}</p>}
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!name.trim() || submitting}
+                    className="w-full bg-[#1a1a2e] text-white text-sm font-bold py-2.5 rounded-xl disabled:opacity-40"
+                  >
+                    {submitting ? 'Saving…' : 'Submit to Leaderboard'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === 'leaderboard' && (
+        <div className="w-full flex flex-col gap-2">
+          {leaderboardError && <p className="text-sm text-red-500 text-center">Failed to load leaderboard.</p>}
+          {leaderboard === null && !leaderboardError && (
+            <p className="text-sm text-gray-400 text-center">Loading…</p>
+          )}
+          {leaderboard && leaderboard.length === 0 && (
+            <p className="text-sm text-gray-400 text-center">No scores yet. Be the first!</p>
+          )}
+          {leaderboard && leaderboard.map((entry, i) => (
+            <div key={entry.id} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+              <span className="text-xs font-bold text-gray-400 w-5 tabular-nums">{i + 1}</span>
+              <span className="flex-1 text-sm font-semibold text-gray-900 truncate">{entry.player_name}</span>
+              <span className="text-sm font-bold tabular-nums text-green-600">{entry.score}/{entry.total}</span>
+              <span className="text-xs text-gray-400 tabular-nums">
+                {Math.round((entry.score / entry.total) * 100)}%
               </span>
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
       <button
         onClick={onPlayAgain}

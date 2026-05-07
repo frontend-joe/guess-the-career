@@ -17,6 +17,7 @@ import { whoPlayedMoreRouter } from './routes/who-played-more.ts'
 import { wpmLeaderboardRouter } from './routes/wpm-leaderboard.ts'
 import { xiMatchesRouter } from './routes/xi-matches.ts'
 import { guessTheXiRouter } from './routes/guess-the-xi.ts'
+import { xiLeaderboardRouter } from './routes/xi-leaderboard.ts'
 
 runMigrations()
 
@@ -39,6 +40,7 @@ app.route('/api/who-played-more', whoPlayedMoreRouter)
 app.route('/api/wpm-leaderboard', wpmLeaderboardRouter)
 app.route('/api/xi-matches', xiMatchesRouter)
 app.route('/api/guess-the-xi', guessTheXiRouter)
+app.route('/api/xi-leaderboard', xiLeaderboardRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
