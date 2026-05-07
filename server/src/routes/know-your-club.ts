@@ -29,7 +29,7 @@ knowYourClubRouter.get('/clubs', (c) => {
       AND cs.stint_type = 'senior'
     GROUP BY c.id, c.name
     HAVING player_count >= 10
-    ORDER BY player_count DESC, c.name ASC
+    ORDER BY c.name ASC
   `).all() as ClubRow[]
 
   return c.json({
