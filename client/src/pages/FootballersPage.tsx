@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
+import { nationalityToFlagUrl } from '@/lib/flags'
 import {
   getFootballers, deleteFootballer, deleteAllFootballers, getDuplicates, rescrapeFootballer,
   type Footballer,
@@ -11,7 +12,14 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
     header: 'Nationality',
     className: 'hidden sm:table-cell',
     render: (f) => f.nationality
-      ? <Badge variant="secondary">{f.nationality}</Badge>
+      ? (
+        <div className="flex items-center gap-1.5">
+          {nationalityToFlagUrl(f.nationality) && (
+            <img src={nationalityToFlagUrl(f.nationality)!} alt={f.nationality} className="h-3.5 w-auto border border-[#ebebeb]" />
+          )}
+          <Badge variant="secondary">{f.nationality}</Badge>
+        </div>
+      )
       : <span className="text-muted-foreground">—</span>,
   },
   {
