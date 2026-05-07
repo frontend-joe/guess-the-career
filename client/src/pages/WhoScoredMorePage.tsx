@@ -11,29 +11,6 @@ import { PlayerAvatar } from "@/components/PlayerAvatar";
 type GameStatus = "lobby" | "playing" | "correct" | "wrong" | "won";
 type View = "game" | "leaderboard";
 
-const PARTICLES = new Set([
-  "van",
-  "de",
-  "von",
-  "dos",
-  "da",
-  "di",
-  "del",
-  "della",
-  "le",
-  "la",
-  "el",
-]);
-
-function getLastName(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length <= 1) return name;
-  const last = parts[parts.length - 1];
-  const secondLast = parts[parts.length - 2];
-  if (parts.length >= 3 && PARTICLES.has(secondLast.toLowerCase()))
-    return `${secondLast} ${last}`;
-  return last;
-}
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -137,7 +114,7 @@ export function WhoScoredMorePage() {
   const challenger = players[currentIndex + 1];
 
   return (
-    <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
+    <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button
@@ -240,10 +217,29 @@ export function WhoScoredMorePage() {
                         : undefined
                     }
                   />
-                  <div className="flex items-center justify-center py-1">
-                    <span className="text-gray-400 text-xs uppercase tracking-widest font-semibold">
-                      or
-                    </span>
+                  <div className="flex items-center justify-center h-10">
+                    {status === "playing" && (
+                      <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest text-center">
+                        Who scored more?
+                      </p>
+                    )}
+                    {status === "correct" && (
+                      <button
+                        onClick={handleContinue}
+                        className="w-full h-full flex items-center justify-center gap-1 bg-[#1a1a2e] text-white text-xs font-bold rounded-lg"
+                      >
+                        Continue
+                        <ChevronRight size={12} />
+                      </button>
+                    )}
+                    {status === "wrong" && (
+                      <button
+                        onClick={loadSession}
+                        className="w-full h-full flex items-center justify-center bg-[#1a1a2e] text-white text-xs font-bold rounded-lg"
+                      >
+                        Play Again
+                      </button>
+                    )}
                   </div>
                   <PlayerCard
                     player={challenger}
@@ -267,59 +263,6 @@ export function WhoScoredMorePage() {
         )}
       </div>
 
-      {/* Bottom panel */}
-      {view === "game" &&
-        !loading &&
-        !error &&
-        status !== "won" &&
-        status !== "lobby" && (
-          <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
-            {status === "playing" && current && challenger && (
-              <div className="flex flex-col gap-2">
-                <p className="text-white/60 text-xs text-center uppercase tracking-widest font-semibold">
-                  Who scored more?
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleGuess("less")}
-                    className="flex-1 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl text-sm transition-colors"
-                  >
-                    {getLastName(current.name)}
-                  </button>
-                  <button
-                    onClick={() => handleGuess("more")}
-                    className="flex-1 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl text-sm transition-colors"
-                  >
-                    {getLastName(challenger.name)}
-                  </button>
-                </div>
-              </div>
-            )}
-            {status === "correct" && (
-              <button
-                onClick={handleContinue}
-                className="w-full flex items-center justify-center gap-1 bg-white text-[#1a1a2e] text-sm font-bold py-3 rounded-xl"
-              >
-                Continue
-                <ChevronRight size={16} />
-              </button>
-            )}
-            {status === "wrong" && (
-              <div className="flex flex-col gap-2">
-                <p className="text-white/60 text-xs text-center">
-                  Wrong — {players[currentIndex + 1]?.name} scored{" "}
-                  {players[currentIndex + 1]?.total_goals} goals
-                </p>
-                <button
-                  onClick={loadSession}
-                  className="w-full flex items-center justify-center bg-white text-[#1a1a2e] text-sm font-bold py-3 rounded-xl"
-                >
-                  Play Again
-                </button>
-              </div>
-            )}
-          </div>
-        )}
     </div>
   );
 }
