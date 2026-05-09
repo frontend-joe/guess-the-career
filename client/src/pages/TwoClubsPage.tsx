@@ -35,7 +35,7 @@ function ClubBadge({ name, wikiUrl }: { name: string; wikiUrl: string | null }) 
 
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
+      <div className="w-14 h-14 bg-white border border-gray-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
         {logoUrl === null
           ? <div className="w-full h-full animate-pulse bg-gray-200" />
           : logoUrl === false
@@ -55,13 +55,14 @@ function PlayerSlot({ index, player }: { index: number; player: ConfirmedPlayer 
       </span>
       {player ? (
         <div className="flex items-center gap-2 min-w-0">
-          {player.photo_url && (
-            <img src={player.photo_url} alt={player.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
-          )}
+          {player.photo_url
+            ? <img src={player.photo_url} alt={player.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
+            : <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">{player.name.charAt(0)}</div>
+          }
           <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
         </div>
       ) : (
-        <span className="text-sm text-gray-300 italic">?</span>
+        <div className="h-px bg-gray-200 flex-1 rounded-full" />
       )}
     </div>
   )
@@ -74,10 +75,11 @@ function AnswerReveal({ players, confirmed }: { players: Footballer[]; confirmed
       {players.map(p => {
         const isFound = confirmedIds.has(p.id)
         return (
-          <div key={p.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border ${isFound ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-            {p.photo_url && (
-              <img src={p.photo_url} alt={p.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
-            )}
+          <div key={p.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border ${isFound ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+            {p.photo_url
+              ? <img src={p.photo_url} alt={p.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
+              : <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">{p.name.charAt(0)}</div>
+            }
             <span className={`text-sm font-semibold truncate ${isFound ? 'text-green-700' : 'text-gray-500'}`}>{p.name}</span>
             {isFound && <span className="ml-auto text-green-500 text-xs shrink-0">✓</span>}
           </div>
@@ -305,10 +307,13 @@ const inputRef = useRef<HTMLInputElement>(null)
         {session && status !== 'loading' && status !== 'error' && (
           <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
             {/* Club header — light mode */}
-            <div className="bg-white rounded-2xl border border-gray-200 px-4 py-4 flex items-center justify-center gap-6">
-              <ClubBadge name={session.clubA} wikiUrl={session.clubAWikiUrl} />
-              <span className="text-gray-300 font-bold text-lg">×</span>
-              <ClubBadge name={session.clubB} wikiUrl={session.clubBWikiUrl} />
+            <div className="bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3">
+              <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Who played for both?</span>
+              <div className="flex items-center justify-center gap-6">
+                <ClubBadge name={session.clubA} wikiUrl={session.clubAWikiUrl} />
+                <span className="text-gray-400 font-bold text-lg">&amp;</span>
+                <ClubBadge name={session.clubB} wikiUrl={session.clubBWikiUrl} />
+              </div>
             </div>
 
             {/* Player slots */}
@@ -321,9 +326,18 @@ const inputRef = useRef<HTMLInputElement>(null)
             )}
 
             {/* Answer reveal on give up */}
-            {status === 'given_up' && revealedAnswers.length > 0 && (
-              <AnswerReveal players={revealedAnswers} confirmed={confirmed} />
-            )}
+            {status === 'given_up' && revealedAnswers.length > 0 && (() => {
+              const confirmedIds = new Set(confirmed.map(c => c.id))
+              const found = revealedAnswers.filter(p => confirmedIds.has(p.id))
+              const others = revealedAnswers.filter(p => !confirmedIds.has(p.id))
+              const display = [...found, ...others].slice(0, 5)
+              return (
+                <>
+                  <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest text-center">You could have said:</p>
+                  <AnswerReveal players={display} confirmed={confirmed} />
+                </>
+              )
+            })()}
             {status === 'given_up' && revealedAnswers.length === 0 && (
               <div className="flex flex-col gap-2">
                 {confirmed.map((p, i) => <PlayerSlot key={p.id} index={i} player={p} />)}
