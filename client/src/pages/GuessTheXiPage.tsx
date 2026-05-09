@@ -84,8 +84,20 @@ const POSITION_COLORS: Record<string, string> = {
 
 import { nationalityToFlagUrl } from "@/lib/flags";
 
+const TRANSLITERATE: Record<string, string> = {
+  ı: "i", ł: "l", ø: "o", đ: "d", ð: "d",
+  æ: "a", œ: "o", ħ: "h", ŋ: "n", ŧ: "t",
+  þ: "th", ß: "ss",
+};
+const TRANSLIT_RE = /[ıłøđðæœħŋŧþß]/g;
+
 function normalizeGuess(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(TRANSLIT_RE, (c) => TRANSLITERATE[c] ?? c)
+    .trim();
 }
 
 function matchesPlayer(guess: string, playerName: string): boolean {

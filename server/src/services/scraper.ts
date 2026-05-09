@@ -446,7 +446,9 @@ export async function scrapeMatchLineups(url: string): Promise<MatchScrapeResult
 }
 
 function isPositionCode(text: string): boolean {
-  return /^(GK|DF|MF|FW|RB|CB|LB|SW|RM|CM|LM|AM|DM|CF|ST|SS|RW|LW|WB|RWB|LWB|CAM|CDM|RF|LF)$/i.test(text.trim())
+  // Accept any 2–5 uppercase letter code with no spaces or digits.
+  // Wikipedia pages use many variants (RCB, LCB, RCM, LCM, IWB, CWB, …) beyond the common list.
+  return /^[A-Z]{2,5}$/.test(text.trim())
 }
 
 function findLineupTables($: CheerioAPI): AnyNode[] {
@@ -677,9 +679,8 @@ function parseLineupTable($: CheerioAPI, table: AnyNode): ScrapedXiPlayer[] {
 function normalizePosition(raw: string): 'GK' | 'DF' | 'MF' | 'FW' {
   const s = raw.trim().toUpperCase()
   if (/^GK$|^G$|^GOALKEEPER/.test(s)) return 'GK'
-  if (/^DF$|^D$|^DEF|^CB$|^RB$|^LB$|^SW$|^BACK/.test(s)) return 'DF'
-  if (/^FW$|^F$|^FOR|^ST$|^CF$|^SS$|^WIN|^STR/.test(s)) return 'FW'
-  // Default mid for anything else (including MF, M, MID, AM, DM, CM etc.)
+  if (/^(DF|DEF|D|SW|WB|CB|RB|LB|RCB|LCB|RWB|LWB|IWB|CWB)$|^BACK/.test(s)) return 'DF'
+  if (/^(FW|CF|ST|SS|RW|LW|RF|LF)$|^F$|^FOR|^WIN|^STR/.test(s)) return 'FW'
   return 'MF'
 }
 

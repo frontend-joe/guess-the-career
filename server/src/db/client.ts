@@ -12,10 +12,25 @@ export const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
 
+const TRANSLITERATE: Record<string, string> = {
+  ı: 'i', ł: 'l', ø: 'o', đ: 'd', ð: 'd',
+  æ: 'a', œ: 'o', ħ: 'h', ŋ: 'n', ŧ: 't',
+  þ: 'th', ß: 'ss',
+}
+const TRANSLIT_RE = /[ıłøđðæœħŋŧþß]/g
+
+export function normalizeName(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(TRANSLIT_RE, c => TRANSLITERATE[c] ?? c)
+}
+
 // Custom function for accent-insensitive search
 sqlite.function('normalize', (s: unknown) => {
   if (typeof s !== 'string') return s
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  return normalizeName(s)
 })
 
 export const db = drizzle(sqlite, { schema })

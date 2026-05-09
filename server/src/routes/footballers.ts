@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { and, eq, sql, notInArray, isNotNull } from 'drizzle-orm'
-import { db } from '../db/client.ts'
+import { db, normalizeName } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia } from '../services/scraper.ts'
 
@@ -43,7 +43,7 @@ footballersRouter.get('/', async (c) => {
   const conditions = []
 
   if (search) {
-    const normalized = search.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    const normalized = normalizeName(search)
     conditions.push(sql`normalize(${footballers.name}) LIKE ${`%${normalized}%`}`)
   }
 
