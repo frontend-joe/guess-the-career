@@ -95,12 +95,11 @@ export function TwoClubsPage() {
   const [revealedAnswers, setRevealedAnswers] = useState<Footballer[]>([])
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<Footballer[]>([])
-  const [wikiVerified, setWikiVerified] = useState<Footballer[]>([])
+  const [wikiVerified, setWikiVerified] = useState<{ id: number; name: string; photo_url: string | null }[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const wikiSearchRef = useRef<string>('')
   const [verifying, setVerifying] = useState(false)
   const [wrongGuess, setWrongGuess] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 const inputRef = useRef<HTMLInputElement>(null)
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -116,7 +115,6 @@ const inputRef = useRef<HTMLInputElement>(null)
     setWikiVerified([])
     setShowDropdown(false)
     setWrongGuess(null)
-    setSelectedId(null)
 
     getTwoClubsSession()
       .then(s => {
@@ -174,7 +172,6 @@ const inputRef = useRef<HTMLInputElement>(null)
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setInputValue(val)
-    setSelectedId(null)
     wikiSearchRef.current = val
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchSuggestions(val, session?.clubA ?? '', session?.clubB ?? ''), 300)
@@ -224,8 +221,7 @@ const inputRef = useRef<HTMLInputElement>(null)
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
-  function handleSelectSuggestion(footballer: Footballer) {
-    setSelectedId(footballer.id)
+  function handleSelectSuggestion(footballer: { id: number; name: string; photo_url: string | null }) {
     submitGuess(footballer.name, footballer.id)
   }
 
