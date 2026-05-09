@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield } from 'lucide-react'
+import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2 } from 'lucide-react'
 
 export function PlayHubPage() {
   const navigate = useNavigate()
@@ -65,6 +65,14 @@ export function PlayHubPage() {
           <Shield size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">Know Your Club</span>
           <span className="text-gray-400 text-xs">Do you know your players?</span>
+        </button>
+        <button
+          onClick={() => navigate('/play/two-clubs')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <Link2 size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">Two Clubs</span>
+          <span className="text-gray-400 text-xs">5 players, 2 clubs</span>
         </button>
       </div>
     </div>

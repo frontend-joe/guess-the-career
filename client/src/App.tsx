@@ -23,6 +23,7 @@ import { ElevensPage } from '@/pages/ElevensPage'
 import { AddXiMatchPage } from '@/pages/AddXiMatchPage'
 import { XiMatchDetailPage } from '@/pages/XiMatchDetailPage'
 import { XiSchedulePage } from '@/pages/XiSchedulePage'
+import { TwoClubsPage } from '@/pages/TwoClubsPage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
   { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
   { path: '/play/guess-the-xi', element: <GuessTheXiPage /> },
   { path: '/play/know-your-club', element: <KnowYourClubPage /> },
+  { path: '/play/two-clubs', element: <TwoClubsPage /> },
   {
     path: '/',
     element: <Layout />,

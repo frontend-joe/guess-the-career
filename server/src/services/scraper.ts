@@ -2,7 +2,7 @@ import * as cheerio from 'cheerio'
 import type { CheerioAPI } from 'cheerio'
 import type { AnyNode } from 'domhandler'
 
-const CLUB_ALIASES: Record<string, string> = {
+export const CLUB_ALIASES: Record<string, string> = {
   // Inter Milan
   'Internazionale': 'Inter Milan',
   'FC Internazionale': 'Inter Milan',
@@ -701,7 +701,7 @@ function deriveCompetition(matchName: string): string {
   return matchName.replace(/^\d{4}(?:[–\-]\d{2,4})?\s+/, '').replace(/\s+final$/i, '').trim()
 }
 
-function normalizeClubAlias(club: string): string {
+export function normalizeClubAlias(club: string): string {
   return CLUB_ALIASES[club] ?? club
 }
 

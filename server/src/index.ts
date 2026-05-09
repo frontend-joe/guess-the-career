@@ -20,6 +20,7 @@ import { guessTheXiRouter } from './routes/guess-the-xi.ts'
 import { xiLeaderboardRouter } from './routes/xi-leaderboard.ts'
 import { knowYourClubRouter } from './routes/know-your-club.ts'
 import { xiScheduleRouter } from './routes/xi-schedule.ts'
+import { twoClubsRouter } from './routes/two-clubs.ts'
 
 runMigrations()
 
@@ -45,6 +46,7 @@ app.route('/api/guess-the-xi', guessTheXiRouter)
 app.route('/api/xi-leaderboard', xiLeaderboardRouter)
 app.route('/api/know-your-club', knowYourClubRouter)
 app.route('/api/xi-schedule', xiScheduleRouter)
+app.route('/api/two-clubs', twoClubsRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
