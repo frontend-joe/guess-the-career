@@ -979,7 +979,7 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
       }
 
       const club = clubIdx >= 0 && cells[clubIdx]
-        ? stripCitations($(cells[clubIdx]).text().trim())
+        ? normalizeClubAlias(stripCitations($(cells[clubIdx]).text().trim()))
         : ''
       const goals = goalsIdx >= 0 && cells[goalsIdx]
         ? parseInt($(cells[goalsIdx]).text().trim())
@@ -1008,8 +1008,8 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
       if (!playerName || playerName.toLowerCase() === 'player') return
       const href = link.attr('href') ?? ''
       const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : ''
-      const forClub = stripCitations($(cells[fIdx]).text().trim())
-      const againstClub = stripCitations($(cells[aIdx]).text().trim())
+      const forClub = normalizeClubAlias(stripCitations($(cells[fIdx]).text().trim()))
+      const againstClub = normalizeClubAlias(stripCitations($(cells[aIdx]).text().trim()))
       if (!forClub || !againstClub) return
       hatTricks.push({ name: playerName, wikipediaUrl: wikiUrl, forClub, againstClub })
     })
@@ -1044,7 +1044,7 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
       }
 
       const club = clubIdx >= 0 && cells[clubIdx]
-        ? stripCitations($(cells[clubIdx]).text().trim())
+        ? normalizeClubAlias(stripCitations($(cells[clubIdx]).text().trim()))
         : ''
       const assists = assistsColIdx >= 0 && cells[assistsColIdx]
         ? parseInt($(cells[assistsColIdx]).text().trim())
