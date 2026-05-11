@@ -4,6 +4,32 @@ import { ArrowLeft, ExternalLink, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getCompetition, deleteCompetition, patchCompetition, type CompetitionDetail } from '@/api/competitions'
+import { nationalityToFlagUrl } from '@/lib/flags'
+
+function MiniClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: string | null }) {
+  const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
+  useEffect(() => {
+    if (!wikipediaUrl) { setLogoUrl(false); return }
+    const title = wikipediaUrl.split('/wiki/')[1]
+    if (!title) { setLogoUrl(false); return }
+    const controller = new AbortController()
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
+      .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
+    return () => controller.abort()
+  }, [wikipediaUrl])
+  return (
+    <div className="w-5 h-5 flex items-center justify-center shrink-0">
+      {logoUrl === null
+        ? <div className="w-full h-full bg-muted animate-pulse rounded" />
+        : logoUrl === false
+          ? <span className="text-[9px] text-muted-foreground font-bold">{club.charAt(0)}</span>
+          : <img src={logoUrl} alt={club} className="max-h-full max-w-full object-contain" title={club} />
+      }
+    </div>
+  )
+}
 
 export function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -155,12 +181,24 @@ export function CompetitionDetailPage() {
                   <tr key={s.id}>
                     <td className="py-2 text-muted-foreground">{s.rank}</td>
                     <td className="py-2">
-                      <span className="font-medium">{s.footballer_name ?? s.name}</span>
-                      {s.footballer_name && s.footballer_name !== s.name && (
-                        <span className="text-xs text-muted-foreground ml-1">({s.name})</span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {nationalityToFlagUrl(s.nationality) && (
+                          <img src={nationalityToFlagUrl(s.nationality)!} alt={s.nationality ?? ''} className="w-4 h-4 object-cover border border-border shrink-0" />
+                        )}
+                        <span className="font-medium">{s.footballer_name ?? s.name}</span>
+                        {s.footballer_name && s.footballer_name !== s.name && (
+                          <span className="text-xs text-muted-foreground">({s.name})</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="py-2 text-muted-foreground hidden sm:table-cell">{s.club}</td>
+                    <td className="py-2 hidden sm:table-cell">
+                      <div className="flex items-center gap-1.5">
+                        {s.clubs.map(c => (
+                          <MiniClubBadge key={c.name} club={c.name} wikipediaUrl={c.wikipedia_url} />
+                        ))}
+                        <span className="text-muted-foreground text-sm">{s.club}</span>
+                      </div>
+                    </td>
                     <td className="py-2 text-right font-mono font-medium">{s.goals}</td>
                   </tr>
                 ))}
@@ -215,8 +253,22 @@ export function CompetitionDetailPage() {
                 {topAssists.map(a => (
                   <tr key={a.id}>
                     <td className="py-2 text-muted-foreground">{a.rank}</td>
-                    <td className="py-2 font-medium">{a.footballer_name ?? a.name}</td>
-                    <td className="py-2 text-muted-foreground hidden sm:table-cell">{a.club}</td>
+                    <td className="py-2">
+                      <div className="flex items-center gap-1.5">
+                        {nationalityToFlagUrl(a.nationality) && (
+                          <img src={nationalityToFlagUrl(a.nationality)!} alt={a.nationality ?? ''} className="w-4 h-4 object-cover border border-border shrink-0" />
+                        )}
+                        <span className="font-medium">{a.footballer_name ?? a.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 hidden sm:table-cell">
+                      <div className="flex items-center gap-1.5">
+                        {a.clubs.map(c => (
+                          <MiniClubBadge key={c.name} club={c.name} wikipediaUrl={c.wikipedia_url} />
+                        ))}
+                        <span className="text-muted-foreground text-sm">{a.club}</span>
+                      </div>
+                    </td>
                     <td className="py-2 text-right font-mono font-medium">{a.assists}</td>
                   </tr>
                 ))}

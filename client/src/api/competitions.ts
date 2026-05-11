@@ -89,9 +89,9 @@ export interface CompetitionDetail {
     pfa_toty_match_id: number | null
     image_url: string | null
   }
-  topScorers: { id: number; name: string; club: string; goals: number; rank: number; footballer_name: string | null; photo_url: string | null }[]
+  topScorers: { id: number; name: string; club: string; goals: number; rank: number; footballer_name: string | null; photo_url: string | null; nationality: string | null; club_wikipedia_url: string | null; clubs: { name: string; wikipedia_url: string | null }[] }[]
   hatTricks: { id: number; name: string; for_club: string; against_club: string; footballer_name: string | null; photo_url: string | null }[]
-  topAssists: { id: number; name: string; club: string; assists: number; rank: number; footballer_name: string | null; photo_url: string | null }[]
+  topAssists: { id: number; name: string; club: string; assists: number; rank: number; footballer_name: string | null; photo_url: string | null; nationality: string | null; club_wikipedia_url: string | null; clubs: { name: string; wikipedia_url: string | null }[] }[]
   playerOfSeason: { id: number; name: string; photo_url: string | null } | null
   managerOfSeason: { id: number; name: string; photo_url: string | null } | null
 }

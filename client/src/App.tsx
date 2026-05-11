@@ -27,6 +27,8 @@ import { TwoClubsPage } from '@/pages/TwoClubsPage'
 import { CompetitionsPage } from '@/pages/CompetitionsPage'
 import { AddCompetitionPage } from '@/pages/AddCompetitionPage'
 import { CompetitionDetailPage } from '@/pages/CompetitionDetailPage'
+import { TopScorersPage } from '@/pages/TopScorersPage'
+import { TopScorersSchedulePage } from '@/pages/TopScorersSchedulePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -40,6 +42,7 @@ const router = createBrowserRouter([
   { path: '/play/guess-the-xi', element: <GuessTheXiPage /> },
   { path: '/play/know-your-club', element: <KnowYourClubPage /> },
   { path: '/play/two-clubs', element: <TwoClubsPage /> },
+  { path: '/play/top-scorers', element: <TopScorersPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -61,6 +64,7 @@ const router = createBrowserRouter([
       { path: 'elevens/:id', element: <XiMatchDetailPage /> },
       { path: 'competitions', element: <CompetitionsPage /> },
       { path: 'competitions/add', element: <AddCompetitionPage /> },
+      { path: 'competitions/top-scorers-schedule', element: <TopScorersSchedulePage /> },
       { path: 'competitions/:id', element: <CompetitionDetailPage /> },
       { path: 'database', element: <DatabasePage /> },
     ],

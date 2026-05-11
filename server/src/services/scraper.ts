@@ -787,6 +787,49 @@ export function normalizeClubAlias(club: string): string {
   return CLUB_ALIASES[club] ?? club
 }
 
+// Expands a wikitable into a full row×col grid, filling in cells that span
+// multiple rows (rowspan) so every row has the correct element at every column.
+function expandTableRowspans($: CheerioAPI, table: ReturnType<CheerioAPI>): (AnyNode | null)[][] {
+  const grid: (AnyNode | null)[][] = []
+  const pending = new Map<number, { el: AnyNode; rowsLeft: number }>()
+
+  table.find('tr').each((_i, tr) => {
+    const row: (AnyNode | null)[] = []
+    let srcCells = $(tr).children('td, th').toArray()
+    let srcIdx = 0
+
+    for (let col = 0; srcIdx < srcCells.length || pending.size > 0; col++) {
+      if (pending.has(col)) {
+        const p = pending.get(col)!
+        row.push(p.el)
+        p.rowsLeft--
+        if (p.rowsLeft === 0) pending.delete(col)
+      } else if (srcIdx < srcCells.length) {
+        const td = srcCells[srcIdx++]
+        const rowspan = parseInt($(td).attr('rowspan') ?? '1') || 1
+        const colspan = parseInt($(td).attr('colspan') ?? '1') || 1
+        for (let c = 0; c < colspan; c++) {
+          row.push(td)
+          if (rowspan > 1) pending.set(col + c, { el: td, rowsLeft: rowspan - 1 })
+        }
+        col += colspan - 1
+      } else {
+        break
+      }
+    }
+
+    if (row.length > 0) grid.push(row)
+  })
+
+  return grid
+}
+
+function cellTextWithBr($: CheerioAPI, el: AnyNode): string {
+  const clone = $(el).clone()
+  clone.find('br').replaceWith(' / ')
+  return clone.text().trim()
+}
+
 export interface CompetitionScrapeResult {
   name: string
   topScorers: { name: string; wikipediaUrl: string; club: string; goals: number; rank: number }[]
@@ -958,40 +1001,36 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
   )
   if (scorersTable) {
     const [rankIdx, playerIdx, clubIdx, goalsIdx] = detectColumns($, scorersTable, 'rank', 'player', 'club', 'goal')
+    const grid = expandTableRowspans($, scorersTable)
     let rankCounter = 1
-    scorersTable.find('tr').each((_i, row) => {
-      const cells = $(row).find('td')
-      if (!cells.length) return
-
-      const link = playerIdx >= 0 && cells[playerIdx] ? wikiLink($(cells[playerIdx])) : (() => {
-        let found: ReturnType<CheerioAPI> | null = null
-        cells.each((_j, td) => { const l = wikiLink($(td)); if (l.length) { found = l; return false } })
-        return found
-      })()
-      if (!link || !link.length) return
+    for (const cells of grid) {
+      if (!cells.length) continue
+      const playerCell = playerIdx >= 0 ? cells[playerIdx] : null
+      const link = playerCell ? wikiLink($(playerCell)) : null
+      if (!link || !link.length) continue
 
       const playerName = stripCitations(link.text().trim())
-      if (!playerName || playerName.toLowerCase() === 'player') return
+      if (!playerName || playerName.toLowerCase() === 'player') continue
       const href = link.attr('href') ?? ''
       const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : ''
 
       let rank = rankCounter
-      if (rankIdx >= 0 && cells[rankIdx]) {
-        const r = parseInt($(cells[rankIdx]).text().trim())
+      const rankCell = rankIdx >= 0 ? cells[rankIdx] : null
+      if (rankCell) {
+        const r = parseInt($(rankCell).text().trim())
         if (!isNaN(r)) rank = r
       }
 
-      const club = clubIdx >= 0 && cells[clubIdx]
-        ? normalizeClubAlias(stripCitations($(cells[clubIdx]).text().trim()))
-        : ''
-      const goals = goalsIdx >= 0 && cells[goalsIdx]
-        ? parseInt($(cells[goalsIdx]).text().trim())
-        : NaN
+      const clubCell = clubIdx >= 0 ? cells[clubIdx] : null
+      const club = clubCell ? normalizeClubAlias(stripCitations(cellTextWithBr($, clubCell))) : ''
 
-      if (!club || isNaN(goals)) return
+      const goalsCell = goalsIdx >= 0 ? cells[goalsIdx] : null
+      const goals = goalsCell ? parseInt($(goalsCell).text().trim()) : NaN
+
+      if (!club || isNaN(goals)) continue
       topScorers.push({ name: playerName, wikipediaUrl: wikiUrl, club, goals, rank })
       rankCounter = rank + 1
-    })
+    }
   }
 
   // --- Hat-tricks (optional) ---
@@ -1023,40 +1062,36 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
   const assistsTable = findTableAfterAnyHeading($, 'Top_assists', 'Assists', 'Most_assists')
   if (assistsTable) {
     const [rankIdx, playerIdx, clubIdx, assistsColIdx] = detectColumns($, assistsTable, 'rank', 'player', 'club', 'assist')
+    const grid = expandTableRowspans($, assistsTable)
     let rankCounter = 1
-    assistsTable.find('tr').each((_i, row) => {
-      const cells = $(row).find('td')
-      if (!cells.length) return
-
-      const link = playerIdx >= 0 && cells[playerIdx] ? wikiLink($(cells[playerIdx])) : (() => {
-        let found: ReturnType<CheerioAPI> | null = null
-        cells.each((_j, td) => { const l = wikiLink($(td)); if (l.length) { found = l; return false } })
-        return found
-      })()
-      if (!link || !link.length) return
+    for (const cells of grid) {
+      if (!cells.length) continue
+      const playerCell = playerIdx >= 0 ? cells[playerIdx] : null
+      const link = playerCell ? wikiLink($(playerCell)) : null
+      if (!link || !link.length) continue
 
       const playerName = stripCitations(link.text().trim())
-      if (!playerName || playerName.toLowerCase() === 'player') return
+      if (!playerName || playerName.toLowerCase() === 'player') continue
       const href = link.attr('href') ?? ''
       const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : ''
 
       let rank = rankCounter
-      if (rankIdx >= 0 && cells[rankIdx]) {
-        const r = parseInt($(cells[rankIdx]).text().trim())
+      const rankCell = rankIdx >= 0 ? cells[rankIdx] : null
+      if (rankCell) {
+        const r = parseInt($(rankCell).text().trim())
         if (!isNaN(r)) rank = r
       }
 
-      const club = clubIdx >= 0 && cells[clubIdx]
-        ? normalizeClubAlias(stripCitations($(cells[clubIdx]).text().trim()))
-        : ''
-      const assists = assistsColIdx >= 0 && cells[assistsColIdx]
-        ? parseInt($(cells[assistsColIdx]).text().trim())
-        : NaN
+      const clubCell = clubIdx >= 0 ? cells[clubIdx] : null
+      const club = clubCell ? normalizeClubAlias(stripCitations(cellTextWithBr($, clubCell))) : ''
 
-      if (!club || isNaN(assists)) return
+      const assistsCell = assistsColIdx >= 0 ? cells[assistsColIdx] : null
+      const assists = assistsCell ? parseInt($(assistsCell).text().trim()) : NaN
+
+      if (!club || isNaN(assists)) continue
       topAssists.push({ name: playerName, wikipediaUrl: wikiUrl, club, assists, rank })
       rankCounter = rank + 1
-    })
+    }
   }
 
   // --- PFA Team of the Year ---

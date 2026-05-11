@@ -162,6 +162,21 @@ export const competition_top_assists = sqliteTable('competition_top_assists', {
   rank: integer('rank').notNull(),
 })
 
+export const top_scorers_schedule = sqliteTable('top_scorers_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  competition_id: integer('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const top_scorers_leaderboard = sqliteTable('top_scorers_leaderboard', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  player_name: text('player_name').notNull(),
+  score: integer('score').notNull(),
+  total: integer('total').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export type XiScheduleEntry = typeof xi_schedule.$inferSelect
 export type XiLeaderboardEntry = typeof xi_leaderboard.$inferSelect
 
@@ -183,6 +198,9 @@ export type Manager = typeof managers.$inferSelect
 export type NewManager = typeof managers.$inferInsert
 export type ManagerCareerStint = typeof manager_career_stints.$inferSelect
 export type ManagerDay = typeof manager_days.$inferSelect
+
+export type TopScorersScheduleEntry = typeof top_scorers_schedule.$inferSelect
+export type TopScorersLeaderboardEntry = typeof top_scorers_leaderboard.$inferSelect
 
 export type Competition = typeof competitions.$inferSelect
 export type NewCompetition = typeof competitions.$inferInsert
