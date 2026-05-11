@@ -2,9 +2,9 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
-import { db, sqlite } from '../db/client.ts'
+import { db, sqlite, normalizeName } from '../db/client.ts'
 import { xi_matches, xi_players, footballers, career_stints } from '../db/schema.ts'
-import { scrapeMatchLineups, scrapeWikipedia } from '../services/scraper.ts'
+import { scrapeMatchLineups, scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 
 export const xiMatchesRouter = new Hono()
 
@@ -63,18 +63,59 @@ xiMatchesRouter.post(
       const result = await scrapeMatchLineups(url)
 
       // Try to auto-link known footballer IDs for each player
-      const linkPlayer = async (p: typeof result.homePlayers[0]) => {
-        if (!p.wikipediaUrl) return { ...p, footballer_id: null }
-        const [existing] = await db
-          .select({ id: footballers.id })
+      const linkPlayer = async (p: typeof result.homePlayers[0], matchTeam: string, matchYear: number) => {
+        if (p.wikipediaUrl) {
+          const [existing] = await db
+            .select({ id: footballers.id })
+            .from(footballers)
+            .where(eq(footballers.wikipedia_url, p.wikipediaUrl))
+            .limit(1)
+          if (existing) return { ...p, footballer_id: existing.id }
+        }
+
+        // DB name lookup for players without Wikipedia URL (e.g. BBC match pages)
+        const normalized = normalizeName(p.name)
+
+        const [byName] = await db
+          .select({ id: footballers.id, name: footballers.name })
           .from(footballers)
-          .where(eq(footballers.wikipedia_url, p.wikipediaUrl))
+          .where(sql`normalize(${footballers.name}) = ${normalized}`)
           .limit(1)
-        return { ...p, footballer_id: existing?.id ?? null }
+        if (byName) return { ...p, name: byName.name, footballer_id: byName.id }
+
+        // Last-name-only lookup for single-word entries like "Gerrard"
+        if (!p.name.includes(' ')) {
+          const byLastName = await db
+            .select({ id: footballers.id, name: footballers.name })
+            .from(footballers)
+            .where(sql`normalize(${footballers.name}) LIKE ${'% ' + normalized}`)
+
+          if (byLastName.length === 1) {
+            return { ...p, name: byLastName[0].name, footballer_id: byLastName[0].id }
+          }
+
+          if (byLastName.length > 1) {
+            const withStints = byLastName.map(f => ({
+              ...f,
+              stints: sqlite.prepare(
+                `SELECT club, years FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`
+              ).all(f.id) as { club: string; years: string }[],
+            }))
+            const best = withStints.find(f =>
+              f.stints.some(s =>
+                normalizeClubAlias(s.club) === normalizeClubAlias(matchTeam) &&
+                s.years.includes(String(matchYear))
+              )
+            ) ?? byLastName[0]
+            return { ...p, name: best.name, footballer_id: best.id }
+          }
+        }
+
+        return { ...p, footballer_id: null }
       }
 
-      const homePlayers = await Promise.all(result.homePlayers.map(linkPlayer))
-      const awayPlayers = await Promise.all(result.awayPlayers.map(linkPlayer))
+      const homePlayers = await Promise.all(result.homePlayers.map(p => linkPlayer(p, result.homeTeam, result.year)))
+      const awayPlayers = await Promise.all(result.awayPlayers.map(p => linkPlayer(p, result.awayTeam, result.year)))
 
       return c.json({ ...result, homePlayers, awayPlayers })
     } catch (e) {
@@ -140,9 +181,24 @@ xiMatchesRouter.post(
     ]
 
     for (const player of allPlayersForImport) {
-      if (!player.wikipediaUrl) {
-        importSummary.failed.push(player.name)
+      if (player.footballer_id != null) {
+        importSummary.alreadyExisted.push(player.name)
         continue
+      }
+
+      if (!player.wikipediaUrl) {
+        try {
+          const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(player.name + ' footballer')}&format=json&srlimit=1`
+          const searchRes = await fetch(searchUrl, { headers: { 'User-Agent': 'GuessTheCareer/1.0' } })
+          if (!searchRes.ok) throw new Error('search failed')
+          const searchData = await searchRes.json() as { query?: { search?: { title: string }[] } }
+          const firstResult = searchData.query?.search?.[0]
+          if (!firstResult) { importSummary.failed.push(player.name); continue }
+          player.wikipediaUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(firstResult.title.replace(/ /g, '_'))}`
+        } catch {
+          importSummary.failed.push(player.name)
+          continue
+        }
       }
 
       try {

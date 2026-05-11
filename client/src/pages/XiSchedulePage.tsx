@@ -229,19 +229,18 @@ export function XiSchedulePage() {
 
       const assigned = entries.filter(e => e.match_id !== null)
       const todayIso = new Date().toISOString().split('T')[0]
-      const earliestDate = assigned.length
-        ? [...assigned].sort((a, b) => a.date.localeCompare(b.date))[0].date
+      const latestDate = assigned.length
+        ? [...assigned].sort((a, b) => b.date.localeCompare(a.date))[0].date
         : todayIso
+      const startDate = latestDate > todayIso ? addDays(latestDate, 1) : addDays(todayIso, 1)
 
-      const endDate = addDays(earliestDate, -1)
       const assignedDates = new Set(entries.map(e => e.date))
-
-      for (let i = 0; i < unscheduledSlots.length; i++) {
-        const slot = unscheduledSlots[i]
-        const date = addDays(endDate, -(unscheduledSlots.length - 1 - i))
-        if (!assignedDates.has(date)) {
-          await assignXiDay(date, slot.matchId, slot.team)
-        }
+      let offset = 0
+      for (const slot of unscheduledSlots) {
+        let date: string
+        do { date = addDays(startDate, offset++) } while (assignedDates.has(date))
+        assignedDates.add(date)
+        await assignXiDay(date, slot.matchId, slot.team)
       }
     } finally {
       setAutoState('idle')

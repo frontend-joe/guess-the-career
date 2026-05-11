@@ -121,6 +121,45 @@ export const xi_leaderboard = sqliteTable('xi_leaderboard', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const competitions = sqliteTable('competitions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  wikipedia_url: text('wikipedia_url').notNull().unique(),
+  player_of_season_id: integer('player_of_season_id').references(() => footballers.id, { onDelete: 'set null' }),
+  manager_of_season_id: integer('manager_of_season_id').references(() => managers.id, { onDelete: 'set null' }),
+  pfa_toty_match_id: integer('pfa_toty_match_id').references(() => xi_matches.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const competition_top_scorers = sqliteTable('competition_top_scorers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  competition_id: integer('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  club: text('club').notNull(),
+  goals: integer('goals').notNull(),
+  rank: integer('rank').notNull(),
+})
+
+export const competition_hat_tricks = sqliteTable('competition_hat_tricks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  competition_id: integer('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  for_club: text('for_club').notNull(),
+  against_club: text('against_club').notNull(),
+})
+
+export const competition_top_assists = sqliteTable('competition_top_assists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  competition_id: integer('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  club: text('club').notNull(),
+  assists: integer('assists').notNull(),
+  rank: integer('rank').notNull(),
+})
+
 export type XiScheduleEntry = typeof xi_schedule.$inferSelect
 export type XiLeaderboardEntry = typeof xi_leaderboard.$inferSelect
 
@@ -142,3 +181,9 @@ export type Manager = typeof managers.$inferSelect
 export type NewManager = typeof managers.$inferInsert
 export type ManagerCareerStint = typeof manager_career_stints.$inferSelect
 export type ManagerDay = typeof manager_days.$inferSelect
+
+export type Competition = typeof competitions.$inferSelect
+export type NewCompetition = typeof competitions.$inferInsert
+export type CompetitionTopScorer = typeof competition_top_scorers.$inferSelect
+export type CompetitionHatTrick = typeof competition_hat_tricks.$inferSelect
+export type CompetitionTopAssist = typeof competition_top_assists.$inferSelect

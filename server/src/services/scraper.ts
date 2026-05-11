@@ -391,7 +391,87 @@ export interface MatchScrapeResult {
   awayPlayers: ScrapedXiPlayer[]
 }
 
+export function isBbcSportUrl(url: string): boolean {
+  return /news\.bbc\.co\.uk|bbc\.co\.uk\/sport/.test(url)
+}
+
+function bbcPosition(index: number): 'GK' | 'DF' | 'MF' | 'FW' {
+  if (index === 0) return 'GK'
+  if (index <= 4) return 'DF'
+  if (index <= 8) return 'MF'
+  return 'FW'
+}
+
+async function scrapeBbcMatchLineups(url: string): Promise<MatchScrapeResult> {
+  const res = await fetch(url, { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } })
+  if (!res.ok) throw new Error(`BBC fetch failed: ${res.status}`)
+  const html = await res.text()
+
+  // Match title: "BBC SPORT | Football | FA Cup | Chelsea 1-2 Liverpool"
+  const titleMatch = html.match(/<title>([^<]+)<\/title>/i)
+  const titleFull = titleMatch?.[1] ?? ''
+  const titleParts = titleFull.split(' | ')
+  const matchName = titleParts[titleParts.length - 1]?.trim() ?? titleFull.trim()
+
+  // Year from publication date meta
+  const dateMatch = html.match(/<meta[^>]+name="OriginalPublicationDate"[^>]+content="(\d{4})/i)
+  const year = dateMatch ? parseInt(dateMatch[1]) : new Date().getFullYear()
+
+  // Competition from Section meta, refined by deriveCompetition
+  const sectionMatch = html.match(/<meta[^>]+name="Section"[^>]+content="([^"]+)"/i)
+  const section = sectionMatch?.[1] ?? ''
+  const competition = deriveCompetition(section || matchName)
+
+  // Extract lineups: <b>Team:</b> or <b>Team</b>: followed by comma-separated players then <br
+  // [^\r\n]*? stays on a single line; HTML tags stripped after capture for <a>-linked names.
+  const lineupRe = /<b>([^:<\n]+?)(?::\s*<\/b>|<\/b>\s*:)\s*([^\r\n]*?)(?=<br)/gi
+  const lineups: Array<{ team: string; players: ScrapedXiPlayer[] }> = []
+
+  let m: RegExpExecArray | null
+  while ((m = lineupRe.exec(html)) !== null) {
+    const team = m[1].trim()
+    const raw = m[2]
+      .replace(/<[^>]+>/g, ' ')  // strip HTML tags (e.g. <a> links around player names)
+      .replace(/\.\s*$/, '')
+      .trim()
+
+    const players: ScrapedXiPlayer[] = raw
+      .split(/,\s*/)
+      .map(s => s.replace(/\s*\([^)]*\d[^)]*\)$/, '').trim())  // strip (Sub 45) annotations
+      .filter(Boolean)
+      .slice(0, 11)
+      .map((name, i) => ({
+        name,
+        position: bbcPosition(i),
+        squadNumber: i + 1,
+        wikipediaUrl: null,
+      }))
+
+    if (players.length >= 11) {
+      lineups.push({ team, players })
+    }
+  }
+
+  if (lineups.length < 2) {
+    const found = lineups.map(l => `"${l.team}" (${l.players.length} players)`).join(', ') || 'none'
+    const snippet = html.substring(html.search(/<b>/i), html.search(/<b>/i) + 500).replace(/\s+/g, ' ')
+    throw new Error(`Could not find two lineup tables on this page (found ${lineups.length}: ${found}). First <b> section: ${snippet}`)
+  }
+
+  return {
+    matchName,
+    year,
+    competition,
+    homeTeam: lineups[0].team,
+    awayTeam: lineups[1].team,
+    homePlayers: lineups[0].players,
+    awayPlayers: lineups[1].players,
+  }
+}
+
 export async function scrapeMatchLineups(url: string): Promise<MatchScrapeResult> {
+  if (isBbcSportUrl(url)) return scrapeBbcMatchLineups(url)
+
   if (!url.includes('wikipedia.org/wiki/')) {
     throw new Error('URL must be a Wikipedia article URL')
   }
@@ -684,7 +764,7 @@ function normalizePosition(raw: string): 'GK' | 'DF' | 'MF' | 'FW' {
   return 'MF'
 }
 
-function deriveCompetition(matchName: string): string {
+export function deriveCompetition(matchName: string): string {
   if (/UEFA Champions League/i.test(matchName)) return 'UEFA Champions League'
   if (/UEFA Cup|UEFA Europa League/i.test(matchName)) return 'UEFA Europa League'
   if (/UEFA Super Cup/i.test(matchName)) return 'UEFA Super Cup'
@@ -703,6 +783,405 @@ function deriveCompetition(matchName: string): string {
 
 export function normalizeClubAlias(club: string): string {
   return CLUB_ALIASES[club] ?? club
+}
+
+export interface CompetitionScrapeResult {
+  name: string
+  topScorers: { name: string; wikipediaUrl: string; club: string; goals: number; rank: number }[]
+  hatTricks: { name: string; wikipediaUrl: string; forClub: string; againstClub: string }[]
+  topAssists: { name: string; wikipediaUrl: string; club: string; assists: number; rank: number }[]
+  playerOfSeason: { name: string; wikipediaUrl: string } | null
+  managerOfSeason: { name: string; wikipediaUrl: string } | null
+  pfaTeamOfYear: {
+    name: string
+    wikipediaUrl: string | null
+    position: 'GK' | 'DF' | 'MF' | 'FW'
+    squadNumber: number
+  }[]
+}
+
+function findTableAfterHeading($: CheerioAPI, headingId: string): ReturnType<CheerioAPI> | null {
+  // Handle both old format (<h4><span id="..."></span></h4>) and
+  // new Wikipedia format (<div class="mw-heading"><h4 id="..."></h4></div>)
+  const el = $(`#${headingId}`).first()
+  if (!el.length) return null
+
+  const heading = el.is('h1,h2,h3,h4,h5,h6') ? el : el.closest('h1,h2,h3,h4,h5,h6')
+  if (!heading.length) return null
+
+  const parentClass = heading.parent().attr('class') ?? ''
+  const container = heading.parent().is('div') && parentClass.includes('mw-heading')
+    ? heading.parent()
+    : heading
+
+  let found: ReturnType<CheerioAPI> | null = null
+  container.nextAll().each((_i, sibling) => {
+    if (found) return false
+    const sib = $(sibling)
+    if (sib.is('h1,h2,h3,h4,h5,h6')) return false
+    if ((sib.attr('class') ?? '').includes('mw-heading')) return false
+    const table = sib.is('table.wikitable') ? sib : sib.find('table.wikitable').first()
+    if (table.length) { found = table; return false }
+  })
+  return found
+}
+
+function findTableAfterAnyHeading($: CheerioAPI, ...headingIds: string[]): ReturnType<CheerioAPI> | null {
+  for (const id of headingIds) {
+    const t = findTableAfterHeading($, id)
+    if (t) return t
+  }
+  return null
+}
+
+// Detect column indices from the <th> header row of a wikitable
+function detectColumns(
+  $: CheerioAPI,
+  table: ReturnType<CheerioAPI>,
+  ...labels: string[]
+): number[] {
+  let headerCells: ReturnType<CheerioAPI> | null = null
+  table.find('tr').each((_i, row) => {
+    const ths = $(row).find('th')
+    if (ths.length >= 2) { headerCells = ths; return false }
+  })
+  if (!headerCells) return labels.map((_, i) => i)
+  return labels.map(label => {
+    let found = -1
+    headerCells!.each((i, th) => {
+      if ($(th).text().trim().toLowerCase().includes(label.toLowerCase())) {
+        found = i; return false
+      }
+    })
+    return found
+  })
+}
+
+export async function scrapeCompetitionPage(url: string): Promise<CompetitionScrapeResult> {
+  if (!url.includes('wikipedia.org/wiki/')) {
+    throw new Error('URL must be a Wikipedia article URL')
+  }
+
+  const res = await fetch(url, { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } })
+  if (!res.ok) throw new Error(`Wikipedia returned ${res.status}`)
+
+  const html = await res.text()
+  const $ = cheerio.load(html)
+
+  const name = stripCitations($('#firstHeading').text().trim())
+  if (!name) throw new Error('Could not find page title')
+
+  // Helper: find first <a> with non-empty text and a /wiki/ href (skips flag icon links)
+  function wikiLink(el: ReturnType<CheerioAPI>) {
+    return el.find('a').filter((_i, a) => {
+      const href = $(a).attr('href') ?? ''
+      return href.startsWith('/wiki/') && !href.includes(':') && $(a).text().trim().length > 0
+    }).first()
+  }
+
+  // --- Annual awards ---
+  let playerOfSeason: CompetitionScrapeResult['playerOfSeason'] = null
+  let managerOfSeason: CompetitionScrapeResult['managerOfSeason'] = null
+
+  const awardsTable = findTableAfterAnyHeading($, 'Annual_awards', 'Season_awards', 'Awards', 'Award')
+  if (awardsTable) {
+    awardsTable.find('tr').each((_i, row) => {
+      const cells = $(row).find('td')
+      if (cells.length < 2) return
+      const award = $(cells[0]).text().toLowerCase()
+      // Winner cell is 1 (or 2 in tables with Award | Category | Winner | Club)
+      for (let ci = 1; ci < cells.length; ci++) {
+        const link = wikiLink($(cells[ci]))
+        if (!link.length) continue
+        const winnerName = stripCitations(link.text().trim())
+        const href = link.attr('href') ?? ''
+        const winnerUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : ''
+        if (!winnerName || !winnerUrl) continue
+        if (award.includes('player of the season') || award.includes("players' player") || award.includes('player of the year')) {
+          if (!playerOfSeason) { playerOfSeason = { name: winnerName, wikipediaUrl: winnerUrl } }
+        } else if (award.includes('manager of the season') || award.includes('manager of the year')) {
+          if (!managerOfSeason) { managerOfSeason = { name: winnerName, wikipediaUrl: winnerUrl } }
+        }
+        break
+      }
+    })
+  }
+
+  // Fallback: individual award heading paragraphs (e.g. 2002–03 style where each award has its own section)
+  function extractAwardFromHeading(headingId: string): { name: string; wikipediaUrl: string } | null {
+    const el = $(`#${headingId}`).first()
+    if (!el.length) return null
+    const heading = el.is('h1,h2,h3,h4,h5,h6') ? el : el.closest('h1,h2,h3,h4,h5,h6')
+    if (!heading.length) return null
+    const container = heading.parent().is('div') && (heading.parent().attr('class') ?? '').includes('mw-heading')
+      ? heading.parent() : heading
+    let found: { name: string; wikipediaUrl: string } | null = null
+    container.nextAll().each((_i, sib) => {
+      if (found) return false
+      const s = $(sib)
+      if ((s.attr('class') ?? '').includes('mw-heading') || s.is('h1,h2,h3,h4,h5,h6')) return false
+      if (!s.is('p') || !s.text().trim()) return
+      const link = s.find('a[href^="/wiki/"]').filter((_j: number, a: AnyNode) => {
+        const href = $(a).attr('href') ?? ''
+        return !href.includes(':') &&
+          !/award|season|year|trophy|boot|glove|_f\.c\.|_fc$/i.test(href) &&
+          $(a).text().trim().length > 0
+      }).first()
+      if (!link.length) return
+      const personName = stripCitations(link.text().trim())
+      const href = link.attr('href') ?? ''
+      if (personName && href) { found = { name: personName, wikipediaUrl: `https://en.wikipedia.org${href}` }; return false }
+    })
+    return found
+  }
+
+  if (!playerOfSeason) {
+    for (const id of ['Premier_League_Player_of_the_Year', 'Player_of_the_Season', 'Player_of_the_Year']) {
+      const result = extractAwardFromHeading(id)
+      if (result) { playerOfSeason = result; break }
+    }
+  }
+  if (!managerOfSeason) {
+    for (const id of ['Premier_League_Manager_of_the_Year', 'Manager_of_the_Year', 'Manager_of_the_Season']) {
+      const result = extractAwardFromHeading(id)
+      if (result) { managerOfSeason = result; break }
+    }
+  }
+
+  // --- Top scorers ---
+  const topScorers: CompetitionScrapeResult['topScorers'] = []
+  const scorersTable = findTableAfterAnyHeading($,
+    'Top_scorers', 'Top_goalscorers', 'Goalscorers', 'Top_goal_scorers', 'Leading_scorers'
+  )
+  if (scorersTable) {
+    const [rankIdx, playerIdx, clubIdx, goalsIdx] = detectColumns($, scorersTable, 'rank', 'player', 'club', 'goal')
+    let rankCounter = 1
+    scorersTable.find('tr').each((_i, row) => {
+      const cells = $(row).find('td')
+      if (!cells.length) return
+
+      const link = playerIdx >= 0 && cells[playerIdx] ? wikiLink($(cells[playerIdx])) : (() => {
+        let found: ReturnType<CheerioAPI> | null = null
+        cells.each((_j, td) => { const l = wikiLink($(td)); if (l.length) { found = l; return false } })
+        return found
+      })()
+      if (!link || !link.length) return
+
+      const playerName = stripCitations(link.text().trim())
+      if (!playerName || playerName.toLowerCase() === 'player') return
+      const href = link.attr('href') ?? ''
+      const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : ''
+
+      let rank = rankCounter
+      if (rankIdx >= 0 && cells[rankIdx]) {
+        const r = parseInt($(cells[rankIdx]).text().trim())
+        if (!isNaN(r)) rank = r
+      }
+
+      const club = clubIdx >= 0 && cells[clubIdx]
+        ? stripCitations($(cells[clubIdx]).text().trim())
+        : ''
+      const goals = goalsIdx >= 0 && cells[goalsIdx]
+        ? parseInt($(cells[goalsIdx]).text().trim())
+        : NaN
+
+      if (!club || isNaN(goals)) return
+      topScorers.push({ name: playerName, wikipediaUrl: wikiUrl, club, goals, rank })
+      rankCounter = rank + 1
+    })
+  }
+
+  // --- Hat-tricks (optional) ---
+  const hatTricks: CompetitionScrapeResult['hatTricks'] = []
+  const hatTable = findTableAfterAnyHeading($, 'Hat-tricks', 'Hat_tricks', 'Hat_trick')
+  if (hatTable) {
+    const [playerIdx, forIdx, againstIdx] = detectColumns($, hatTable, 'player', 'for', 'against')
+    hatTable.find('tr').each((_i, row) => {
+      const cells = $(row).find('td')
+      if (cells.length < 3) return
+      const pIdx = playerIdx >= 0 ? playerIdx : 0
+      const fIdx = forIdx >= 0 ? forIdx : 1
+      const aIdx = againstIdx >= 0 ? againstIdx : 2
+      const link = wikiLink($(cells[pIdx]))
+      if (!link.length) return
+      const playerName = stripCitations(link.text().trim())
+      if (!playerName || playerName.toLowerCase() === 'player') return
+      const href = link.attr('href') ?? ''
+      const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : ''
+      const forClub = stripCitations($(cells[fIdx]).text().trim())
+      const againstClub = stripCitations($(cells[aIdx]).text().trim())
+      if (!forClub || !againstClub) return
+      hatTricks.push({ name: playerName, wikipediaUrl: wikiUrl, forClub, againstClub })
+    })
+  }
+
+  // --- Top assists (optional) ---
+  const topAssists: CompetitionScrapeResult['topAssists'] = []
+  const assistsTable = findTableAfterAnyHeading($, 'Top_assists', 'Assists', 'Most_assists')
+  if (assistsTable) {
+    const [rankIdx, playerIdx, clubIdx, assistsColIdx] = detectColumns($, assistsTable, 'rank', 'player', 'club', 'assist')
+    let rankCounter = 1
+    assistsTable.find('tr').each((_i, row) => {
+      const cells = $(row).find('td')
+      if (!cells.length) return
+
+      const link = playerIdx >= 0 && cells[playerIdx] ? wikiLink($(cells[playerIdx])) : (() => {
+        let found: ReturnType<CheerioAPI> | null = null
+        cells.each((_j, td) => { const l = wikiLink($(td)); if (l.length) { found = l; return false } })
+        return found
+      })()
+      if (!link || !link.length) return
+
+      const playerName = stripCitations(link.text().trim())
+      if (!playerName || playerName.toLowerCase() === 'player') return
+      const href = link.attr('href') ?? ''
+      const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : ''
+
+      let rank = rankCounter
+      if (rankIdx >= 0 && cells[rankIdx]) {
+        const r = parseInt($(cells[rankIdx]).text().trim())
+        if (!isNaN(r)) rank = r
+      }
+
+      const club = clubIdx >= 0 && cells[clubIdx]
+        ? stripCitations($(cells[clubIdx]).text().trim())
+        : ''
+      const assists = assistsColIdx >= 0 && cells[assistsColIdx]
+        ? parseInt($(cells[assistsColIdx]).text().trim())
+        : NaN
+
+      if (!club || isNaN(assists)) return
+      topAssists.push({ name: playerName, wikipediaUrl: wikiUrl, club, assists, rank })
+      rankCounter = rank + 1
+    })
+  }
+
+  // --- PFA Team of the Year ---
+  const pfaTeamOfYear: CompetitionScrapeResult['pfaTeamOfYear'] = []
+  const POSITION_MAP: Record<string, 'GK' | 'DF' | 'MF' | 'FW'> = {
+    goalkeeper: 'GK',
+    defence: 'DF',
+    defenders: 'DF',
+    midfield: 'MF',
+    midfielders: 'MF',
+    attack: 'FW',
+    forwards: 'FW',
+    strikers: 'FW',
+  }
+  const SQUAD_START: Record<'GK' | 'DF' | 'MF' | 'FW', number> = { GK: 1, DF: 2, MF: 6, FW: 10 }
+  const squadCounters: Record<'GK' | 'DF' | 'MF' | 'FW', number> = { GK: 1, DF: 2, MF: 6, FW: 10 }
+
+  // Find the wikitable whose first th contains "PFA Team of the Year"
+  $('table.wikitable').each((_i, table) => {
+    if (pfaTeamOfYear.length > 0) return false
+    const firstTh = $(table).find('th').first().text()
+    if (!firstTh.toLowerCase().includes('pfa team of the year') && !firstTh.toLowerCase().includes('pfa')) return
+
+    let currentPosition: 'GK' | 'DF' | 'MF' | 'FW' | null = null
+    squadCounters.GK = SQUAD_START.GK
+    squadCounters.DF = SQUAD_START.DF
+    squadCounters.MF = SQUAD_START.MF
+    squadCounters.FW = SQUAD_START.FW
+
+    $(table).find('tr').each((_j, row) => {
+      const cells = $(row).find('td')
+      if (!cells.length) return
+
+      // Position group row: first cell has bold text with position name
+      const firstCellText = $(cells[0]).find('b').first().text().trim().toLowerCase()
+      if (firstCellText) {
+        const pos = POSITION_MAP[firstCellText]
+        if (pos) {
+          currentPosition = pos
+          cells.each((_k, cell) => {
+            const link = wikiLink($(cell))
+            if (!link.length) return
+            const playerName = stripCitations(link.text().trim())
+            if (!playerName) return
+            const href = link.attr('href') ?? ''
+            const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : null
+            pfaTeamOfYear.push({
+              name: playerName,
+              wikipediaUrl: wikiUrl,
+              position: currentPosition!,
+              squadNumber: squadCounters[currentPosition!]++,
+            })
+          })
+          return
+        }
+      }
+
+      // Plain player row (some formats put each player in its own row under position header)
+      if (!currentPosition) return
+      cells.each((_k, cell) => {
+        const link = wikiLink($(cell))
+        if (!link.length) return
+        const playerName = stripCitations(link.text().trim())
+        if (!playerName) return
+        const href = link.attr('href') ?? ''
+        const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : null
+        pfaTeamOfYear.push({
+          name: playerName,
+          wikipediaUrl: wikiUrl,
+          position: currentPosition!,
+          squadNumber: squadCounters[currentPosition!]++,
+        })
+      })
+    })
+  })
+
+  // Fallback: pitch diagram format (absolutely-positioned player divs inside a role="img" container)
+  if (pfaTeamOfYear.length === 0) {
+    const totyEl = $('#PFA_Team_of_the_Year').first()
+    if (totyEl.length) {
+      const totyHeading = totyEl.is('h1,h2,h3,h4,h5,h6') ? totyEl : totyEl.closest('h1,h2,h3,h4,h5,h6')
+      const totyContainer = totyHeading.parent().is('div') && (totyHeading.parent().attr('class') ?? '').includes('mw-heading')
+        ? totyHeading.parent() : totyHeading
+      interface PitchPlayer { name: string; wikipediaUrl: string | null; top: number; left: number }
+      const pitchPlayers: PitchPlayer[] = []
+      const inferPositionFromPitch = (top: number, height: number): 'GK' | 'DF' | 'MF' | 'FW' => {
+        const pct = top / height
+        if (pct > 0.73) return 'GK'
+        if (pct > 0.48) return 'DF'
+        if (pct > 0.23) return 'MF'
+        return 'FW'
+      }
+      totyContainer.nextAll().each((_i, sib) => {
+        if (pitchPlayers.length > 0) return false
+        const s = $(sib)
+        if ((s.attr('class') ?? '').includes('mw-heading') || s.is('h1,h2,h3,h4,h5,h6')) return false
+        const d = s.find('[role="img"]').first()
+        if (!d.length) return
+        d.children('div[style]').each((_j, div) => {
+          const style = $(div).attr('style') ?? ''
+          const topMatch = style.match(/top:\s*([\d.]+)px/)
+          const leftMatch = style.match(/left:\s*([\d.]+)px/)
+          if (!topMatch || !leftMatch) return
+          const link = $(div).find('a[href^="/wiki/"]').first()
+          if (!link.length) return
+          const href = link.attr('href') ?? ''
+          if (href.includes(':')) return
+          const playerName = stripCitations(link.text().trim())
+          if (!playerName) return
+          pitchPlayers.push({ name: playerName, wikipediaUrl: `https://en.wikipedia.org${href}`, top: parseFloat(topMatch[1]), left: parseFloat(leftMatch[1]) })
+        })
+        if (pitchPlayers.length > 0) return false
+      })
+      if (pitchPlayers.length > 0) {
+        const groups: Record<'GK' | 'DF' | 'MF' | 'FW', PitchPlayer[]> = { GK: [], DF: [], MF: [], FW: [] }
+        for (const p of pitchPlayers) groups[inferPositionFromPitch(p.top, 265)].push(p)
+        for (const pos of ['GK', 'DF', 'MF', 'FW'] as const) {
+          groups[pos].sort((a, b) => a.left - b.left)
+          let sqNum = SQUAD_START[pos]
+          for (const p of groups[pos]) {
+            pfaTeamOfYear.push({ name: p.name, wikipediaUrl: p.wikipediaUrl, position: pos, squadNumber: sqNum++ })
+          }
+        }
+      }
+    }
+  }
+
+  return { name, topScorers, hatTricks, topAssists, playerOfSeason, managerOfSeason, pfaTeamOfYear }
 }
 
 
