@@ -19,6 +19,7 @@ export interface XiRound {
   team: string
   teamWikipediaUrl: string | null
   teamImageUrl: string | null
+  isToty: boolean
   players: XiRoundPlayer[]
   playerNames: string[]
 }

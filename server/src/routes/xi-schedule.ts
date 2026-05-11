@@ -143,6 +143,7 @@ xiScheduleRouter.get('/rounds', (c) => {
       team: row.team,
       teamWikipediaUrl: clubRow?.wikipedia_url ?? row.competition_wikipedia_url ?? null,
       teamImageUrl: row.competition_image_url ?? null,
+      isToty: row.competition_wikipedia_url !== null,
       players: players.map(p => {
         const clubAtTime = p.footballer_id !== null
           ? findClubAtYear(stintsByPlayer.get(p.footballer_id) ?? [], row.year)

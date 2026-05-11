@@ -25,6 +25,7 @@ interface RoundResult {
   awayTeam: string;
   teamWikipediaUrl: string | null;
   teamImageUrl: string | null;
+  isToty: boolean;
   players: XiRoundPlayer[];
   playerNames: string[];
   guessedIndices: Set<number>;
@@ -143,6 +144,7 @@ function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult
       awayTeam: r.awayTeam,
       teamWikipediaUrl: r.teamWikipediaUrl,
       teamImageUrl: r.teamImageUrl,
+      isToty: r.isToty,
       players: r.players,
       playerNames: r.playerNames,
       guessedIndices: prog ? new Set(prog.guessedIndices) : new Set<number>(),
@@ -396,30 +398,59 @@ export function GuessTheXiPage() {
                     key={player.id}
                     className="flex items-center gap-3 px-3 h-8 border-b border-gray-100 last:border-0"
                   >
-                    <span className="text-gray-400 text-xs tabular-nums w-5 text-right shrink-0">
-                      {player.squadNumber ?? "—"}
-                    </span>
-                    <span
-                      className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
-                    >
-                      {player.position}
-                    </span>
-                    <span className="w-4 shrink-0 flex items-center justify-center">
-                      {!nationalityToFlagUrl(currentRound.team)
-                        ? nationalityToFlagUrl(player.nationality) && (
+                    {currentRound.isToty ? (
+                      <>
+                        <span className="w-4 shrink-0 flex items-center justify-center">
+                          {nationalityToFlagUrl(player.nationality) && (
                             <img
                               src={nationalityToFlagUrl(player.nationality)!}
                               alt={player.nationality ?? ""}
                               className="w-4 h-3.5 object-cover border border-[#ebebeb]"
                             />
-                          )
-                        : player.clubAtTime && (
+                          )}
+                        </span>
+                        <span
+                          className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
+                        >
+                          {player.position}
+                        </span>
+                        <span className="w-4 shrink-0 flex items-center justify-center">
+                          {player.clubAtTime && (
                             <MiniClubBadge
                               club={player.clubAtTime}
                               wikipediaUrl={player.clubAtTimeWikipediaUrl ?? null}
                             />
                           )}
-                    </span>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-400 text-xs tabular-nums w-5 text-right shrink-0">
+                          {player.squadNumber ?? "—"}
+                        </span>
+                        <span
+                          className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
+                        >
+                          {player.position}
+                        </span>
+                        <span className="w-4 shrink-0 flex items-center justify-center">
+                          {!nationalityToFlagUrl(currentRound.team)
+                            ? nationalityToFlagUrl(player.nationality) && (
+                                <img
+                                  src={nationalityToFlagUrl(player.nationality)!}
+                                  alt={player.nationality ?? ""}
+                                  className="w-4 h-3.5 object-cover border border-[#ebebeb]"
+                                />
+                              )
+                            : player.clubAtTime && (
+                                <MiniClubBadge
+                                  club={player.clubAtTime}
+                                  wikipediaUrl={player.clubAtTimeWikipediaUrl ?? null}
+                                />
+                              )}
+                        </span>
+                      </>
+                    )}
                     {guessed ? (
                       <span className="text-green-600 font-semibold text-sm flex-1">{name}</span>
                     ) : (
