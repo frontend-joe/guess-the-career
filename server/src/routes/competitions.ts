@@ -19,6 +19,7 @@ const pfaPlayerSchema = z.object({
   wikipediaUrl: z.string().nullable(),
   position: z.enum(['GK', 'DF', 'MF', 'FW']),
   squadNumber: z.number().int(),
+  club: z.string().nullable(),
 })
 
 const importBodySchema = z.object({
@@ -290,6 +291,7 @@ competitionsRouter.post(
               position: p.position,
               squad_number: p.squadNumber,
               footballer_id: getFootballerId(p.name, p.wikipediaUrl ?? ''),
+              club_at_time: p.club ?? null,
             }))
           ).run()
 
@@ -411,6 +413,80 @@ competitionsRouter.get('/:id', async (c) => {
   }
 
   return c.json({ competition: comp, topScorers, hatTricks, topAssists, playerOfSeason, managerOfSeason })
+})
+
+// POST /api/competitions/:id/rescrape — re-scrape and update stats + TOTY club_at_time
+competitionsRouter.post('/:id/rescrape', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const [comp] = await db.select().from(competitions).where(eq(competitions.id, id)).limit(1)
+  if (!comp) return c.json({ error: 'Not found' }, 404)
+
+  let scraped
+  try {
+    scraped = await scrapeCompetitionPage(comp.wikipedia_url)
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : 'Scrape failed' }, 400)
+  }
+
+  // Resolve footballer IDs from what's already in the DB (no net-new scraping)
+  const lookupId = (url: string): number | null => {
+    if (!url) return null
+    const row = sqlite.prepare('SELECT id FROM footballers WHERE wikipedia_url = ? LIMIT 1').get(url) as { id: number } | undefined
+    return row?.id ?? null
+  }
+
+  // Replace stats tables
+  await db.delete(competition_top_scorers).where(eq(competition_top_scorers.competition_id, id))
+  await db.delete(competition_hat_tricks).where(eq(competition_hat_tricks.competition_id, id))
+  await db.delete(competition_top_assists).where(eq(competition_top_assists.competition_id, id))
+
+  if (scraped.topScorers.length > 0) {
+    await db.insert(competition_top_scorers).values(
+      scraped.topScorers.map(s => ({
+        competition_id: id,
+        footballer_id: lookupId(s.wikipediaUrl),
+        name: s.name, club: s.club, goals: s.goals, rank: s.rank,
+      }))
+    )
+  }
+  if (scraped.hatTricks.length > 0) {
+    await db.insert(competition_hat_tricks).values(
+      scraped.hatTricks.map(h => ({
+        competition_id: id,
+        footballer_id: lookupId(h.wikipediaUrl),
+        name: h.name, for_club: h.forClub, against_club: h.againstClub,
+      }))
+    )
+  }
+  if (scraped.topAssists.length > 0) {
+    await db.insert(competition_top_assists).values(
+      scraped.topAssists.map(a => ({
+        competition_id: id,
+        footballer_id: lookupId(a.wikipediaUrl),
+        name: a.name, club: a.club, assists: a.assists, rank: a.rank,
+      }))
+    )
+  }
+
+  // Update club_at_time on existing TOTY xi_players
+  if (comp.pfa_toty_match_id && scraped.pfaTeamOfYear.length === 11) {
+    const existingPlayers = sqlite.prepare(
+      `SELECT id, name FROM xi_players WHERE match_id = ? ORDER BY squad_number ASC`
+    ).all(comp.pfa_toty_match_id) as { id: number; name: string }[]
+
+    for (const scraped_p of scraped.pfaTeamOfYear) {
+      const match = existingPlayers.find(ep =>
+        ep.name.toLowerCase() === scraped_p.name.toLowerCase()
+      )
+      if (match && scraped_p.club !== null) {
+        sqlite.prepare(`UPDATE xi_players SET club_at_time = ? WHERE id = ?`).run(scraped_p.club, match.id)
+      }
+    }
+  }
+
+  return c.json({ ok: true, name: comp.name })
 })
 
 // PATCH /api/competitions/:id

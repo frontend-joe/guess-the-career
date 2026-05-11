@@ -400,12 +400,11 @@ export function GuessTheXiPage() {
                   >
                     {currentRound.isToty ? (
                       <>
-                        <span className="w-4 shrink-0 flex items-center justify-center">
-                          {nationalityToFlagUrl(player.nationality) && (
-                            <img
-                              src={nationalityToFlagUrl(player.nationality)!}
-                              alt={player.nationality ?? ""}
-                              className="w-4 h-3.5 object-cover border border-[#ebebeb]"
+                        <span className="w-5 shrink-0 flex items-center justify-center">
+                          {player.clubAtTime && (
+                            <MiniClubBadge
+                              club={player.clubAtTime}
+                              wikipediaUrl={player.clubAtTimeWikipediaUrl ?? null}
                             />
                           )}
                         </span>
@@ -415,10 +414,11 @@ export function GuessTheXiPage() {
                           {player.position}
                         </span>
                         <span className="w-4 shrink-0 flex items-center justify-center">
-                          {player.clubAtTime && (
-                            <MiniClubBadge
-                              club={player.clubAtTime}
-                              wikipediaUrl={player.clubAtTimeWikipediaUrl ?? null}
+                          {nationalityToFlagUrl(player.nationality) && (
+                            <img
+                              src={nationalityToFlagUrl(player.nationality)!}
+                              alt={player.nationality ?? ""}
+                              className="w-4 h-3.5 object-cover border border-[#ebebeb]"
                             />
                           )}
                         </span>
@@ -570,7 +570,7 @@ function MiniClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: str
   }, [wikipediaUrl])
 
   return (
-    <div className="w-4 h-3.5 flex items-center justify-center shrink-0">
+    <div className="w-5 h-5 flex items-center justify-center shrink-0">
       {logoUrl === null
         ? <div className="w-full h-full bg-gray-100 animate-pulse rounded" />
         : logoUrl === false

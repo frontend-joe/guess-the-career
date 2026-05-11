@@ -111,6 +111,12 @@ export async function patchCompetition(id: number, data: { image_url?: string | 
   if (!res.ok) throw new Error('Failed to update competition')
 }
 
+export async function rescrapeCompetition(id: number): Promise<void> {
+  const res = await fetch(`/api/competitions/${id}/rescrape`, { method: 'POST' })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((json as { error?: string }).error ?? 'Rescrape failed')
+}
+
 export async function deleteCompetition(id: number): Promise<void> {
   const res = await fetch(`/api/competitions/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete competition')

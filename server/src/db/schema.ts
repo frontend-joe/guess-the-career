@@ -102,6 +102,7 @@ export const xi_players = sqliteTable('xi_players', {
   position: text('position').notNull(),
   squad_number: integer('squad_number'),
   footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  club_at_time: text('club_at_time'),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 

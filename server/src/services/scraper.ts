@@ -23,6 +23,8 @@ export const CLUB_ALIASES: Record<string, string> = {
   'AS Monaco FC': 'Monaco',
   // PSV
   'PSV Eindhoven': 'PSV',
+  // Dortmund
+  'Borussia Dortmund': 'Dortmund',
 }
 
 const FOOTBALLING_NATIONS = new Set([
@@ -518,8 +520,8 @@ export async function scrapeMatchLineups(url: string): Promise<MatchScrapeResult
     matchName,
     year,
     competition,
-    homeTeam,
-    awayTeam,
+    homeTeam: normalizeClubAlias(homeTeam),
+    awayTeam: normalizeClubAlias(awayTeam),
     homePlayers: homePlayers.slice(0, 11),
     awayPlayers: awayPlayers.slice(0, 11),
   }
@@ -797,6 +799,7 @@ export interface CompetitionScrapeResult {
     wikipediaUrl: string | null
     position: 'GK' | 'DF' | 'MF' | 'FW'
     squadNumber: number
+    club: string | null
   }[]
 }
 
@@ -1084,8 +1087,17 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
     squadCounters.FW = SQUAD_START.FW
 
     $(table).find('tr').each((_j, row) => {
-      const cells = $(row).find('td')
+      const cells = $(row).find('td').toArray()
       if (!cells.length) return
+
+      // Club name is in parentheses in the same cell as the player link: "Player Name (Club)"
+      const extractClubFromCell = (cell: AnyNode): string | null => {
+        const cellText = stripCitations($(cell).text())
+        const match = cellText.match(/\(([^)]{2,50})\)\s*$/)
+        if (!match) return null
+        const normalized = normalizeClubAlias(match[1].trim())
+        return normalized && normalized.length > 0 ? normalized : null
+      }
 
       // Position group row: first cell has bold text with position name
       const firstCellText = $(cells[0]).find('b').first().text().trim().toLowerCase()
@@ -1093,11 +1105,11 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
         const pos = POSITION_MAP[firstCellText]
         if (pos) {
           currentPosition = pos
-          cells.each((_k, cell) => {
-            const link = wikiLink($(cell))
-            if (!link.length) return
+          for (let k = 1; k < cells.length; k++) {
+            const link = wikiLink($(cells[k]))
+            if (!link.length) continue
             const playerName = stripCitations(link.text().trim())
-            if (!playerName) return
+            if (!playerName) continue
             const href = link.attr('href') ?? ''
             const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : null
             pfaTeamOfYear.push({
@@ -1105,19 +1117,20 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
               wikipediaUrl: wikiUrl,
               position: currentPosition!,
               squadNumber: squadCounters[currentPosition!]++,
+              club: extractClubFromCell(cells[k]),
             })
-          })
+          }
           return
         }
       }
 
       // Plain player row (some formats put each player in its own row under position header)
       if (!currentPosition) return
-      cells.each((_k, cell) => {
-        const link = wikiLink($(cell))
-        if (!link.length) return
+      for (let k = 0; k < cells.length; k++) {
+        const link = wikiLink($(cells[k]))
+        if (!link.length) continue
         const playerName = stripCitations(link.text().trim())
-        if (!playerName) return
+        if (!playerName) continue
         const href = link.attr('href') ?? ''
         const wikiUrl = href.startsWith('/wiki/') ? `https://en.wikipedia.org${href}` : null
         pfaTeamOfYear.push({
@@ -1125,8 +1138,9 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
           wikipediaUrl: wikiUrl,
           position: currentPosition!,
           squadNumber: squadCounters[currentPosition!]++,
+          club: extractClubFromCell(cells[k]),
         })
-      })
+      }
     })
   })
 
@@ -1174,7 +1188,7 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
           groups[pos].sort((a, b) => a.left - b.left)
           let sqNum = SQUAD_START[pos]
           for (const p of groups[pos]) {
-            pfaTeamOfYear.push({ name: p.name, wikipediaUrl: p.wikipediaUrl, position: pos, squadNumber: sqNum++ })
+            pfaTeamOfYear.push({ name: p.name, wikipediaUrl: p.wikipediaUrl, position: pos, squadNumber: sqNum++, club: null })
           }
         }
       }

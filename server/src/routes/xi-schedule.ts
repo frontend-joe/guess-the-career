@@ -14,6 +14,7 @@ interface PlayerRow {
   squad_number: number | null
   nationality: string | null
   footballer_id: number | null
+  club_at_time: string | null
 }
 
 interface StintRow {
@@ -99,7 +100,7 @@ xiScheduleRouter.get('/rounds', (c) => {
 
   const rounds = rows.map(row => {
     const players = sqlite.prepare(`
-      SELECT xp.id, xp.name, xp.position, xp.squad_number, xp.footballer_id, f.nationality
+      SELECT xp.id, xp.name, xp.position, xp.squad_number, xp.footballer_id, xp.club_at_time, f.nationality
       FROM xi_players xp
       LEFT JOIN footballers f ON xp.footballer_id = f.id
       WHERE xp.match_id = ? AND xp.team = ?
@@ -145,6 +146,24 @@ xiScheduleRouter.get('/rounds', (c) => {
       teamImageUrl: row.competition_image_url ?? null,
       isToty: row.competition_wikipedia_url !== null,
       players: players.map(p => {
+        // For TOTY rounds: use stored club_at_time (scraped directly from Wikipedia).
+        // If null (pitch diagram format), show no club badge rather than guess from career stints.
+        // For regular rounds: fall back to career stints lookup.
+        const isToty = row.competition_wikipedia_url !== null
+        if (isToty) {
+          const storedClub = p.club_at_time ?? null
+          const clubWikiUrl = storedClub
+            ? (sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(storedClub) as { wikipedia_url: string | null } | undefined)?.wikipedia_url ?? null
+            : null
+          return {
+            id: p.id,
+            position: p.position,
+            squadNumber: p.squad_number,
+            nationality: p.nationality ?? null,
+            clubAtTime: storedClub,
+            clubAtTimeWikipediaUrl: clubWikiUrl,
+          }
+        }
         const clubAtTime = p.footballer_id !== null
           ? findClubAtYear(stintsByPlayer.get(p.footballer_id) ?? [], row.year)
           : null
