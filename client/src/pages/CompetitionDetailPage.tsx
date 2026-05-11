@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { ArrowLeft, ExternalLink, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getCompetition, deleteCompetition, type CompetitionDetail } from '@/api/competitions'
+import { Input } from '@/components/ui/input'
+import { getCompetition, deleteCompetition, patchCompetition, type CompetitionDetail } from '@/api/competitions'
 
 export function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -10,13 +11,26 @@ export function CompetitionDetailPage() {
   const [data, setData] = useState<CompetitionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [imageUrl, setImageUrl] = useState('')
+  const [savingImage, setSavingImage] = useState(false)
 
   useEffect(() => {
     if (!id) return
     getCompetition(parseInt(id))
-      .then(setData)
+      .then(d => { setData(d); setImageUrl(d.competition.image_url ?? '') })
       .finally(() => setLoading(false))
   }, [id])
+
+  async function handleSaveImage() {
+    if (!data) return
+    setSavingImage(true)
+    try {
+      await patchCompetition(data.competition.id, { image_url: imageUrl.trim() || null })
+      setData(d => d ? { ...d, competition: { ...d.competition, image_url: imageUrl.trim() || null } } : d)
+    } finally {
+      setSavingImage(false)
+    }
+  }
 
   async function handleDelete() {
     if (!data || !confirm(`Delete "${data.competition.name}" and all its stats?`)) return
@@ -68,6 +82,28 @@ export function CompetitionDetailPage() {
       </div>
 
       <div className="space-y-5">
+        {/* Logo */}
+        <section className="border rounded-lg p-4">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">Logo</h2>
+          <div className="flex items-center gap-3">
+            {imageUrl ? (
+              <img src={imageUrl} alt="" className="h-10 w-10 object-contain shrink-0" />
+            ) : (
+              <div className="h-10 w-10 rounded bg-muted shrink-0" />
+            )}
+            <Input
+              value={imageUrl}
+              onChange={e => setImageUrl(e.target.value)}
+              placeholder="https://…"
+              className="flex-1 text-sm"
+              onKeyDown={e => e.key === 'Enter' && handleSaveImage()}
+            />
+            <Button size="sm" onClick={handleSaveImage} disabled={savingImage}>
+              {savingImage ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </section>
+
         {/* Awards */}
         {(playerOfSeason || managerOfSeason) && (
           <section className="border rounded-lg p-4">

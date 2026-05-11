@@ -76,9 +76,11 @@ xiScheduleRouter.get('/', async (c) => {
 xiScheduleRouter.get('/rounds', (c) => {
   const rows = sqlite.prepare(`
     SELECT xs.date, xs.match_id, xs.team,
-           m.name AS match_name, m.year, m.competition, m.home_team, m.away_team
+           m.name AS match_name, m.year, m.competition, m.home_team, m.away_team,
+           comp.image_url AS competition_image_url
     FROM xi_schedule xs
     JOIN xi_matches m ON xs.match_id = m.id
+    LEFT JOIN competitions comp ON comp.pfa_toty_match_id = m.id
     WHERE xs.match_id IS NOT NULL AND xs.team IS NOT NULL
     ORDER BY xs.date ASC
   `).all() as {
@@ -90,6 +92,7 @@ xiScheduleRouter.get('/rounds', (c) => {
     competition: string
     home_team: string
     away_team: string
+    competition_image_url: string | null
   }[]
 
   const rounds = rows.map(row => {
@@ -137,6 +140,7 @@ xiScheduleRouter.get('/rounds', (c) => {
       awayTeam: row.away_team,
       team: row.team,
       teamWikipediaUrl: clubRow?.wikipedia_url ?? null,
+      teamImageUrl: row.competition_image_url ?? null,
       players: players.map(p => {
         const clubAtTime = p.footballer_id !== null
           ? findClubAtYear(stintsByPlayer.get(p.footballer_id) ?? [], row.year)

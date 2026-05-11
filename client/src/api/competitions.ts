@@ -2,6 +2,7 @@ export interface CompetitionListItem {
   id: number
   name: string
   wikipedia_url: string
+  image_url: string | null
   created_at: string
 }
 
@@ -86,6 +87,7 @@ export interface CompetitionDetail {
     player_of_season_id: number | null
     manager_of_season_id: number | null
     pfa_toty_match_id: number | null
+    image_url: string | null
   }
   topScorers: { id: number; name: string; club: string; goals: number; rank: number; footballer_name: string | null; photo_url: string | null }[]
   hatTricks: { id: number; name: string; for_club: string; against_club: string; footballer_name: string | null; photo_url: string | null }[]
@@ -98,6 +100,15 @@ export async function getCompetition(id: number): Promise<CompetitionDetail> {
   const res = await fetch(`/api/competitions/${id}`)
   if (!res.ok) throw new Error('Failed to fetch competition')
   return res.json()
+}
+
+export async function patchCompetition(id: number, data: { image_url?: string | null }): Promise<void> {
+  const res = await fetch(`/api/competitions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error('Failed to update competition')
 }
 
 export async function deleteCompetition(id: number): Promise<void> {

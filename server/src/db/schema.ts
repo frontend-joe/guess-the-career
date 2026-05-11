@@ -128,6 +128,7 @@ export const competitions = sqliteTable('competitions', {
   player_of_season_id: integer('player_of_season_id').references(() => footballers.id, { onDelete: 'set null' }),
   manager_of_season_id: integer('manager_of_season_id').references(() => managers.id, { onDelete: 'set null' }),
   pfa_toty_match_id: integer('pfa_toty_match_id').references(() => xi_matches.id, { onDelete: 'set null' }),
+  image_url: text('image_url'),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 

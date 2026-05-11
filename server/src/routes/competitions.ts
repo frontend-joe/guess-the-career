@@ -358,6 +358,7 @@ competitionsRouter.get('/', async (c) => {
     id: competitions.id,
     name: competitions.name,
     wikipedia_url: competitions.wikipedia_url,
+    image_url: competitions.image_url,
     created_at: competitions.created_at,
   }).from(competitions).orderBy(competitions.name)
   return c.json(rows)
@@ -410,6 +411,19 @@ competitionsRouter.get('/:id', async (c) => {
   }
 
   return c.json({ competition: comp, topScorers, hatTricks, topAssists, playerOfSeason, managerOfSeason })
+})
+
+// PATCH /api/competitions/:id
+competitionsRouter.patch('/:id', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  const body = await c.req.json<{ image_url?: string | null }>()
+  const [updated] = await db.update(competitions)
+    .set({ image_url: body.image_url ?? null })
+    .where(eq(competitions.id, id))
+    .returning()
+  if (!updated) return c.json({ error: 'Not found' }, 404)
+  return c.json({ ok: true })
 })
 
 // DELETE /api/competitions/:id

@@ -59,6 +59,12 @@ export function CompetitionsPage() {
               className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer"
               onClick={() => navigate(`/competitions/${comp.id}`)}
             >
+              <div className="h-7 w-7 shrink-0 flex items-center justify-center">
+                {comp.image_url
+                  ? <img src={comp.image_url} alt="" className="max-h-full max-w-full object-contain" />
+                  : <div className="h-7 w-7 rounded bg-muted" />
+                }
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{comp.name}</p>
               </div>

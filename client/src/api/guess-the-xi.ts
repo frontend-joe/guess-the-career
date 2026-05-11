@@ -18,6 +18,7 @@ export interface XiRound {
   awayTeam: string
   team: string
   teamWikipediaUrl: string | null
+  teamImageUrl: string | null
   players: XiRoundPlayer[]
   playerNames: string[]
 }

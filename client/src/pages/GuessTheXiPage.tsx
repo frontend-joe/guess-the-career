@@ -24,6 +24,7 @@ interface RoundResult {
   homeTeam: string;
   awayTeam: string;
   teamWikipediaUrl: string | null;
+  teamImageUrl: string | null;
   players: XiRoundPlayer[];
   playerNames: string[];
   guessedIndices: Set<number>;
@@ -141,6 +142,7 @@ function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult
       homeTeam: r.homeTeam,
       awayTeam: r.awayTeam,
       teamWikipediaUrl: r.teamWikipediaUrl,
+      teamImageUrl: r.teamImageUrl,
       players: r.players,
       playerNames: r.playerNames,
       guessedIndices: prog ? new Set(prog.guessedIndices) : new Set<number>(),
@@ -361,21 +363,24 @@ export function GuessTheXiPage() {
             <div className="mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3">
               <ClubBadge
                 name={currentRound.team}
+                imageUrl={currentRound.teamImageUrl}
                 wikipediaUrl={currentRound.teamWikipediaUrl}
               />
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 uppercase tracking-widest leading-tight truncate">
-                  {abbreviateCompetition(currentRound.competition)} Final{" "}
+                  {abbreviateCompetition(currentRound.competition)}{" "}
                   {currentRound.year}
                 </p>
                 <p className="text-base font-bold text-gray-900 leading-snug truncate">
-                  {currentRound.team} XI{" "}
-                  <span className="text-xs text-gray-400 font-normal ml-1.5">
-                    vs{" "}
-                    {currentRound.homeTeam === currentRound.team
-                      ? currentRound.awayTeam
-                      : currentRound.homeTeam}
-                  </span>
+                  {currentRound.team}{" "}
+                  {currentRound.awayTeam && (
+                    <span className="text-xs text-gray-400 font-normal ml-1">
+                      vs{" "}
+                      {currentRound.homeTeam === currentRound.team
+                        ? currentRound.awayTeam
+                        : currentRound.homeTeam}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -547,16 +552,18 @@ function MiniClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: str
 
 function ClubBadge({
   name,
+  imageUrl = null,
   wikipediaUrl,
 }: {
   name: string;
+  imageUrl?: string | null;
   wikipediaUrl: string | null;
 }) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null);
   const flagUrl = nationalityToFlagUrl(name);
 
   useEffect(() => {
-    if (flagUrl) return;
+    if (imageUrl || flagUrl) return;
     if (!wikipediaUrl) { setLogoUrl(false); return; }
     const title = wikipediaUrl.split("/wiki/")[1];
     if (!title) { setLogoUrl(false); return; }
@@ -568,14 +575,16 @@ function ClubBadge({
       .then((data) => setLogoUrl(data?.thumbnail?.source ?? false))
       .catch((err) => { if (err.name !== "AbortError") setLogoUrl(false); });
     return () => controller.abort();
-  }, [wikipediaUrl, flagUrl]);
+  }, [wikipediaUrl, flagUrl, imageUrl]);
 
   return (
     <div
       className="w-12 h-12 bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden"
       style={{ borderRadius: "12px" }}
     >
-      {flagUrl ? (
+      {imageUrl ? (
+        <img src={imageUrl} alt={name} className="w-10 h-10 object-contain" style={{ borderRadius: "12px" }} />
+      ) : flagUrl ? (
         <div className="w-9 h-9 rounded-md overflow-hidden shrink-0">
           <img src={flagUrl} alt={name} className="w-full h-full object-cover" />
         </div>
@@ -671,7 +680,7 @@ function FinalScore({
                 <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-gray-900 truncate">
-                      {r.homeTeam} vs {r.awayTeam}
+                      {r.homeTeam}{r.awayTeam ? ` vs ${r.awayTeam}` : ''}
                     </p>
                     <p className="text-xs text-gray-500">{r.team} XI</p>
                   </div>
