@@ -90,6 +90,9 @@ export function CompetitionsPage() {
               Rescrape {selected.size} selected
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => navigate('/competitions/top-scorers-schedule')}>
+            Top Scorers Schedule
+          </Button>
           <Button size="sm" onClick={() => navigate('/competitions/add')}>
             <Plus className="h-4 w-4 mr-1.5" />
             Add competition

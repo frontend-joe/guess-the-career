@@ -375,12 +375,14 @@ competitionsRouter.get('/:id', async (c) => {
   if (!comp) return c.json({ error: 'Not found' }, 404)
 
   const topScorers = sqlite.prepare(`
-    SELECT cts.*, f.name AS footballer_name, f.photo_url
+    SELECT cts.*, f.name AS footballer_name, f.photo_url, f.nationality,
+           c.wikipedia_url AS club_wikipedia_url
     FROM competition_top_scorers cts
     LEFT JOIN footballers f ON f.id = cts.footballer_id
+    LEFT JOIN clubs c ON LOWER(c.name) = LOWER(cts.club)
     WHERE cts.competition_id = ?
     ORDER BY cts.rank
-  `).all(id) as (typeof competition_top_scorers.$inferSelect & { footballer_name: string | null; photo_url: string | null })[]
+  `).all(id) as (typeof competition_top_scorers.$inferSelect & { footballer_name: string | null; photo_url: string | null; nationality: string | null; club_wikipedia_url: string | null })[]
 
   const hatTricks = sqlite.prepare(`
     SELECT cht.*, f.name AS footballer_name, f.photo_url
@@ -391,12 +393,25 @@ competitionsRouter.get('/:id', async (c) => {
   `).all(id) as (typeof competition_hat_tricks.$inferSelect & { footballer_name: string | null; photo_url: string | null })[]
 
   const topAssists = sqlite.prepare(`
-    SELECT cta.*, f.name AS footballer_name, f.photo_url
+    SELECT cta.*, f.name AS footballer_name, f.photo_url, f.nationality,
+           c.wikipedia_url AS club_wikipedia_url
     FROM competition_top_assists cta
     LEFT JOIN footballers f ON f.id = cta.footballer_id
+    LEFT JOIN clubs c ON LOWER(c.name) = LOWER(cta.club)
     WHERE cta.competition_id = ?
     ORDER BY cta.rank
-  `).all(id) as (typeof competition_top_assists.$inferSelect & { footballer_name: string | null; photo_url: string | null })[]
+  `).all(id) as (typeof competition_top_assists.$inferSelect & { footballer_name: string | null; photo_url: string | null; nationality: string | null; club_wikipedia_url: string | null })[]
+
+  // Resolve Wikipedia URLs for individual club parts (handles "Club A / Club B" entries)
+  function resolveClubs(clubStr: string): { name: string; wikipedia_url: string | null }[] {
+    return clubStr.split(/\s*\/\s*/).filter(Boolean).map(name => {
+      const row = sqlite.prepare('SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1').get(name) as { wikipedia_url: string | null } | undefined
+      return { name, wikipedia_url: row?.wikipedia_url ?? null }
+    })
+  }
+
+  const topScorersOut = topScorers.map(s => ({ ...s, clubs: resolveClubs(s.club) }))
+  const topAssistsOut = topAssists.map(a => ({ ...a, clubs: resolveClubs(a.club) }))
 
   let playerOfSeason: { id: number; name: string; photo_url: string | null } | null = null
   if (comp.player_of_season_id) {
@@ -412,7 +427,7 @@ competitionsRouter.get('/:id', async (c) => {
     if (m) managerOfSeason = m
   }
 
-  return c.json({ competition: comp, topScorers, hatTricks, topAssists, playerOfSeason, managerOfSeason })
+  return c.json({ competition: comp, topScorers: topScorersOut, hatTricks, topAssists: topAssistsOut, playerOfSeason, managerOfSeason })
 })
 
 // POST /api/competitions/:id/rescrape — re-scrape and update stats + TOTY club_at_time
@@ -430,11 +445,37 @@ competitionsRouter.post('/:id/rescrape', async (c) => {
     return c.json({ error: e instanceof Error ? e.message : 'Scrape failed' }, 400)
   }
 
-  // Resolve footballer IDs from what's already in the DB (no net-new scraping)
-  const lookupId = (url: string): number | null => {
-    if (!url) return null
-    const row = sqlite.prepare('SELECT id FROM footballers WHERE wikipedia_url = ? LIMIT 1').get(url) as { id: number } | undefined
-    return row?.id ?? null
+  // Resolve or import a footballer, same as the full import flow
+  async function resolveFootballer(name: string, wikiUrl: string): Promise<number | null> {
+    const url = wikiUrl.trim()
+    if (url) {
+      const [byUrl] = await db.select({ id: footballers.id })
+        .from(footballers).where(eq(footballers.wikipedia_url, url)).limit(1)
+      if (byUrl) return byUrl.id
+    }
+    const [byName] = await db.select({ id: footballers.id })
+      .from(footballers).where(sql`LOWER(${footballers.name}) = LOWER(${name})`).limit(1)
+    if (byName) return byName.id
+
+    const scrapeUrl = url || await searchWikipedia(name)
+    if (!scrapeUrl) return null
+    try {
+      await new Promise(r => setTimeout(r, 300))
+      const scraped = await scrapeWikipedia(scrapeUrl)
+      const [existing] = await db.select({ id: footballers.id })
+        .from(footballers).where(sql`LOWER(${footballers.name}) = LOWER(${scraped.name})`).limit(1)
+      if (existing) return existing.id
+      const [newF] = await db.insert(footballers).values({
+        name: scraped.name, wikipedia_url: scraped.wikipedia_url,
+        nationality: scraped.nationality, position: scraped.position,
+        born: scraped.born, photo_url: scraped.photo_url ?? null,
+      }).returning()
+      if (scraped.stints.length > 0)
+        await db.insert(career_stints).values(scraped.stints.map((s, i) => ({ ...s, sort_order: i, footballer_id: newF.id })))
+      return newF.id
+    } catch {
+      return null
+    }
   }
 
   // Replace stats tables
@@ -443,31 +484,28 @@ competitionsRouter.post('/:id/rescrape', async (c) => {
   await db.delete(competition_top_assists).where(eq(competition_top_assists.competition_id, id))
 
   if (scraped.topScorers.length > 0) {
-    await db.insert(competition_top_scorers).values(
-      scraped.topScorers.map(s => ({
-        competition_id: id,
-        footballer_id: lookupId(s.wikipediaUrl),
-        name: s.name, club: s.club, goals: s.goals, rank: s.rank,
-      }))
-    )
+    const rows = await Promise.all(scraped.topScorers.map(async s => ({
+      competition_id: id,
+      footballer_id: await resolveFootballer(s.name, s.wikipediaUrl),
+      name: s.name, club: s.club, goals: s.goals, rank: s.rank,
+    })))
+    await db.insert(competition_top_scorers).values(rows)
   }
   if (scraped.hatTricks.length > 0) {
-    await db.insert(competition_hat_tricks).values(
-      scraped.hatTricks.map(h => ({
-        competition_id: id,
-        footballer_id: lookupId(h.wikipediaUrl),
-        name: h.name, for_club: h.forClub, against_club: h.againstClub,
-      }))
-    )
+    const rows = await Promise.all(scraped.hatTricks.map(async h => ({
+      competition_id: id,
+      footballer_id: await resolveFootballer(h.name, h.wikipediaUrl),
+      name: h.name, for_club: h.forClub, against_club: h.againstClub,
+    })))
+    await db.insert(competition_hat_tricks).values(rows)
   }
   if (scraped.topAssists.length > 0) {
-    await db.insert(competition_top_assists).values(
-      scraped.topAssists.map(a => ({
-        competition_id: id,
-        footballer_id: lookupId(a.wikipediaUrl),
-        name: a.name, club: a.club, assists: a.assists, rank: a.rank,
-      }))
-    )
+    const rows = await Promise.all(scraped.topAssists.map(async a => ({
+      competition_id: id,
+      footballer_id: await resolveFootballer(a.name, a.wikipediaUrl),
+      name: a.name, club: a.club, assists: a.assists, rank: a.rank,
+    })))
+    await db.insert(competition_top_assists).values(rows)
   }
 
   // Update club_at_time on existing TOTY xi_players
