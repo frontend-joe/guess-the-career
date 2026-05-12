@@ -60,7 +60,7 @@ export function AddCompetitionPage() {
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
 
   // Shared settings
-  const [maxTopScorers, setMaxTopScorers] = useState<number | ''>('')
+  const [maxTopScorers, setMaxTopScorers] = useState<number | ''>(5)
 
   // Bulk mode state
   const [bulkText, setBulkText] = useState('')

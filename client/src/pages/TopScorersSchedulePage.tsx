@@ -148,7 +148,9 @@ export function TopScorersSchedulePage() {
       const scheduledIds = new Set(
         entries.filter(e => e.competition_id !== null).map(e => e.competition_id!)
       )
-      const unscheduled = competitions.filter(c => !scheduledIds.has(c.id))
+      const unscheduled = competitions
+        .filter(c => !scheduledIds.has(c.id))
+        .sort(() => Math.random() - 0.5)
       if (unscheduled.length === 0) return
 
       const assigned = entries.filter(e => e.competition_id !== null)
