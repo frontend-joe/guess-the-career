@@ -86,6 +86,7 @@ const POSITION_COLORS: Record<string, string> = {
 
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { NationalityFlag } from "@/components/NationalityFlag";
+import { MiniClubBadge } from "@/components/MiniClubBadge";
 
 const TRANSLITERATE: Record<string, string> = {
   ı: "i", ł: "l", ø: "o", đ: "d", ð: "d",
@@ -541,33 +542,6 @@ export function GuessTheXiPage() {
       )}
     </div>
   );
-}
-
-function MiniClubBadge({ club, wikipediaUrl }: { club: string; wikipediaUrl: string | null }) {
-  const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
-
-  useEffect(() => {
-    if (!wikipediaUrl) { setLogoUrl(false); return }
-    const title = wikipediaUrl.split('/wiki/')[1]
-    if (!title) { setLogoUrl(false); return }
-    const controller = new AbortController()
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
-      .then(r => r.json())
-      .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
-      .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
-    return () => controller.abort()
-  }, [wikipediaUrl])
-
-  return (
-    <div className="w-5 h-5 flex items-center justify-center shrink-0">
-      {logoUrl === null
-        ? <div className="w-full h-full bg-gray-100 animate-pulse rounded" />
-        : logoUrl === false
-          ? <span className="text-[9px] text-gray-400 font-bold leading-none">{club.charAt(0)}</span>
-          : <img src={logoUrl} alt={club} className="max-h-full max-w-full object-contain" title={club} />
-      }
-    </div>
-  )
 }
 
 function ClubBadge({
