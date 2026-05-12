@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { Plus, Trash2, ExternalLink, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, RefreshCw, Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCompetitions, deleteCompetition, rescrapeCompetition, type CompetitionListItem } from '@/api/competitions'
 
@@ -14,6 +14,7 @@ export function CompetitionsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [rowStatus, setRowStatus] = useState<Record<number, RowStatus>>({})
   const [rescraping, setRescraping] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -52,6 +53,16 @@ export function CompetitionsPage() {
     }
   }
 
+  function handleCopySelected() {
+    const urls = competitions
+      .filter(c => selected.has(c.id))
+      .map(c => c.wikipedia_url)
+      .join('\n')
+    navigator.clipboard.writeText(urls)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   async function handleRescrapeSelected() {
     const ids = [...selected]
     setRescraping(true)
@@ -80,15 +91,23 @@ export function CompetitionsPage() {
         <h1 className="text-xl font-semibold">Competitions</h1>
         <div className="flex items-center gap-2">
           {selected.size > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={rescraping}
-              onClick={handleRescrapeSelected}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${rescraping ? 'animate-spin' : ''}`} />
-              Rescrape {selected.size} selected
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={handleCopySelected}>
+                {copied
+                  ? <><Check className="h-3.5 w-3.5 mr-1.5" />Copied!</>
+                  : <><Copy className="h-3.5 w-3.5 mr-1.5" />Copy data</>
+                }
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={rescraping}
+                onClick={handleRescrapeSelected}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${rescraping ? 'animate-spin' : ''}`} />
+                Rescrape {selected.size} selected
+              </Button>
+            </>
           )}
           <Button variant="outline" size="sm" onClick={() => navigate('/competitions/top-scorers-schedule')}>
             Top Scorers Schedule

@@ -59,6 +59,9 @@ export function AddCompetitionPage() {
   const [step, setStep] = useState<SingleStep>('idle')
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
 
+  // Shared settings
+  const [maxTopScorers, setMaxTopScorers] = useState<number | ''>('')
+
   // Bulk mode state
   const [bulkText, setBulkText] = useState('')
   const [bulkItems, setBulkItems] = useState<BulkItem[]>([])
@@ -84,14 +87,14 @@ export function AddCompetitionPage() {
   }
 
   async function handleReview() {
-    if (!preview) return
+    if (!filteredPreview) return
     setStep('checking')
     try {
-      const entries = buildFootballerEntries(preview)
+      const entries = buildFootballerEntries(filteredPreview)
       const result = await checkCompetition(
         entries,
-        preview.managerOfSeason?.wikipediaUrl,
-        preview.managerOfSeason?.name,
+        filteredPreview.managerOfSeason?.wikipediaUrl,
+        filteredPreview.managerOfSeason?.name,
       )
       setCheck(result)
       setStep('reviewed')
@@ -101,10 +104,10 @@ export function AddCompetitionPage() {
   }
 
   async function handleImport() {
-    if (!preview) return
+    if (!filteredPreview) return
     setStep('importing')
     try {
-      const result = await importCompetition(url.trim(), preview)
+      const result = await importCompetition(url.trim(), filteredPreview)
       setImportSummary(result.importSummary)
       setStep('done')
     } catch (e) {
@@ -134,7 +137,7 @@ export function AddCompetitionPage() {
       setBulkItems(prev => prev.map((it, idx) => idx === i ? { ...it, state: 'scraping' } : it))
       try {
         const scraped = await scrapeCompetition(items[i].url)
-        await importCompetition(items[i].url, scraped)
+        await importCompetition(items[i].url, { ...scraped, topScorers: applyMaxRank(scraped.topScorers) })
         setBulkItems(prev => prev.map((it, idx) => idx === i ? { ...it, state: 'saved', name: scraped.name } : it))
       } catch (e) {
         setBulkItems(prev => prev.map((it, idx) => idx === i
@@ -151,6 +154,14 @@ export function AddCompetitionPage() {
   const bulkSaved = bulkItems.filter(i => i.state === 'saved').length
   const bulkFailed = bulkItems.filter(i => i.state === 'failed').length
 
+  function applyMaxRank<T extends { rank: number }>(items: T[]): T[] {
+    return maxTopScorers !== '' ? items.filter(s => s.rank <= maxTopScorers) : items
+  }
+
+  const filteredPreview = preview
+    ? { ...preview, topScorers: applyMaxRank(preview.topScorers) }
+    : null
+
   const newPlayers = check?.footballers.filter(f => !f.exists) ?? []
   const existingPlayers = check?.footballers.filter(f => f.exists) ?? []
 
@@ -162,6 +173,18 @@ export function AddCompetitionPage() {
       </Button>
 
       <h1 className="text-xl font-semibold mb-4">Add competition</h1>
+
+      <div className="flex items-center gap-2 mb-4">
+        <label className="text-sm text-muted-foreground shrink-0">Top scorers limit</label>
+        <Input
+          type="number"
+          min={1}
+          value={maxTopScorers}
+          onChange={e => setMaxTopScorers(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value)))}
+          placeholder="All"
+          className="w-24 h-8 text-sm"
+        />
+      </div>
 
       <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit mb-6">
         <button
@@ -207,32 +230,32 @@ export function AddCompetitionPage() {
           {scrapeError && <p className="text-destructive text-sm mb-4">{scrapeError}</p>}
 
           {/* Step 1: Scraped preview */}
-          {preview && (step === 'scraped' || step === 'checking') && (
+          {filteredPreview && (step === 'scraped' || step === 'checking') && (
             <div className="mt-6 space-y-5">
-              {(preview.playerOfSeason || preview.managerOfSeason) && (
+              {(filteredPreview.playerOfSeason || filteredPreview.managerOfSeason) && (
                 <section className="border rounded-lg p-4">
                   <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">Awards</h2>
                   <div className="flex flex-wrap gap-6 text-sm">
-                    {preview.playerOfSeason && (
+                    {filteredPreview.playerOfSeason && (
                       <div>
                         <span className="text-xs text-muted-foreground block mb-0.5">Player of the Season</span>
-                        <span className="font-medium">{preview.playerOfSeason.name}</span>
+                        <span className="font-medium">{filteredPreview.playerOfSeason.name}</span>
                       </div>
                     )}
-                    {preview.managerOfSeason && (
+                    {filteredPreview.managerOfSeason && (
                       <div>
                         <span className="text-xs text-muted-foreground block mb-0.5">Manager of the Season</span>
-                        <span className="font-medium">{preview.managerOfSeason.name}</span>
+                        <span className="font-medium">{filteredPreview.managerOfSeason.name}</span>
                       </div>
                     )}
                   </div>
                 </section>
               )}
 
-              {preview.topScorers.length > 0 && (
+              {filteredPreview.topScorers.length > 0 && (
                 <section className="border rounded-lg p-4">
                   <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                    Top Scorers ({preview.topScorers.length})
+                    Top Scorers ({filteredPreview.topScorers.length}{preview && preview.topScorers.length !== filteredPreview.topScorers.length ? ` of ${preview.topScorers.length}` : ''})
                   </h2>
                   <table className="w-full text-sm">
                     <thead>
@@ -244,7 +267,7 @@ export function AddCompetitionPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {preview.topScorers.map((s, i) => (
+                      {filteredPreview.topScorers.map((s, i) => (
                         <tr key={i}>
                           <td className="py-1.5 text-muted-foreground">{s.rank}</td>
                           <td className="py-1.5 font-medium">{s.name}</td>
@@ -257,10 +280,10 @@ export function AddCompetitionPage() {
                 </section>
               )}
 
-              {preview.hatTricks.length > 0 && (
+              {filteredPreview.hatTricks.length > 0 && (
                 <section className="border rounded-lg p-4">
                   <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                    Hat-tricks ({preview.hatTricks.length})
+                    Hat-tricks ({filteredPreview.hatTricks.length})
                   </h2>
                   <table className="w-full text-sm">
                     <thead>
@@ -271,7 +294,7 @@ export function AddCompetitionPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {preview.hatTricks.map((h, i) => (
+                      {filteredPreview.hatTricks.map((h, i) => (
                         <tr key={i}>
                           <td className="py-1.5 font-medium">{h.name}</td>
                           <td className="py-1.5 text-muted-foreground">{h.forClub}</td>
@@ -283,10 +306,10 @@ export function AddCompetitionPage() {
                 </section>
               )}
 
-              {preview.topAssists.length > 0 && (
+              {filteredPreview.topAssists.length > 0 && (
                 <section className="border rounded-lg p-4">
                   <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                    Top Assists ({preview.topAssists.length})
+                    Top Assists ({filteredPreview.topAssists.length})
                   </h2>
                   <table className="w-full text-sm">
                     <thead>
@@ -298,7 +321,7 @@ export function AddCompetitionPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {preview.topAssists.map((a, i) => (
+                      {filteredPreview.topAssists.map((a, i) => (
                         <tr key={i}>
                           <td className="py-1.5 text-muted-foreground">{a.rank}</td>
                           <td className="py-1.5 font-medium">{a.name}</td>
@@ -311,13 +334,13 @@ export function AddCompetitionPage() {
                 </section>
               )}
 
-              {preview.pfaTeamOfYear.length > 0 && (
+              {filteredPreview.pfaTeamOfYear.length > 0 && (
                 <section className="border rounded-lg p-4">
                   <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                    PFA Team of the Year ({preview.pfaTeamOfYear.length} players)
+                    PFA Team of the Year ({filteredPreview.pfaTeamOfYear.length} players)
                   </h2>
                   <div className="space-y-1">
-                    {preview.pfaTeamOfYear.map((p, i) => (
+                    {filteredPreview.pfaTeamOfYear.map((p, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm py-0.5">
                         <span className="text-xs text-muted-foreground w-4 text-right">{p.squadNumber}</span>
                         <span className={cn('text-xs font-medium px-1.5 py-0.5 rounded', POSITION_COLOR[p.position])}>
@@ -395,7 +418,7 @@ export function AddCompetitionPage() {
                       Elevens — PFA Team of the Year will be added
                     </p>
                     <div className="space-y-0.5">
-                      {preview.pfaTeamOfYear.map((p, i) => (
+                      {preview?.pfaTeamOfYear.map((p, i) => (
                         <div key={i} className="flex items-center gap-1.5 text-xs">
                           <span className={cn('font-medium px-1 py-0.5 rounded text-xs', POSITION_COLOR[p.position])}>
                             {p.position}

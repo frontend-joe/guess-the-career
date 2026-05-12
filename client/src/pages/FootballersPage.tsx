@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
-import { nationalityToFlagUrl } from '@/lib/flags'
+import { NationalityFlag } from '@/components/NationalityFlag'
 import {
   getFootballers, deleteFootballer, deleteAllFootballers, getDuplicates, rescrapeFootballer, updateFootballer,
   type Footballer,
@@ -14,9 +14,7 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
     render: (f) => f.nationality
       ? (
         <div className="flex items-center gap-1.5">
-          {nationalityToFlagUrl(f.nationality) && (
-            <img src={nationalityToFlagUrl(f.nationality)!} alt={f.nationality} className="h-3.5 w-auto border border-[#ebebeb]" />
-          )}
+          <NationalityFlag nationality={f.nationality} className="h-3.5 w-auto border border-[#ebebeb]" />
           <Badge variant="secondary">{f.nationality}</Badge>
         </div>
       )

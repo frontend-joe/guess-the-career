@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, X, Search } from 'lucide-react'
 import { getKycClubs, getKycSession, type KycClub, type KycPlayer } from '@/api/know-your-club'
 import { getFootballers, type Footballer } from '@/api/footballers'
-import { nationalityToFlagUrl } from '@/lib/flags'
+import { NationalityFlag } from '@/components/NationalityFlag'
 
 type GameState = 'lobby' | 'loading' | 'playing' | 'complete' | 'given_up'
 
@@ -280,13 +280,7 @@ export function KnowYourClubPage() {
                       <p className={`text-xs font-semibold truncate ${!guessed && gameState === 'given_up' ? 'text-red-500' : 'text-gray-900'}`}>
                         {player.name}
                       </p>
-                      {player.nationality && nationalityToFlagUrl(player.nationality) && (
-                        <img
-                          src={nationalityToFlagUrl(player.nationality)!}
-                          alt={player.nationality}
-                          className="h-2.5 w-auto mt-0.5 border border-[#ebebeb]"
-                        />
-                      )}
+                      <NationalityFlag nationality={player.nationality} className="h-2.5 w-auto mt-0.5 border border-[#ebebeb]" />
                     </div>
                   </div>
                 ))}
