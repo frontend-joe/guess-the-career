@@ -997,7 +997,8 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
   // --- Top scorers ---
   const topScorers: CompetitionScrapeResult['topScorers'] = []
   const scorersTable = findTableAfterAnyHeading($,
-    'Top_scorers', 'Top_goalscorers', 'Goalscorers', 'Top_goal_scorers', 'Leading_scorers'
+    'Top_scorers', 'Top_goalscorers', 'Goalscorers', 'Top_goal_scorers', 'Leading_scorers',
+    'Pichichi_Trophy', 'Capocannoniere'
   )
   if (scorersTable) {
     const [rankIdx, playerIdx, clubIdx, goalsIdx] = detectColumns($, scorersTable, 'rank', 'player', 'club', 'goal')
