@@ -100,14 +100,15 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   const g = normalizeGuess(guess);
   const p = normalizeGuess(playerName);
   if (g === p) return true;
-  const lastName = p.split(" ").at(-1) ?? "";
+  const parts = p.split(" ");
+  const lastName = parts.at(-1) ?? "";
   if (lastName.length >= 4 && g === lastName) return true;
-  if (
-    lastName.length >= 4 &&
-    g.length >= 4 &&
-    damerauDistance(g, lastName) === 1
-  )
-    return true;
+  if (lastName.length >= 4 && g.length >= 4 && damerauDistance(g, lastName) === 1) return true;
+  if (parts.length > 1) {
+    const firstName = parts[0];
+    if (firstName.length >= 4 && g === firstName) return true;
+    if (firstName.length >= 4 && g.length >= 4 && damerauDistance(g, firstName) === 1) return true;
+  }
   return false;
 }
 
