@@ -1034,6 +1034,56 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
     }
   }
 
+  // Fallback: goalscorers in dl/dt + ul/li format (e.g. FIFA World Cup Statistics section)
+  if (topScorers.length === 0) {
+    const el = $('#Goalscorers').first()
+    if (el.length) {
+      const heading = el.is('h1,h2,h3,h4,h5,h6') ? el : el.closest('h1,h2,h3,h4,h5,h6')
+      const container = heading.parent().is('div') && (heading.parent().attr('class') ?? '').includes('mw-heading')
+        ? heading.parent() : heading
+
+      let currentGoals = 0
+      let rank = 1
+
+      container.nextAll().each((_i, sib) => {
+        const s = $(sib)
+        if ((s.attr('class') ?? '').includes('mw-heading') || s.is('h1,h2,h3,h4,h5,h6')) return false
+
+        if (s.is('dl')) {
+          const dtText = s.find('dt').first().text().trim()
+          const match = dtText.match(/^(\d+)\s+goals?$/i)
+          currentGoals = match ? parseInt(match[1]) : 0
+          return
+        }
+
+        if (currentGoals === 0) return
+
+        const liEls = s.is('ul') ? s.children('li') : s.find('ul li')
+        if (!liEls.length) return
+
+        const entries: { name: string; wikiUrl: string; country: string }[] = []
+        liEls.each((_j, li) => {
+          const liEl = $(li)
+          const country = liEl.find('.flagicon img').first().attr('alt')?.trim() ?? ''
+          const link = liEl.find('a').filter((_k, a) => {
+            const href = $(a).attr('href') ?? ''
+            return href.startsWith('/wiki/') && !href.includes(':') && $(a).text().trim().length > 0
+          }).first()
+          if (!link.length) return
+          const playerName = stripCitations(link.text().trim())
+          if (!playerName) return
+          const href = link.attr('href') ?? ''
+          entries.push({ name: playerName, wikiUrl: `https://en.wikipedia.org${href}`, country })
+        })
+
+        for (const p of entries) {
+          topScorers.push({ name: p.name, wikipediaUrl: p.wikiUrl, club: p.country, goals: currentGoals, rank })
+        }
+        rank += entries.length
+      })
+    }
+  }
+
   // --- Hat-tricks (optional) ---
   const hatTricks: CompetitionScrapeResult['hatTricks'] = []
   const hatTable = findTableAfterAnyHeading($, 'Hat-tricks', 'Hat_tricks', 'Hat_trick')
