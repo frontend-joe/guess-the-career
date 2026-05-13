@@ -150,7 +150,11 @@ export function TopScorersSchedulePage() {
       )
       const unscheduled = competitions
         .filter(c => !scheduledIds.has(c.id))
-        .sort(() => Math.random() - 0.5)
+        .sort((a, b) => {
+          const yearA = parseInt(a.name.match(/\d{4}/)?.[0] ?? '9999')
+          const yearB = parseInt(b.name.match(/\d{4}/)?.[0] ?? '9999')
+          return yearA - yearB
+        })
       if (unscheduled.length === 0) return
 
       const assigned = entries.filter(e => e.competition_id !== null)
