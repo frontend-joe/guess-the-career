@@ -25,6 +25,16 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
     className: 'hidden md:table-cell text-sm text-muted-foreground',
     render: (f) => f.position ?? '—',
   },
+  {
+    header: 'All Positions',
+    className: 'hidden lg:table-cell text-sm text-muted-foreground',
+    render: (f) => f.all_positions ?? '—',
+  },
+  {
+    header: 'Height',
+    className: 'hidden xl:table-cell text-sm text-muted-foreground',
+    render: (f) => f.height_cm ? `${f.height_cm} cm` : '—',
+  },
 ]
 
 export function FootballersPage() {

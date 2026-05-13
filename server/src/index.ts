@@ -24,6 +24,7 @@ import { twoClubsRouter } from './routes/two-clubs.ts'
 import { competitionsRouter } from './routes/competitions.ts'
 import { topScorersScheduleRouter } from './routes/top-scorers-schedule.ts'
 import { topScorersLeaderboardRouter } from './routes/top-scorers-leaderboard.ts'
+import { positionKnowledgeRouter } from './routes/position-knowledge.ts'
 
 runMigrations()
 
@@ -53,6 +54,7 @@ app.route('/api/two-clubs', twoClubsRouter)
 app.route('/api/competitions', competitionsRouter)
 app.route('/api/top-scorers-schedule', topScorersScheduleRouter)
 app.route('/api/top-scorers-leaderboard', topScorersLeaderboardRouter)
+app.route('/api/position-knowledge', positionKnowledgeRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 

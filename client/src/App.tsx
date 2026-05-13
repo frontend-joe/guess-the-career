@@ -29,6 +29,7 @@ import { AddCompetitionPage } from '@/pages/AddCompetitionPage'
 import { CompetitionDetailPage } from '@/pages/CompetitionDetailPage'
 import { TopScorersPage } from '@/pages/TopScorersPage'
 import { TopScorersSchedulePage } from '@/pages/TopScorersSchedulePage'
+import { PositionKnowledgePage } from '@/pages/PositionKnowledgePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -43,6 +44,7 @@ const router = createBrowserRouter([
   { path: '/play/know-your-club', element: <KnowYourClubPage /> },
   { path: '/play/two-clubs', element: <TwoClubsPage /> },
   { path: '/play/top-scorers', element: <TopScorersPage /> },
+  { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
   {
     path: '/',
     element: <Layout />,

@@ -229,6 +229,7 @@ twoClubsRouter.post(
         wikipedia_url: scraped.wikipedia_url,
         nationality: scraped.nationality,
         position: scraped.position,
+        all_positions: scraped.all_positions ?? null,
         born: scraped.born,
         photo_url: scraped.photo_url ?? null,
       }).returning()

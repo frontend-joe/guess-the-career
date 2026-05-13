@@ -59,7 +59,9 @@ export interface ScrapeResult {
   wikipedia_url: string
   nationality: string | null
   position: string | null
+  all_positions: string | null
   born: string | null
+  height_cm: number | null
   photo_url: string | null
   stints: {
     sort_order: number
@@ -108,6 +110,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   let nationality: string | null = null
   let position: string | null = null
   let born: string | null = null
+  let height_cm: number | null = null
   let birthplaceRaw: string | null = null
 
   // Pattern 1: "Representing" header (th.adr) used on many modern footballer pages.
@@ -153,6 +156,17 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
         const country = parts[parts.length - 1]
         if (country && country.length > 1 && country.length < 60 && !/\d/.test(country)) {
           nationality = country
+        }
+      }
+    } else if (label === 'height') {
+      const raw = value.text().trim()
+      const mMatch = raw.match(/(\d+\.?\d*)\s*m\b/)
+      if (mMatch) {
+        height_cm = Math.round(parseFloat(mMatch[1]) * 100)
+      } else {
+        const ftInMatch = raw.match(/(\d+)\s*ft\s*(\d+)\s*in/)
+        if (ftInMatch) {
+          height_cm = Math.round(parseInt(ftInMatch[1]) * 30.48 + parseInt(ftInMatch[2]) * 2.54)
         }
       }
     } else if (label.includes('position')) {
@@ -269,7 +283,14 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
 
   if (nationality) nationality = COUNTRY_NORMALIZE[nationality] ?? nationality
 
-  return { name, wikipedia_url: url, nationality, position, born, photo_url, stints }
+  const styleText = findSectionText($, 'style of play', 'playing style', 'player profile', 'style')
+  let all_positions: string | null = null
+  if (styleText) {
+    const found = extractPositionsFromText(styleText)
+    if (found.length > 0) all_positions = found.join(', ')
+  }
+
+  return { name, wikipedia_url: url, nationality, position, all_positions, born, height_cm, photo_url, stints }
 }
 
 export interface ScrapeManagerResult {
@@ -1284,6 +1305,57 @@ export async function scrapeCompetitionPage(url: string): Promise<CompetitionScr
   return { name, topScorers, hatTricks, topAssists, playerOfSeason, managerOfSeason, pfaTeamOfYear }
 }
 
+
+function findSectionText($: CheerioAPI, ...targets: string[]): string {
+  const normalizedTargets = targets.map(t => t.toLowerCase())
+  let result = ''
+  $('h2, h3, h4, h5').each((_, el) => {
+    const headingText = $(el).text().trim().toLowerCase().replace(/[_\-]+/g, ' ')
+    if (!normalizedTargets.some(t => headingText.includes(t))) return
+    const heading = $(el)
+    const container = heading.parent().is('div') && (heading.parent().attr('class') ?? '').includes('mw-heading')
+      ? heading.parent()
+      : heading
+    const parts: string[] = []
+    container.nextAll().each((_, sib) => {
+      const s = $(sib)
+      if (s.is('h1,h2,h3,h4,h5,h6') || (s.attr('class') ?? '').includes('mw-heading')) return false
+      if (s.is('p')) {
+        const text = s.text().trim()
+        if (text) parts.push(text)
+      }
+    })
+    result = parts.join(' ')
+    return false
+  })
+  return result
+}
+
+const POSITION_TERMS: { pattern: RegExp; name: string }[] = [
+  { pattern: /\bright[\s-]?wing[\s-]?back\b/i, name: 'Right wing-back' },
+  { pattern: /\bleft[\s-]?wing[\s-]?back\b/i, name: 'Left wing-back' },
+  { pattern: /\bright[\s-]?back\b/i, name: 'Right back' },
+  { pattern: /\bleft[\s-]?back\b/i, name: 'Left back' },
+  { pattern: /\bgoalkeeper\b/i, name: 'Goalkeeper' },
+  { pattern: /\bcentr[ae][\s-]?back\b|\bcentral[\s-]?defender\b|\bsweeper\b/i, name: 'Centre-back' },
+  { pattern: /\bdefensive[\s-]?midfielder\b|\bholding[\s-]?midfielder\b/i, name: 'Defensive midfielder' },
+  { pattern: /\battacking[\s-]?midfielder\b|\btrequartista\b/i, name: 'Attacking midfielder' },
+  { pattern: /\bright[\s-]?wing(?:er)?\b/i, name: 'Right winger' },
+  { pattern: /\bleft[\s-]?wing(?:er)?\b/i, name: 'Left winger' },
+  { pattern: /\bcentral[\s-]?midfielder\b/i, name: 'Central midfielder' },
+  { pattern: /\bstrike[r]?\b|\bcentr[ae][\s-]?forward\b/i, name: 'Striker' },
+  { pattern: /\bsecond[\s-]?striker\b/i, name: 'Second striker' },
+  { pattern: /\bforward\b/i, name: 'Forward' },
+  { pattern: /\bmidfield(?:er)?\b/i, name: 'Midfielder' },
+]
+
+function extractPositionsFromText(text: string): string[] {
+  const found: string[] = []
+  for (const { pattern, name } of POSITION_TERMS) {
+    if (pattern.test(text) && !found.includes(name)) found.push(name)
+  }
+  return found
+}
 
 function stripCitations(text: string): string {
   // Remove Wikipedia footnote markers: [1], [note 1], [a], etc.

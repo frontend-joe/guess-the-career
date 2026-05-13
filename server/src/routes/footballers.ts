@@ -107,7 +107,9 @@ footballersRouter.post(
       wikipedia_url: z.string().url(),
       nationality: z.string().nullable(),
       position: z.string().nullable(),
+      all_positions: z.string().nullable().optional(),
       born: z.string().nullable(),
+      height_cm: z.number().int().nullable().optional(),
       stints: z.array(stintSchema),
     })
   ),
@@ -133,7 +135,9 @@ footballersRouter.post(
           wikipedia_url: body.wikipedia_url,
           nationality: body.nationality,
           position: body.position,
+          all_positions: body.all_positions ?? null,
           born: body.born,
+          height_cm: body.height_cm ?? null,
         })
         .returning()
     } catch (e) {
@@ -190,7 +194,7 @@ footballersRouter.get('/rescrape-all', async (c) => {
         const photoUrl = existing[0]?.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(player.name)
 
         await db.update(footballers)
-          .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
+          .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
           .where(eq(footballers.id, player.id))
 
         await db.delete(career_stints).where(eq(career_stints.footballer_id, player.id))
@@ -255,7 +259,9 @@ footballersRouter.patch(
       name: z.string().optional(),
       nationality: z.string().nullable().optional(),
       position: z.string().nullable().optional(),
+      all_positions: z.string().nullable().optional(),
       born: z.string().nullable().optional(),
+      height_cm: z.number().int().nullable().optional(),
       photo_url: z.string().nullable().optional(),
     })
   ),
@@ -295,7 +301,7 @@ footballersRouter.post('/:id/rescrape', async (c) => {
   const photoUrl = existing.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(result.name)
 
   await db.update(footballers)
-    .set({ name: result.name, nationality: result.nationality, position: result.position, born: result.born, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
+    .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
     .where(eq(footballers.id, id))
 
   await db.delete(career_stints).where(eq(career_stints.footballer_id, id))
