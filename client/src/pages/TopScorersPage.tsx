@@ -372,6 +372,7 @@ export function TopScorersPage() {
               guessed: r.guessedIndices.size,
               total: r.players.length,
             }))}
+            onRoundClick={(i) => { goToRound(i); setShowProgress(false); }}
           />
         )}
 

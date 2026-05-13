@@ -39,10 +39,12 @@ export function OverallProgressScreen({
   totalGuessed,
   totalPlayers,
   rounds,
+  onRoundClick,
 }: {
   totalGuessed: number;
   totalPlayers: number;
   rounds: ProgressRound[];
+  onRoundClick?: (index: number) => void;
 }) {
   const pct =
     totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0;
@@ -63,7 +65,8 @@ export function OverallProgressScreen({
           return (
             <div
               key={i}
-              className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100"
+              onClick={() => onRoundClick?.(i)}
+              className={`flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100 ${onRoundClick ? "cursor-pointer active:bg-gray-50" : ""}`}
             >
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-gray-900 truncate">
