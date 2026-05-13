@@ -1312,6 +1312,7 @@ function findSectionText($: CheerioAPI, ...targets: string[]): string {
   $('h2, h3, h4, h5').each((_, el) => {
     const headingText = $(el).text().trim().toLowerCase().replace(/[_\-]+/g, ' ')
     if (!normalizedTargets.some(t => headingText.includes(t))) return
+    const headingLevel = parseInt((el as unknown as { name: string }).name[1]) || 2
     const heading = $(el)
     const container = heading.parent().is('div') && (heading.parent().attr('class') ?? '').includes('mw-heading')
       ? heading.parent()
@@ -1319,7 +1320,19 @@ function findSectionText($: CheerioAPI, ...targets: string[]): string {
     const parts: string[] = []
     container.nextAll().each((_, sib) => {
       const s = $(sib)
-      if (s.is('h1,h2,h3,h4,h5,h6') || (s.attr('class') ?? '').includes('mw-heading')) return false
+      const sibClass = s.attr('class') ?? ''
+      if (sibClass.includes('mw-heading')) {
+        // Stop at same/higher level section; skip sub-headings and continue
+        const m = sibClass.match(/mw-heading(\d)/)
+        if (!m || parseInt(m[1]) <= headingLevel) return false
+        return
+      }
+      if (s.is('h1,h2,h3,h4,h5,h6')) {
+        const node = s.get(0)
+        const tagName = node && 'name' in (node as object) ? (node as { name: string }).name : 'h2'
+        if ((parseInt(tagName[1]) || 2) <= headingLevel) return false
+        return
+      }
       if (s.is('p')) {
         const text = s.text().trim()
         if (text) parts.push(text)
@@ -1342,6 +1355,7 @@ const POSITION_TERMS: { pattern: RegExp; name: string }[] = [
   { pattern: /\battacking[\s-]?midfielder\b|\btrequartista\b/i, name: 'Attacking midfielder' },
   { pattern: /\bright[\s-]?wing(?:er)?\b/i, name: 'Right winger' },
   { pattern: /\bleft[\s-]?wing(?:er)?\b/i, name: 'Left winger' },
+  { pattern: /\bwinger\b|\bon the wing\b|\bwide forward\b|\bwide midfielder\b|\bwide player\b/i, name: 'Winger' },
   { pattern: /\bcentral[\s-]?midfielder\b/i, name: 'Central midfielder' },
   { pattern: /\bstrike[r]?\b|\bcentr[ae][\s-]?forward\b/i, name: 'Striker' },
   { pattern: /\bsecond[\s-]?striker\b/i, name: 'Second striker' },
