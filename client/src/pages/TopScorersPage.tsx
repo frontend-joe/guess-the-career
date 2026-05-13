@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router";
-import { Home, ChevronRight, ChevronLeft, Shuffle, Trophy } from "lucide-react";
+import { Home, ChevronRight, ChevronLeft, Shuffle, Trophy, X } from "lucide-react";
+import { OverallProgressScreen } from "@/components/OverallProgressScreen";
 import {
   getTopScorersRounds,
   type TopScorerRound,
@@ -142,6 +143,7 @@ export function TopScorersPage() {
   const [suggestions, setSuggestions] = useState<Footballer[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showFinalScore, setShowFinalScore] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -288,20 +290,37 @@ export function TopScorersPage() {
       }}
     >
       {/* Header */}
-      <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
+      <div className="bg-[#1a1a2e] relative flex items-center justify-between px-3 py-2 shrink-0">
         <button
           className="text-white p-1"
           onClick={() => (window.location.href = "/play")}
         >
           <Home size={22} />
         </button>
-        <span className="text-white font-bold text-sm tracking-widest uppercase">
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-bold text-sm tracking-widest uppercase">
           Top Scorers
         </span>
         {rounds.length > 0 ? (
-          <span className="text-white/60 text-sm font-mono">
-            {roundIndex + 1} / {rounds.length}
-          </span>
+          showProgress ? (
+            <button
+              onClick={() => setShowProgress(false)}
+              className="text-white/60 hover:text-white transition-colors p-1"
+            >
+              <X size={18} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-white/60 text-sm font-mono">
+                {roundIndex + 1} / {rounds.length}
+              </span>
+              <button
+                onClick={() => setShowProgress(true)}
+                className="text-white/40 hover:text-white/80 transition-colors p-0.5"
+              >
+                <Trophy size={14} />
+              </button>
+            </div>
+          )
         ) : (
           <span className="w-8" />
         )}
@@ -344,7 +363,19 @@ export function TopScorersPage() {
           />
         )}
 
-        {!loading && !error && !showFinalScore && currentRound && (
+        {!loading && !error && !showFinalScore && showProgress && (
+          <OverallProgressScreen
+            totalGuessed={totalGuessed}
+            totalPlayers={totalPlayers}
+            rounds={rounds.map((r) => ({
+              name: r.competitionName,
+              guessed: r.guessedIndices.size,
+              total: r.players.length,
+            }))}
+          />
+        )}
+
+        {!loading && !error && !showFinalScore && !showProgress && currentRound && (
           <div className="px-3 pt-4 pb-2">
             {/* Competition header */}
             <div className="mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3">
@@ -424,7 +455,7 @@ export function TopScorersPage() {
       </div>
 
       {/* Bottom panel */}
-      {!loading && !error && !showFinalScore && rounds.length > 0 && (
+      {!loading && !error && !showFinalScore && !showProgress && rounds.length > 0 && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
           {currentRound && (
             <p
