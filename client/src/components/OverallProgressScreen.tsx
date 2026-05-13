@@ -1,5 +1,6 @@
 export interface ProgressRound {
   name: string;
+  subtitle?: string;
   guessed: number;
   total: number;
 }
@@ -72,6 +73,9 @@ export function OverallProgressScreen({
                 <p className="text-xs font-semibold text-gray-900 truncate">
                   {r.name}
                 </p>
+                {r.subtitle && (
+                  <p className="text-xs text-gray-400 truncate">{r.subtitle}</p>
+                )}
                 <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full ${cleared ? "bg-green-500" : partial ? "bg-orange-400" : "bg-gray-200"}`}

@@ -385,9 +385,8 @@ export function GuessTheXiPage() {
             totalGuessed={totalGuessed}
             totalPlayers={totalPlayers}
             rounds={rounds.map((r) => ({
-              name: r.homeTeam && r.awayTeam
-                ? `${r.homeTeam} vs ${r.awayTeam} — ${r.team}`
-                : r.matchName,
+              name: `${r.year} ${r.competition}${/final/i.test(r.matchName) ? ' Final' : ''}`,
+              subtitle: r.team,
               guessed: r.guessedIndices.size,
               total: r.players.length,
             }))}
