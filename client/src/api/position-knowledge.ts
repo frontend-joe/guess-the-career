@@ -36,16 +36,21 @@ export function getProgressKey(nation: string, position: string) {
   return `pk_progress_${nation}_${position}`
 }
 
-export function loadProgress(nation: string, position: string): number[] {
+export function loadProgress(nation: string, position: string): PositionPlayer[] {
   try {
     const raw = localStorage.getItem(getProgressKey(nation, position))
     if (!raw) return []
-    return (JSON.parse(raw) as { foundIds?: number[] }).foundIds ?? []
+    const parsed = JSON.parse(raw) as { foundPlayers?: PositionPlayer[]; foundIds?: number[] }
+    return parsed.foundPlayers ?? []
   } catch {
     return []
   }
 }
 
-export function saveProgress(nation: string, position: string, foundIds: number[]) {
-  localStorage.setItem(getProgressKey(nation, position), JSON.stringify({ foundIds }))
+export function saveProgress(nation: string, position: string, foundPlayers: PositionPlayer[]) {
+  localStorage.setItem(getProgressKey(nation, position), JSON.stringify({ foundPlayers }))
+}
+
+export function clearProgress(nation: string, position: string) {
+  localStorage.removeItem(getProgressKey(nation, position))
 }

@@ -16,6 +16,7 @@ const NATION_NATIONALITIES: Record<string, string[]> = {
   Germany: ['German', 'Germany'],
   Argentina: ['Argentine', 'Argentinian', 'Argentina'],
   Brazil: ['Brazilian', 'Brazil'],
+  Netherlands: ['Dutch', 'Netherlands', 'Holland'],
 }
 
 const POSITION_PATTERNS: Record<string, string[]> = {

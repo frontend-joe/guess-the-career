@@ -1,13 +1,13 @@
 import { useState, useRef, useCallback } from 'react'
-import { Home, Loader2, ChevronRight, ArrowLeft, Trophy } from 'lucide-react'
+import { Home, ChevronRight, ArrowLeft, Trophy } from 'lucide-react'
 import { getFootballers, type Footballer } from '@/api/footballers'
 import {
-  getPositionPlayers, verifyPositionGuess, loadProgress, saveProgress,
+  verifyPositionGuess, loadProgress, saveProgress, clearProgress,
   type PositionPlayer,
 } from '@/api/position-knowledge'
 import { nationalityToFlagUrl } from '@/lib/flags'
 
-const NATIONS = ['England', 'Spain', 'Italy', 'France', 'Germany', 'Argentina', 'Brazil']
+const NATIONS = ['England', 'Spain', 'Italy', 'France', 'Germany', 'Argentina', 'Brazil', 'Netherlands']
 
 const POSITIONS: { key: string; label: string }[] = [
   { key: 'goalkeeper',           label: 'Goalkeeper' },
@@ -25,11 +25,14 @@ const POSITIONS: { key: string; label: string }[] = [
 const NATION_ADJECTIVE: Record<string, string> = {
   England: 'English', Spain: 'Spanish', Italy: 'Italian',
   France: 'French', Germany: 'German', Argentina: 'Argentine', Brazil: 'Brazilian',
+  Netherlands: 'Dutch',
 }
 
 interface GamePlayer extends PositionPlayer {
   found: boolean
 }
+
+const ROUND_SIZE = 12
 
 type View = 'lobby' | 'playing' | 'success'
 
@@ -38,7 +41,6 @@ export function PositionKnowledgePage() {
   const [selectedNation, setSelectedNation] = useState<string | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null)
   const [players, setPlayers] = useState<GamePlayer[]>([])
-  const [loading, setLoading] = useState(false)
 
   // Input state
   const [inputValue, setInputValue] = useState('')
@@ -58,22 +60,14 @@ export function PositionKnowledgePage() {
     ? `${NATION_ADJECTIVE[selectedNation]} ${positionLabel}s`
     : ''
 
-  const foundCount = players.filter(p => p.found).length
-  const totalCount = players.length
+  const foundCount = players.length
+  const totalCount = ROUND_SIZE
 
-  async function startGame(nation: string, position: string) {
-    setLoading(true)
-    try {
-      const fetched = await getPositionPlayers(nation, position)
-      const savedIds = new Set(loadProgress(nation, position))
-      setPlayers(fetched.map(p => ({ ...p, found: savedIds.has(p.id) })))
-      setView('playing')
-      setTimeout(() => inputRef.current?.focus(), 50)
-    } catch {
-      // stay on lobby
-    } finally {
-      setLoading(false)
-    }
+  function startGame(nation: string, position: string) {
+    const saved = loadProgress(nation, position)
+    setPlayers(saved.map(p => ({ ...p, found: true })))
+    setView('playing')
+    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
   function handleStart() {
@@ -138,7 +132,7 @@ export function PositionKnowledgePage() {
     if (!selectedNation || !selectedPosition || verifying || view !== 'playing') return
 
     // Already guessed?
-    if (players.some(p => p.found && (p.id === id || p.name.toLowerCase() === name.toLowerCase()))) {
+    if (players.some(p => p.id === id || p.name.toLowerCase() === name.toLowerCase())) {
       setInputValue(''); setSuggestions([]); setWikiVerified([]); setShowDropdown(false)
       wikiSearchRef.current = ''
       setTimeout(() => inputRef.current?.focus(), 50)
@@ -161,18 +155,14 @@ export function PositionKnowledgePage() {
     if (result.valid && result.footballer) {
       const f = result.footballer
       setPlayers(prev => {
-        const existing = prev.find(p => p.id === f.id)
-        let next: GamePlayer[]
-        if (existing) {
-          next = prev.map(p => p.id === f.id ? { ...p, found: true } : p)
-        } else {
-          // Newly discovered player — add to list already found
-          next = [...prev, { id: f.id, name: f.name, photo_url: f.photo_url, found: true }]
-        }
-        const foundIds = next.filter(p => p.found).map(p => p.id)
-        saveProgress(selectedNation, selectedPosition, foundIds)
-        if (next.every(p => p.found)) {
+        // Already found this round
+        if (prev.some(p => p.id === f.id)) return prev
+        const next = [...prev, { id: f.id, name: f.name, photo_url: f.photo_url, found: true }]
+        if (next.length >= ROUND_SIZE) {
+          clearProgress(selectedNation, selectedPosition)
           setTimeout(() => setView('success'), 300)
+        } else {
+          saveProgress(selectedNation, selectedPosition, next.map(({ id, name, photo_url }) => ({ id, name, photo_url })))
         }
         return next
       })
@@ -284,11 +274,9 @@ export function PositionKnowledgePage() {
           {selectedNation && selectedPosition && (
             <button
               onClick={handleStart}
-              disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-white text-[#1a1a2e] font-bold text-sm py-3 rounded-xl"
             >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-              {loading ? 'Loading…' : `Start — ${NATION_ADJECTIVE[selectedNation]} ${positionLabel}s`}
+              {`Start — ${NATION_ADJECTIVE[selectedNation]} ${positionLabel}s`}
             </button>
           )}
         </div>
@@ -355,29 +343,32 @@ export function PositionKnowledgePage() {
       {/* Scrollable player list */}
       <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50">
         <div className="px-3 pt-3 pb-2 flex flex-col gap-1.5">
-          {players.map(player => (
-            <div
-              key={player.id}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${
-                player.found ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
-              }`}
-            >
-              {player.found ? (
-                <>
-                  {player.photo_url
-                    ? <img src={player.photo_url} alt={player.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
-                    : <div className="w-7 h-7 rounded-full bg-green-200 flex items-center justify-center shrink-0 text-xs font-bold text-green-600">{player.name.charAt(0)}</div>
-                  }
-                  <span className="text-sm font-semibold text-green-700 truncate">{player.name}</span>
-                </>
-              ) : (
-                <>
-                  <div className="w-7 h-7 rounded-full bg-gray-100 shrink-0" />
-                  <div className="h-px bg-gray-200 flex-1 rounded-full" />
-                </>
-              )}
-            </div>
-          ))}
+          {Array.from({ length: ROUND_SIZE }, (_, i) => {
+            const player = players[i]
+            return (
+              <div
+                key={i}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${
+                  player ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+                }`}
+              >
+                {player ? (
+                  <>
+                    {player.photo_url
+                      ? <img src={player.photo_url} alt={player.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
+                      : <div className="w-7 h-7 rounded-full bg-green-200 flex items-center justify-center shrink-0 text-xs font-bold text-green-600">{player.name.charAt(0)}</div>
+                    }
+                    <span className="text-sm font-semibold text-green-700 truncate">{player.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-7 h-7 rounded-full bg-gray-100 shrink-0" />
+                    <div className="h-px bg-gray-200 flex-1 rounded-full" />
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
