@@ -445,10 +445,26 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     "style",
   );
   let all_positions: string | null = null;
+  const foundPositions: string[] = [];
   if (styleText) {
-    const found = extractPositionsFromText(styleText);
-    if (found.length > 0) all_positions = found.join(", ");
+    for (const p of extractPositionsFromText(styleText)) {
+      if (!foundPositions.includes(p)) foundPositions.push(p);
+    }
   }
+
+  // Also check the first real paragraph of the article body
+  const firstParaText = $("div.mw-parser-output > p")
+    .not(".mw-empty-elt")
+    .first()
+    .text()
+    .trim();
+  if (firstParaText) {
+    for (const p of extractPositionsFromText(firstParaText)) {
+      if (!foundPositions.includes(p)) foundPositions.push(p);
+    }
+  }
+
+  if (foundPositions.length > 0) all_positions = foundPositions.join(", ");
 
   return {
     name,
