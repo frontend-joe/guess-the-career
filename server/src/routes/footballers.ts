@@ -260,6 +260,7 @@ footballersRouter.patch(
       nationality: z.string().nullable().optional(),
       position: z.string().nullable().optional(),
       all_positions: z.string().nullable().optional(),
+      custom_position: z.string().nullable().optional(),
       born: z.string().nullable().optional(),
       height_cm: z.number().int().nullable().optional(),
       photo_url: z.string().nullable().optional(),

@@ -40,6 +40,7 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
 export function FootballersPage() {
   const [missingNationality, setMissingNationality] = useState(false)
   const [missingPhoto, setMissingPhoto] = useState(false)
+  const [singleGenericPosition, setSingleGenericPosition] = useState(false)
 
   const config: PersonAdminConfig<Footballer> = {
     label: 'Footballer',
@@ -54,10 +55,19 @@ export function FootballersPage() {
     getDuplicates,
     rescrapePerson: (id) => rescrapeFootballer(id),
     updatePhotoUrl: (id, url) => updateFootballer(id, { photo_url: url }).then(() => {}),
-    filterPeople: (missingNationality || missingPhoto)
+    updateCustomPosition: (id, val) => updateFootballer(id, { custom_position: val }).then(() => {}),
+    filterPeople: (missingNationality || missingPhoto || singleGenericPosition)
       ? (people) => people.filter(f =>
           (!missingNationality || !f.nationality) &&
-          (!missingPhoto || !f.photo_url)
+          (!missingPhoto || !f.photo_url) &&
+          (!singleGenericPosition || (() => {
+            const isGenericOrEmpty = (v: string | null) => !v || v.toLowerCase() === 'defender' || v.toLowerCase() === 'midfielder'
+            return (
+              (f.position?.toLowerCase() === 'defender' || f.position?.toLowerCase() === 'midfielder') &&
+              !f.all_positions &&
+              isGenericOrEmpty(f.custom_position)
+            )
+          })())
         )
       : undefined,
     extraFilters: (
@@ -79,6 +89,15 @@ export function FootballersPage() {
             className="h-4 w-4 accent-primary"
           />
           Missing photo
+        </label>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={singleGenericPosition}
+            onChange={e => setSingleGenericPosition(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          Single Defender/Midfielder
         </label>
       </>
     ),

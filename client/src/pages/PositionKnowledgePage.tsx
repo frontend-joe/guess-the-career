@@ -2,37 +2,36 @@ import { useState, useRef, useCallback } from 'react'
 import { Home, ChevronRight, ArrowLeft, Trophy } from 'lucide-react'
 import { getFootballers, type Footballer } from '@/api/footballers'
 import {
-  verifyPositionGuess, loadProgress, saveProgress, clearProgress,
+  getPositionPlayers, verifyPositionGuess, loadProgress, saveProgress, clearProgress,
   type PositionPlayer,
 } from '@/api/position-knowledge'
 import { nationalityToFlagUrl } from '@/lib/flags'
 
-const NATIONS = ['England', 'Spain', 'Italy', 'France', 'Germany', 'Argentina', 'Brazil', 'Netherlands']
+const NATIONS = ['England', 'Spain', 'Italy', 'France', 'Germany', 'Argentina', 'Brazil', 'Netherlands', 'Portugal', 'Ireland']
 
 const POSITIONS: { key: string; label: string }[] = [
   { key: 'goalkeeper',           label: 'Goalkeeper' },
   { key: 'right_back',           label: 'Right Back' },
   { key: 'left_back',            label: 'Left Back' },
   { key: 'centre_back',          label: 'Centre Back' },
-  { key: 'midfielder',           label: 'Midfielder' },
   { key: 'defensive_midfielder', label: 'Defensive Midfielder' },
+  { key: 'central_midfielder',   label: 'Central Midfielder' },
   { key: 'attacking_midfielder', label: 'Attacking Midfielder' },
   { key: 'winger',               label: 'Winger' },
-  { key: 'forward',              label: 'Forward' },
   { key: 'striker',              label: 'Striker' },
 ]
 
 const NATION_ADJECTIVE: Record<string, string> = {
   England: 'English', Spain: 'Spanish', Italy: 'Italian',
   France: 'French', Germany: 'German', Argentina: 'Argentine', Brazil: 'Brazilian',
-  Netherlands: 'Dutch',
+  Netherlands: 'Dutch', Portugal: 'Portuguese', Ireland: 'Irish',
 }
 
 interface GamePlayer extends PositionPlayer {
   found: boolean
 }
 
-const ROUND_SIZE = 12
+const MAX_roundSize = 12
 
 type View = 'lobby' | 'playing' | 'success'
 
@@ -41,6 +40,7 @@ export function PositionKnowledgePage() {
   const [selectedNation, setSelectedNation] = useState<string | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null)
   const [players, setPlayers] = useState<GamePlayer[]>([])
+  const [roundSize, setRoundSize] = useState(MAX_roundSize)
 
   // Input state
   const [inputValue, setInputValue] = useState('')
@@ -61,11 +61,19 @@ export function PositionKnowledgePage() {
     : ''
 
   const foundCount = players.length
-  const totalCount = ROUND_SIZE
+  const totalCount = roundSize
 
-  function startGame(nation: string, position: string) {
-    const saved = loadProgress(nation, position)
-    setPlayers(saved.map(p => ({ ...p, found: true })))
+  async function startGame(nation: string, position: string) {
+    try {
+      const available = await getPositionPlayers(nation, position)
+      const size = Math.min(MAX_roundSize, available.length)
+      setRoundSize(size)
+      const saved = loadProgress(nation, position)
+      setPlayers(saved.map(p => ({ ...p, found: true })))
+    } catch {
+      setRoundSize(MAX_roundSize)
+      setPlayers([])
+    }
     setView('playing')
     setTimeout(() => inputRef.current?.focus(), 50)
   }
@@ -158,7 +166,7 @@ export function PositionKnowledgePage() {
         // Already found this round
         if (prev.some(p => p.id === f.id)) return prev
         const next = [...prev, { id: f.id, name: f.name, photo_url: f.photo_url, found: true }]
-        if (next.length >= ROUND_SIZE) {
+        if (next.length >= roundSize) {
           clearProgress(selectedNation, selectedPosition)
           setTimeout(() => setView('success'), 300)
         } else {
@@ -343,7 +351,7 @@ export function PositionKnowledgePage() {
       {/* Scrollable player list */}
       <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50">
         <div className="px-3 pt-3 pb-2 flex flex-col gap-1.5">
-          {Array.from({ length: ROUND_SIZE }, (_, i) => {
+          {Array.from({ length: roundSize }, (_, i) => {
             const player = players[i]
             return (
               <div

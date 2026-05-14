@@ -356,7 +356,7 @@ export interface ExtraColumn<T> {
   render: (item: T) => React.ReactNode
 }
 
-export interface PersonAdminConfig<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null }> {
+export interface PersonAdminConfig<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null; custom_position?: string | null }> {
   label: string
   schedulePath: string
   addPath: string
@@ -371,9 +371,10 @@ export interface PersonAdminConfig<T extends { id: number; name: string; wikiped
   filterPeople?: (people: T[]) => T[]
   rescrapePerson?: (id: number) => Promise<unknown>
   updatePhotoUrl?: (id: number, url: string | null) => Promise<void>
+  updateCustomPosition?: (id: number, value: string | null) => Promise<void>
 }
 
-export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null }>({
+export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null; custom_position?: string | null }>({
   config,
 }: {
   config: PersonAdminConfig<T>
@@ -392,6 +393,8 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [photoEdits, setPhotoEdits] = useState<Map<number, string>>(new Map())
   const [savingPhotos, setSavingPhotos] = useState(false)
+  const [customPositionEdits, setCustomPositionEdits] = useState<Map<number, string>>(new Map())
+  const [savingCustomPositions, setSavingCustomPositions] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   const debouncedSearch = useDebounce(search, 250)
@@ -467,6 +470,29 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
       await load()
     } finally {
       setSavingPhotos(false)
+    }
+  }
+
+  const dirtyCustomPositionIds = useMemo(
+    () => [...customPositionEdits.entries()].filter(([id, val]) => {
+      const original = people.find(p => p.id === id)?.custom_position ?? ''
+      return val !== (original ?? '')
+    }).map(([id]) => id),
+    [customPositionEdits, people],
+  )
+
+  async function saveCustomPositions() {
+    if (!config.updateCustomPosition || dirtyCustomPositionIds.length === 0) return
+    setSavingCustomPositions(true)
+    try {
+      await Promise.all(dirtyCustomPositionIds.map(id => {
+        const val = customPositionEdits.get(id) ?? ''
+        return config.updateCustomPosition!(id, val.trim() || null)
+      }))
+      setCustomPositionEdits(new Map())
+      await load()
+    } finally {
+      setSavingCustomPositions(false)
     }
   }
 
@@ -605,6 +631,19 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                   {config.extraColumns.map((col) => (
                     <TableHead key={col.header} className={col.className}>{col.header}</TableHead>
                   ))}
+                  {config.updateCustomPosition && (
+                    <TableHead className="min-w-48">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Custom Position</span>
+                        {dirtyCustomPositionIds.length > 0 && (
+                          <Button size="sm" className="h-6 text-xs px-2" onClick={saveCustomPositions} disabled={savingCustomPositions}>
+                            {savingCustomPositions ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                            Save {dirtyCustomPositionIds.length > 1 ? `(${dirtyCustomPositionIds.length})` : ''}
+                          </Button>
+                        )}
+                      </div>
+                    </TableHead>
+                  )}
                   {config.updatePhotoUrl && (
                     <TableHead className="min-w-64">
                       <div className="flex items-center justify-between gap-2">
@@ -641,10 +680,20 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                     {config.extraColumns.map((col) => (
                       <TableCell key={col.header} className={col.className}>{col.render(item)}</TableCell>
                     ))}
+                    {config.updateCustomPosition && (
+                      <TableCell>
+                        <Input
+                          value={customPositionEdits.get(item.id) ?? item.custom_position ?? ''}
+                          onChange={e => setCustomPositionEdits(prev => new Map(prev).set(item.id, e.target.value))}
+                          placeholder="e.g. Right back"
+                          className={`h-7 text-xs ${dirtyCustomPositionIds.includes(item.id) ? 'border-amber-400' : ''}`}
+                        />
+                      </TableCell>
+                    )}
                     {config.updatePhotoUrl && (
                       <TableCell>
                         <Input
-                          value={photoEdits.has(item.id) ? photoEdits.get(item.id) : (item.photo_url ?? '')}
+                          value={photoEdits.get(item.id) ?? item.photo_url ?? ''}
                           onChange={e => setPhotoEdits(prev => new Map(prev).set(item.id, e.target.value))}
                           placeholder="https://…"
                           className={`h-7 text-xs ${dirtyPhotoIds.includes(item.id) ? 'border-amber-400' : ''}`}

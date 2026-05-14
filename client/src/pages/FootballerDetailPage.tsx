@@ -21,6 +21,7 @@ type EditMeta = {
   nationality: string
   position: string
   all_positions: string
+  custom_position: string
   born: string
   height_cm: string
   photo_url: string
@@ -34,7 +35,7 @@ export function FootballerDetailPage() {
   const [footballer, setFootballer] = useState<FootballerWithStints | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingMeta, setEditingMeta] = useState(false)
-  const [meta, setMeta] = useState<EditMeta>({ name: '', nationality: '', position: '', all_positions: '', born: '', height_cm: '', photo_url: '' })
+  const [meta, setMeta] = useState<EditMeta>({ name: '', nationality: '', position: '', all_positions: '', custom_position: '', born: '', height_cm: '', photo_url: '' })
   const [savingMeta, setSavingMeta] = useState(false)
   const [editingCareer, setEditingCareer] = useState(false)
   const [stints, setStints] = useState<Stint[]>([])
@@ -51,6 +52,7 @@ export function FootballerDetailPage() {
           nationality: f.nationality ?? '',
           position: f.position ?? '',
           all_positions: f.all_positions ?? '',
+          custom_position: f.custom_position ?? '',
           born: f.born ?? '',
           height_cm: f.height_cm?.toString() ?? '',
           photo_url: f.photo_url ?? '',
@@ -69,6 +71,7 @@ export function FootballerDetailPage() {
         nationality: meta.nationality || null,
         position: meta.position || null,
         all_positions: meta.all_positions || null,
+        custom_position: meta.custom_position || null,
         born: meta.born || null,
         height_cm: meta.height_cm ? parseInt(meta.height_cm) : null,
         photo_url: meta.photo_url || null,
@@ -133,7 +136,7 @@ export function FootballerDetailPage() {
               const { footballer: updated, stints: updatedStints } = await rescrapeFootballer(footballer!.id)
               setFootballer({ ...updated, stints: updatedStints })
               setStints(updatedStints.map(({ id: _id, footballer_id: _fid, ...rest }) => rest))
-              setMeta({ name: updated.name, nationality: updated.nationality ?? '', position: updated.position ?? '', all_positions: updated.all_positions ?? '', born: updated.born ?? '', height_cm: updated.height_cm?.toString() ?? '', photo_url: updated.photo_url ?? '' })
+              setMeta({ name: updated.name, nationality: updated.nationality ?? '', position: updated.position ?? '', all_positions: updated.all_positions ?? '', custom_position: updated.custom_position ?? '', born: updated.born ?? '', height_cm: updated.height_cm?.toString() ?? '', photo_url: updated.photo_url ?? '' })
             }}
           />
           {!editingMeta && (
@@ -171,6 +174,7 @@ export function FootballerDetailPage() {
             { key: 'nationality', label: 'Nationality' },
             { key: 'position', label: 'Position' },
             { key: 'all_positions', label: 'All Positions' },
+            { key: 'custom_position', label: 'Custom Position' },
             { key: 'born', label: 'Born' },
             { key: 'photo_url', label: 'Photo URL' },
           ] as const).map(({ key, label }) => (
