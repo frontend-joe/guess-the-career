@@ -363,7 +363,7 @@ export interface CustomPositionOption {
 
 export interface PersonAdminConfig<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null; custom_position?: string | null }> {
   label: string
-  schedulePath: string
+  scheduleButtons: { label: string; path: string }[]
   addPath: string
   detailPath: (id: number) => string
   rescrapeUrl: string
@@ -555,11 +555,12 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
               : <span>Rescrape</span>
             }
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate(config.schedulePath)}>
-            <CalendarDays className="h-4 w-4 mr-1.5" />
-            <span className="hidden sm:inline">Schedule</span>
-            <span className="sm:hidden">Schedule</span>
-          </Button>
+          {config.scheduleButtons.map(btn => (
+            <Button key={btn.path} variant="outline" size="sm" onClick={() => navigate(btn.path)}>
+              <CalendarDays className="h-4 w-4 mr-1.5" />
+              {btn.label}
+            </Button>
+          ))}
           <Button onClick={() => navigate(config.addPath)} size="sm">
             <Plus className="h-4 w-4 mr-1.5" />
             <span className="hidden sm:inline">Add {config.label.toLowerCase()}</span>

@@ -9,6 +9,7 @@ export const footballers = sqliteTable('footballers', {
   position: text('position'),
   all_positions: text('all_positions'),
   custom_position: text('custom_position'),
+  style_of_play: text('style_of_play'),
   born: text('born'),
   height_cm: integer('height_cm'),
   photo_url: text('photo_url'),
@@ -202,8 +203,25 @@ export type NewManager = typeof managers.$inferInsert
 export type ManagerCareerStint = typeof manager_career_stints.$inferSelect
 export type ManagerDay = typeof manager_days.$inferSelect
 
+export const sop_schedule = sqliteTable('sop_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const sop_leaderboard = sqliteTable('sop_leaderboard', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  player_name: text('player_name').notNull(),
+  score: integer('score').notNull(),
+  total: integer('total').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export type TopScorersScheduleEntry = typeof top_scorers_schedule.$inferSelect
 export type TopScorersLeaderboardEntry = typeof top_scorers_leaderboard.$inferSelect
+export type SopScheduleEntry = typeof sop_schedule.$inferSelect
+export type SopLeaderboardEntry = typeof sop_leaderboard.$inferSelect
 
 export type Competition = typeof competitions.$inferSelect
 export type NewCompetition = typeof competitions.$inferInsert

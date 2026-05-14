@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin } from 'lucide-react'
+import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen } from 'lucide-react'
 
 export function PlayHubPage() {
   const navigate = useNavigate()
@@ -89,6 +89,14 @@ export function PlayHubPage() {
           <MapPin size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">Position Knowledge</span>
           <span className="text-gray-400 text-xs">Name players by nation &amp; position</span>
+        </button>
+        <button
+          onClick={() => navigate('/play/style-of-play')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <BookOpen size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">Style Of Play</span>
+          <span className="text-gray-400 text-xs">Guess the player from their style</span>
         </button>
       </div>
     </div>

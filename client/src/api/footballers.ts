@@ -6,6 +6,7 @@ export interface Footballer {
   position: string | null
   all_positions: string | null
   custom_position: string | null
+  style_of_play: string | null
   born: string | null
   height_cm: number | null
   photo_url: string | null

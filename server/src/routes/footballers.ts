@@ -194,7 +194,7 @@ footballersRouter.get('/rescrape-all', async (c) => {
         const photoUrl = existing[0]?.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(player.name)
 
         await db.update(footballers)
-          .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
+          .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, style_of_play: result.style_of_play ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
           .where(eq(footballers.id, player.id))
 
         await db.delete(career_stints).where(eq(career_stints.footballer_id, player.id))
@@ -302,7 +302,7 @@ footballersRouter.post('/:id/rescrape', async (c) => {
   const photoUrl = existing.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(result.name)
 
   await db.update(footballers)
-    .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
+    .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, style_of_play: result.style_of_play ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
     .where(eq(footballers.id, id))
 
   await db.delete(career_stints).where(eq(career_stints.footballer_id, id))

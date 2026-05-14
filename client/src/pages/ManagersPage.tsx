@@ -6,7 +6,7 @@ import {
 
 const config: PersonAdminConfig<Manager> = {
   label: 'Manager',
-  schedulePath: '/managers/schedule',
+  scheduleButtons: [{ label: 'Schedule', path: '/managers/schedule' }],
   addPath: '/managers/add',
   detailPath: (id) => `/managers/${id}`,
   rescrapeUrl: '/api/managers/rescrape-all',

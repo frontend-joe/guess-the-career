@@ -159,6 +159,7 @@ export interface ScrapeResult {
   nationality: string | null;
   position: string | null;
   all_positions: string | null;
+  style_of_play: string | null;
   born: string | null;
   height_cm: number | null;
   photo_url: string | null;
@@ -472,6 +473,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     nationality,
     position,
     all_positions,
+    style_of_play: styleText ? stripCitations(styleText) : null,
     born,
     height_cm,
     photo_url,

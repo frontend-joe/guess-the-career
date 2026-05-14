@@ -30,6 +30,8 @@ import { CompetitionDetailPage } from '@/pages/CompetitionDetailPage'
 import { TopScorersPage } from '@/pages/TopScorersPage'
 import { TopScorersSchedulePage } from '@/pages/TopScorersSchedulePage'
 import { PositionKnowledgePage } from '@/pages/PositionKnowledgePage'
+import { StyleOfPlayPage } from '@/pages/StyleOfPlayPage'
+import { SopSchedulePage } from '@/pages/SopSchedulePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -45,6 +47,7 @@ const router = createBrowserRouter([
   { path: '/play/two-clubs', element: <TwoClubsPage /> },
   { path: '/play/top-scorers', element: <TopScorersPage /> },
   { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
+  { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -67,6 +70,7 @@ const router = createBrowserRouter([
       { path: 'competitions', element: <CompetitionsPage /> },
       { path: 'competitions/add', element: <AddCompetitionPage /> },
       { path: 'competitions/top-scorers-schedule', element: <TopScorersSchedulePage /> },
+      { path: 'footballers/sop-schedule', element: <SopSchedulePage /> },
       { path: 'competitions/:id', element: <CompetitionDetailPage /> },
       { path: 'database', element: <DatabasePage /> },
     ],

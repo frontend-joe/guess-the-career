@@ -44,7 +44,10 @@ export function FootballersPage() {
 
   const config: PersonAdminConfig<Footballer> = {
     label: 'Footballer',
-    schedulePath: '/footballers/schedule',
+    scheduleButtons: [
+      { label: 'GTC Schedule', path: '/footballers/schedule' },
+      { label: 'SOP Schedule', path: '/footballers/sop-schedule' },
+    ],
     addPath: '/footballers/add',
     detailPath: (id) => `/footballers/${id}`,
     rescrapeUrl: '/api/footballers/rescrape-all',

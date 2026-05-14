@@ -1,5 +1,7 @@
+import React from 'react'
+
 export interface ProgressRound {
-  name: string;
+  name: React.ReactNode;
   subtitle?: string;
   guessed: number;
   total: number;
