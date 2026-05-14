@@ -148,6 +148,11 @@ export function StyleOfPlayPage() {
   const [showFinalScore, setShowFinalScore] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [roundIndex, showProgress])
 
   useEffect(() => {
     setLoading(true)
@@ -271,7 +276,7 @@ export function StyleOfPlayPage() {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
         {loading && (
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">Loading schedule…</div>
         )}
