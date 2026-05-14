@@ -12,7 +12,6 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-const LETTER = `[a-zA-ZÀ-ÖØ-öø-ÿ]`
 const NOT_BEFORE = `(?<![a-zA-ZÀ-ÖØ-öø-ÿ0-9])`
 const NOT_AFTER  = `(?![a-zA-ZÀ-ÖØ-öø-ÿ0-9])`
 
