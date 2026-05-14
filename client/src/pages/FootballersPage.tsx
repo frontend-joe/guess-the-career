@@ -56,6 +56,17 @@ export function FootballersPage() {
     rescrapePerson: (id) => rescrapeFootballer(id),
     updatePhotoUrl: (id, url) => updateFootballer(id, { photo_url: url }).then(() => {}),
     updateCustomPosition: (id, val) => updateFootballer(id, { custom_position: val }).then(() => {}),
+    customPositionOptions: [
+      { abbr: 'GK', value: 'Goalkeeper' },
+      { abbr: 'RB', value: 'Right Back' },
+      { abbr: 'LB', value: 'Left Back' },
+      { abbr: 'CB', value: 'Centre Back' },
+      { abbr: 'DM', value: 'Defensive Midfielder' },
+      { abbr: 'CM', value: 'Central Midfielder' },
+      { abbr: 'AM', value: 'Attacking Midfielder' },
+      { abbr: 'WG', value: 'Winger' },
+      { abbr: 'ST', value: 'Striker' },
+    ],
     filterPeople: (missingNationality || missingPhoto || singleGenericPosition)
       ? (people) => people.filter(f =>
           (!missingNationality || !f.nationality) &&

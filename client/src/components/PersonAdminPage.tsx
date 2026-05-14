@@ -356,6 +356,11 @@ export interface ExtraColumn<T> {
   render: (item: T) => React.ReactNode
 }
 
+export interface CustomPositionOption {
+  abbr: string
+  value: string
+}
+
 export interface PersonAdminConfig<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null; custom_position?: string | null }> {
   label: string
   schedulePath: string
@@ -372,6 +377,7 @@ export interface PersonAdminConfig<T extends { id: number; name: string; wikiped
   rescrapePerson?: (id: number) => Promise<unknown>
   updatePhotoUrl?: (id: number, url: string | null) => Promise<void>
   updateCustomPosition?: (id: number, value: string | null) => Promise<void>
+  customPositionOptions?: CustomPositionOption[]
 }
 
 export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null; custom_position?: string | null }>({
@@ -476,7 +482,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   const dirtyCustomPositionIds = useMemo(
     () => [...customPositionEdits.entries()].filter(([id, val]) => {
       const original = people.find(p => p.id === id)?.custom_position ?? ''
-      return val !== (original ?? '')
+      return val !== original
     }).map(([id]) => id),
     [customPositionEdits, people],
   )
@@ -632,7 +638,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                     <TableHead key={col.header} className={col.className}>{col.header}</TableHead>
                   ))}
                   {config.updateCustomPosition && (
-                    <TableHead className="min-w-48">
+                    <TableHead className="min-w-64">
                       <div className="flex items-center justify-between gap-2">
                         <span>Custom Position</span>
                         {dirtyCustomPositionIds.length > 0 && (
@@ -682,12 +688,31 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                     ))}
                     {config.updateCustomPosition && (
                       <TableCell>
-                        <Input
-                          value={customPositionEdits.get(item.id) ?? item.custom_position ?? ''}
-                          onChange={e => setCustomPositionEdits(prev => new Map(prev).set(item.id, e.target.value))}
-                          placeholder="e.g. Right back"
-                          className={`h-7 text-xs ${dirtyCustomPositionIds.includes(item.id) ? 'border-amber-400' : ''}`}
-                        />
+                        <div className="flex flex-wrap gap-1">
+                          {(config.customPositionOptions ?? []).map(opt => {
+                            const displayValue = customPositionEdits.get(item.id) ?? item.custom_position ?? ''
+                            const active = displayValue.split(',').map(s => s.trim()).some(v => v.toLowerCase() === opt.value.toLowerCase())
+                            return (
+                              <button
+                                key={opt.abbr}
+                                title={opt.value}
+                                onClick={() => {
+                                  const current = displayValue.split(',').map(s => s.trim()).filter(Boolean)
+                                  const idx = current.findIndex(v => v.toLowerCase() === opt.value.toLowerCase())
+                                  if (idx >= 0) { current.splice(idx, 1) } else { current.push(opt.value) }
+                                  setCustomPositionEdits(prev => new Map(prev).set(item.id, current.join(', ')))
+                                }}
+                                className={`h-6 px-1.5 rounded text-xs font-semibold border transition-colors cursor-pointer ${
+                                  active
+                                    ? 'bg-green-600 text-white border-green-600'
+                                    : 'bg-transparent text-muted-foreground border-border hover:border-foreground hover:text-foreground'
+                                }`}
+                              >
+                                {opt.abbr}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </TableCell>
                     )}
                     {config.updatePhotoUrl && (
