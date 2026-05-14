@@ -212,6 +212,7 @@ export function PositionKnowledgePage() {
 
   // ── LOBBY ──────────────────────────────────────────────────────────────────
   if (view === 'lobby') {
+    const formValid = !!(selectedNation && selectedPosition)
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#1a1a2e]">
         {/* Header */}
@@ -223,7 +224,7 @@ export function PositionKnowledgePage() {
           <div className="w-8" />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-6">
           {/* Nation picker */}
           <div>
             <p className="text-white/50 text-xs font-semibold uppercase tracking-widest mb-3">Select a nation</p>
@@ -277,16 +278,23 @@ export function PositionKnowledgePage() {
               </div>
             </div>
           )}
+        </div>
 
-          {/* Start button */}
-          {selectedNation && selectedPosition && (
-            <button
-              onClick={handleStart}
-              className="w-full flex items-center justify-center gap-2 bg-white text-[#1a1a2e] font-bold text-sm py-3 rounded-xl"
-            >
-              {`Start — ${NATION_ADJECTIVE[selectedNation]} ${positionLabel}s`}
-            </button>
-          )}
+        {/* Start button — fixed to bottom */}
+        <div className="shrink-0 px-4 py-4 border-t border-white/10">
+          <button
+            onClick={handleStart}
+            disabled={!formValid}
+            className={`w-full flex items-center justify-center gap-2 font-bold text-sm py-3 rounded-xl transition-colors ${
+              formValid
+                ? 'bg-white text-[#1a1a2e]'
+                : 'bg-white/20 text-white/40 cursor-not-allowed'
+            }`}
+          >
+            {formValid
+              ? `Start — ${NATION_ADJECTIVE[selectedNation!]} ${positionLabel}s`
+              : 'Select a nation and position'}
+          </button>
         </div>
       </div>
     )
