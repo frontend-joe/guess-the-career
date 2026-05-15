@@ -242,7 +242,7 @@ export function GoalRatiosPage() {
                         <tr key={j} style={{ background: j % 2 === 0 ? '#ffffff' : '#f8f9fa' }}>
                           <td className="px-1.5 py-0.5 text-gray-600 border border-[#a2a9b1] whitespace-nowrap">{stint.years}</td>
                           <td className="px-1.5 py-0.5 text-gray-800 border border-[#a2a9b1]">
-                            {isLoan ? <span className="italic text-gray-600">{clubName} <span className="not-italic text-gray-400">(loan)</span></span> : clubName}
+                            {isLoan ? <>{clubName} <span className="text-gray-400">(loan)</span></> : clubName}
                           </td>
                           <td className="px-1.5 py-0.5 text-gray-800 text-right border border-[#a2a9b1]">{stint.apps}</td>
                           <td className="px-1.5 py-0.5 text-gray-800 text-right font-semibold border border-[#a2a9b1]">{stint.goals}</td>
