@@ -6,6 +6,7 @@ import {
   type GoalRatiosPlayer,
 } from '@/api/goal-ratios'
 import { NationalityFlag } from '@/components/NationalityFlag'
+import { MiniClubBadge } from '@/components/MiniClubBadge'
 
 function normalizeName(name: string): string {
   return name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
@@ -213,11 +214,12 @@ export function GoalRatiosPage() {
                 {/* Flag + name row */}
                 <div className="flex items-center gap-2 mb-2">
                   <NationalityFlag nationality={player.nationality} size={20} />
+                  <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
                   {player.found
                     ? <p className="text-sm font-semibold text-green-700 truncate">{player.name}</p>
                     : <span className="inline-block align-middle" style={{
                         width: '8em',
-                        height: '1.3em',
+                        height: '1em',
                         backgroundColor: '#eff6ff',
                         border: '1.5px solid #3b82f6',
                         borderRadius: '3px',
@@ -227,6 +229,13 @@ export function GoalRatiosPage() {
                         backgroundRepeat: 'no-repeat',
                       }} />
                   }
+                  {player.mainClub && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-xs text-gray-400">Main Club:</span>
+                      <MiniClubBadge club={player.mainClub} wikipediaUrl={player.mainClubWikipediaUrl} />
+                    </div>
+                  )}
+                  </div>
                 </div>
 
                 {/* Wiki-style stints table */}

@@ -7,6 +7,10 @@ interface GoalRatiosRow {
   id: number
   name: string
   nationality: string | null
+  position: string | null
+  custom_position: string | null
+  main_club: string | null
+  main_club_wikipedia_url: string | null
   years: string
   club: string
   apps: number
@@ -18,7 +22,23 @@ goalRatiosRouter.get('/players', (c) => {
   const rows = sqlite
     .prepare(
       `
-      SELECT f.id, f.name, f.nationality,
+      SELECT f.id, f.name, f.nationality, f.position, f.custom_position,
+             (
+               SELECT cs2.club FROM career_stints cs2
+               WHERE cs2.footballer_id = f.id
+                 AND cs2.stint_type = 'senior'
+                 AND cs2.apps IS NOT NULL
+                 AND cs2.club NOT LIKE '→%'
+               ORDER BY cs2.apps DESC LIMIT 1
+             ) AS main_club,
+             (
+               SELECT cs2.club_wikipedia_url FROM career_stints cs2
+               WHERE cs2.footballer_id = f.id
+                 AND cs2.stint_type = 'senior'
+                 AND cs2.apps IS NOT NULL
+                 AND cs2.club NOT LIKE '→%'
+               ORDER BY cs2.apps DESC LIMIT 1
+             ) AS main_club_wikipedia_url,
              cs.years, cs.club, cs.apps, cs.goals
       FROM footballers f
       JOIN career_stints cs ON cs.footballer_id = f.id
@@ -35,12 +55,12 @@ goalRatiosRouter.get('/players', (c) => {
   // Group stints by footballer
   const map = new Map<
     number,
-    { id: number; name: string; nationality: string | null; stints: { years: string; club: string; apps: number; goals: number }[] }
+    { id: number; name: string; nationality: string | null; position: string | null; mainClub: string | null; mainClubWikipediaUrl: string | null; stints: { years: string; club: string; apps: number; goals: number }[] }
   >()
 
   for (const row of rows) {
     if (!map.has(row.id)) {
-      map.set(row.id, { id: row.id, name: row.name, nationality: row.nationality, stints: [] })
+      map.set(row.id, { id: row.id, name: row.name, nationality: row.nationality, position: row.custom_position ?? row.position, mainClub: row.main_club, mainClubWikipediaUrl: row.main_club_wikipedia_url, stints: [] })
     }
     map.get(row.id)!.stints.push({ years: row.years, club: row.club, apps: row.apps, goals: row.goals })
   }

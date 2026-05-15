@@ -9,6 +9,9 @@ export interface GoalRatiosPlayer {
   id: number
   name: string
   nationality: string | null
+  position: string | null
+  mainClub: string | null
+  mainClubWikipediaUrl: string | null
   stints: GoalRatiosStint[]
 }
 
