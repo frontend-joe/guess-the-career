@@ -26,7 +26,7 @@ goalRatiosRouter.get('/players', (c) => {
         AND cs.apps IS NOT NULL
         AND cs.goals IS NOT NULL
         AND cs.apps >= 3
-        AND cs.goals > cs.apps
+        AND cs.goals >= cs.apps * 0.88
       ORDER BY f.name ASC, cs.sort_order ASC
     `,
     )

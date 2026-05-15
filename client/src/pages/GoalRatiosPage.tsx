@@ -215,7 +215,17 @@ export function GoalRatiosPage() {
                   <NationalityFlag nationality={player.nationality} size={20} />
                   {player.found
                     ? <p className="text-sm font-semibold text-green-700 truncate">{player.name}</p>
-                    : <div className="h-px bg-gray-300 w-32" />
+                    : <span className="inline-block align-middle" style={{
+                        width: '8em',
+                        height: '1.3em',
+                        backgroundColor: '#eff6ff',
+                        border: '1.5px solid #3b82f6',
+                        borderRadius: '3px',
+                        backgroundImage: 'linear-gradient(#2563eb, #2563eb)',
+                        backgroundSize: 'calc(100% - 8px) 1px',
+                        backgroundPosition: '4px calc(100% - 4px)',
+                        backgroundRepeat: 'no-repeat',
+                      }} />
                   }
                 </div>
 
