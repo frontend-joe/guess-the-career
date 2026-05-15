@@ -4,9 +4,10 @@ import { nationalityToFlagUrl } from '@/lib/flags'
 interface Props {
   nationality: string | null | undefined
   className?: string
+  size?: number
 }
 
-export function NationalityFlag({ nationality, className }: Props) {
+export function NationalityFlag({ nationality, className, size }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -28,6 +29,7 @@ export function NationalityFlag({ nationality, className }: Props) {
         src={url}
         alt={nationality ?? ''}
         className={className ?? 'w-4 h-4 object-cover border border-[#ebebeb] shrink-0'}
+        style={size != null ? { width: size, height: size, objectFit: 'cover' } : undefined}
         onClick={() => setOpen(v => !v)}
       />
       {open && (

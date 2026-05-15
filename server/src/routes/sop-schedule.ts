@@ -65,7 +65,7 @@ sopScheduleRouter.get('/available', (c) => {
 // GET /api/sop-schedule/rounds — game rounds with blanked text
 sopScheduleRouter.get('/rounds', (c) => {
   const rows = sqlite.prepare(`
-    SELECT ss.date, f.id AS footballer_id, f.name AS footballer_name, f.style_of_play
+    SELECT ss.date, f.id AS footballer_id, f.name AS footballer_name, f.style_of_play, f.nationality
     FROM sop_schedule ss
     JOIN footballers f ON f.id = ss.footballer_id
     WHERE ss.footballer_id IS NOT NULL AND f.style_of_play IS NOT NULL
@@ -75,12 +75,14 @@ sopScheduleRouter.get('/rounds', (c) => {
     footballer_id: number
     footballer_name: string
     style_of_play: string
+    nationality: string | null
   }[]
 
   const rounds = rows.map(r => ({
     date: r.date,
     footballerId: r.footballer_id,
     footballerName: r.footballer_name,
+    nationality: r.nationality,
     styleOfPlay: blankName(r.style_of_play, r.footballer_name),
     historyText: blankName(r.style_of_play, r.footballer_name).slice(0, 40),
   }))

@@ -32,6 +32,7 @@ import { TopScorersSchedulePage } from '@/pages/TopScorersSchedulePage'
 import { PositionKnowledgePage } from '@/pages/PositionKnowledgePage'
 import { StyleOfPlayPage } from '@/pages/StyleOfPlayPage'
 import { SopSchedulePage } from '@/pages/SopSchedulePage'
+import { GoalRatiosPage } from '@/pages/GoalRatiosPage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
   { path: '/play/top-scorers', element: <TopScorersPage /> },
   { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
   { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
+  { path: '/play/goal-ratios', element: <GoalRatiosPage /> },
   {
     path: '/',
     element: <Layout />,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router'
 import { Home, ChevronRight, ChevronLeft, Shuffle, Trophy, X } from 'lucide-react'
+import { NationalityFlag } from '@/components/NationalityFlag'
 import { OverallProgressScreen } from '@/components/OverallProgressScreen'
 import { getSopRounds, type SopRound } from '@/api/sop-schedule'
 import { getFootballers, type Footballer } from '@/api/footballers'
@@ -312,8 +313,9 @@ export function StyleOfPlayPage() {
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
           <div className="px-4 pt-5 pb-3">
             <div className="bg-white rounded-xl border border-gray-200 px-5 py-6 shadow-sm">
-              <div className="border-b border-gray-300 mb-4 pb-1">
+              <div className="border-b border-gray-300 mb-4 pb-1 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900">Style of play</h2>
+                <NationalityFlag nationality={currentRound.nationality} size={20} />
               </div>
               <p
                 className="text-gray-900 leading-7 text-base whitespace-pre-wrap"
