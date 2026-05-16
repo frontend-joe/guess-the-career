@@ -301,8 +301,8 @@ export function StyleOfPlayPage() {
           <OverallProgressScreen
             totalGuessed={totalGuessed}
             totalPlayers={totalPlayers}
-            rounds={rounds.map(r => ({
-              name: <>{renderHistoryText(r.historyText, r.state === 'cleared', r.footballerName)}{r.historyText.length >= 40 ? '…' : ''}</>,
+            rounds={rounds.map((r, i) => ({
+              name: <><span className="text-gray-400 mr-1">#{i + 1}</span>{renderHistoryText(r.historyText, r.state === 'cleared', r.footballerName)}{r.historyText.length >= 40 ? '…' : ''}</>,
               guessed: r.state === 'cleared' ? 1 : 0,
               total: 1,
             }))}
@@ -511,7 +511,7 @@ function FinalScore({
                 <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-gray-900">
-                      {renderHistoryText(r.historyText, cleared, r.footballerName)}{r.historyText.length >= 40 ? '…' : ''}
+                      <span className="text-gray-400 mr-1">#{i + 1}</span>{renderHistoryText(r.historyText, cleared, r.footballerName)}{r.historyText.length >= 40 ? '…' : ''}
                     </p>
                     <p className="text-xs text-gray-500">{r.date}</p>
                   </div>
