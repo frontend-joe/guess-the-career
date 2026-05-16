@@ -332,9 +332,8 @@ export function TwoClubsPage() {
     }
   })
 
-  const allStates = Object.values(roundStates)
-  const totalGuessed = allStates.reduce((sum, s) => sum + Math.min(s.guessedIds.size, TARGET), 0)
-  const totalPlayers = allStates.filter(s => s.guessedIds.size > 0).length * TARGET
+  const totalGuessed = Object.values(roundStates).reduce((sum, s) => sum + Math.min(s.guessedIds.size, TARGET), 0)
+  const totalPlayers = rounds.length * TARGET
 
   const guessedCount = currentState?.guessedIds.size ?? 0
   const isDone = guessedCount >= TARGET
