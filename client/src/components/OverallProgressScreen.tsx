@@ -44,11 +44,13 @@ export function OverallProgressScreen({
   totalPlayers,
   rounds,
   onRoundClick,
+  label = 'answered',
 }: {
   totalGuessed: number;
   totalPlayers: number;
   rounds: ProgressRound[];
   onRoundClick?: (index: number) => void;
+  label?: string;
 }) {
   const pct =
     totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0;
@@ -58,7 +60,7 @@ export function OverallProgressScreen({
       <RadialChart pct={pct} />
 
       <p className="text-gray-500 text-sm">
-        {totalGuessed} / {totalPlayers} answered
+        {totalGuessed} / {totalPlayers} {label}
       </p>
 
       <div className="w-full flex flex-col gap-2">

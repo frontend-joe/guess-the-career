@@ -332,8 +332,8 @@ export function TwoClubsPage() {
     }
   })
 
-  const totalGuessed = Object.values(roundStates).reduce((sum, s) => sum + Math.min(s.guessedIds.size, TARGET), 0)
-  const totalPlayers = rounds.length * TARGET
+  const totalGuessed = Object.values(roundStates).filter(s => s.guessedIds.size >= TARGET).length
+  const totalPlayers = rounds.length
 
   const guessedCount = currentState?.guessedIds.size ?? 0
   const isDone = guessedCount >= TARGET
@@ -386,6 +386,7 @@ export function TwoClubsPage() {
             totalPlayers={totalPlayers}
             rounds={progressRounds}
             onRoundClick={i => { setRoundIndex(i); setShowProgress(false) }}
+            label="completed"
           />
         </div>
       ) : (
