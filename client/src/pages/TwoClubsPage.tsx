@@ -315,9 +315,6 @@ export function TwoClubsPage() {
   }
 
   // ── Progress screen ───────────────────────────────────────────────────────
-  const todayIso = new Date().toISOString().split('T')[0]
-  const pastRounds = rounds.filter(r => r.date <= todayIso)
-
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
     const key = pairKey(r.clubA, r.clubB)
     const state = roundStates[key]
@@ -335,12 +332,9 @@ export function TwoClubsPage() {
     }
   })
 
-  const playedRounds = rounds.filter(r => (roundStates[pairKey(r.clubA, r.clubB)]?.guessedIds.size ?? 0) > 0)
-  const totalGuessed = playedRounds.reduce((sum, r) => {
-    const state = roundStates[pairKey(r.clubA, r.clubB)]
-    return sum + Math.min(state?.guessedIds.size ?? 0, TARGET)
-  }, 0)
-  const totalPlayers = playedRounds.length * TARGET
+  const allStates = Object.values(roundStates)
+  const totalGuessed = allStates.reduce((sum, s) => sum + Math.min(s.guessedIds.size, TARGET), 0)
+  const totalPlayers = allStates.filter(s => s.guessedIds.size > 0).length * TARGET
 
   const guessedCount = currentState?.guessedIds.size ?? 0
   const isDone = guessedCount >= TARGET
