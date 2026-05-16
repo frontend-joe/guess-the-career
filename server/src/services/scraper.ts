@@ -1969,7 +1969,9 @@ function normalizeYears(raw: string): string {
 
 export function isRetired(stints: { stint_type: string; years: string }[]): boolean {
   return !stints.some(
-    (s) => s.stint_type === "senior" && s.years.toLowerCase().includes("present"),
+    (s) =>
+      s.stint_type === "senior" &&
+      (s.years.toLowerCase().includes("present") || /[–\-]$/.test(s.years.trim())),
   );
 }
 
