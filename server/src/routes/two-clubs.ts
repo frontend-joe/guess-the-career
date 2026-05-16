@@ -353,7 +353,7 @@ twoClubsRouter.post(
 
     // Step 3: footballer not in DB at all — try Wikipedia name search
     try {
-      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(footballerName + ' footballer')}&format=json&srlimit=1`
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(footballerName + ' ' + clubA)}&format=json&srlimit=1`
       const searchRes = await fetch(searchUrl, { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } })
       if (!searchRes.ok) throw new Error('Wikipedia search failed')
       const searchData = await searchRes.json() as { query?: { search?: { title: string }[] } }
