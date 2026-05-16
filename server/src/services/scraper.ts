@@ -1088,7 +1088,8 @@ export function deriveCompetition(matchName: string): string {
 }
 
 export function normalizeClubAlias(club: string): string {
-  return CLUB_ALIASES[club] ?? club;
+  const stripped = club.replace(/^→\s*/, "").replace(/\s*\(loan\)\s*$/i, "").trim();
+  return CLUB_ALIASES[stripped] ?? stripped;
 }
 
 // Expands a wikitable into a full row×col grid, filling in cells that span
