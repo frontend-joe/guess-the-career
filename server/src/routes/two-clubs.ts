@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { db, sqlite } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
-import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia } from '../services/scraper.ts'
+import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia, isRetired } from '../services/scraper.ts'
 
 export const twoClubsRouter = new Hono()
 
@@ -219,7 +219,7 @@ twoClubsRouter.post(
       const seniorStints = scraped.stints.filter(s => s.stint_type === 'senior')
       const stintClubs = seniorStints.map(s => s.club)
 
-      if (!hasClub(stintClubs, clubA) || !hasClub(stintClubs, clubB)) {
+      if (!hasClub(stintClubs, clubA) || !hasClub(stintClubs, clubB) || !isRetired(scraped.stints)) {
         return c.json({ valid: false, footballer: null, imported: false })
       }
 

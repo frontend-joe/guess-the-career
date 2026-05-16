@@ -1967,6 +1967,12 @@ function normalizeYears(raw: string): string {
   return raw.replace(/[-‒—]/g, "–").trim();
 }
 
+export function isRetired(stints: { stint_type: string; years: string }[]): boolean {
+  return !stints.some(
+    (s) => s.stint_type === "senior" && s.years.toLowerCase().includes("present"),
+  );
+}
+
 function parseNumber(raw: string): number | null {
   // Strip parentheses (goals are shown as "(250)")
   const cleaned = raw.replace(/[()]/g, "").replace(/,/g, "").trim();

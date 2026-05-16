@@ -4,7 +4,7 @@ import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { db, sqlite } from "../db/client.ts";
 import { footballers, career_stints } from "../db/schema.ts";
-import { scrapeWikipedia } from "../services/scraper.ts";
+import { scrapeWikipedia, isRetired } from "../services/scraper.ts";
 
 export const positionKnowledgeRouter = new Hono();
 
@@ -342,7 +342,8 @@ positionKnowledgeRouter.post(
 
       if (
         !matchesNation(scraped.nationality, nation) ||
-        !matchesPosition(scraped.position, scraped.all_positions, null, position)
+        !matchesPosition(scraped.position, scraped.all_positions, null, position) ||
+        !isRetired(scraped.stints)
       ) {
         return c.json({ valid: false, footballer: null, imported: false });
       }
