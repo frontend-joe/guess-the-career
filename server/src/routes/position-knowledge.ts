@@ -260,6 +260,7 @@ positionKnowledgeRouter.post(
             .set({
               position: scraped.position,
               all_positions: scraped.all_positions ?? null,
+              style_of_play: scraped.style_of_play ?? null,
               nationality: scraped.nationality ?? footballer.nationality,
               updated_at: sql`(datetime('now'))`,
             })
@@ -267,7 +268,7 @@ positionKnowledgeRouter.post(
           const n = scraped.nationality ?? footballer.nationality;
           if (
             matchesNation(n, nation) &&
-            matchesPosition(scraped.position, scraped.all_positions, null, position)
+            matchesPosition(scraped.position, scraped.all_positions, scraped.style_of_play ?? null, position)
           ) {
             return c.json({
               valid: true,
@@ -342,7 +343,7 @@ positionKnowledgeRouter.post(
 
       if (
         !matchesNation(scraped.nationality, nation) ||
-        !matchesPosition(scraped.position, scraped.all_positions, null, position) ||
+        !matchesPosition(scraped.position, scraped.all_positions, scraped.style_of_play ?? null, position) ||
         !isRetired(scraped.stints)
       ) {
         return c.json({ valid: false, footballer: null, imported: false });
@@ -356,6 +357,7 @@ positionKnowledgeRouter.post(
           nationality: scraped.nationality,
           position: scraped.position,
           all_positions: scraped.all_positions ?? null,
+          style_of_play: scraped.style_of_play ?? null,
           born: scraped.born,
           height_cm: scraped.height_cm ?? null,
           photo_url: scraped.photo_url ?? null,
