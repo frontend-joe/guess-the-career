@@ -67,20 +67,24 @@ sopScheduleRouter.get('/rounds', (c) => {
   const rows = sqlite.prepare(`
     SELECT ss.date, f.id AS footballer_id, f.name AS footballer_name, f.style_of_play, f.nationality,
            (
-             SELECT SUBSTR(cs2.years, 1, 4)
+             SELECT CAST(MIN(CAST(SUBSTR(cs2.years, 1, 4) AS INTEGER)) AS TEXT)
              FROM career_stints cs2
              WHERE cs2.footballer_id = f.id AND cs2.stint_type = 'senior'
-             ORDER BY cs2.sort_order ASC LIMIT 1
+               AND CAST(SUBSTR(cs2.years, 1, 4) AS INTEGER) BETWEEN 1900 AND 2099
            ) AS career_start,
            (
              SELECT CASE
-               WHEN cs2.years LIKE '%present' THEN 'present'
-               WHEN LENGTH(cs2.years) > 4 THEN SUBSTR(cs2.years, 6, 4)
-               ELSE SUBSTR(cs2.years, 1, 4)
+               WHEN SUM(CASE WHEN cs2.years LIKE '%present%' THEN 1 ELSE 0 END) > 0 THEN 'present'
+               ELSE CAST(MAX(
+                 CASE
+                   WHEN CAST(SUBSTR(cs2.years, -4) AS INTEGER) BETWEEN 1900 AND 2099
+                     THEN CAST(SUBSTR(cs2.years, -4) AS INTEGER)
+                   ELSE CAST(SUBSTR(cs2.years, 1, 4) AS INTEGER)
+                 END
+               ) AS TEXT)
              END
              FROM career_stints cs2
              WHERE cs2.footballer_id = f.id AND cs2.stint_type = 'senior'
-             ORDER BY cs2.sort_order DESC LIMIT 1
            ) AS career_end
     FROM sop_schedule ss
     JOIN footballers f ON f.id = ss.footballer_id
