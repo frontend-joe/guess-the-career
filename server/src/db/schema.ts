@@ -218,10 +218,27 @@ export const sop_leaderboard = sqliteTable('sop_leaderboard', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const two_clubs_schedule = sqliteTable('two_clubs_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  club_a: text('club_a').notNull(),
+  club_b: text('club_b').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const two_clubs_enabled_pairs = sqliteTable('two_clubs_enabled_pairs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  club_a: text('club_a').notNull(),
+  club_b: text('club_b').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export type TopScorersScheduleEntry = typeof top_scorers_schedule.$inferSelect
 export type TopScorersLeaderboardEntry = typeof top_scorers_leaderboard.$inferSelect
 export type SopScheduleEntry = typeof sop_schedule.$inferSelect
 export type SopLeaderboardEntry = typeof sop_leaderboard.$inferSelect
+export type TwoClubsEnabledPair = typeof two_clubs_enabled_pairs.$inferSelect
+export type TwoClubsScheduleEntry = typeof two_clubs_schedule.$inferSelect
 
 export type Competition = typeof competitions.$inferSelect
 export type NewCompetition = typeof competitions.$inferInsert

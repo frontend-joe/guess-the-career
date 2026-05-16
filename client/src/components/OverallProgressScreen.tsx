@@ -3,6 +3,7 @@ import React from 'react'
 export interface ProgressRound {
   name: React.ReactNode;
   subtitle?: string;
+  icon?: React.ReactNode;
   guessed: number;
   total: number;
 }
@@ -71,6 +72,7 @@ export function OverallProgressScreen({
               onClick={() => onRoundClick?.(i)}
               className={`flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100 ${onRoundClick ? "cursor-pointer active:bg-gray-50" : ""}`}
             >
+              {r.icon && <div className="shrink-0">{r.icon}</div>}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-gray-900 truncate">
                   {r.name}

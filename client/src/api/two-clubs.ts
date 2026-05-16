@@ -11,6 +11,7 @@ export interface VerifyResult {
   valid: boolean
   footballer: { id: number; name: string; photo_url: string | null } | null
   imported: boolean
+  reason?: string
 }
 
 const STORAGE_KEY = 'tcl_played'

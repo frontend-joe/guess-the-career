@@ -8,13 +8,15 @@ import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia, isRetired } from '..
 
 export const twoClubsRouter = new Hono()
 
-// Build the full list of club name variants (canonical + all aliases)
+// Build the full list of club name variants (canonical + all aliases + loan-prefix forms)
 function getClubVariants(clubName: string): string[] {
   const canonical = normalizeClubAlias(clubName)
   const aliases = Object.entries(CLUB_ALIASES)
     .filter(([, v]) => v === canonical)
     .map(([k]) => k)
-  return [canonical, ...aliases]
+  const base = [canonical, ...aliases]
+  // Loan stints are stored with a "→ " prefix — include those forms too
+  return [...base, ...base.map(v => `→ ${v}`)]
 }
 
 function hasClub(stintClubs: string[], targetClub: string): boolean {
@@ -34,22 +36,12 @@ function buildClubMap(stints: StintRow[]): Map<string, Set<number>> {
   return map
 }
 
-// GET /api/two-clubs/session
-twoClubsRouter.get('/session', async (c) => {
-  const excludeParam = c.req.query('exclude') ?? ''
-  const excludedPairs = new Set(
-    excludeParam ? excludeParam.split(',').map(p => p.trim()).filter(Boolean) : []
-  )
+const reserveRe = /\s(B|C|II|III|IV|reserves?|under[- ]?\d+|u\d+|youth|academy)$/i
 
-  const stints = sqlite.prepare(
-    `SELECT footballer_id, club FROM career_stints WHERE stint_type = 'senior'`
-  ).all() as StintRow[]
-
+function findValidPairs(stints: StintRow[]): [string, string, number][] {
   const clubMap = buildClubMap(stints)
-  const reserveRe = /\s(B|C|II|III|IV|reserves?|under[- ]?\d+|u\d+|youth|academy)$/i
   const clubNames = [...clubMap.keys()].filter(name => !reserveRe.test(name.trim()))
 
-  // Find all pairs with >= 5 shared players
   const validPairs: [string, string, number][] = []
   for (let i = 0; i < clubNames.length; i++) {
     for (let j = i + 1; j < clubNames.length; j++) {
@@ -61,9 +53,35 @@ twoClubsRouter.get('/session', async (c) => {
       if (shared >= 5) validPairs.push([a, b, shared])
     }
   }
+  return validPairs
+}
+
+// GET /api/two-clubs/session
+twoClubsRouter.get('/session', async (c) => {
+  const excludeParam = c.req.query('exclude') ?? ''
+  const excludedPairs = new Set(
+    excludeParam ? excludeParam.split(',').map(p => p.trim()).filter(Boolean) : []
+  )
+
+  const stints = sqlite.prepare(
+    `SELECT footballer_id, club FROM career_stints WHERE stint_type = 'senior'`
+  ).all() as StintRow[]
+
+  let validPairs = findValidPairs(stints)
 
   if (validPairs.length === 0) {
     return c.json({ error: 'No valid club pairs found in database' }, 404)
+  }
+
+  // If any pairs are enabled, restrict to those
+  const enabledRows = sqlite.prepare(
+    `SELECT club_a, club_b FROM two_clubs_enabled_pairs`
+  ).all() as { club_a: string; club_b: string }[]
+
+  if (enabledRows.length > 0) {
+    const enabledSet = new Set(enabledRows.map(r => `${r.club_a}|||${r.club_b}`))
+    const filtered = validPairs.filter(([a, b]) => enabledSet.has(`${a}|||${b}`) || enabledSet.has(`${b}|||${a}`))
+    if (filtered.length > 0) validPairs = filtered
   }
 
   // Filter out excluded pairs, fall back to all if exhausted
@@ -82,6 +100,152 @@ twoClubsRouter.get('/session', async (c) => {
     clubB,
     clubBWikiUrl: clubBRow?.wikipedia_url ?? null,
   })
+})
+
+// GET /api/two-clubs/admin/pairs
+twoClubsRouter.get('/admin/pairs', (c) => {
+  const stints = sqlite.prepare(
+    `SELECT footballer_id, club FROM career_stints WHERE stint_type = 'senior'`
+  ).all() as StintRow[]
+
+  const validPairs = findValidPairs(stints)
+
+  // Seed all pairs as enabled on first visit (when table is empty)
+  const existingCount = (sqlite.prepare(`SELECT COUNT(*) as n FROM two_clubs_enabled_pairs`).get() as { n: number }).n
+  if (existingCount === 0 && validPairs.length > 0) {
+    const insert = sqlite.prepare(`INSERT OR IGNORE INTO two_clubs_enabled_pairs (club_a, club_b) VALUES (?, ?)`)
+    const insertMany = sqlite.transaction((pairs: [string, string][]) => {
+      for (const [a, b] of pairs) insert.run(a, b)
+    })
+    insertMany(validPairs.map(([a, b]) => [a, b]))
+  }
+
+  const enabledRows = sqlite.prepare(
+    `SELECT club_a, club_b FROM two_clubs_enabled_pairs`
+  ).all() as { club_a: string; club_b: string }[]
+  const enabledSet = new Set(enabledRows.map(r => `${r.club_a}|||${r.club_b}`))
+
+  const result = validPairs
+    .sort((a, b) => b[2] - a[2])
+    .map(([clubA, clubB, playerCount]) => {
+      const clubARow = sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(clubA) as { wikipedia_url: string | null } | undefined
+      const clubBRow = sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(clubB) as { wikipedia_url: string | null } | undefined
+      const enabled = enabledSet.has(`${clubA}|||${clubB}`) || enabledSet.has(`${clubB}|||${clubA}`)
+      return {
+        clubA,
+        clubAWikiUrl: clubARow?.wikipedia_url ?? null,
+        clubB,
+        clubBWikiUrl: clubBRow?.wikipedia_url ?? null,
+        playerCount,
+        enabled,
+      }
+    })
+
+  return c.json(result)
+})
+
+// POST /api/two-clubs/admin/pairs/enable
+twoClubsRouter.post(
+  '/admin/pairs/enable',
+  zValidator('json', z.object({ clubA: z.string().min(1), clubB: z.string().min(1) })),
+  async (c) => {
+    const { clubA, clubB } = c.req.valid('json')
+    const a = normalizeClubAlias(clubA)
+    const b = normalizeClubAlias(clubB)
+    sqlite.prepare(
+      `INSERT OR IGNORE INTO two_clubs_enabled_pairs (club_a, club_b) VALUES (?, ?)`
+    ).run(a, b)
+    return c.json({ ok: true })
+  }
+)
+
+// DELETE /api/two-clubs/admin/pairs/enable
+twoClubsRouter.delete(
+  '/admin/pairs/enable',
+  zValidator('json', z.object({ clubA: z.string().min(1), clubB: z.string().min(1) })),
+  async (c) => {
+    const { clubA, clubB } = c.req.valid('json')
+    const a = normalizeClubAlias(clubA)
+    const b = normalizeClubAlias(clubB)
+    sqlite.prepare(
+      `DELETE FROM two_clubs_enabled_pairs WHERE (club_a = ? AND club_b = ?) OR (club_a = ? AND club_b = ?)`
+    ).run(a, b, b, a)
+    return c.json({ ok: true })
+  }
+)
+
+// GET /api/two-clubs/schedule — admin list
+twoClubsRouter.get('/schedule', (c) => {
+  const rows = sqlite.prepare(
+    `SELECT id, date, club_a, club_b, created_at FROM two_clubs_schedule ORDER BY date ASC`
+  ).all() as { id: number; date: string; club_a: string; club_b: string; created_at: string }[]
+  return c.json(rows)
+})
+
+// GET /api/two-clubs/schedule/rounds — game data with wiki URLs and player counts
+twoClubsRouter.get('/schedule/rounds', (c) => {
+  const scheduled = sqlite.prepare(
+    `SELECT date, club_a, club_b FROM two_clubs_schedule ORDER BY date ASC`
+  ).all() as { date: string; club_a: string; club_b: string }[]
+
+  if (scheduled.length === 0) return c.json([])
+
+  // Compute player counts using the pair map
+  const stints = sqlite.prepare(
+    `SELECT footballer_id, club FROM career_stints WHERE stint_type = 'senior'`
+  ).all() as StintRow[]
+  const validPairs = findValidPairs(stints)
+  const countMap = new Map<string, number>()
+  for (const [a, b, count] of validPairs) {
+    countMap.set(`${a}|||${b}`, count)
+    countMap.set(`${b}|||${a}`, count)
+  }
+
+  const rounds = scheduled.map(row => {
+    const clubARow = sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(row.club_a) as { wikipedia_url: string | null } | undefined
+    const clubBRow = sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(row.club_b) as { wikipedia_url: string | null } | undefined
+    const playerCount = countMap.get(`${row.club_a}|||${row.club_b}`) ?? countMap.get(`${row.club_b}|||${row.club_a}`) ?? 0
+    return {
+      date: row.date,
+      clubA: row.club_a,
+      clubAWikiUrl: clubARow?.wikipedia_url ?? null,
+      clubB: row.club_b,
+      clubBWikiUrl: clubBRow?.wikipedia_url ?? null,
+      playerCount,
+    }
+  })
+
+  return c.json(rounds)
+})
+
+// PUT /api/two-clubs/schedule/:date — assign a pair to a date
+twoClubsRouter.put(
+  '/schedule/:date',
+  zValidator('json', z.object({ clubA: z.string().min(1), clubB: z.string().min(1) })),
+  async (c) => {
+    const date = c.req.param('date')
+    const { clubA, clubB } = c.req.valid('json')
+    const existing = sqlite.prepare(`SELECT id FROM two_clubs_schedule WHERE date = ?`).get(date)
+    if (existing) {
+      sqlite.prepare(`UPDATE two_clubs_schedule SET club_a = ?, club_b = ? WHERE date = ?`).run(clubA, clubB, date)
+    } else {
+      sqlite.prepare(`INSERT INTO two_clubs_schedule (date, club_a, club_b) VALUES (?, ?, ?)`).run(date, clubA, clubB)
+    }
+    return c.json({ ok: true })
+  }
+)
+
+// DELETE /api/two-clubs/schedule/:date — remove a specific date
+twoClubsRouter.delete('/schedule/:date', async (c) => {
+  const date = c.req.param('date')
+  sqlite.prepare(`DELETE FROM two_clubs_schedule WHERE date = ?`).run(date)
+  return c.json({ ok: true })
+})
+
+// DELETE /api/two-clubs/schedule — clear entire schedule
+twoClubsRouter.delete('/schedule', async (c) => {
+  sqlite.prepare(`DELETE FROM two_clubs_schedule`).run()
+  return c.json({ ok: true })
 })
 
 // POST /api/two-clubs/verify
@@ -120,7 +284,6 @@ twoClubsRouter.post(
         .limit(1)
         .then(r => r[0])
 
-      // Also try partial normalization match
       if (!footballer) {
         footballer = await db.select({
           id: footballers.id,
@@ -151,7 +314,6 @@ twoClubsRouter.post(
           const scraped = await scrapeWikipedia(footballer.wikipedia_url)
           const seniorStints = scraped.stints.filter(s => s.stint_type === 'senior')
 
-          // Upsert new stints (insert only stints not already present for this footballer)
           for (const s of seniorStints) {
             const existing = sqlite.prepare(
               `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`
@@ -219,8 +381,11 @@ twoClubsRouter.post(
       const seniorStints = scraped.stints.filter(s => s.stint_type === 'senior')
       const stintClubs = seniorStints.map(s => s.club)
 
-      if (!hasClub(stintClubs, clubA) || !hasClub(stintClubs, clubB) || !isRetired(scraped.stints)) {
+      if (!hasClub(stintClubs, clubA) || !hasClub(stintClubs, clubB)) {
         return c.json({ valid: false, footballer: null, imported: false })
+      }
+      if (!isRetired(scraped.stints)) {
+        return c.json({ valid: false, footballer: null, imported: false, reason: 'not_retired' as const })
       }
 
       // Insert new footballer
@@ -262,7 +427,6 @@ twoClubsRouter.get('/answers', async (c) => {
   const clubB = c.req.query('clubB') ?? ''
   if (!clubA || !clubB) return c.json({ error: 'clubA and clubB required' }, 400)
 
-  // All known name variants for each club (canonical + aliases), lowercased for comparison
   const variantsA = getClubVariants(clubA).map(v => v.toLowerCase())
   const variantsB = getClubVariants(clubB).map(v => v.toLowerCase())
 

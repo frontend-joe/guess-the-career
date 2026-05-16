@@ -45,14 +45,12 @@ export function PositionKnowledgePage() {
   // Input state
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<Footballer[]>([])
-  const [wikiVerified, setWikiVerified] = useState<{ id: number; name: string; photo_url: string | null }[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [wrongGuess, setWrongGuess] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wikiSearchRef = useRef<string>('')
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const positionLabel = selectedPosition ? (POSITIONS.find(p => p.key === selectedPosition)?.label ?? '') : ''
@@ -88,50 +86,20 @@ export function PositionKnowledgePage() {
     setPlayers([])
     setInputValue('')
     setSuggestions([])
-    setWikiVerified([])
     setShowDropdown(false)
     setWrongGuess(null)
   }
 
   const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 2) { setSuggestions([]); setWikiVerified([]); setShowDropdown(false); return }
-
+    if (term.length < 2) { setSuggestions([]); setShowDropdown(false); return }
     getFootballers({ search: term })
       .then(results => { setSuggestions(results.slice(0, 8)); setShowDropdown(true) })
       .catch(() => {})
-
-    if (term.length >= 3 && selectedNation && selectedPosition) {
-      const searchTerm = term
-      wikiSearchRef.current = searchTerm
-      setWikiVerified([]);
-      (async () => {
-        try {
-          const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term + ' footballer')}&format=json&srlimit=5&origin=*`
-          const res = await fetch(url)
-          if (!res.ok || wikiSearchRef.current !== searchTerm) return
-          const data = await res.json() as { query?: { search?: { title: string }[] } }
-          const titles = (data.query?.search ?? []).map((r: { title: string }) => r.title.replace(/ \([^)]+\)$/, ''))
-          for (const name of titles) {
-            if (wikiSearchRef.current !== searchTerm) return
-            const result = await verifyPositionGuess(name, null, selectedNation, selectedPosition)
-            if (wikiSearchRef.current !== searchTerm) return
-            if (result.valid && result.footballer) {
-              setWikiVerified(prev => {
-                if (prev.some(p => p.id === result.footballer!.id)) return prev
-                return [...prev, result.footballer!]
-              })
-              setShowDropdown(true)
-            }
-          }
-        } catch { /* ignore */ }
-      })()
-    }
-  }, [selectedNation, selectedPosition])
+  }, [])
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setInputValue(val)
-    wikiSearchRef.current = val
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
   }
@@ -141,14 +109,12 @@ export function PositionKnowledgePage() {
 
     // Already guessed?
     if (players.some(p => p.id === id || p.name.toLowerCase() === name.toLowerCase())) {
-      setInputValue(''); setSuggestions([]); setWikiVerified([]); setShowDropdown(false)
-      wikiSearchRef.current = ''
+      setInputValue(''); setSuggestions([]); setShowDropdown(false)
       setTimeout(() => inputRef.current?.focus(), 50)
       return
     }
 
-    setInputValue(''); setSuggestions([]); setWikiVerified([]); setShowDropdown(false)
-    wikiSearchRef.current = ''
+    setInputValue(''); setSuggestions([]); setShowDropdown(false)
     setVerifying(true)
 
     let result
@@ -186,22 +152,15 @@ export function PositionKnowledgePage() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && inputValue.trim() && !verifying) {
       const term = inputValue.trim()
-      const termLower = term.toLowerCase()
-      const all = [...suggestions, ...wikiVerified.filter(w => !suggestions.some(s => s.id === w.id))]
-      const exact = all.find(s => s.name.toLowerCase() === termLower)
-      const best = exact ?? all[0]
+      const exact = suggestions.find(s => s.name.toLowerCase() === term.toLowerCase())
+      const best = exact ?? suggestions[0]
       if (best) {
         submitGuess(best.name, best.id)
       } else {
-        getFootballers({ search: term })
-          .then(results => {
-            const first = results[0]
-            submitGuess(first?.name ?? term, first?.id ?? null)
-          })
-          .catch(() => submitGuess(term, null))
+        submitGuess(term, null)
       }
     }
-    if (e.key === 'Escape') { setSuggestions([]); setWikiVerified([]); setShowDropdown(false) }
+    if (e.key === 'Escape') { setSuggestions([]); setShowDropdown(false) }
   }
 
   // Check progress badge for lobby (any saved progress for current nation selection)
@@ -343,7 +302,7 @@ export function PositionKnowledgePage() {
   return (
     <div
       className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans"
-      onClick={() => { if (showDropdown) { setSuggestions([]); setWikiVerified([]); setShowDropdown(false) } }}
+      onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
     >
       {/* Header */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
@@ -415,23 +374,19 @@ export function PositionKnowledgePage() {
             className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
             style={{ fontSize: '16px' }}
           />
-          {showDropdown && !wrongGuess && (() => {
-            const dbIds = new Set(suggestions.map(s => s.id))
-            const allItems = [...suggestions, ...wikiVerified.filter(w => !dbIds.has(w.id))]
-            return allItems.length > 0 && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-                {allItems.map(f => (
-                  <button
-                    key={f.id}
-                    onMouseDown={e => { e.preventDefault(); submitGuess(f.name, f.id) }}
-                    className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                  >
-                    {f.name}
-                  </button>
-                ))}
-              </div>
-            )
-          })()}
+          {showDropdown && !wrongGuess && suggestions.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
+              {suggestions.map(f => (
+                <button
+                  key={f.id}
+                  onMouseDown={e => { e.preventDefault(); submitGuess(f.name, f.id) }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
