@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router'
 import { Home, Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react'
 import { getFootballers } from '@/api/footballers'
 import { getTwoClubsScheduleRounds, type TwoClubsScheduleRound } from '@/api/two-clubs-schedule'
@@ -151,6 +152,7 @@ interface RoundState {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function TwoClubsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [rounds, setRounds] = useState<TwoClubsScheduleRound[]>([])
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({})
   const [roundIndex, setRoundIndex] = useState(0)
@@ -187,17 +189,25 @@ export function TwoClubsPage() {
         setRoundStates(states)
 
         const todayIso = new Date().toISOString().split('T')[0]
+        const numParam = parseInt(searchParams.get('round') ?? '', 10)
+        const paramIdx = !isNaN(numParam) ? Math.max(0, Math.min(numParam - 1, data.length - 1)) : -1
         const todayIdx = data.findIndex(r => r.date === todayIso)
         const pastRounds = data.filter(r => r.date <= todayIso)
-        const idx = todayIdx >= 0 ? todayIdx : pastRounds.length > 0 ? pastRounds.length - 1 : 0
+        const idx = paramIdx >= 0 ? paramIdx : todayIdx >= 0 ? todayIdx : pastRounds.length > 0 ? pastRounds.length - 1 : 0
         setRoundIndex(idx)
       })
       .catch(() => setError('Failed to load schedule'))
       .finally(() => setLoading(false))
   }, [])
 
-  // ── Fetch players for current round ───────────────────────────────────────
+  // ── Sync round index to URL ───────────────────────────────────────────────
   const currentRound = rounds[roundIndex]
+  useEffect(() => {
+    if (!currentRound) return
+    setSearchParams({ round: String(roundIndex + 1) }, { replace: true })
+  }, [roundIndex, currentRound]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch players for current round ───────────────────────────────────────
   const currentKey = currentRound ? pairKey(currentRound.clubA, currentRound.clubB) : null
   const currentState = currentKey ? roundStates[currentKey] : null
 
