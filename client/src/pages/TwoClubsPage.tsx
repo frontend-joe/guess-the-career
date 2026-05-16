@@ -335,11 +335,12 @@ export function TwoClubsPage() {
     }
   })
 
-  const totalGuessed = pastRounds.reduce((sum, r) => {
+  const playedRounds = rounds.filter(r => (roundStates[pairKey(r.clubA, r.clubB)]?.guessedIds.size ?? 0) > 0)
+  const totalGuessed = playedRounds.reduce((sum, r) => {
     const state = roundStates[pairKey(r.clubA, r.clubB)]
     return sum + Math.min(state?.guessedIds.size ?? 0, TARGET)
   }, 0)
-  const totalPlayers = pastRounds.length * TARGET
+  const totalPlayers = playedRounds.length * TARGET
 
   const guessedCount = currentState?.guessedIds.size ?? 0
   const isDone = guessedCount >= TARGET
