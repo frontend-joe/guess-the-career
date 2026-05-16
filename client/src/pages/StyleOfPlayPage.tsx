@@ -315,7 +315,12 @@ export function StyleOfPlayPage() {
             <div className="bg-white rounded-xl border border-gray-200 px-5 py-6 shadow-sm">
               <div className="border-b border-gray-300 mb-4 pb-1 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900">Style of play</h2>
-                <NationalityFlag nationality={currentRound.nationality} size={20} />
+                <div className="flex items-center gap-2">
+                  {currentRound.activeYears && (
+                    <span className="text-xs text-gray-400">{currentRound.activeYears}</span>
+                  )}
+                  <NationalityFlag nationality={currentRound.nationality} size={20} />
+                </div>
               </div>
               <p
                 className="text-gray-900 leading-7 text-base whitespace-pre-wrap"

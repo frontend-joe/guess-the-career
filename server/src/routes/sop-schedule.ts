@@ -65,7 +65,23 @@ sopScheduleRouter.get('/available', (c) => {
 // GET /api/sop-schedule/rounds — game rounds with blanked text
 sopScheduleRouter.get('/rounds', (c) => {
   const rows = sqlite.prepare(`
-    SELECT ss.date, f.id AS footballer_id, f.name AS footballer_name, f.style_of_play, f.nationality
+    SELECT ss.date, f.id AS footballer_id, f.name AS footballer_name, f.style_of_play, f.nationality,
+           (
+             SELECT SUBSTR(cs2.years, 1, 4)
+             FROM career_stints cs2
+             WHERE cs2.footballer_id = f.id AND cs2.stint_type = 'senior'
+             ORDER BY cs2.sort_order ASC LIMIT 1
+           ) AS career_start,
+           (
+             SELECT CASE
+               WHEN cs2.years LIKE '%present' THEN 'present'
+               WHEN LENGTH(cs2.years) > 4 THEN SUBSTR(cs2.years, 6, 4)
+               ELSE SUBSTR(cs2.years, 1, 4)
+             END
+             FROM career_stints cs2
+             WHERE cs2.footballer_id = f.id AND cs2.stint_type = 'senior'
+             ORDER BY cs2.sort_order DESC LIMIT 1
+           ) AS career_end
     FROM sop_schedule ss
     JOIN footballers f ON f.id = ss.footballer_id
     WHERE ss.footballer_id IS NOT NULL AND f.style_of_play IS NOT NULL
@@ -76,16 +92,27 @@ sopScheduleRouter.get('/rounds', (c) => {
     footballer_name: string
     style_of_play: string
     nationality: string | null
+    career_start: string | null
+    career_end: string | null
   }[]
 
-  const rounds = rows.map(r => ({
-    date: r.date,
-    footballerId: r.footballer_id,
-    footballerName: r.footballer_name,
-    nationality: r.nationality,
-    styleOfPlay: blankName(r.style_of_play, r.footballer_name),
-    historyText: blankName(r.style_of_play, r.footballer_name).slice(0, 40),
-  }))
+  const rounds = rows.map(r => {
+    const blanked = blankName(r.style_of_play, r.footballer_name)
+    const activeYears = r.career_start
+      ? r.career_end && r.career_end !== r.career_start
+        ? `${r.career_start}–${r.career_end}`
+        : r.career_start
+      : null
+    return {
+      date: r.date,
+      footballerId: r.footballer_id,
+      footballerName: r.footballer_name,
+      nationality: r.nationality,
+      activeYears,
+      styleOfPlay: blanked,
+      historyText: blanked.slice(0, 40),
+    }
+  })
 
   return c.json(rounds)
 })

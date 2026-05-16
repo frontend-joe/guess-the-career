@@ -3,6 +3,7 @@ export interface SopRound {
   footballerId: number
   footballerName: string
   nationality: string | null
+  activeYears: string | null
   styleOfPlay: string
   historyText: string
 }
