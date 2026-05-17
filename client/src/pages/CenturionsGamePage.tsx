@@ -207,6 +207,7 @@ export function CenturionsGamePage() {
           </div>
         ) : (
           <div className="px-3 pt-3 pb-2 flex flex-col gap-1.5">
+            <p className="text-xs text-gray-500 text-center pb-1 px-1">{modeConfig.description}</p>
             {players.map(player => (
               <PlayerSlot
                 key={player.slot_key}

@@ -10,14 +10,54 @@ export interface CenturionPlayer {
 }
 
 export const CENTURION_MODES = [
-  { id: 'midfielders',   title: 'Midfield Centurions',      subtitle: '100+ career goals · Midfielders' },
-  { id: 'defenders',     title: 'Defensive Centurions',     subtitle: '100+ career goals · Defenders' },
-  { id: 'wingers',       title: 'Winger Centurions',        subtitle: '100+ career goals · Wingers' },
-  { id: 'one-club',      title: 'One-Club Century',         subtitle: '100+ goals at a single club' },
-  { id: 'goals-200',     title: 'Double Century',           subtitle: '200–299 career goals' },
-  { id: 'goals-300',     title: 'Triple Century',           subtitle: '300+ career goals' },
-  { id: 'international', title: 'International Centurions', subtitle: '100+ international goals' },
-  { id: 'appearances',   title: '500 Club',                 subtitle: '500+ senior appearances' },
+  {
+    id: 'midfielders',
+    title: 'Midfield Centurions',
+    subtitle: '100+ career goals · Midfielders',
+    description: 'Name every midfielder (including defensive, central and attacking midfielders) who scored 100 or more senior career goals.',
+  },
+  {
+    id: 'defenders',
+    title: 'Defensive Centurions',
+    subtitle: '100+ career goals · Defenders',
+    description: 'Name every defender (right-back, left-back, centre-back, sweeper) who scored 100 or more senior career goals.',
+  },
+  {
+    id: 'wingers',
+    title: 'Winger Centurions',
+    subtitle: '100+ career goals · Wingers',
+    description: 'Name every winger or wide forward who scored 100 or more senior career goals.',
+  },
+  {
+    id: 'one-club',
+    title: 'One-Club Century',
+    subtitle: '100+ goals at a single club',
+    description: 'Name every player who scored 100 or more goals for a single club. The hint shows which club they reached the century for.',
+  },
+  {
+    id: 'goals-200',
+    title: 'Double Century',
+    subtitle: '200–299 career goals',
+    description: 'Name every player who scored between 200 and 299 senior career goals.',
+  },
+  {
+    id: 'goals-300',
+    title: 'Triple Century',
+    subtitle: '300+ career goals',
+    description: 'Name every player who scored 300 or more senior career goals.',
+  },
+  {
+    id: 'international',
+    title: 'International Centurions',
+    subtitle: '100+ international goals',
+    description: 'Name every player who scored 100 or more goals for their national team.',
+  },
+  {
+    id: 'appearances',
+    title: '500 Club',
+    subtitle: '500+ senior appearances',
+    description: 'Name every player who made 500 or more senior career appearances. The hint shows the club they appeared for the most.',
+  },
 ] as const
 
 export type CenturionModeId = typeof CENTURION_MODES[number]['id']
