@@ -34,6 +34,7 @@ function addDays(dateStr: string, n: number): string {
 
 type AutoState = 'idle' | 'running'
 type ClearState = 'idle' | 'confirming' | 'running'
+type CleanupState = 'idle' | 'confirming' | 'running'
 
 interface AssignModalProps {
   date: string
@@ -127,6 +128,7 @@ export function TwoClubsSchedulePage() {
   const [loading, setLoading] = useState(true)
   const [autoState, setAutoState] = useState<AutoState>('idle')
   const [clearState, setClearState] = useState<ClearState>('idle')
+  const [cleanupState, setCleanupState] = useState<CleanupState>('idle')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -209,11 +211,40 @@ export function TwoClubsSchedulePage() {
     }
   }
 
+  async function handleCleanupConfirm() {
+    setCleanupState('running')
+    try {
+      const enabledKeys = new Set(
+        pairs.filter(p => p.enabled).flatMap(p => [
+          `${p.clubA}|||${p.clubB}`,
+          `${p.clubB}|||${p.clubA}`,
+        ])
+      )
+      const toRemove = entries.filter(e => !enabledKeys.has(`${e.club_a}|||${e.club_b}`))
+      for (const entry of toRemove) {
+        await deleteTwoClubsDay(entry.date)
+      }
+    } finally {
+      setCleanupState('idle')
+      await loadData()
+    }
+  }
+
   const entryMap = Object.fromEntries(entries.map(e => [e.date, e]))
   const daysInMonth = getDaysInMonth(year, month)
   const firstDow = getFirstDayOfWeek(year, month)
   const todayIso = isoDate(today.getFullYear(), today.getMonth(), today.getDate())
   const hasAnyAssigned = entries.length > 0
+  const hasEnabledPairs = pairs.some(p => p.enabled)
+  const enabledKeys = new Set(
+    pairs.filter(p => p.enabled).flatMap(p => [
+      `${p.clubA}|||${p.clubB}`,
+      `${p.clubB}|||${p.clubA}`,
+    ])
+  )
+  const deactivatedEntries = hasEnabledPairs
+    ? entries.filter(e => !enabledKeys.has(`${e.club_a}|||${e.club_b}`))
+    : []
 
   return (
     <div className="p-4 md:p-6 max-w-4xl">
@@ -225,6 +256,18 @@ export function TwoClubsSchedulePage() {
           <h1 className="text-xl font-semibold">Two Clubs Schedule</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {cleanupState === 'idle' && clearState === 'idle' && autoState === 'idle' && deactivatedEntries.length > 0 && (
+            <Button variant="outline" size="sm" className="text-orange-600 hover:text-orange-700" onClick={() => setCleanupState('confirming')}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Cleanup ({deactivatedEntries.length})
+            </Button>
+          )}
+          {cleanupState === 'running' && (
+            <Button variant="outline" size="sm" disabled>
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              Cleaning…
+            </Button>
+          )}
           {clearState === 'idle' && autoState === 'idle' && hasAnyAssigned && (
             <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setClearState('confirming')}>
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />
@@ -262,6 +305,15 @@ export function TwoClubsSchedulePage() {
         </div>
       </div>
 
+      {cleanupState === 'confirming' && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
+          <span className="text-orange-700">Remove {deactivatedEntries.length} de-activated pair{deactivatedEntries.length !== 1 ? 's' : ''} from the schedule?</span>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setCleanupState('idle')}>Cancel</Button>
+            <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white" onClick={handleCleanupConfirm}>Remove</Button>
+          </div>
+        </div>
+      )}
       {clearState === 'confirming' && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
           <span className="text-destructive">Remove all Two Clubs assignments?</span>
