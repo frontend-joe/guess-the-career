@@ -344,11 +344,10 @@ twoClubsRouter.post(
             return c.json({ valid: true, footballer: { id: footballer.id, name: footballer.name, photo_url: footballer.photo_url }, imported: true })
           }
         } catch {
-          // scrape failed — fall through to invalid
+          // scrape failed — fall through to Wikipedia name search
         }
       }
-
-      return c.json({ valid: false, footballer: null, imported: false })
+      // wikipedia_url missing or stints still incomplete — fall through to Step 3
     }
 
     // Step 3: footballer not in DB at all — try Wikipedia name search
@@ -377,7 +376,7 @@ twoClubsRouter.post(
 
       const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(firstResult.title.replace(/ /g, '_'))}`
 
-      // Check if already in DB by URL
+      // Check if already in DB by URL (may differ from footballer found by name if wikipedia_url was null)
       const byUrl = await db.select({ id: footballers.id, name: footballers.name, photo_url: footballers.photo_url })
         .from(footballers).where(eq(footballers.wikipedia_url, wikiUrl)).limit(1).then(r => r[0])
 
@@ -403,7 +402,38 @@ twoClubsRouter.post(
         return c.json({ valid: false, footballer: null, imported: false, reason: 'not_retired' as const })
       }
 
-      // Insert new footballer
+      // If we already have a record for this footballer (found by name in Step 2 or by URL above),
+      // update their stints and wikipedia_url rather than inserting a duplicate.
+      const knownRecord = byUrl ?? footballer
+      if (knownRecord) {
+        if (!knownRecord.photo_url || footballer?.wikipedia_url === null) {
+          sqlite.prepare(`UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?) WHERE id = ?`)
+            .run(wikiUrl, scraped.photo_url ?? null, knownRecord.id)
+        }
+        for (const s of seniorStints) {
+          const existing = sqlite.prepare(
+            `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`
+          ).get(knownRecord.id, s.years, s.club)
+          if (!existing) {
+            const maxOrder = sqlite.prepare(
+              `SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`
+            ).get(knownRecord.id) as { next: number }
+            await db.insert(career_stints).values({
+              footballer_id: knownRecord.id,
+              sort_order: maxOrder.next,
+              years: s.years,
+              club: s.club,
+              club_wikipedia_url: s.club_wikipedia_url ?? null,
+              apps: s.apps ?? null,
+              goals: s.goals ?? null,
+              stint_type: 'senior',
+            })
+          }
+        }
+        return c.json({ valid: true, footballer: { id: knownRecord.id, name: knownRecord.name, photo_url: scraped.photo_url ?? knownRecord.photo_url }, imported: true })
+      }
+
+      // Truly new footballer — insert
       const [newFootballer] = await db.insert(footballers).values({
         name: scraped.name,
         wikipedia_url: scraped.wikipedia_url,
