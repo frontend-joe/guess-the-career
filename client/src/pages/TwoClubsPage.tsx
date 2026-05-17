@@ -159,6 +159,7 @@ export function TwoClubsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showProgress, setShowProgress] = useState(false)
+  const [progressSearch, setProgressSearch] = useState('')
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<{ id: number; name: string; photo_url: string | null }[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -335,6 +336,16 @@ export function TwoClubsPage() {
   const totalGuessed = Object.values(roundStates).filter(s => s.guessedIds.size >= TARGET).length
   const totalPlayers = rounds.length
 
+  const filteredProgressData = progressRounds
+    .map((r, i) => ({ r, i }))
+    .filter(({ i }) => {
+      if (!progressSearch.trim()) return true
+      const term = progressSearch.toLowerCase()
+      return rounds[i].clubA.toLowerCase().includes(term) || rounds[i].clubB.toLowerCase().includes(term)
+    })
+  const filteredProgressRounds = filteredProgressData.map(d => d.r)
+  const filteredOriginalIndices = filteredProgressData.map(d => d.i)
+
   const guessedCount = currentState?.guessedIds.size ?? 0
   const isDone = guessedCount >= TARGET
   const players = currentState?.players ?? null
@@ -380,14 +391,29 @@ export function TwoClubsPage() {
       </div>
 
       {showProgress ? (
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <OverallProgressScreen
-            totalGuessed={totalGuessed}
-            totalPlayers={totalPlayers}
-            rounds={progressRounds}
-            onRoundClick={i => { setRoundIndex(i); setShowProgress(false) }}
-            label="completed"
-          />
+        <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
+          <div className="flex-1 overflow-y-auto">
+            <OverallProgressScreen
+              totalGuessed={totalGuessed}
+              totalPlayers={totalPlayers}
+              rounds={filteredProgressRounds}
+              onRoundClick={i => { setRoundIndex(filteredOriginalIndices[i]); setShowProgress(false) }}
+              label="completed"
+            />
+          </div>
+          <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
+            <input
+              type="text"
+              value={progressSearch}
+              onChange={e => setProgressSearch(e.target.value)}
+              placeholder="Filter by club name…"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+              style={{ fontSize: '16px' }}
+            />
+          </div>
         </div>
       ) : (
         <>
