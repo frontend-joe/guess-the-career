@@ -76,10 +76,7 @@ function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: b
       <NationalityFlag nationality={player.nationality} size={20} />
       <div className="flex-1 h-3 bg-gray-100 rounded-full" />
       {player.hint_club && mode !== 'international' && (
-        <div className="flex items-center gap-1.5 shrink-0">
-          <MiniClubBadge club={player.hint_club} wikipediaUrl={null} />
-          <span className="text-xs text-gray-400 truncate max-w-20">{player.hint_club}</span>
-        </div>
+        <MiniClubBadge club={player.hint_club} wikipediaUrl={null} />
       )}
     </div>
   )
