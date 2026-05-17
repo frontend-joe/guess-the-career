@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target } from 'lucide-react'
+import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target, Star } from 'lucide-react'
 
 export function PlayHubPage() {
   const navigate = useNavigate()
@@ -105,6 +105,14 @@ export function PlayHubPage() {
           <Target size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">Goal Ratios</span>
           <span className="text-gray-400 text-xs">More goals than games</span>
+        </button>
+        <button
+          onClick={() => navigate('/play/centurions')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <Star size={32} className="text-yellow-400" />
+          <span className="font-bold text-sm tracking-widest uppercase">The Centurions</span>
+          <span className="text-gray-400 text-xs">100+ goals &amp; appearances</span>
         </button>
       </div>
     </div>

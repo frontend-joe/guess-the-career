@@ -33,6 +33,8 @@ import { PositionKnowledgePage } from '@/pages/PositionKnowledgePage'
 import { StyleOfPlayPage } from '@/pages/StyleOfPlayPage'
 import { SopSchedulePage } from '@/pages/SopSchedulePage'
 import { GoalRatiosPage } from '@/pages/GoalRatiosPage'
+import { CenturionsHubPage } from '@/pages/CenturionsHubPage'
+import { CenturionsGamePage } from '@/pages/CenturionsGamePage'
 import { TwoClubsAdminPage } from '@/pages/TwoClubsAdminPage'
 import { TwoClubsAdminDetailPage } from '@/pages/TwoClubsAdminDetailPage'
 import { TwoClubsSchedulePage } from '@/pages/TwoClubsSchedulePage'
@@ -53,6 +55,8 @@ const router = createBrowserRouter([
   { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
   { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
   { path: '/play/goal-ratios', element: <GoalRatiosPage /> },
+  { path: '/play/centurions', element: <CenturionsHubPage /> },
+  { path: '/play/centurions/:mode', element: <CenturionsGamePage /> },
   {
     path: '/',
     element: <Layout />,

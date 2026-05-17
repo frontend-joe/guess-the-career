@@ -28,6 +28,7 @@ import { positionKnowledgeRouter } from './routes/position-knowledge.ts'
 import { sopScheduleRouter } from './routes/sop-schedule.ts'
 import { sopLeaderboardRouter } from './routes/sop-leaderboard.ts'
 import { goalRatiosRouter } from './routes/goal-ratios.ts'
+import { centurionsRouter } from './routes/centurions.ts'
 
 runMigrations()
 
@@ -61,6 +62,7 @@ app.route('/api/position-knowledge', positionKnowledgeRouter)
 app.route('/api/sop-schedule', sopScheduleRouter)
 app.route('/api/sop-leaderboard', sopLeaderboardRouter)
 app.route('/api/goal-ratios', goalRatiosRouter)
+app.route('/api/centurions', centurionsRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
