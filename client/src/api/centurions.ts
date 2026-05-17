@@ -4,6 +4,7 @@ export interface CenturionPlayer {
   photo_url: string | null
   nationality: string | null
   hint_club: string | null
+  hint_club_wiki_url: string | null
   stat: number
   slot_key: string
 }
