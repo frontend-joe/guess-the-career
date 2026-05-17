@@ -4,7 +4,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import { getFootballers } from '@/api/footballers'
 import {
   getCenturionPlayers, loadCenturionProgress, saveCenturionProgress,
-  CENTURION_MODES, type CenturionPlayer,
+  verifyCenturionPlayer, CENTURION_MODES, type CenturionPlayer,
 } from '@/api/centurions'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
@@ -54,7 +54,8 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 
 function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: boolean; mode: string }) {
   const [imgFailed, setImgFailed] = useState(false)
-  const isAppearances = mode === 'appearances'
+  const isAppsMode = mode === 'appearances' || mode === 'one-club-300' || mode === 'one-club-apps'
+  const statLabel = isAppsMode ? ' apps' : mode === 'international' ? ' caps' : ' goals'
 
   if (found) {
     return (
@@ -65,7 +66,7 @@ function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: b
         }
         <span className="text-sm font-semibold text-green-800 truncate flex-1">{player.name}</span>
         <span className="text-xs font-bold text-green-600 shrink-0 tabular-nums">
-          {player.stat.toLocaleString()}{isAppearances ? ' apps' : ' goals'}
+          {player.stat.toLocaleString()}{statLabel}
         </span>
       </div>
     )
@@ -75,8 +76,13 @@ function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: b
     <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 border bg-white border-gray-200">
       <NationalityFlag nationality={player.nationality} size={20} />
       <div className="flex-1 h-3 bg-gray-100 rounded-full" />
-      {player.hint_club && mode !== 'international' && (
-        <MiniClubBadge club={player.hint_club} wikipediaUrl={player.hint_club_wiki_url} />
+      {player.hint_club && mode !== 'international' && mode !== 'international-goals' && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          {player.hint_years && (
+            <span className="text-xs text-gray-400 tabular-nums">{player.hint_years}</span>
+          )}
+          <MiniClubBadge club={player.hint_club} wikipediaUrl={player.hint_club_wiki_url} />
+        </div>
       )}
     </div>
   )
@@ -99,10 +105,14 @@ export function CenturionsGamePage() {
   const [suggestions, setSuggestions] = useState<{ id: number; name: string }[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [wrongGuess, setWrongGuess] = useState<string | null>(null)
+  const [checkingGuess, setCheckingGuess] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const playersRef = useRef<CenturionPlayer[]>([])
+
+  useEffect(() => { playersRef.current = players }, [players])
 
   useEffect(() => {
     if (!mode) return
@@ -136,31 +146,64 @@ export function CenturionsGamePage() {
     debounceRef.current = setTimeout(() => fetchSuggestions(val), 250)
   }
 
-  function submitGuess(name: string) {
-    if (!mode) return
+  function showWrong(name: string) {
+    if (wrongTimer.current) clearTimeout(wrongTimer.current)
+    setWrongGuess(name)
+    wrongTimer.current = setTimeout(() => setWrongGuess(null), 1500)
+  }
+
+  function submitGuess(name: string, suggestionId?: number) {
+    if (!mode || checkingGuess) return
     setInputValue('')
     setSuggestions([])
     setShowDropdown(false)
 
-    const matched = players.filter(p => !guessedKeys.has(p.slot_key) && matchesPlayer(name, p.name))
+    const currentPlayers = playersRef.current
+    const currentGuessedKeys = guessedKeys
+
+    const matched = currentPlayers.filter(p => !currentGuessedKeys.has(p.slot_key) && matchesPlayer(name, p.name))
     if (matched.length > 0) {
-      const newKeys = new Set([...guessedKeys, ...matched.map(p => p.slot_key)])
+      const newKeys = new Set([...currentGuessedKeys, ...matched.map(p => p.slot_key)])
       setGuessedKeys(newKeys)
-      saveCenturionProgress(mode, [...newKeys], players.length)
-    } else {
-      if (wrongTimer.current) clearTimeout(wrongTimer.current)
-      setWrongGuess(name)
-      wrongTimer.current = setTimeout(() => setWrongGuess(null), 1500)
+      saveCenturionProgress(mode, [...newKeys], currentPlayers.length)
+      setTimeout(() => inputRef.current?.focus(), 50)
+      return
     }
 
-    setTimeout(() => inputRef.current?.focus(), 50)
+    // Not found locally — call verify endpoint
+    setCheckingGuess(name)
+    verifyCenturionPlayer(name, mode, suggestionId)
+      .then(result => {
+        setCheckingGuess(null)
+        if (result.qualified && result.player) {
+          const newPlayer = result.player
+          setPlayers(prev => {
+            const alreadyExists = prev.some(p => p.slot_key === newPlayer.slot_key)
+            return alreadyExists ? prev : [...prev, newPlayer]
+          })
+          setGuessedKeys(prev => {
+            const newKeys = new Set([...prev, newPlayer.slot_key])
+            saveCenturionProgress(mode, [...newKeys], playersRef.current.length + 1)
+            return newKeys
+          })
+        } else {
+          showWrong(name)
+        }
+      })
+      .catch(() => {
+        setCheckingGuess(null)
+        showWrong(name)
+      })
+      .finally(() => {
+        setTimeout(() => inputRef.current?.focus(), 50)
+      })
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && inputValue.trim()) {
       const term = inputValue.trim()
-      const exact = suggestions.find(s => s.name.toLowerCase() === term.toLowerCase())
-      submitGuess(exact?.name ?? suggestions[0]?.name ?? term)
+      const matched = suggestions.find(s => s.name.toLowerCase() === term.toLowerCase()) ?? suggestions[0]
+      submitGuess(matched?.name ?? term, matched?.id)
     }
     if (e.key === 'Escape') { setSuggestions([]); setShowDropdown(false) }
   }
@@ -207,7 +250,7 @@ export function CenturionsGamePage() {
           </div>
         ) : (
           <div className="px-3 pt-3 pb-2 flex flex-col gap-1.5">
-            <p className="text-xs text-gray-500 text-center pb-1 px-1">{modeConfig.description}</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700 text-center mb-1">{modeConfig.description}</div>
             {players.map(player => (
               <PlayerSlot
                 key={player.slot_key}
@@ -232,28 +275,27 @@ export function CenturionsGamePage() {
           </div>
         ) : (
           <div className="relative">
-            <div className="bg-blue-600 rounded-xl px-2 py-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Type a player name…"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
-                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
-                style={{ fontSize: '16px' }}
-              />
-            </div>
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={checkingGuess ? `Checking "${checkingGuess}"…` : 'Type a player name…'}
+              disabled={!!checkingGuess}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none disabled:opacity-60"
+              style={{ fontSize: '16px' }}
+            />
 
             {showDropdown && suggestions.length > 0 && (
               <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
                 {suggestions.map(f => (
                   <button
                     key={f.id}
-                    onMouseDown={e => { e.preventDefault(); submitGuess(f.name) }}
+                    onMouseDown={e => { e.preventDefault(); submitGuess(f.name, f.id) }}
                     className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
                   >
                     {f.name}
@@ -261,6 +303,13 @@ export function CenturionsGamePage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {checkingGuess && !wrongGuess && (
+          <div className="mt-2 flex items-center justify-center gap-2 text-sm text-white/60">
+            <Loader2 size={14} className="animate-spin" />
+            Checking…
           </div>
         )}
 
