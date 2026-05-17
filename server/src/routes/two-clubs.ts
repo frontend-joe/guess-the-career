@@ -353,11 +353,26 @@ twoClubsRouter.post(
 
     // Step 3: footballer not in DB at all — try Wikipedia name search
     try {
-      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(footballerName + ' ' + clubA)}&format=json&srlimit=1`
-      const searchRes = await fetch(searchUrl, { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } })
-      if (!searchRes.ok) throw new Error('Wikipedia search failed')
-      const searchData = await searchRes.json() as { query?: { search?: { title: string }[] } }
-      const firstResult = searchData.query?.search?.[0]
+      const wikiHeaders = { 'User-Agent': 'GuessTheCareer-Admin/1.0' }
+      const nameParts = footballerName.toLowerCase().split(/\s+/).filter(p => p.length > 2)
+      function titleMatchesName(title: string) {
+        const t = title.toLowerCase()
+        return nameParts.some(p => t.includes(p))
+      }
+      async function wikiSearch(query: string) {
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`
+        const res = await fetch(url, { headers: wikiHeaders })
+        if (!res.ok) return null
+        const data = await res.json() as { query?: { search?: { title: string }[] } }
+        return data.query?.search?.[0] ?? null
+      }
+
+      // Try name+clubA first; if the result title doesn't match the player name, retry with name alone
+      let firstResult = await wikiSearch(footballerName + ' ' + clubA)
+      if (!firstResult || !titleMatchesName(firstResult.title)) {
+        const fallback = await wikiSearch(footballerName)
+        if (fallback && titleMatchesName(fallback.title)) firstResult = fallback
+      }
       if (!firstResult) return c.json({ valid: false, footballer: null, imported: false })
 
       const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(firstResult.title.replace(/ /g, '_'))}`
