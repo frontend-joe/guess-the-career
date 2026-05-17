@@ -6,7 +6,8 @@ import {
   getCenturionPlayers, loadCenturionProgress, saveCenturionProgress,
   CENTURION_MODES, type CenturionPlayer,
 } from '@/api/centurions'
-import { nationalityToFlagUrl } from '@/lib/flags'
+import { NationalityFlag } from '@/components/NationalityFlag'
+import { MiniClubBadge } from '@/components/MiniClubBadge'
 
 // ── Fuzzy matching (same as TwoClubsPage) ─────────────────────────────────────
 
@@ -53,7 +54,6 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 
 function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: boolean; mode: string }) {
   const [imgFailed, setImgFailed] = useState(false)
-  const flagUrl = nationalityToFlagUrl(player.nationality)
   const isAppearances = mode === 'appearances'
 
   if (found) {
@@ -73,13 +73,13 @@ function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: b
 
   return (
     <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 border bg-white border-gray-200">
-      {flagUrl
-        ? <img src={flagUrl} alt={player.nationality ?? ''} className="w-6 h-4 object-cover rounded-sm shrink-0" />
-        : <div className="w-6 h-4 rounded-sm bg-gray-100 shrink-0" />
-      }
+      <NationalityFlag nationality={player.nationality} size={20} />
       <div className="flex-1 h-3 bg-gray-100 rounded-full" />
       {player.hint_club && (
-        <span className="text-xs text-gray-400 shrink-0 truncate max-w-24">{player.hint_club}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <MiniClubBadge club={player.hint_club} wikipediaUrl={null} />
+          <span className="text-xs text-gray-400 truncate max-w-20">{player.hint_club}</span>
+        </div>
       )}
     </div>
   )
