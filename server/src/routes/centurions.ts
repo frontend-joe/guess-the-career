@@ -131,6 +131,8 @@ function queryForMode(mode: Mode): CenturionPlayer[] {
         FROM footballers f
         JOIN career_stints cs ON cs.footballer_id = f.id AND cs.stint_type = 'international'
         WHERE cs.goals IS NOT NULL
+          AND cs.club NOT GLOB '* U[0-9]*'
+          AND cs.club NOT LIKE '%Under-%'
         GROUP BY f.id
         HAVING stat >= 50
         ORDER BY stat DESC
@@ -279,6 +281,8 @@ function checkPlayerForMode(id: number, mode: Mode): CenturionPlayer | null {
         FROM footballers f
         JOIN career_stints cs ON cs.footballer_id = f.id AND cs.stint_type = 'international'
         WHERE cs.goals IS NOT NULL AND f.id = ?
+          AND cs.club NOT GLOB '* U[0-9]*'
+          AND cs.club NOT LIKE '%Under-%'
         GROUP BY f.id
         HAVING stat >= 50
         LIMIT 1
