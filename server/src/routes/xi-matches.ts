@@ -413,6 +413,8 @@ xiMatchesRouter.patch(
       position: positionEnum.optional(),
       squad_number: z.number().int().nullable().optional(),
       footballer_id: z.number().int().nullable().optional(),
+      number_colour: z.string().nullable().optional(),
+      available_in_kits: z.boolean().optional(),
     })
   ),
   async (c) => {

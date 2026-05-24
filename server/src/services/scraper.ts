@@ -163,6 +163,15 @@ export interface ScrapeResult {
   born: string | null;
   height_cm: number | null;
   photo_url: string | null;
+  honors_champions_league: number;
+  honors_fa_cup: number;
+  honors_league_cup: number;
+  honors_club_world_cup: number;
+  honors_world_cup: number;
+  honors_euros: number;
+  honors_copa_america: number;
+  honors_ballon_dor: number;
+  honors_world_player: number;
   stints: {
     sort_order: number;
     years: string;
@@ -172,6 +181,107 @@ export interface ScrapeResult {
     goals: number | null;
     stint_type: "senior" | "international";
   }[];
+}
+
+interface HonoursData {
+  honors_champions_league: number;
+  honors_fa_cup: number;
+  honors_league_cup: number;
+  honors_club_world_cup: number;
+  honors_world_cup: number;
+  honors_euros: number;
+  honors_copa_america: number;
+  honors_ballon_dor: number;
+  honors_world_player: number;
+}
+
+const HONOUR_PATTERNS: Array<{ regex: RegExp; field: keyof HonoursData }> = [
+  { regex: /Champions League|European Cup|European Champions.{0,15}Cup/i,       field: 'honors_champions_league' },
+  { regex: /\bFA Cup\b/i,                                                         field: 'honors_fa_cup' },
+  { regex: /League Cup|EFL Cup|Carabao Cup|Worthington Cup|Rumbelows Cup|Milk Cup|Capital One Cup|Football League Cup/i, field: 'honors_league_cup' },
+  { regex: /Club World Cup|Intercontinental Cup|World Club Champ/i,              field: 'honors_club_world_cup' },
+  { regex: /\bWorld Cup\b/i,                                                      field: 'honors_world_cup' },  // 'Club' guard applied in function
+  { regex: /UEFA European Championship|UEFA Euro\b|European Championship\b/i,   field: 'honors_euros' },
+  { regex: /Copa Am[eé]rica/i,                                                    field: 'honors_copa_america' },
+  { regex: /Ballon d.Or/i,                                                        field: 'honors_ballon_dor' },
+  { regex: /FIFA World Player|FIFA Best|Best FIFA/i,                             field: 'honors_world_player' },
+]
+
+/** Count wins from a single honours list-item string (after citations stripped). */
+function countHonourWins(text: string): number {
+  // ×N notation: "Ballon d'Or (×7)" or "×3"
+  const timesMatch = text.match(/[×x](\d+)/u)
+  if (timesMatch) return parseInt(timesMatch[1], 10)
+
+  // Count year / season tokens after the colon.
+  // Handles en-dash (1999–2000), hyphen (1999-2000), and forward slash (1999/2000)
+  // as a single season so "FA Cup: 1999/2000" counts as 1, not 2.
+  const afterColon = text.includes(':') ? text.split(':').slice(1).join(':') : text
+  const tokens = afterColon.match(/\b\d{4}(?:[–\-\/]\d{2,4})?\b/g)
+  return tokens ? tokens.length : 1
+}
+
+/**
+ * Scrape the "Honours" section from a Wikipedia footballer page.
+ * Walks sibling elements after the #Honours heading, collects all <li> items,
+ * and matches them against known trophy patterns.
+ */
+function scrapeHonours($: CheerioAPI): HonoursData {
+  const data: HonoursData = {
+    honors_champions_league: 0,
+    honors_fa_cup: 0,
+    honors_league_cup: 0,
+    honors_club_world_cup: 0,
+    honors_world_cup: 0,
+    honors_euros: 0,
+    honors_copa_america: 0,
+    honors_ballon_dor: 0,
+    honors_world_player: 0,
+  }
+
+  // Find the Honours / Honors heading (handles both old <h2><span id> and new <div.mw-heading><h2 id> formats)
+  const heading = $('#Honours, #Honors').first()
+  if (!heading.length) return data
+
+  const headingEl = heading.is('h1,h2,h3,h4,h5,h6') ? heading : heading.closest('h1,h2,h3,h4,h5,h6')
+  if (!headingEl.length) return data
+
+  const container =
+    headingEl.parent().is('div') && (headingEl.parent().attr('class') ?? '').includes('mw-heading')
+      ? headingEl.parent()
+      : headingEl
+
+  // Collect all <li> text until the next top-level section (<h2> or mw-heading2)
+  container.nextAll().each((_i, sib) => {
+    const s = $(sib)
+    const cls = s.attr('class') ?? ''
+
+    // Stop at a new <h2>-level section
+    if (cls.includes('mw-heading2')) return false
+    if (s.is('h1,h2')) return false
+
+    s.find('li').each((_j, li) => {
+      // Skip parent <li> items that contain nested <ul>/<ol> — their text() would
+      // recursively include all child entries, causing double-counting.
+      // Only process leaf list items (those with no nested lists).
+      if ($(li).find('ul, ol').length > 0) return
+
+      const text = stripCitations($(li).text().trim())
+      if (!text) return
+
+      for (const { regex, field } of HONOUR_PATTERNS) {
+        // Guard: skip World Cup matches that are actually Club World Cup (already matched above)
+        if (field === 'honors_world_cup' && /Club World Cup|Intercontinental/i.test(text)) continue
+
+        if (regex.test(text)) {
+          data[field] += countHonourWins(text)
+          return  // each <li> matches at most one category
+        }
+      }
+    })
+  })
+
+  return data
 }
 
 export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
@@ -467,6 +577,8 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
 
   if (foundPositions.length > 0) all_positions = foundPositions.join(", ");
 
+  const honours = scrapeHonours($);
+
   return {
     name,
     wikipedia_url: url,
@@ -477,6 +589,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     born,
     height_cm,
     photo_url,
+    ...honours,
     stints,
   };
 }
@@ -1983,4 +2096,302 @@ function parseNumber(raw: string): number | null {
   if (!cleaned || cleaned === "−" || cleaned === "-") return null;
   const n = parseInt(cleaned, 10);
   return isNaN(n) ? null : n;
+}
+
+export interface ClubKitColours {
+  home_body: string | null
+  home_leftarm: string | null
+  home_rightarm: string | null
+  home_shorts: string | null
+  home_socks: string | null
+  home_pattern: string | null  // 'stripes'|'hoops'|'halves'|'sash'|'sleeves'|'band'|'check'|'penguin'|null
+}
+
+/**
+ * Classify a pattern from its Wikipedia template name.
+ * Only matches old-style generic filenames — returns null for modern
+ * season-specific names like "_celtic2627h" so the caller can fetch the SVG.
+ */
+function classifyPattern(raw: string): string | null {
+  const val = raw.toLowerCase()
+  if (/stripe|pinstripe/.test(val)) return 'stripes'
+  if (/hoop|ring/.test(val)) return 'hoops'
+  if (/half|halv|\bleft\b|\bright\b/.test(val)) return 'halves'
+  if (/diagonal|sash/.test(val)) return 'sash'
+  if (/\bband\b/.test(val)) return 'band'
+  if (/quarter|check|bloc/.test(val)) return 'check'
+  if (/centre|center|centreline|panel/.test(val)) return 'penguin'
+  return null  // unknown — caller should fetch the SVG
+}
+
+function normHex(h: string): string {
+  const c = h.replace('#', '').toUpperCase()
+  return c.length === 3 ? c[0] + c[0] + c[1] + c[1] + c[2] + c[2] : c
+}
+
+/**
+ * Fetch the Wikimedia Commons kit body PNG for a given pattern_b1 value,
+ * parse the PNG binary to extract the colour palette and pixel layout, and
+ * return the secondary colour and pattern type.
+ *
+ * Modern Wikipedia kit templates use season-specific filenames like
+ * "_celtic2627h" which map to Kit_body_celtic2627h.png on Commons.
+ *
+ * We look up the direct CDN URL via the Commons imageinfo API, then:
+ *  1. Parse the PNG PLTE chunk (indexed-colour PNGs) for palette colours.
+ *  2. Decompress IDAT and sample the centre column / centre row to determine
+ *     whether colours alternate horizontally (hoops) or vertically (stripes).
+ *  3. Filter out the body colour and white to find the secondary colour.
+ */
+async function fetchPatternPng(
+  rawPattern: string,
+  bodyHex: string
+): Promise<{ pattern: string | null; secondary: string | null }> {
+  const name     = rawPattern.replace(/^_/, '').replace(/\.[^.]+$/, '')
+  const fileName = `Kit_body_${name}.png`
+  const bodyNorm = normHex(bodyHex)
+  const { inflateSync } = await import('zlib')
+
+  // ── 1. Resolve direct CDN URL via Commons imageinfo API ───────────────────
+  let pngUrl: string | null = null
+  try {
+    const apiRes = await fetch(
+      `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent('File:' + fileName)}&prop=imageinfo&iiprop=url&format=json`,
+      { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } }
+    )
+    if (apiRes.ok) {
+      const apiData = await apiRes.json() as { query?: { pages?: Record<string, { imageinfo?: { url: string }[] }> } }
+      const pages = apiData.query?.pages ?? {}
+      const page  = Object.values(pages)[0]
+      pngUrl = page?.imageinfo?.[0]?.url ?? null
+    }
+  } catch { /* fall through */ }
+
+  if (!pngUrl) return { pattern: null, secondary: null }
+
+  // ── 2. Fetch the PNG binary ────────────────────────────────────────────────
+  let buf: Buffer
+  try {
+    const pngRes = await fetch(pngUrl, { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } })
+    if (!pngRes.ok) return { pattern: null, secondary: null }
+    buf = Buffer.from(await pngRes.arrayBuffer())
+  } catch {
+    return { pattern: null, secondary: null }
+  }
+
+  const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+  if (!PNG_SIG.every((b, i) => buf[i] === b)) return { pattern: null, secondary: null }
+
+  // ── 3. Parse PNG chunks ───────────────────────────────────────────────────
+  let width = 0, height = 0, colorType = 0
+  const palette: [number, number, number][] = []
+  const idatParts: Buffer[] = []
+  let tRNS: number[] | null = null
+
+  let pos = 8
+  while (pos + 12 <= buf.length) {
+    const len  = buf.readUInt32BE(pos)
+    const type = buf.slice(pos + 4, pos + 8).toString('ascii')
+    const data = buf.slice(pos + 8, pos + 8 + len)
+    if (type === 'IHDR') {
+      width     = data.readUInt32BE(0)
+      height    = data.readUInt32BE(4)
+      colorType = data[9]
+    } else if (type === 'PLTE') {
+      for (let i = 0; i + 2 < data.length; i += 3) palette.push([data[i], data[i + 1], data[i + 2]])
+    } else if (type === 'tRNS') {
+      tRNS = [...data]
+    } else if (type === 'IDAT') {
+      idatParts.push(data)
+    } else if (type === 'IEND') {
+      break
+    }
+    pos += 12 + len
+  }
+
+  if (width === 0 || height === 0 || idatParts.length === 0) return { pattern: null, secondary: null }
+
+  // ── 4. Decompress IDAT and apply PNG filters ──────────────────────────────
+  let rawPixelRows: number[][] | null = null  // one entry per row: array of palette indices or channel bytes
+  try {
+    const compressed = Buffer.concat(idatParts)
+    const raw        = inflateSync(compressed)
+
+    // bytes-per-pixel: indexed=1, RGB=3, RGBA=4
+    const bpp = colorType === 3 ? 1 : colorType === 2 ? 3 : colorType === 6 ? 4 : 1
+    const stride = width * bpp
+
+    let rawPos  = 0
+    const rows: number[][] = []
+    let prevRow = new Array<number>(stride).fill(0)
+
+    for (let y = 0; y < height && rawPos + 1 + stride <= raw.length; y++) {
+      const filter  = raw[rawPos++]
+      const rowBytes = [...raw.slice(rawPos, rawPos + stride)]
+      rawPos += stride
+
+      const cur = new Array<number>(stride)
+      for (let x = 0; x < stride; x++) {
+        const a = x >= bpp ? cur[x - bpp] : 0
+        const b = prevRow[x]
+        const c = x >= bpp ? prevRow[x - bpp] : 0
+        let v: number
+        switch (filter) {
+          case 0: v = rowBytes[x]; break
+          case 1: v = (rowBytes[x] + a) & 0xFF; break
+          case 2: v = (rowBytes[x] + b) & 0xFF; break
+          case 3: v = (rowBytes[x] + Math.floor((a + b) / 2)) & 0xFF; break
+          case 4: {
+            const p = a + b - c
+            const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c)
+            v = (rowBytes[x] + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 0xFF
+            break
+          }
+          default: v = rowBytes[x]
+        }
+        cur[x] = v
+      }
+      rows.push(cur)
+      prevRow = cur
+    }
+    rawPixelRows = rows
+  } catch { /* will fall back to palette-only analysis */ }
+
+  // Helper: pixel index → hex colour (handles indexed and RGB)
+  const rowToHexAt = (row: number[] | undefined, x: number): string | null => {
+    if (!row) return null
+    if (colorType === 3) {
+      const idx = row[x]
+      if (idx >= palette.length) return null
+      if (tRNS && (tRNS[idx] ?? 255) < 128) return null  // transparent
+      const [r, g, b] = palette[idx]
+      return (r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0')).toUpperCase()
+    }
+    if (colorType === 2) {
+      const [r, g, b] = [row[x * 3], row[x * 3 + 1], row[x * 3 + 2]]
+      return (r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0')).toUpperCase()
+    }
+    if (colorType === 6) {
+      if (row[x * 4 + 3] < 128) return null  // transparent
+      const [r, g, b] = [row[x * 4], row[x * 4 + 1], row[x * 4 + 2]]
+      return (r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0')).toUpperCase()
+    }
+    return null
+  }
+
+  // ── 5. Find secondary colour ──────────────────────────────────────────────
+  const colorFreq = new Map<string, number>()
+  if (rawPixelRows) {
+    for (const row of rawPixelRows) {
+      for (let x = 0; x < width; x++) {
+        const hex = rowToHexAt(row, x)
+        if (hex && hex !== bodyNorm && hex !== 'FFFFFF') colorFreq.set(hex, (colorFreq.get(hex) ?? 0) + 1)
+      }
+    }
+  } else if (colorType === 3 && palette.length > 0) {
+    // palette-only fallback (no pixel data)
+    palette.forEach(([r, g, b], i) => {
+      if (tRNS && (tRNS[i] ?? 255) < 128) return
+      const hex = (r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0')).toUpperCase()
+      if (hex !== bodyNorm && hex !== 'FFFFFF') colorFreq.set(hex, (colorFreq.get(hex) ?? 0) + 1)
+    })
+  }
+
+  if (colorFreq.size === 0) return { pattern: null, secondary: null }
+
+  const secondary = [...colorFreq.entries()].sort((a, b) => b[1] - a[1])[0][0]
+
+  // ── 6. Classify pattern from pixel transitions ────────────────────────────
+  let pattern: string | null = null
+  if (rawPixelRows && width > 0 && height > 0) {
+    const cx = Math.floor(width / 2)
+    const cy = Math.floor(height / 2)
+
+    // Count how many times the colour changes along the centre column (vertical scan)
+    let vertTransitions = 0
+    let prevVert: string | null = null
+    for (const row of rawPixelRows) {
+      const hex = rowToHexAt(row, cx)
+      if (hex && hex !== prevVert) { if (prevVert !== null) vertTransitions++; prevVert = hex }
+    }
+
+    // Count transitions along the centre row (horizontal scan)
+    const midRow = rawPixelRows[cy]
+    let horzTransitions = 0
+    let prevHorz: string | null = null
+    for (let x = 0; x < width; x++) {
+      const hex = rowToHexAt(midRow, x)
+      if (hex && hex !== prevHorz) { if (prevHorz !== null) horzTransitions++; prevHorz = hex }
+    }
+
+    if (vertTransitions >= 3)      pattern = 'hoops'    // many row-changes = horizontal bands
+    else if (horzTransitions >= 3) pattern = 'stripes'  // many column-changes = vertical stripes
+    else if (vertTransitions >= 1 && horzTransitions <= 1) pattern = 'band'    // one horizontal band
+    else if (horzTransitions >= 1 && vertTransitions <= 1) pattern = 'penguin' // one vertical panel
+    else if (vertTransitions === 1 || horzTransitions === 1) pattern = 'halves'
+    // sash would require diagonal path detection — leave as null for now
+  }
+
+  return { pattern, secondary }
+}
+
+export async function scrapeClubKitColours(wikiUrl: string): Promise<ClubKitColours> {
+  const title = wikiUrl.split('/wiki/')[1]
+  if (!title) throw new Error(`Invalid Wikipedia URL: ${wikiUrl}`)
+
+  const apiUrl = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(decodeURIComponent(title))}&prop=wikitext&format=json`
+  const res = await fetch(apiUrl, { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } })
+  if (!res.ok) throw new Error(`Wikipedia API error: ${res.status}`)
+
+  const data = await res.json() as { parse?: { wikitext?: { '*': string } } }
+  const wikitext = data.parse?.wikitext?.['*'] ?? ''
+
+  function getHex(field: string): string | null {
+    const match = wikitext.match(new RegExp(`\\|\\s*${field}\\s*=\\s*#?([a-fA-F0-9]{3,6})`))
+    if (!match) return null
+    const hex = match[1].toUpperCase()
+    return hex.length === 3
+      ? hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
+      : hex
+  }
+
+  function getRawPattern(field: string): string | null {
+    const match = wikitext.match(new RegExp(`\\|\\s*${field}\\s*=\\s*([^|\\n\\r}]+)`))
+    return match ? match[1].trim() : null
+  }
+
+  // ── Base colours from wikitext ─────────────────────────────────────────────
+  const home_body     = getHex('body1')
+  const home_rightarm = getHex('rightarm1')
+  const home_shorts   = getHex('shorts1')
+  const home_socks    = getHex('socks1')
+  let   home_leftarm  = getHex('leftarm1')
+
+  // ── Pattern detection ──────────────────────────────────────────────────────
+  // Modern Wikipedia pages use season-specific filenames like "_celtic2627h"
+  // instead of generic "_hoops". classifyPattern handles old-style names; for
+  // everything else we fetch the actual SVG from Wikimedia Commons.
+  const rawPattern = getRawPattern('pattern_b1') ?? null
+  let home_pattern = rawPattern ? classifyPattern(rawPattern) : null
+
+  if (rawPattern && home_body) {
+    const needsSecondary = !home_leftarm || home_leftarm === home_body
+    const needsPattern   = home_pattern === null
+
+    if (needsSecondary || needsPattern) {
+      // Small polite delay before the extra request
+      await new Promise(resolve => setTimeout(resolve, 300))
+      const { pattern: pngPattern, secondary: pngSecondary } = await fetchPatternPng(rawPattern, home_body)
+
+      if (needsPattern && pngPattern)     home_pattern = pngPattern
+      if (needsSecondary && pngSecondary) home_leftarm = pngSecondary
+    }
+  }
+
+  // ── Fallback: differing arm colour with no explicit body pattern → sleeves ──
+  if (!home_pattern && home_body && home_leftarm && home_leftarm !== home_body) {
+    home_pattern = 'sleeves'
+  }
+
+  return { home_body, home_leftarm, home_rightarm, home_shorts, home_socks, home_pattern }
 }

@@ -110,6 +110,15 @@ footballersRouter.post(
       all_positions: z.string().nullable().optional(),
       born: z.string().nullable(),
       height_cm: z.number().int().nullable().optional(),
+      honors_champions_league: z.number().int().optional().default(0),
+      honors_fa_cup:           z.number().int().optional().default(0),
+      honors_league_cup:       z.number().int().optional().default(0),
+      honors_club_world_cup:   z.number().int().optional().default(0),
+      honors_world_cup:        z.number().int().optional().default(0),
+      honors_euros:            z.number().int().optional().default(0),
+      honors_copa_america:     z.number().int().optional().default(0),
+      honors_ballon_dor:       z.number().int().optional().default(0),
+      honors_world_player:     z.number().int().optional().default(0),
       stints: z.array(stintSchema),
     })
   ),
@@ -138,6 +147,15 @@ footballersRouter.post(
           all_positions: body.all_positions ?? null,
           born: body.born,
           height_cm: body.height_cm ?? null,
+          honors_champions_league: body.honors_champions_league ?? 0,
+          honors_fa_cup:           body.honors_fa_cup ?? 0,
+          honors_league_cup:       body.honors_league_cup ?? 0,
+          honors_club_world_cup:   body.honors_club_world_cup ?? 0,
+          honors_world_cup:        body.honors_world_cup ?? 0,
+          honors_euros:            body.honors_euros ?? 0,
+          honors_copa_america:     body.honors_copa_america ?? 0,
+          honors_ballon_dor:       body.honors_ballon_dor ?? 0,
+          honors_world_player:     body.honors_world_player ?? 0,
         })
         .returning()
     } catch (e) {
@@ -302,7 +320,26 @@ footballersRouter.post('/:id/rescrape', async (c) => {
   const photoUrl = existing.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(result.name)
 
   await db.update(footballers)
-    .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, style_of_play: result.style_of_play ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
+    .set({
+      name: result.name,
+      nationality: result.nationality,
+      position: result.position,
+      all_positions: result.all_positions ?? null,
+      style_of_play: result.style_of_play ?? null,
+      born: result.born,
+      height_cm: result.height_cm,
+      photo_url: photoUrl,
+      honors_champions_league: result.honors_champions_league,
+      honors_fa_cup:           result.honors_fa_cup,
+      honors_league_cup:       result.honors_league_cup,
+      honors_club_world_cup:   result.honors_club_world_cup,
+      honors_world_cup:        result.honors_world_cup,
+      honors_euros:            result.honors_euros,
+      honors_copa_america:     result.honors_copa_america,
+      honors_ballon_dor:       result.honors_ballon_dor,
+      honors_world_player:     result.honors_world_player,
+      updated_at: sql`(datetime('now'))`,
+    })
     .where(eq(footballers.id, id))
 
   await db.delete(career_stints).where(eq(career_stints.footballer_id, id))

@@ -35,6 +35,8 @@ import { SopSchedulePage } from '@/pages/SopSchedulePage'
 import { GoalRatiosPage } from '@/pages/GoalRatiosPage'
 import { CenturionsHubPage } from '@/pages/CenturionsHubPage'
 import { CenturionsGamePage } from '@/pages/CenturionsGamePage'
+import { KitGamePage } from '@/pages/KitGamePage'
+import { HonorGamePage } from '@/pages/HonorGamePage'
 import { TwoClubsAdminPage } from '@/pages/TwoClubsAdminPage'
 import { TwoClubsAdminDetailPage } from '@/pages/TwoClubsAdminDetailPage'
 import { TwoClubsSchedulePage } from '@/pages/TwoClubsSchedulePage'
@@ -57,6 +59,8 @@ const router = createBrowserRouter([
   { path: '/play/goal-ratios', element: <GoalRatiosPage /> },
   { path: '/play/centurions', element: <CenturionsHubPage /> },
   { path: '/play/centurions/:mode', element: <CenturionsGamePage /> },
+  { path: '/play/guess-the-kit', element: <KitGamePage /> },
+  { path: '/play/more-trophies', element: <HonorGamePage /> },
   {
     path: '/',
     element: <Layout />,

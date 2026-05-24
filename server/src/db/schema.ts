@@ -13,6 +13,15 @@ export const footballers = sqliteTable('footballers', {
   born: text('born'),
   height_cm: integer('height_cm'),
   photo_url: text('photo_url'),
+  honors_champions_league: integer('honors_champions_league').notNull().default(0),
+  honors_fa_cup:           integer('honors_fa_cup').notNull().default(0),
+  honors_league_cup:       integer('honors_league_cup').notNull().default(0),
+  honors_club_world_cup:   integer('honors_club_world_cup').notNull().default(0),
+  honors_world_cup:        integer('honors_world_cup').notNull().default(0),
+  honors_euros:            integer('honors_euros').notNull().default(0),
+  honors_copa_america:     integer('honors_copa_america').notNull().default(0),
+  honors_ballon_dor:       integer('honors_ballon_dor').notNull().default(0),
+  honors_world_player:     integer('honors_world_player').notNull().default(0),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
   updated_at: text('updated_at').notNull().default(sql`(datetime('now'))`),
 })
@@ -69,6 +78,12 @@ export const clubs = sqliteTable('clubs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
   wikipedia_url: text('wikipedia_url'),
+  home_body: text('home_body'),
+  home_leftarm: text('home_leftarm'),
+  home_rightarm: text('home_rightarm'),
+  home_shorts: text('home_shorts'),
+  home_socks: text('home_socks'),
+  home_pattern: text('home_pattern'),  // 'stripes' | 'hoops' | 'halves' | 'sash' | null (solid)
 })
 
 export const wsm_leaderboard = sqliteTable('wsm_leaderboard', {
@@ -107,6 +122,8 @@ export const xi_players = sqliteTable('xi_players', {
   squad_number: integer('squad_number'),
   footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
   club_at_time: text('club_at_time'),
+  number_colour: text('number_colour'),  // hex override for squad number colour in the kit game
+  available_in_kits: integer('available_in_kits', { mode: 'boolean' }).notNull().default(false),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 

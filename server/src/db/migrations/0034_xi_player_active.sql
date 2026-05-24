@@ -1,0 +1,1 @@
+ALTER TABLE xi_players ADD COLUMN available_in_kits INTEGER NOT NULL DEFAULT 0;

@@ -23,6 +23,9 @@ export interface XiPlayer {
   position: 'GK' | 'DF' | 'MF' | 'FW'
   squad_number: number | null
   footballer_id: number | null
+  club_at_time: string | null
+  number_colour: string | null
+  available_in_kits: boolean
   created_at: string
 }
 
@@ -129,7 +132,7 @@ export function replaceMatchPlayers(
 
 export function updateXiPlayer(
   playerId: number,
-  data: Partial<Pick<XiPlayer, 'name' | 'position' | 'squad_number' | 'footballer_id'>>
+  data: Partial<Pick<XiPlayer, 'name' | 'position' | 'squad_number' | 'footballer_id' | 'number_colour' | 'available_in_kits'>>
 ): Promise<XiPlayer> {
   return apiFetch(`/api/xi-matches/players/${playerId}`, {
     method: 'PATCH',

@@ -1,0 +1,9 @@
+ALTER TABLE footballers ADD COLUMN honors_champions_league INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_fa_cup           INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_league_cup       INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_club_world_cup   INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_world_cup        INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_euros            INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_copa_america     INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_ballon_dor       INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE footballers ADD COLUMN honors_world_player     INTEGER NOT NULL DEFAULT 0;

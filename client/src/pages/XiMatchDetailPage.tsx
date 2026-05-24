@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { ArrowLeft, Globe, Pencil, Check, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -6,11 +6,13 @@ import { Input } from '@/components/ui/input'
 import {
   getXiMatch,
   updateXiMatch,
+  updateXiPlayer,
   replaceMatchPlayers,
   type XiMatchDetail,
   type XiPlayer,
   type ScrapedXiPlayer,
 } from '@/api/xi-matches'
+import { getAllClubs, scrapeKits } from '@/api/clubs'
 
 const POSITIONS = ['GK', 'DF', 'MF', 'FW'] as const
 
@@ -35,6 +37,9 @@ type EditablePlayer = {
   position: 'GK' | 'DF' | 'MF' | 'FW'
   squadNumber: number | null
   footballerId: number | null
+  numberColour: string | null
+  availableInKits: boolean
+  clubAtTime: string | null
 }
 
 function toEditable(p: XiPlayer): EditablePlayer {
@@ -44,6 +49,9 @@ function toEditable(p: XiPlayer): EditablePlayer {
     position: p.position,
     squadNumber: p.squad_number,
     footballerId: p.footballer_id,
+    numberColour: p.number_colour,
+    availableInKits: p.available_in_kits,
+    clubAtTime: p.club_at_time ?? null,
   }
 }
 
@@ -313,6 +321,101 @@ export function XiMatchDetailPage() {
   )
 }
 
+// ── Kit colour cell — independent of lineup edit mode ─────────────────────────
+
+function KitColourCell({ player }: { player: EditablePlayer }) {
+  const [active, setActive] = useState(player.availableInKits)
+  const [hex, setHex] = useState(player.numberColour ?? 'FFFFFF')
+  const [saving, setSaving] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    setActive(player.availableInKits)
+    setHex(player.numberColour ?? 'FFFFFF')
+  }, [player.availableInKits, player.numberColour])
+
+  async function persist(patch: Parameters<typeof updateXiPlayer>[1]) {
+    setSaving(true)
+    try { await updateXiPlayer(player.id, patch) }
+    catch { /* silent */ }
+    finally { setSaving(false) }
+  }
+
+  async function handleCheck(e: React.ChangeEvent<HTMLInputElement>) {
+    const on = e.target.checked
+    setActive(on)
+    persist({ available_in_kits: on })
+
+    // Auto-scrape kit if enabling and club has no colours yet
+    if (on && player.clubAtTime) {
+      try {
+        const clubs = await getAllClubs({ search: player.clubAtTime })
+        const club = clubs.find(c => c.name.toLowerCase() === player.clubAtTime!.toLowerCase())
+        if (club && !club.home_body && club.wikipedia_url) {
+          setSaving(true)
+          await scrapeKits([club.id])
+          setSaving(false)
+        }
+      } catch { /* silent */ }
+    }
+  }
+
+  function handlePicker(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value.replace('#', '').toUpperCase()
+    setHex(val)
+    persist({ number_colour: val })
+  }
+
+  function handleText(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value.replace('#', '')
+    setHex(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      const clean = val.replace('#', '')
+      if (/^([a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/.test(clean)) persist({ number_colour: clean })
+    }, 600)
+  }
+
+  const pickerValue = `#${hex.padEnd(6, '0').slice(0, 6)}`
+
+  return (
+    <td className="px-2 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <input
+          type="checkbox"
+          checked={active}
+          onChange={handleCheck}
+          className="h-3.5 w-3.5 accent-primary cursor-pointer"
+          title="Include in kit game"
+        />
+        {active && (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={pickerValue}
+              onChange={handlePicker}
+              className="h-6 w-6 rounded cursor-pointer border border-border p-0"
+              title="Number colour"
+            />
+            <span className="text-muted-foreground text-xs">#</span>
+            <input
+              type="text"
+              value={hex}
+              onChange={handleText}
+              placeholder="FFFFFF"
+              maxLength={6}
+              className="h-6 w-14 text-xs border rounded px-1.5 font-mono bg-background"
+            />
+            {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
+        )}
+      </div>
+    </td>
+  )
+}
+
+// ── Lineup panel ──────────────────────────────────────────────────────────────
+
 function LineupPanel({
   teamName,
   players,
@@ -335,6 +438,7 @@ function LineupPanel({
               <th className="text-left px-3 py-2 font-medium w-14">Pos</th>
               <th className="text-left px-3 py-2 font-medium">Player</th>
               <th className="px-3 py-2 w-6 text-right text-muted-foreground">🔗</th>
+              <th className="px-2 py-2 font-medium text-left w-36">Kit</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -386,6 +490,7 @@ function LineupPanel({
                     : <span className="text-muted-foreground text-xs">—</span>
                   }
                 </td>
+                <KitColourCell player={p} />
               </tr>
             ))}
           </tbody>
