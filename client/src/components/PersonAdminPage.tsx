@@ -639,7 +639,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                     <TableHead key={col.header} className={col.className}>{col.header}</TableHead>
                   ))}
                   {config.updateCustomPosition && (
-                    <TableHead className="min-w-64">
+                    <TableHead className="hidden md:table-cell min-w-64">
                       <div className="flex items-center justify-between gap-2">
                         <span>Custom Position</span>
                         {dirtyCustomPositionIds.length > 0 && (
@@ -652,7 +652,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                     </TableHead>
                   )}
                   {config.updatePhotoUrl && (
-                    <TableHead className="min-w-64">
+                    <TableHead className="hidden md:table-cell min-w-64">
                       <div className="flex items-center justify-between gap-2">
                         <span>Photo URL</span>
                         {dirtyPhotoIds.length > 0 && (
@@ -688,7 +688,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                       <TableCell key={col.header} className={col.className}>{col.render(item)}</TableCell>
                     ))}
                     {config.updateCustomPosition && (
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {(config.customPositionOptions ?? []).map(opt => {
                             const displayValue = customPositionEdits.get(item.id) ?? item.custom_position ?? ''
@@ -717,7 +717,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                       </TableCell>
                     )}
                     {config.updatePhotoUrl && (
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <Input
                           value={photoEdits.get(item.id) ?? item.photo_url ?? ''}
                           onChange={e => setPhotoEdits(prev => new Map(prev).set(item.id, e.target.value))}
