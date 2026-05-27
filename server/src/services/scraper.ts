@@ -195,16 +195,53 @@ interface HonoursData {
   honors_world_player: number;
 }
 
-const HONOUR_PATTERNS: Array<{ regex: RegExp; field: keyof HonoursData }> = [
-  { regex: /Champions League|European Cup|European Champions.{0,15}Cup/i,       field: 'honors_champions_league' },
-  { regex: /\bFA Cup\b/i,                                                         field: 'honors_fa_cup' },
-  { regex: /League Cup|EFL Cup|Carabao Cup|Worthington Cup|Rumbelows Cup|Milk Cup|Capital One Cup|Football League Cup/i, field: 'honors_league_cup' },
-  { regex: /Club World Cup|Intercontinental Cup|World Club Champ/i,              field: 'honors_club_world_cup' },
-  { regex: /\bWorld Cup\b/i,                                                      field: 'honors_world_cup' },  // 'Club' guard applied in function
-  { regex: /UEFA European Championship|UEFA Euro\b|European Championship\b/i,   field: 'honors_euros' },
-  { regex: /Copa Am[eé]rica/i,                                                    field: 'honors_copa_america' },
-  { regex: /Ballon d.Or/i,                                                        field: 'honors_ballon_dor' },
-  { regex: /FIFA World Player|FIFA Best|Best FIFA/i,                             field: 'honors_world_player' },
+/**
+ * Exact-match patterns for the text BEFORE the colon in an honours list item.
+ * Each nameRegex must match the full namepart (anchored ^ … $) so that entries like
+ * "UEFA Champions League top scorer: 2010" or "UEFA European Championship Team of
+ * the Tournament: 1996" never accidentally match.
+ */
+const HONOUR_PATTERNS: Array<{ nameRegex: RegExp; field: keyof HonoursData }> = [
+  {
+    // "UEFA Champions League" | "Champions League" | "European Cup" (pre-1992 name)
+    nameRegex: /^(?:UEFA )?Champions League$|^European Cup$/i,
+    field: 'honors_champions_league',
+  },
+  {
+    nameRegex: /^(?:The )?FA Cup$/i,
+    field: 'honors_fa_cup',
+  },
+  {
+    // All the League Cup sponsor-name variants
+    nameRegex: /^(?:EFL|Carabao|League|Rumbelows|Milk|Worthington|Capital One|Football League|Littlewoods|Coca-Cola|Carling) Cup$/i,
+    field: 'honors_league_cup',
+  },
+  {
+    nameRegex: /^(?:FIFA )?Club World Cup$|^Intercontinental Cup$|^(?:FIFA )?Club World Championship$/i,
+    field: 'honors_club_world_cup',
+  },
+  {
+    nameRegex: /^(?:FIFA )?World Cup$/i,
+    field: 'honors_world_cup',
+  },
+  {
+    // "UEFA European Championship" | "European Championship" | historical "European Nations Cup"
+    nameRegex: /^UEFA European Championship$|^European Championship$|^European Nations Cup$/i,
+    field: 'honors_euros',
+  },
+  {
+    nameRegex: /^Copa Am[eé]rica$/i,
+    field: 'honors_copa_america',
+  },
+  {
+    nameRegex: /^Ballon d.Or$/i,
+    field: 'honors_ballon_dor',
+  },
+  {
+    // Pre-2016: "FIFA World Player of the Year" | Post-2016: "The Best FIFA Men's Player"
+    nameRegex: /^FIFA World Player of the Year$|^(?:The )?Best FIFA Men.s Player$|^FIFA Best Men.s Player$/i,
+    field: 'honors_world_player',
+  },
 ]
 
 /** Count wins from a single honours list-item string (after citations stripped). */
@@ -217,8 +254,19 @@ function countHonourWins(text: string): number {
   // Handles en-dash (1999–2000), hyphen (1999-2000), and forward slash (1999/2000)
   // as a single season so "FA Cup: 1999/2000" counts as 1, not 2.
   const afterColon = text.includes(':') ? text.split(':').slice(1).join(':') : text
-  const tokens = afterColon.match(/\b\d{4}(?:[–\-\/]\d{2,4})?\b/g)
-  return tokens ? tokens.length : 1
+
+  // Some entries mix win years with non-win years in the same item, e.g.:
+  //   "FIFA World Cup: 2014, third place: 2006, 2010"
+  // Truncate at the first non-win clause so only the win years are counted.
+  const nonWinIdx = afterColon.search(
+    /\b(?:runner[–\-]?\s*up|runners[–\-]?\s*up|second place|third place|fourth place|[234](?:nd|rd|th) place)\b/i
+  )
+  const countable = nonWinIdx >= 0 ? afterColon.slice(0, nonWinIdx) : afterColon
+
+  // Only count year tokens that are NOT immediately followed by a parenthetical annotation.
+  // e.g. "1994 (8th)" and "1995 (3rd)" are non-wins; bare "2005" or "2004, 2005" are wins.
+  const tokens = countable.match(/\b\d{4}(?:[–\-\/]\d{2,4})?\b(?!\s*\()/g)
+  return tokens ? tokens.length : 0
 }
 
 /**
@@ -269,11 +317,29 @@ function scrapeHonours($: CheerioAPI): HonoursData {
       const text = stripCitations($(li).text().trim())
       if (!text) return
 
-      for (const { regex, field } of HONOUR_PATTERNS) {
-        // Guard: skip World Cup matches that are actually Club World Cup (already matched above)
-        if (field === 'honors_world_cup' && /Club World Cup|Intercontinental/i.test(text)) continue
+      // ── Pre-loop exclusions ───────────────────────────────────────────────────
 
-        if (regex.test(text)) {
+      // 1. Skip non-win placings: runner-up, bronze/silver individual awards, or any numbered place
+      //    e.g. "Ballon d'Or: 1996 (26th place)", "FA Cup runner-up: 2000"
+      //    e.g. "FIFA Club World Cup Silver Ball: 2013" (individual award, not the trophy)
+      if (/runner[–\-]?\s*up|runners[–\-]?\s*up|\bBronze\b|\bSilver\b|\(\d+[a-z]{0,2}\s*[Pp]lace\)/i.test(text)) return
+
+      // 2. Skip youth / age-group international honours (U15–U23)
+      //    e.g. "UEFA European Under-21 Championship: 1994", "FIFA U-20 World Cup: 2003"
+      if (/\bU\s*-?\s*1[5-9]\b|\bU\s*-?\s*2[0-3]\b|\bUnder[- ]?1[5-9]\b|\bUnder[- ]?2[0-3]\b/i.test(text)) return
+
+      // ── Exact namepart matching ───────────────────────────────────────────────
+      // Only match against the text BEFORE the colon (the trophy/award name itself).
+      // This ensures "UEFA Champions League top scorer: 2010" never matches the
+      // Champions League pattern — the namepart "UEFA Champions League top scorer"
+      // doesn't satisfy ^UEFA Champions League$ anchored to the end.
+      if (!text.includes(':')) return  // all valid trophy entries have a colon
+
+      const namepart = text.split(':')[0].trim()
+      if (!namepart) return
+
+      for (const { nameRegex, field } of HONOUR_PATTERNS) {
+        if (nameRegex.test(namepart)) {
           data[field] += countHonourWins(text)
           return  // each <li> matches at most one category
         }
