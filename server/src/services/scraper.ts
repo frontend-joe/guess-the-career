@@ -2461,3 +2461,146 @@ export async function scrapeClubKitColours(wikiUrl: string): Promise<ClubKitColo
 
   return { home_body, home_leftarm, home_rightarm, home_shorts, home_socks, home_pattern }
 }
+
+// ── Ballon d'Or scraper ────────────────────────────────────────────────────────
+
+export interface BallonDorScrapeResult {
+  year: number
+  players: {
+    rank: number
+    name: string
+    nationality: string | null
+    club: string
+    points: number | null
+    wikipedia_url: string | null
+  }[]
+}
+
+export async function scrapeBallonDorPage(url: string): Promise<BallonDorScrapeResult> {
+  if (!url.includes('wikipedia.org/wiki/')) {
+    throw new Error('URL must be a Wikipedia article URL')
+  }
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' },
+  })
+  if (!res.ok) throw new Error(`Wikipedia returned ${res.status}`)
+
+  const html = await res.text()
+  const $ = cheerio.load(html)
+
+  // Extract year from page title
+  const titleText = $('#firstHeading').text().trim()
+  const yearMatch = titleText.match(/\b(\d{4})\b/)
+  if (!yearMatch) throw new Error(`Could not determine year from page title: "${titleText}"`)
+  const year = parseInt(yearMatch[1], 10)
+
+  // Find the main voting/results table — look for wikitable with "Rank" and "Name"/"Player" headers
+  let votingTable: ReturnType<typeof $> | null = null
+  $('table.wikitable').each((_i, tbl) => {
+    if (votingTable) return false
+    const headerText = $(tbl).find('th').map((_j, th) => $(th).text().trim().toLowerCase()).toArray().join(' ')
+    if ((headerText.includes('rank') || headerText.includes('#')) &&
+        (headerText.includes('name') || headerText.includes('player'))) {
+      votingTable = $(tbl)
+      return false
+    }
+  })
+
+  if (!votingTable) throw new Error('Could not find voting table on Ballon d\'Or page')
+
+  const table = votingTable as ReturnType<typeof $>
+
+  // Detect column indices
+  const [rankIdx, playerIdx, nationalityIdx, clubIdx, pointsIdx] = detectColumns(
+    $,
+    table,
+    'rank',
+    'player',
+    'nationality',
+    'club',
+    'points',
+  )
+
+  // Expand rowspans for correct cell indexing
+  const grid = expandTableRowspans($, table)
+
+  const players: BallonDorScrapeResult['players'] = []
+  let skippedHeader = false
+
+  for (const row of grid) {
+    if (row.length < 2) continue
+
+    // Skip header rows (cells that are <th> elements)
+    const firstCell = row[0]
+    if (firstCell && $(firstCell).is('th')) continue
+
+    // Skip separator/spacer rows
+    if (!firstCell) continue
+
+    // After first non-header row we're in data
+    skippedHeader = true
+
+    // Extract rank
+    const rIdx = rankIdx >= 0 ? rankIdx : 0
+    const rankRaw = row[rIdx] ? stripCitations($(row[rIdx]!).text().trim()) : ''
+    const rank = parseInt(rankRaw.replace(/[^\d]/g, '')) || 0
+    if (rank === 0 && skippedHeader) continue // blank or non-numeric row
+
+    // Extract player name — prefer first wiki link in the player cell
+    const pIdx = playerIdx >= 0 ? playerIdx : 1
+    const playerCell = row[pIdx]
+    if (!playerCell) continue
+    const playerCellEl = $(playerCell)
+    const nameLink = playerCellEl.find('a').filter((_k, a) => {
+      const href = $(a).attr('href') ?? ''
+      return href.startsWith('/wiki/') && !href.includes(':') && $(a).text().trim().length > 0
+    }).first()
+    const name = nameLink.length
+      ? stripCitations(nameLink.text().trim())
+      : stripCitations(playerCellEl.text().trim())
+    if (!name) continue
+    const nameLinkHref = nameLink.attr('href') ?? ''
+    const wikipedia_url = nameLinkHref.startsWith('/wiki/')
+      ? `https://en.wikipedia.org${nameLinkHref}`
+      : null
+
+    // Extract nationality
+    let nationality: string | null = null
+    if (nationalityIdx >= 0 && row[nationalityIdx]) {
+      const natCell = $(row[nationalityIdx]!)
+      // Try flag icon alt text first
+      const flagAlt = natCell.find('.flagicon img, .flag-icon img').first().attr('alt')?.trim()
+      nationality = flagAlt || stripCitations(natCell.text().trim()) || null
+    }
+
+    // Extract club — may have <br> separating multiple clubs
+    let club = ''
+    if (clubIdx >= 0 && row[clubIdx]) {
+      const clubCell = $(row[clubIdx]!).clone()
+      clubCell.find('br').replaceWith(' / ')
+      club = stripCitations(clubCell.text().trim())
+        .split(/\s*\/\s*/)
+        .map(c => normalizeClubAlias(c.trim()))
+        .filter(Boolean)
+        .join(' / ')
+    } else {
+      club = ''
+    }
+    if (!club) club = 'Unknown'
+
+    // Extract points / percentage
+    let points: number | null = null
+    if (pointsIdx >= 0 && row[pointsIdx]) {
+      const ptsRaw = stripCitations($(row[pointsIdx]!).text().trim())
+      const ptsNum = parseFloat(ptsRaw.replace(/[^0-9.]/g, ''))
+      if (!isNaN(ptsNum)) points = ptsNum
+    }
+
+    players.push({ rank, name, nationality, club, points, wikipedia_url })
+  }
+
+  if (players.length === 0) throw new Error('No players found in Ballon d\'Or table')
+
+  return { year, players }
+}

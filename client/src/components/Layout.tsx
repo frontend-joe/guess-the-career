@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import { Users, UserCog, Building2, Database, Gamepad2, LayoutGrid, Trophy, Shuffle, Menu, X } from "lucide-react";
+import { Users, UserCog, Building2, Database, Gamepad2, LayoutGrid, Trophy, Shuffle, Menu, X, Medal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -10,6 +10,7 @@ const nav = [
   { to: "/elevens", label: "Elevens", icon: LayoutGrid },
   { to: "/competitions", label: "Competitions", icon: Trophy },
   { to: "/two-clubs", label: "Two Clubs", icon: Shuffle },
+  { to: "/ballon-dors", label: "Ballon d'Or", icon: Medal },
   { to: "/database", label: "Database", icon: Database },
   { to: "/play", label: "Play", icon: Gamepad2 },
 ];
