@@ -71,7 +71,9 @@ const NATIONALITY_ISO: Record<string, string> = {
   'Trinidad and Tobago': 'TT',
   Albania: 'AL',
   'North Macedonia': 'MK',
-  Yugoslavia: 'RS',
+  Yugoslavia: '__yugoslavia__',
+  'FR Yugoslavia': '__yugoslavia__',
+  'SFR Yugoslavia': '__yugoslavia__',
   'Bosnia and Herzegovina': 'BA',
   Montenegro: 'ME',
   Bulgaria: 'BG',
@@ -297,9 +299,14 @@ const NATIONALITY_ISO: Record<string, string> = {
   Croatian: 'HR',
 }
 
+const LOCAL_FLAGS: Record<string, string> = {
+  '__yugoslavia__': '/flags/yugoslavia.svg',
+}
+
 export function nationalityToFlagUrl(nationality: string | null | undefined): string | null {
   if (!nationality) return null
   const iso = NATIONALITY_ISO[nationality]
   if (!iso) return null
+  if (LOCAL_FLAGS[iso]) return LOCAL_FLAGS[iso]
   return `https://flagcdn.com/${iso.toLowerCase()}.svg`
 }
