@@ -2613,3 +2613,141 @@ export async function scrapeBallonDorPage(url: string): Promise<BallonDorScrapeR
 
   return { year, players }
 }
+
+// ── World Cup Squads scraper ──────────────────────────────────────────────────
+
+export interface WorldCupSquadScrapeResult {
+  year: number
+  squads: {
+    team: string
+    players: {
+      shirt_number: number | null
+      position: string | null
+      name: string
+      club: string
+      wikipedia_url: string | null
+    }[]
+  }[]
+}
+
+export async function scrapeWorldCupSquadsPage(url: string): Promise<WorldCupSquadScrapeResult> {
+  if (!url.includes('wikipedia.org/wiki/')) {
+    throw new Error('URL must be a Wikipedia article URL')
+  }
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' },
+  })
+  if (!res.ok) throw new Error(`Wikipedia returned ${res.status}`)
+
+  const html = await res.text()
+  const $ = cheerio.load(html)
+
+  const titleText = $('#firstHeading').text().trim()
+  const yearMatch = titleText.match(/\b(\d{4})\b/)
+  if (!yearMatch) throw new Error(`Could not determine year from page title: "${titleText}"`)
+  const year = parseInt(yearMatch[1], 10)
+
+  const squads: WorldCupSquadScrapeResult['squads'] = []
+
+  $('table.wikitable').each((_i, tbl) => {
+    const table = $(tbl)
+
+    // Find the nearest preceding team heading (h3/h4) — may be inside a div.mw-heading wrapper
+    let teamName = ''
+    let cur = $(tbl).prev()
+    while (cur.length && !teamName) {
+      // Check if this sibling IS a heading or CONTAINS one (handles div.mw-heading wrappers)
+      const headingEl = cur.is('h3, h4') ? cur : cur.find('h3, h4').last()
+      if (headingEl.length) {
+        const candidate = headingEl.text()
+          .replace(/\[.*?\]/g, '')   // strip [edit] etc
+          .trim()
+        if (candidate) teamName = candidate
+      }
+      if (!teamName) cur = cur.prev()
+    }
+    if (!teamName) return
+
+    // Detect columns: shirt number, position, player name, club
+    const [noIdx, posIdx, playerIdx, clubIdx] = detectColumns(
+      $, table, 'no', 'pos', 'player', 'club'
+    )
+
+    // Must have at least a player column
+    if (playerIdx < 0) return
+
+    const grid = expandTableRowspans($, table)
+    const players: WorldCupSquadScrapeResult['squads'][0]['players'] = []
+
+    for (const row of grid) {
+      if (row.length < 2) continue
+      const firstCell = row[0]
+      if (firstCell && $(firstCell).is('th')) continue
+      if (!firstCell) continue
+
+      // Extract position — must be GK/DF/MF/FW
+      // Wikipedia uses a hidden sort-key span (e.g. <span style="display:none">1</span>GK)
+      // so we strip hidden elements before reading the text
+      let position: string | null = null
+      if (posIdx >= 0 && row[posIdx]) {
+        const posCell = $(row[posIdx]!).clone()
+        posCell.find('[style*="display:none"]').remove()
+        const posText = stripCitations(posCell.text().trim()).toUpperCase()
+        if (['GK', 'DF', 'MF', 'FW'].includes(posText)) {
+          position = posText
+        } else {
+          continue // not a player data row
+        }
+      }
+
+      // Extract player name + wikipedia_url
+      const pIdx = playerIdx >= 0 ? playerIdx : 1
+      const playerCell = row[pIdx]
+      if (!playerCell) continue
+      const playerCellEl = $(playerCell)
+      const nameLink = playerCellEl.find('a').filter((_k, a) => {
+        const href = $(a).attr('href') ?? ''
+        return href.startsWith('/wiki/') && !href.includes(':') && $(a).text().trim().length > 0
+      }).first()
+      const name = nameLink.length
+        ? stripCitations(nameLink.text().trim())
+        : stripCitations(playerCellEl.text().trim())
+      if (!name) continue
+      const nameLinkHref = nameLink.attr('href') ?? ''
+      const wikipedia_url = nameLinkHref.startsWith('/wiki/')
+        ? `https://en.wikipedia.org${nameLinkHref}`
+        : null
+
+      // Extract shirt number
+      let shirt_number: number | null = null
+      if (noIdx >= 0 && row[noIdx]) {
+        const noRaw = stripCitations($(row[noIdx]!).text().trim())
+        const n = parseInt(noRaw.replace(/\D/g, ''))
+        if (!isNaN(n)) shirt_number = n
+      }
+
+      // Extract club
+      let club = 'Unknown'
+      if (clubIdx >= 0 && row[clubIdx]) {
+        const clubCell = $(row[clubIdx]!).clone()
+        clubCell.find('br').replaceWith(' / ')
+        const raw = stripCitations(clubCell.text().trim())
+          .split(/\s*\/\s*/)[0]
+          .trim()
+        club = normalizeClubAlias(raw) || 'Unknown'
+      }
+
+      players.push({ shirt_number, position, name, club, wikipedia_url })
+    }
+
+    // Only include squads that look like real national team squads
+    if (players.length >= 10) {
+      squads.push({ team: teamName, players })
+    }
+  })
+
+  if (squads.length === 0) throw new Error('No squads found on this page')
+
+  return { year, squads }
+}

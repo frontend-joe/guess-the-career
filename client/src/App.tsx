@@ -43,6 +43,9 @@ import { TwoClubsSchedulePage } from '@/pages/TwoClubsSchedulePage'
 import { BallonDorPage } from '@/pages/BallonDorPage'
 import { BallonDorSchedulePage } from '@/pages/BallonDorSchedulePage'
 import { BallonDorsAdminPage } from '@/pages/BallonDorsAdminPage'
+import { WorldCupPage } from '@/pages/WorldCupPage'
+import { WorldCupSchedulePage } from '@/pages/WorldCupSchedulePage'
+import { WorldCupAdminPage } from '@/pages/WorldCupAdminPage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -65,6 +68,7 @@ const router = createBrowserRouter([
   { path: '/play/guess-the-kit', element: <KitGamePage /> },
   { path: '/play/more-trophies', element: <HonorGamePage /> },
   { path: '/play/ballon-dors', element: <BallonDorPage /> },
+  { path: '/play/world-cup', element: <WorldCupPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -95,6 +99,8 @@ const router = createBrowserRouter([
       { path: 'two-clubs/:clubA/:clubB', element: <TwoClubsAdminDetailPage /> },
       { path: 'ballon-dors', element: <BallonDorsAdminPage /> },
       { path: 'ballon-dors/schedule', element: <BallonDorSchedulePage /> },
+      { path: 'world-cup', element: <WorldCupAdminPage /> },
+      { path: 'world-cup/schedule', element: <WorldCupSchedulePage /> },
     ],
   },
 ])

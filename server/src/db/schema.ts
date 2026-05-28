@@ -292,3 +292,34 @@ export const ballon_dor_schedule = sqliteTable('ballon_dor_schedule', {
 export type BallonDor = typeof ballon_dors.$inferSelect
 export type BallonDorPlayer = typeof ballon_dor_players.$inferSelect
 export type BallonDorScheduleEntry = typeof ballon_dor_schedule.$inferSelect
+
+export const world_cup_squads = sqliteTable('world_cup_squads', {
+  id:            integer('id').primaryKey({ autoIncrement: true }),
+  year:          integer('year').notNull(),
+  team:          text('team').notNull(),
+  wikipedia_url: text('wikipedia_url').notNull(),
+  created_at:    text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const world_cup_squad_players = sqliteTable('world_cup_squad_players', {
+  id:            integer('id').primaryKey({ autoIncrement: true }),
+  squad_id:      integer('squad_id').notNull().references(() => world_cup_squads.id, { onDelete: 'cascade' }),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  shirt_number:  integer('shirt_number'),
+  position:      text('position'),
+  name:          text('name').notNull(),
+  club:          text('club').notNull(),
+  nationality:   text('nationality'),
+  wikipedia_url: text('wikipedia_url'),
+})
+
+export const world_cup_schedule = sqliteTable('world_cup_schedule', {
+  id:         integer('id').primaryKey({ autoIncrement: true }),
+  date:       text('date').notNull().unique(),
+  squad_id:   integer('squad_id').references(() => world_cup_squads.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type WorldCupSquad = typeof world_cup_squads.$inferSelect
+export type WorldCupSquadPlayer = typeof world_cup_squad_players.$inferSelect
+export type WorldCupScheduleEntry = typeof world_cup_schedule.$inferSelect

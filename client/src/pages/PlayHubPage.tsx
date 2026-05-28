@@ -138,6 +138,14 @@ export function PlayHubPage() {
           <span className="font-bold text-sm tracking-widest uppercase">Ballon d&apos;Or</span>
           <span className="text-gray-400 text-xs">Guess every voter&apos;s pick</span>
         </button>
+        <button
+          onClick={() => navigate('/play/world-cup')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <Shield size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">World Cup</span>
+          <span className="text-gray-400 text-xs">Name the squad</span>
+        </button>
       </div>
     </div>
   )
