@@ -380,7 +380,7 @@ export function BallonDorPage() {
                     <th className="text-[10px] text-gray-400 font-semibold text-left py-1.5 px-2">
                       Player
                     </th>
-                    <th className="py-1.5 px-1 w-8"></th>
+                    <th className="py-1.5 pl-1 pr-3 w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -414,8 +414,10 @@ export function BallonDorPage() {
                             <NationalityFlag nationality={player.nationality} />
                           </div>
                         </td>
-                        <td className="px-1 text-center">
-                          {player.position && <PositionBadge position={player.position} />}
+                        <td className="pl-1 pr-3">
+                          <div className="flex items-center justify-center h-full">
+                            {player.position && <PositionBadge position={player.position} />}
+                          </div>
                         </td>
                       </tr>
                     )
