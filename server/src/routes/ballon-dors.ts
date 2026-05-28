@@ -147,7 +147,7 @@ ballonDorsRouter.post(
             .from(footballers)
             .where(sql`LOWER(${footballers.name}) = LOWER(${p.name})`)
             .limit(1)
-          let footballerId = byName?.id ?? null
+          let footballerId: number | null = byName?.id ?? null
 
           if (!footballerId && p.wikipedia_url) {
             // 2. Exact URL match
