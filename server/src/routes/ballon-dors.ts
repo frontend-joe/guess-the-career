@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { eq, asc, sql, and } from 'drizzle-orm'
 import { db } from '../db/client.ts'
 import { ballon_dors, ballon_dor_players, footballers } from '../db/schema.ts'
-import { scrapeBallonDorPage } from '../services/scraper.ts'
+import { scrapeBallonDorPage, scrapeWikipedia } from '../services/scraper.ts'
 
 const playerSchema = z.object({
   rank: z.number().int(),
@@ -228,6 +228,25 @@ ballonDorsRouter.post('/:id/refresh', async (c) => {
       if (!footballerId) {
         const norm = normalizeWikiTitle(sp.wikipedia_url)
         footballerId = normalizedUrlMap.get(norm) ?? null
+      }
+    }
+
+    // If the footballer has no position, re-scrape their Wikipedia page to fill it in
+    if (footballerId) {
+      const [linkedFootballer] = await db
+        .select({ position: footballers.position, wikipedia_url: footballers.wikipedia_url })
+        .from(footballers)
+        .where(eq(footballers.id, footballerId))
+        .limit(1)
+      if (linkedFootballer && !linkedFootballer.position && linkedFootballer.wikipedia_url) {
+        try {
+          const scraped = await scrapeWikipedia(linkedFootballer.wikipedia_url)
+          if (scraped.position) {
+            await db.update(footballers)
+              .set({ position: scraped.position })
+              .where(eq(footballers.id, footballerId))
+          }
+        } catch { /* skip if scrape fails */ }
       }
     }
 
