@@ -262,3 +262,32 @@ export type NewCompetition = typeof competitions.$inferInsert
 export type CompetitionTopScorer = typeof competition_top_scorers.$inferSelect
 export type CompetitionHatTrick = typeof competition_hat_tricks.$inferSelect
 export type CompetitionTopAssist = typeof competition_top_assists.$inferSelect
+
+export const ballon_dors = sqliteTable('ballon_dors', {
+  id:            integer('id').primaryKey({ autoIncrement: true }),
+  year:          integer('year').notNull().unique(),
+  wikipedia_url: text('wikipedia_url').notNull().unique(),
+  created_at:    text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const ballon_dor_players = sqliteTable('ballon_dor_players', {
+  id:            integer('id').primaryKey({ autoIncrement: true }),
+  ballon_dor_id: integer('ballon_dor_id').notNull().references(() => ballon_dors.id, { onDelete: 'cascade' }),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  name:          text('name').notNull(),
+  nationality:   text('nationality'),
+  club:          text('club').notNull(),
+  points:        integer('points'),  // stored as real but SQLite integer is fine; use real() if fractional
+  rank:          integer('rank').notNull(),
+})
+
+export const ballon_dor_schedule = sqliteTable('ballon_dor_schedule', {
+  id:            integer('id').primaryKey({ autoIncrement: true }),
+  date:          text('date').notNull().unique(),
+  ballon_dor_id: integer('ballon_dor_id').references(() => ballon_dors.id, { onDelete: 'set null' }),
+  created_at:    text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type BallonDor = typeof ballon_dors.$inferSelect
+export type BallonDorPlayer = typeof ballon_dor_players.$inferSelect
+export type BallonDorScheduleEntry = typeof ballon_dor_schedule.$inferSelect

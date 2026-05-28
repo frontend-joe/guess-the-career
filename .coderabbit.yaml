@@ -1,0 +1,6 @@
+reviews:
+  profile: chill
+
+documentation:
+  docstring_coverage:
+    enabled: false

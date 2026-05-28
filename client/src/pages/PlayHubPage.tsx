@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target, Star, Hash } from 'lucide-react'
+import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target, Star, Hash, Route, Globe } from 'lucide-react'
 
 export function PlayHubPage() {
   const navigate = useNavigate()
@@ -22,7 +22,7 @@ export function PlayHubPage() {
           onClick={() => navigate('/play/guess-his-clubs')}
           className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
         >
-          <Trophy size={32} className="text-white/80" />
+          <Route size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">Guess His Clubs</span>
           <span className="text-gray-400 text-xs">Name the clubs they played for</span>
         </button>
@@ -110,7 +110,7 @@ export function PlayHubPage() {
           onClick={() => navigate('/play/centurions')}
           className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
         >
-          <Star size={32} className="text-yellow-400" />
+          <Star size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">The Centurions</span>
           <span className="text-gray-400 text-xs">100+ goals &amp; appearances</span>
         </button>
@@ -126,9 +126,17 @@ export function PlayHubPage() {
           onClick={() => navigate('/play/more-trophies')}
           className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
         >
-          <Trophy size={32} className="text-yellow-400" />
+          <Trophy size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">More Trophies?</span>
           <span className="text-gray-400 text-xs">Who won more of each trophy?</span>
+        </button>
+        <button
+          onClick={() => navigate('/play/ballon-dors')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <Globe size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">Ballon d&apos;Or</span>
+          <span className="text-gray-400 text-xs">Guess every voter&apos;s pick</span>
         </button>
       </div>
     </div>

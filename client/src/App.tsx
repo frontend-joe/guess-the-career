@@ -40,6 +40,9 @@ import { HonorGamePage } from '@/pages/HonorGamePage'
 import { TwoClubsAdminPage } from '@/pages/TwoClubsAdminPage'
 import { TwoClubsAdminDetailPage } from '@/pages/TwoClubsAdminDetailPage'
 import { TwoClubsSchedulePage } from '@/pages/TwoClubsSchedulePage'
+import { BallonDorPage } from '@/pages/BallonDorPage'
+import { BallonDorSchedulePage } from '@/pages/BallonDorSchedulePage'
+import { BallonDorsAdminPage } from '@/pages/BallonDorsAdminPage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -61,6 +64,7 @@ const router = createBrowserRouter([
   { path: '/play/centurions/:mode', element: <CenturionsGamePage /> },
   { path: '/play/guess-the-kit', element: <KitGamePage /> },
   { path: '/play/more-trophies', element: <HonorGamePage /> },
+  { path: '/play/ballon-dors', element: <BallonDorPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -89,6 +93,8 @@ const router = createBrowserRouter([
       { path: 'two-clubs', element: <TwoClubsAdminPage /> },
       { path: 'two-clubs/schedule', element: <TwoClubsSchedulePage /> },
       { path: 'two-clubs/:clubA/:clubB', element: <TwoClubsAdminDetailPage /> },
+      { path: 'ballon-dors', element: <BallonDorsAdminPage /> },
+      { path: 'ballon-dors/schedule', element: <BallonDorSchedulePage /> },
     ],
   },
 ])

@@ -31,6 +31,8 @@ import { goalRatiosRouter } from './routes/goal-ratios.ts'
 import { centurionsRouter } from './routes/centurions.ts'
 import { kitGameRouter } from './routes/kit-game.ts'
 import { honorGameRouter } from './routes/honor-game.ts'
+import { ballonDorsRouter } from './routes/ballon-dors.ts'
+import { ballonDorScheduleRouter } from './routes/ballon-dor-schedule.ts'
 
 runMigrations()
 
@@ -67,6 +69,8 @@ app.route('/api/goal-ratios', goalRatiosRouter)
 app.route('/api/centurions', centurionsRouter)
 app.route('/api/kit-game', kitGameRouter)
 app.route('/api/honor-game', honorGameRouter)
+app.route('/api/ballon-dors', ballonDorsRouter)
+app.route('/api/ballon-dor-schedule', ballonDorScheduleRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
