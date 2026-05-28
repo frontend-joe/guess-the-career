@@ -37,17 +37,30 @@ ballonDorsRouter.post(
 // Returns each player with in_db: true/false and footballer_id if found
 ballonDorsRouter.post(
   '/check-players',
-  zValidator('json', z.object({ players: z.array(z.object({ name: z.string() })) })),
+  zValidator('json', z.object({ players: z.array(z.object({ name: z.string(), wikipedia_url: z.string().nullable().optional() })) })),
   async (c) => {
     const { players } = c.req.valid('json')
     const results = await Promise.all(
       players.map(async (p) => {
-        const [found] = await db
+        // Try name match first
+        const [byName] = await db
           .select({ id: footballers.id })
           .from(footballers)
           .where(sql`LOWER(${footballers.name}) = LOWER(${p.name})`)
           .limit(1)
-        return { name: p.name, in_db: !!found, footballer_id: found?.id ?? null }
+        if (byName) return { name: p.name, in_db: true, footballer_id: byName.id }
+
+        // Fall back to Wikipedia URL match
+        if (p.wikipedia_url) {
+          const [byUrl] = await db
+            .select({ id: footballers.id })
+            .from(footballers)
+            .where(eq(footballers.wikipedia_url, p.wikipedia_url))
+            .limit(1)
+          if (byUrl) return { name: p.name, in_db: true, footballer_id: byUrl.id }
+        }
+
+        return { name: p.name, in_db: false, footballer_id: null }
       })
     )
     return c.json(results)
@@ -93,14 +106,27 @@ ballonDorsRouter.post(
       // Resolve footballer_id for each player via name match
       const playerValues = await Promise.all(
         body.players.map(async (p) => {
-          const [f] = await db
+          // Try name match first
+          const [byName] = await db
             .select({ id: footballers.id })
             .from(footballers)
             .where(sql`LOWER(${footballers.name}) = LOWER(${p.name})`)
             .limit(1)
+          let footballerId = byName?.id ?? null
+
+          // Fall back to Wikipedia URL match
+          if (!footballerId && p.wikipedia_url) {
+            const [byUrl] = await db
+              .select({ id: footballers.id })
+              .from(footballers)
+              .where(eq(footballers.wikipedia_url, p.wikipedia_url))
+              .limit(1)
+            footballerId = byUrl?.id ?? null
+          }
+
           return {
             ballon_dor_id: entry.id,
-            footballer_id: f?.id ?? null,
+            footballer_id: footballerId,
             name: p.name,
             nationality: p.nationality,
             club: p.club,

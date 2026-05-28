@@ -79,7 +79,7 @@ export function BallonDorsAdminPage() {
       const result = await scrapeBallonDor(url.trim())
       setYear(result.year)
       setChecking(true)
-      const checked = await checkBallonDorPlayers(result.players.map(p => ({ name: p.name })))
+      const checked = await checkBallonDorPlayers(result.players.map(p => ({ name: p.name, wikipedia_url: p.wikipedia_url ?? null })))
       const merged: CheckedPlayer[] = result.players.map((p, i) => ({
         ...p,
         in_db: checked[i].in_db,
@@ -270,31 +270,35 @@ export function BallonDorsAdminPage() {
                 <tbody>
                   {players.map((p, i) => {
                     const isExcluded = excludedIndices.has(i)
-                    const isNew = !p.in_db
                     return (
                       <tr
                         key={i}
                         className={`border-t ${isExcluded ? 'opacity-40' : (!p.in_db && !p.wikipedia_url ? 'bg-red-50' : '')}`}
                       >
                         <td className="px-3 py-1">
-                          {isNew && !importing && !importDone ? (
-                            <input
-                              type="checkbox"
-                              checked={!isExcluded}
-                              onChange={() => toggleExclude(i)}
-                              className="cursor-pointer"
-                              title={isExcluded ? 'Include this player' : 'Exclude this player'}
-                            />
-                          ) : (
-                            playerStateIcon(p, i)
-                          )}
+                          {importing || importDone
+                            ? playerStateIcon(p, i)
+                            : (
+                              <input
+                                type="checkbox"
+                                checked={!isExcluded}
+                                onChange={() => toggleExclude(i)}
+                                className="cursor-pointer accent-primary"
+                              />
+                            )
+                          }
                         </td>
                         <td className="px-3 py-1 tabular-nums text-muted-foreground">{p.rank}</td>
                         <td className={`px-3 py-1 font-medium ${isExcluded ? 'line-through text-muted-foreground' : ''}`}>
-                          {p.wikipedia_url
-                            ? <a href={p.wikipedia_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{p.name}</a>
-                            : p.name
-                          }
+                          <span className="flex items-center gap-1.5">
+                            {p.wikipedia_url
+                              ? <a href={p.wikipedia_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{p.name}</a>
+                              : p.name
+                            }
+                            {!p.in_db && !isExcluded && (
+                              <span className="text-[10px] text-blue-500 font-normal">new</span>
+                            )}
+                          </span>
                           {p.import_error && <span className="ml-1 text-red-500">— {p.import_error}</span>}
                         </td>
                         <td className="px-3 py-1 text-muted-foreground">{p.club}</td>

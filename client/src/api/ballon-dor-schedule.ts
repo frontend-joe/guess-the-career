@@ -90,7 +90,7 @@ export async function scrapeBallonDor(url: string): Promise<{ year: number; play
 }
 
 export async function checkBallonDorPlayers(
-  players: { name: string }[]
+  players: { name: string; wikipedia_url?: string | null }[]
 ): Promise<{ name: string; in_db: boolean; footballer_id: number | null }[]> {
   const res = await fetch('/api/ballon-dors/check-players', {
     method: 'POST',
