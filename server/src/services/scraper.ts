@@ -2565,13 +2565,18 @@ export async function scrapeBallonDorPage(url: string): Promise<BallonDorScrapeR
       ? `https://en.wikipedia.org${nameLinkHref}`
       : null
 
-    // Extract nationality
+    // Extract nationality — use first flag icon alt text; fall back to first line of cell text
     let nationality: string | null = null
     if (nationalityIdx >= 0 && row[nationalityIdx]) {
       const natCell = $(row[nationalityIdx]!)
-      // Try flag icon alt text first
       const flagAlt = natCell.find('.flagicon img, .flag-icon img').first().attr('alt')?.trim()
-      nationality = flagAlt || stripCitations(natCell.text().trim()) || null
+      if (flagAlt) {
+        nationality = flagAlt
+      } else {
+        // Some pages list multiple nationalities as plain text; take only the first
+        const raw = stripCitations(natCell.text().trim())
+        nationality = raw.split(/[\n/]+/)[0].trim() || null
+      }
     }
 
     // Extract club — may have <br> separating multiple clubs

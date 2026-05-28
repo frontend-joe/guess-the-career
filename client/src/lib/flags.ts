@@ -303,10 +303,19 @@ const LOCAL_FLAGS: Record<string, string> = {
   '__yugoslavia__': '/flags/yugoslavia.svg',
 }
 
+function isoToUrl(iso: string): string {
+  return LOCAL_FLAGS[iso] ?? `https://flagcdn.com/${iso.toLowerCase()}.svg`
+}
+
 export function nationalityToFlagUrl(nationality: string | null | undefined): string | null {
   if (!nationality) return null
+  // Try exact match first
   const iso = NATIONALITY_ISO[nationality]
-  if (!iso) return null
-  if (LOCAL_FLAGS[iso]) return LOCAL_FLAGS[iso]
-  return `https://flagcdn.com/${iso.toLowerCase()}.svg`
+  if (iso) return isoToUrl(iso)
+  // Handle multi-value strings like "Italy Australia" — return first recognised
+  for (const part of nationality.split(/\s+/)) {
+    const partIso = NATIONALITY_ISO[part]
+    if (partIso) return isoToUrl(partIso)
+  }
+  return null
 }
