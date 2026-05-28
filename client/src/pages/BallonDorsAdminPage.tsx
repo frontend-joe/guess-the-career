@@ -278,14 +278,16 @@ export function BallonDorsAdminPage() {
                         <td className="px-3 py-1">
                           {importing || importDone
                             ? playerStateIcon(p, i)
-                            : (
-                              <input
-                                type="checkbox"
-                                checked={!isExcluded}
-                                onChange={() => toggleExclude(i)}
-                                className="cursor-pointer accent-primary"
-                              />
-                            )
+                            : !p.in_db
+                              ? (
+                                <input
+                                  type="checkbox"
+                                  checked={!isExcluded}
+                                  onChange={() => toggleExclude(i)}
+                                  className="cursor-pointer accent-primary"
+                                />
+                              )
+                              : null
                           }
                         </td>
                         <td className="px-3 py-1 tabular-nums text-muted-foreground">{p.rank}</td>

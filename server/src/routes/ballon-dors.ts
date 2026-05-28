@@ -15,6 +15,20 @@ const playerSchema = z.object({
   wikipedia_url: z.string().nullable().optional(),
 })
 
+/**
+ * Normalize a Wikipedia URL title for fuzzy matching.
+ * Handles cases like Ra%C3%BAl vs Raul_(footballer) — both normalize to "raul".
+ */
+function normalizeWikiTitle(url: string): string {
+  const afterWiki = url.split('/wiki/').pop() ?? ''
+  return decodeURIComponent(afterWiki)
+    .replace(/_/g, ' ')
+    .replace(/\s*\(.*?\)\s*$/, '')        // strip "(footballer)", "(born 1969)", etc.
+    .normalize('NFD').replace(/\p{Mn}/gu, '')  // strip diacritics (Unicode marks)
+    .toLowerCase()
+    .trim()
+}
+
 export const ballonDorsRouter = new Hono()
 
 // POST /api/ballon-dors/scrape — preview without writing to DB
@@ -40,9 +54,18 @@ ballonDorsRouter.post(
   zValidator('json', z.object({ players: z.array(z.object({ name: z.string(), wikipedia_url: z.string().nullable().optional() })) })),
   async (c) => {
     const { players } = c.req.valid('json')
+
+    // Build normalized-URL → footballer_id map once for fallback matching
+    const allFootballers = await db.select({ id: footballers.id, wikipedia_url: footballers.wikipedia_url }).from(footballers)
+    const normalizedUrlMap = new Map<string, number>()
+    for (const f of allFootballers) {
+      const norm = normalizeWikiTitle(f.wikipedia_url)
+      if (norm && !normalizedUrlMap.has(norm)) normalizedUrlMap.set(norm, f.id)
+    }
+
     const results = await Promise.all(
       players.map(async (p) => {
-        // Try name match first
+        // 1. Name match
         const [byName] = await db
           .select({ id: footballers.id })
           .from(footballers)
@@ -50,14 +73,19 @@ ballonDorsRouter.post(
           .limit(1)
         if (byName) return { name: p.name, in_db: true, footballer_id: byName.id }
 
-        // Fall back to Wikipedia URL match
         if (p.wikipedia_url) {
+          // 2. Exact URL match
           const [byUrl] = await db
             .select({ id: footballers.id })
             .from(footballers)
             .where(eq(footballers.wikipedia_url, p.wikipedia_url))
             .limit(1)
           if (byUrl) return { name: p.name, in_db: true, footballer_id: byUrl.id }
+
+          // 3. Normalized URL match — handles Ra%C3%BAl vs Raul_(footballer) etc.
+          const norm = normalizeWikiTitle(p.wikipedia_url)
+          const id = normalizedUrlMap.get(norm)
+          if (id) return { name: p.name, in_db: true, footballer_id: id }
         }
 
         return { name: p.name, in_db: false, footballer_id: null }
@@ -103,10 +131,17 @@ ballonDorsRouter.post(
       .returning()
 
     if (body.players.length > 0) {
-      // Resolve footballer_id for each player via name match
+      // Build normalized-URL map for fallback matching (same logic as check-players)
+      const allFootballers = await db.select({ id: footballers.id, wikipedia_url: footballers.wikipedia_url }).from(footballers)
+      const normalizedUrlMap = new Map<string, number>()
+      for (const f of allFootballers) {
+        const norm = normalizeWikiTitle(f.wikipedia_url)
+        if (norm && !normalizedUrlMap.has(norm)) normalizedUrlMap.set(norm, f.id)
+      }
+
       const playerValues = await Promise.all(
         body.players.map(async (p) => {
-          // Try name match first
+          // 1. Name match
           const [byName] = await db
             .select({ id: footballers.id })
             .from(footballers)
@@ -114,14 +149,20 @@ ballonDorsRouter.post(
             .limit(1)
           let footballerId = byName?.id ?? null
 
-          // Fall back to Wikipedia URL match
           if (!footballerId && p.wikipedia_url) {
+            // 2. Exact URL match
             const [byUrl] = await db
               .select({ id: footballers.id })
               .from(footballers)
               .where(eq(footballers.wikipedia_url, p.wikipedia_url))
               .limit(1)
             footballerId = byUrl?.id ?? null
+
+            // 3. Normalized URL match
+            if (!footballerId) {
+              const norm = normalizeWikiTitle(p.wikipedia_url)
+              footballerId = normalizedUrlMap.get(norm) ?? null
+            }
           }
 
           return {
