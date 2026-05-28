@@ -204,7 +204,11 @@ ballonDorsRouter.post('/:id/refresh', async (c) => {
     const [existing] = await db
       .select({ id: ballon_dor_players.id })
       .from(ballon_dor_players)
-      .where(and(eq(ballon_dor_players.ballon_dor_id, id), eq(ballon_dor_players.rank, sp.rank)))
+      .where(and(
+        eq(ballon_dor_players.ballon_dor_id, id),
+        eq(ballon_dor_players.rank, sp.rank),
+        sql`LOWER(${ballon_dor_players.name}) = LOWER(${sp.name})`,
+      ))
       .limit(1)
     if (!existing) continue
 
