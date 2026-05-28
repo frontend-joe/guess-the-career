@@ -16,7 +16,6 @@ import { scrapeWikipedia, createFromScrape, ApiError } from '@/api/footballers'
 interface CheckedPlayer extends BallonDorScrapedPlayer {
   in_db: boolean
   footballer_id: number | null
-  // set during import
   import_state?: 'pending' | 'scraping' | 'saved' | 'skipped' | 'failed'
   import_error?: string
 }
@@ -30,12 +29,13 @@ export function BallonDorsAdminPage() {
   const [scraping, setScraping] = useState(false)
   const [scrapeError, setScrapeError] = useState<string | null>(null)
 
-  // After scrape + check
   const [year, setYear] = useState<number | null>(null)
   const [players, setPlayers] = useState<CheckedPlayer[]>([])
   const [checking, setChecking] = useState(false)
 
-  // Import state
+  // Indices of new players the user has opted to exclude
+  const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set())
+
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importDone, setImportDone] = useState(false)
@@ -56,9 +56,18 @@ export function BallonDorsAdminPage() {
   function resetPreview() {
     setYear(null)
     setPlayers([])
+    setExcludedIndices(new Set())
     setScrapeError(null)
     setImportError(null)
     setImportDone(false)
+  }
+
+  function toggleExclude(i: number) {
+    setExcludedIndices(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i); else next.add(i)
+      return next
+    })
   }
 
   async function handleScrape() {
@@ -69,8 +78,6 @@ export function BallonDorsAdminPage() {
     try {
       const result = await scrapeBallonDor(url.trim())
       setYear(result.year)
-
-      // Check DB for each player
       setChecking(true)
       const checked = await checkBallonDorPlayers(result.players.map(p => ({ name: p.name })))
       const merged: CheckedPlayer[] = result.players.map((p, i) => ({
@@ -95,10 +102,10 @@ export function BallonDorsAdminPage() {
 
     const updatedPlayers = [...players]
 
-    // Step 1: scrape + add missing players
+    // Step 1: scrape + add new players that are NOT excluded
     const missingIndices = updatedPlayers
       .map((p, i) => ({ p, i }))
-      .filter(({ p }) => !p.in_db)
+      .filter(({ p, i }) => !p.in_db && !excludedIndices.has(i))
 
     for (const { p, i } of missingIndices) {
       if (!p.wikipedia_url) {
@@ -131,24 +138,24 @@ export function BallonDorsAdminPage() {
         }
       }
       setPlayers([...updatedPlayers])
-
-      // Small delay between Wikipedia requests
       await new Promise(r => setTimeout(r, 400))
     }
 
-    // Step 2: import the Ballon d'Or entry
+    // Step 2: import — omit excluded players from the Ballon d'Or list
     try {
       await importBallonDor({
         year,
         wikipedia_url: url.trim(),
-        players: updatedPlayers.map(p => ({
-          rank: p.rank,
-          name: p.name,
-          nationality: p.nationality,
-          club: p.club,
-          points: p.points,
-          wikipedia_url: p.wikipedia_url ?? null,
-        })),
+        players: updatedPlayers
+          .filter((_, i) => !excludedIndices.has(i))
+          .map(p => ({
+            rank: p.rank,
+            name: p.name,
+            nationality: p.nationality,
+            club: p.club,
+            points: p.points,
+            wikipedia_url: p.wikipedia_url ?? null,
+          })),
       })
       setImportDone(true)
       await load()
@@ -171,10 +178,12 @@ export function BallonDorsAdminPage() {
   }
 
   const inDbCount = players.filter(p => p.in_db).length
-  const newCount = players.length - inDbCount
-  const noWikiCount = players.filter(p => !p.in_db && !p.wikipedia_url).length
+  const newPlayers = players.filter((p, i) => !p.in_db && !excludedIndices.has(i))
+  const excludedCount = excludedIndices.size
+  const noWikiCount = newPlayers.filter(p => !p.wikipedia_url).length
 
-  function playerStateIcon(p: CheckedPlayer) {
+  function playerStateIcon(p: CheckedPlayer, i: number) {
+    if (excludedIndices.has(i)) return null
     if (!importing && !importDone) {
       return p.in_db
         ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
@@ -218,24 +227,29 @@ export function BallonDorsAdminPage() {
             disabled={importing}
           />
           <Button size="sm" onClick={handleScrape} disabled={scraping || importing || !url.trim()}>
-            {scraping || checking ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Checking…</> : 'Scrape'}
+            {scraping || checking
+              ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Checking…</>
+              : 'Scrape'
+            }
           </Button>
         </div>
 
         {scrapeError && <p className="text-sm text-destructive">{scrapeError}</p>}
 
-        {/* Preview */}
         {players.length > 0 && year && (
           <div className="space-y-3 pt-1">
-            {/* Summary bar */}
-            <div className="flex items-center gap-4 text-sm">
-              <span className="font-semibold">{year} Ballon d&apos;Or — {players.length} players</span>
+            {/* Summary */}
+            <div className="flex items-center gap-4 text-sm flex-wrap">
+              <span className="font-semibold">
+                {year} Ballon d&apos;Or — {players.length - excludedCount} players
+                {excludedCount > 0 && <span className="text-muted-foreground font-normal"> ({excludedCount} excluded)</span>}
+              </span>
               <span className="text-green-600 flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" /> {inDbCount} in DB
               </span>
-              {newCount > 0 && (
+              {newPlayers.length > 0 && (
                 <span className="text-muted-foreground flex items-center gap-1">
-                  <Circle className="h-3.5 w-3.5" /> {newCount} new
+                  <Circle className="h-3.5 w-3.5" /> {newPlayers.length} new
                   {noWikiCount > 0 && <span className="text-red-500 ml-1">({noWikiCount} no wiki URL)</span>}
                 </span>
               )}
@@ -246,7 +260,7 @@ export function BallonDorsAdminPage() {
               <table className="w-full text-xs">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr>
-                    <th className="text-left px-3 py-1.5 font-medium w-6"></th>
+                    <th className="px-3 py-1.5 w-6"></th>
                     <th className="text-left px-3 py-1.5 font-medium w-8">#</th>
                     <th className="text-left px-3 py-1.5 font-medium">Player</th>
                     <th className="text-left px-3 py-1.5 font-medium">Club</th>
@@ -254,21 +268,40 @@ export function BallonDorsAdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {players.map((p, i) => (
-                    <tr key={i} className={`border-t ${!p.in_db && !p.wikipedia_url ? 'bg-red-50' : ''}`}>
-                      <td className="px-3 py-1">{playerStateIcon(p)}</td>
-                      <td className="px-3 py-1 tabular-nums text-muted-foreground">{p.rank}</td>
-                      <td className="px-3 py-1 font-medium">
-                        {p.wikipedia_url
-                          ? <a href={p.wikipedia_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{p.name}</a>
-                          : p.name
-                        }
-                        {p.import_error && <span className="ml-1 text-red-500">— {p.import_error}</span>}
-                      </td>
-                      <td className="px-3 py-1 text-muted-foreground">{p.club}</td>
-                      <td className="px-3 py-1 tabular-nums text-right">{p.points ?? '—'}</td>
-                    </tr>
-                  ))}
+                  {players.map((p, i) => {
+                    const isExcluded = excludedIndices.has(i)
+                    const isNew = !p.in_db
+                    return (
+                      <tr
+                        key={i}
+                        className={`border-t ${isExcluded ? 'opacity-40' : (!p.in_db && !p.wikipedia_url ? 'bg-red-50' : '')}`}
+                      >
+                        <td className="px-3 py-1">
+                          {isNew && !importing && !importDone ? (
+                            <input
+                              type="checkbox"
+                              checked={!isExcluded}
+                              onChange={() => toggleExclude(i)}
+                              className="cursor-pointer"
+                              title={isExcluded ? 'Include this player' : 'Exclude this player'}
+                            />
+                          ) : (
+                            playerStateIcon(p, i)
+                          )}
+                        </td>
+                        <td className="px-3 py-1 tabular-nums text-muted-foreground">{p.rank}</td>
+                        <td className={`px-3 py-1 font-medium ${isExcluded ? 'line-through text-muted-foreground' : ''}`}>
+                          {p.wikipedia_url
+                            ? <a href={p.wikipedia_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{p.name}</a>
+                            : p.name
+                          }
+                          {p.import_error && <span className="ml-1 text-red-500">— {p.import_error}</span>}
+                        </td>
+                        <td className="px-3 py-1 text-muted-foreground">{p.club}</td>
+                        <td className="px-3 py-1 tabular-nums text-right">{p.points ?? '—'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -278,25 +311,21 @@ export function BallonDorsAdminPage() {
             {importDone ? (
               <p className="text-sm text-green-600 font-medium">✓ Imported successfully</p>
             ) : (
-              <div className="flex items-center justify-between">
-                {newCount > 0 && !importing && (
-                  <p className="text-xs text-muted-foreground">
-                    {newCount} player{newCount !== 1 ? 's' : ''} will be scraped from Wikipedia and added to the database.
-                  </p>
-                )}
-                {importing && (
-                  <p className="text-xs text-muted-foreground">
-                    Scraping missing players…
-                  </p>
-                )}
-                <div className="ml-auto">
-                  <Button size="sm" onClick={handleImport} disabled={importing}>
-                    {importing
-                      ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Importing…</>
-                      : `Import ${year}`
-                    }
-                  </Button>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  {importing
+                    ? 'Scraping missing players…'
+                    : newPlayers.length > 0
+                      ? `${newPlayers.length} player${newPlayers.length !== 1 ? 's' : ''} will be scraped and added to the database.`
+                      : ''
+                  }
+                </p>
+                <Button size="sm" onClick={handleImport} disabled={importing}>
+                  {importing
+                    ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Importing…</>
+                    : `Import ${year}`
+                  }
+                </Button>
               </div>
             )}
           </div>
