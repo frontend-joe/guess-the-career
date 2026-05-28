@@ -81,7 +81,8 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
   const rounds = scheduleRows.map(row => {
     const players = sqlite.prepare(`
       SELECT bdp.id, bdp.name, bdp.club, bdp.points, bdp.rank,
-             bdp.nationality, bdp.wikipedia_url AS player_wikipedia_url,
+             COALESCE(f.nationality, f2.nationality, bdp.nationality) AS nationality,
+             bdp.wikipedia_url AS player_wikipedia_url,
              COALESCE(f.name, f2.name) AS footballer_name,
              COALESCE(f.position, f2.position) AS footballer_position
       FROM ballon_dor_players bdp
