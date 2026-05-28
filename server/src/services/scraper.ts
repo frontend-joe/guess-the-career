@@ -25,6 +25,10 @@ export const CLUB_ALIASES: Record<string, string> = {
   "PSV Eindhoven": "PSV",
   // Dortmund
   "Borussia Dortmund": "Dortmund",
+  // Hamburger SV
+  Hamburg: "Hamburger SV",
+  "HSV": "Hamburger SV",
+  "Hamburger SV Hamburg": "Hamburger SV",
 };
 
 const FOOTBALLING_NATIONS = new Set([
