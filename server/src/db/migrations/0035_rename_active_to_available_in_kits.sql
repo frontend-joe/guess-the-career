@@ -1,1 +1,1 @@
-ALTER TABLE xi_players RENAME COLUMN active TO available_in_kits;
+SELECT 1; -- no-op: column was already named available_in_kits in migration 0034
