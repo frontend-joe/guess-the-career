@@ -277,8 +277,9 @@ export const ballon_dor_players = sqliteTable('ballon_dor_players', {
   name:          text('name').notNull(),
   nationality:   text('nationality'),
   club:          text('club').notNull(),
-  points:        integer('points'),  // stored as real but SQLite integer is fine; use real() if fractional
+  points:        integer('points'),
   rank:          integer('rank').notNull(),
+  wikipedia_url: text('wikipedia_url'),
 })
 
 export const ballon_dor_schedule = sqliteTable('ballon_dor_schedule', {

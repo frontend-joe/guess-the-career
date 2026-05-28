@@ -116,6 +116,13 @@ export async function importBallonDor(payload: {
   return data
 }
 
+export async function refreshBallonDor(id: number): Promise<{ updated: number }> {
+  const res = await fetch(`/api/ballon-dors/${id}/refresh`, { method: 'POST' })
+  const data = await res.json()
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Refresh failed')
+  return data
+}
+
 export async function deleteBallonDor(id: number): Promise<void> {
   const res = await fetch(`/api/ballon-dors/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete')

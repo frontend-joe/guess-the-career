@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, asc, sql } from 'drizzle-orm'
+import { eq, asc, sql, and } from 'drizzle-orm'
 import { db } from '../db/client.ts'
 import { ballon_dors, ballon_dor_players, footballers } from '../db/schema.ts'
 import { scrapeBallonDorPage } from '../services/scraper.ts'
@@ -15,10 +15,6 @@ const playerSchema = z.object({
   wikipedia_url: z.string().nullable().optional(),
 })
 
-/**
- * Normalize a Wikipedia URL title for fuzzy matching.
- * Handles cases like Ra%C3%BAl vs Raul_(footballer) — both normalize to "raul".
- */
 function normalizeWikiTitle(url: string): string {
   const afterWiki = url.split('/wiki/').pop() ?? ''
   return decodeURIComponent(afterWiki)
@@ -173,6 +169,7 @@ ballonDorsRouter.post(
             club: p.club,
             points: p.points,
             rank: p.rank,
+            wikipedia_url: p.wikipedia_url ?? null,
           }
         })
       )
@@ -182,6 +179,67 @@ ballonDorsRouter.post(
     return c.json(entry, 201)
   }
 )
+
+// POST /api/ballon-dors/:id/refresh — re-scrape Wikipedia page and update footballer_id + wikipedia_url in place
+// Preserves the ballon_dors.id so schedule assignments and player progress are unaffected
+ballonDorsRouter.post('/:id/refresh', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const [entry] = await db.select().from(ballon_dors).where(eq(ballon_dors.id, id)).limit(1)
+  if (!entry) return c.json({ error: 'Not found' }, 404)
+
+  const scraped = await scrapeBallonDorPage(entry.wikipedia_url)
+
+  // Build normalized-URL → footballer_id map for matching
+  const allFootballers = await db.select({ id: footballers.id, wikipedia_url: footballers.wikipedia_url }).from(footballers)
+  const normalizedUrlMap = new Map<string, number>()
+  for (const f of allFootballers) {
+    const norm = normalizeWikiTitle(f.wikipedia_url)
+    if (norm && !normalizedUrlMap.has(norm)) normalizedUrlMap.set(norm, f.id)
+  }
+
+  let updated = 0
+  for (const sp of scraped.players) {
+    const [existing] = await db
+      .select({ id: ballon_dor_players.id })
+      .from(ballon_dor_players)
+      .where(and(eq(ballon_dor_players.ballon_dor_id, id), eq(ballon_dor_players.rank, sp.rank)))
+      .limit(1)
+    if (!existing) continue
+
+    // Resolve footballer_id: name → exact URL → normalized URL
+    let footballerId: number | null = null
+    const [byName] = await db
+      .select({ id: footballers.id })
+      .from(footballers)
+      .where(sql`LOWER(${footballers.name}) = LOWER(${sp.name})`)
+      .limit(1)
+    footballerId = byName?.id ?? null
+
+    if (!footballerId && sp.wikipedia_url) {
+      const [byUrl] = await db
+        .select({ id: footballers.id })
+        .from(footballers)
+        .where(eq(footballers.wikipedia_url, sp.wikipedia_url))
+        .limit(1)
+      footballerId = byUrl?.id ?? null
+
+      if (!footballerId) {
+        const norm = normalizeWikiTitle(sp.wikipedia_url)
+        footballerId = normalizedUrlMap.get(norm) ?? null
+      }
+    }
+
+    await db
+      .update(ballon_dor_players)
+      .set({ footballer_id: footballerId, wikipedia_url: sp.wikipedia_url ?? null })
+      .where(eq(ballon_dor_players.id, existing.id))
+    updated++
+  }
+
+  return c.json({ ok: true, updated })
+})
 
 // DELETE /api/ballon-dors/:id — delete (cascades to players)
 ballonDorsRouter.delete('/:id', async (c) => {

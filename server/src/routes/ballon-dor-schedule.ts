@@ -5,11 +5,22 @@ import { eq } from 'drizzle-orm'
 import { db, sqlite } from '../db/client.ts'
 import { ballon_dor_schedule } from '../db/schema.ts'
 
+/** Normalize a Wikipedia URL title for fuzzy matching (same logic as ballon-dors.ts) */
+function normalizeWikiTitle(url: string): string {
+  const afterWiki = url.split('/wiki/').pop() ?? ''
+  return decodeURIComponent(afterWiki)
+    .replace(/_/g, ' ')
+    .replace(/\s*\(.*?\)\s*$/, '')
+    .normalize('NFD').replace(/\p{Mn}/gu, '')
+    .toLowerCase()
+    .trim()
+}
+
 /** Map a full position string (from the footballers table) to GK | DF | MF | FW */
 function abbrevPosition(pos: string | null): 'GK' | 'DF' | 'MF' | 'FW' | null {
   if (!pos) return null
   const s = pos.toLowerCase()
-  if (s.includes('goalkeeper') || s.includes('goal keeper')) return 'GK'
+  if (s.includes('goalkeeper') || s.includes('goal keeper') || s.includes('goaltender')) return 'GK'
   if (s.includes('back') || s.includes('defender') || s.includes('sweeper') || s.includes('libero')) return 'DF'
   if (s.includes('striker') || s.includes('forward') || s.includes('winger') || s.includes('attacker') || s.includes('centre forward')) return 'FW'
   if (s.includes('midfielder') || s.includes('midfield')) return 'MF'
@@ -57,13 +68,25 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
       return { name, wikipedia_url: row?.wikipedia_url ?? null }
     })
 
+  // Build a normalized-URL → position map once for URL-based position fallback
+  const allFootballerUrls = sqlite.prepare('SELECT wikipedia_url, position FROM footballers WHERE wikipedia_url IS NOT NULL').all() as { wikipedia_url: string; position: string | null }[]
+  const normalizedUrlPositionMap = new Map<string, string>()
+  for (const f of allFootballerUrls) {
+    const norm = normalizeWikiTitle(f.wikipedia_url)
+    if (norm && f.position && !normalizedUrlPositionMap.has(norm)) {
+      normalizedUrlPositionMap.set(norm, f.position)
+    }
+  }
+
   const rounds = scheduleRows.map(row => {
     const players = sqlite.prepare(`
       SELECT bdp.id, bdp.name, bdp.club, bdp.points, bdp.rank,
-             f.name AS footballer_name, bdp.nationality,
-             f.position AS footballer_position
+             bdp.nationality, bdp.wikipedia_url AS player_wikipedia_url,
+             COALESCE(f.name, f2.name) AS footballer_name,
+             COALESCE(f.position, f2.position) AS footballer_position
       FROM ballon_dor_players bdp
       LEFT JOIN footballers f ON f.id = bdp.footballer_id
+      LEFT JOIN footballers f2 ON bdp.footballer_id IS NULL AND LOWER(f2.name) = LOWER(bdp.name)
       WHERE bdp.ballon_dor_id = ?
       ORDER BY bdp.rank ASC
     `).all(row.ballon_dor_id) as {
@@ -74,6 +97,7 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
       points: number | null
       rank: number
       nationality: string | null
+      player_wikipedia_url: string | null
       footballer_position: string | null
     }[]
 
@@ -81,16 +105,25 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
       date: row.date,
       ballonDorId: row.ballon_dor_id,
       year: row.ballon_dor_year,
-      players: players.map(p => ({
-        id: p.id,
-        name: p.name,
-        club: p.club,
-        clubs: resolveClubs(p.club),
-        points: p.points,
-        rank: p.rank,
-        nationality: p.nationality ?? null,
-        position: abbrevPosition(p.footballer_position),
-      })),
+      players: players.map(p => {
+        let position = abbrevPosition(p.footballer_position)
+        // URL-based fallback: handles cases like "Andreas Herzog" → "Andi Herzog"
+        if (!position && p.player_wikipedia_url) {
+          const norm = normalizeWikiTitle(p.player_wikipedia_url)
+          const pos = normalizedUrlPositionMap.get(norm)
+          if (pos) position = abbrevPosition(pos)
+        }
+        return {
+          id: p.id,
+          name: p.name,
+          club: p.club,
+          clubs: resolveClubs(p.club),
+          points: p.points,
+          rank: p.rank,
+          nationality: p.nationality ?? null,
+          position,
+        }
+      }),
       playerNames: players.map(p => p.footballer_name ?? p.name),
     }
   })

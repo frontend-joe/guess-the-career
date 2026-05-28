@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { Trash2, ExternalLink, Calendar, CheckCircle2, XCircle, Loader2, Circle } from 'lucide-react'
+import { Trash2, ExternalLink, Calendar, CheckCircle2, XCircle, Loader2, Circle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   getBallonDors,
   scrapeBallonDor,
   checkBallonDorPlayers,
   importBallonDor,
+  refreshBallonDor,
   deleteBallonDor,
   type BallonDorListItem,
   type BallonDorScrapedPlayer,
@@ -41,6 +42,9 @@ export function BallonDorsAdminPage() {
   const [importDone, setImportDone] = useState(false)
 
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [refreshingId, setRefreshingId] = useState<number | null>(null)
+  const [rescrapeAllRunning, setRescrapeAllRunning] = useState(false)
+  const [rescrapeAllDone, setRescrapeAllDone] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -163,6 +167,30 @@ export function BallonDorsAdminPage() {
       setImportError(e instanceof Error ? e.message : 'Import failed')
     } finally {
       setImporting(false)
+    }
+  }
+
+  async function handleRefresh(id: number) {
+    setRefreshingId(id)
+    try {
+      await refreshBallonDor(id)
+    } finally {
+      setRefreshingId(null)
+    }
+  }
+
+  async function handleRescrapeAll() {
+    setRescrapeAllRunning(true)
+    setRescrapeAllDone(false)
+    try {
+      for (const item of items) {
+        setRefreshingId(item.id)
+        await refreshBallonDor(item.id)
+      }
+      setRescrapeAllDone(true)
+    } finally {
+      setRescrapeAllRunning(false)
+      setRefreshingId(null)
     }
   }
 
@@ -340,9 +368,24 @@ export function BallonDorsAdminPage() {
 
       {/* Imported list */}
       <div className="space-y-2">
-        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          Imported ({items.length})
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+            Imported ({items.length})
+          </p>
+          {items.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRescrapeAll}
+              disabled={rescrapeAllRunning || !!refreshingId}
+            >
+              {rescrapeAllRunning
+                ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Rescraping…</>
+                : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />{rescrapeAllDone ? 'Done' : 'Rescrape all'}</>
+              }
+            </Button>
+          )}
+        </div>
         {loading && <p className="text-xs text-muted-foreground">Loading…</p>}
         {!loading && items.length === 0 && (
           <p className="text-sm text-muted-foreground">No years imported yet.</p>
@@ -358,6 +401,19 @@ export function BallonDorsAdminPage() {
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              disabled={refreshingId === item.id || rescrapeAllRunning}
+              onClick={() => handleRefresh(item.id)}
+              title="Rescrape player links"
+            >
+              {refreshingId === item.id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <RefreshCw className="h-3.5 w-3.5" />
+              }
+            </Button>
             <Button
               variant="ghost"
               size="icon"
