@@ -108,9 +108,16 @@ export function NationalsAdminPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-                    {combo.playerCount}
-                  </span>
+                  <div className="flex items-center justify-end gap-1.5">
+                    {combo.playerCount <= 6 && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        Solid
+                      </span>
+                    )}
+                    <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                      {combo.playerCount}
+                    </span>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
