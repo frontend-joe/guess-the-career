@@ -314,6 +314,19 @@ nationalsRouter.post(
       return nationalitiesMatch(nat, nationality) && hasClub(stintClubs, club)
     }
 
+    type FailReason = 'wrong_nationality' | 'wrong_club' | 'wrong_both'
+    function failReason(stintClubs: string[], nat: string | null | undefined): FailReason {
+      const natOk = nationalitiesMatch(nat, nationality)
+      const clubOk = hasClub(stintClubs, club)
+      if (!natOk && !clubOk) return 'wrong_both'
+      if (!natOk) return 'wrong_nationality'
+      return 'wrong_club'
+    }
+    function invalidJson(name: string, nat: string | null | undefined, stintClubs: string[]) {
+      const reason = failReason(stintClubs, nat)
+      return { valid: false, foundName: name, foundNationality: reason === 'wrong_nationality' ? (nat ?? null) : null, imported: false, reason }
+    }
+
     // Step 1: resolve footballer from DB
     let footballer: { id: number; name: string; wikipedia_url: string; photo_url: string | null; nationality: string | null } | undefined
 
@@ -448,10 +461,10 @@ nationalsRouter.post(
       const stintClubs = seniorStints.map(s => s.club)
 
       if (!checkQualifies(stintClubs, scraped.nationality)) {
-        return c.json({ valid: false, footballer: null, imported: false })
+        return c.json(invalidJson(scraped.name, scraped.nationality, stintClubs))
       }
       if (!isRetired(scraped.stints)) {
-        return c.json({ valid: false, footballer: null, imported: false, reason: 'not_retired' as const })
+        return c.json({ valid: false, foundName: scraped.name, foundNationality: null, imported: false, reason: 'not_retired' as const })
       }
 
       const knownRecord = byUrl ?? footballer

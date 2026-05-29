@@ -201,8 +201,10 @@ interface RoundState {
 interface VerifyResult {
   valid: boolean
   footballer: { id: number; name: string; photo_url: string | null } | null
+  foundName?: string
+  foundNationality?: string | null
   imported: boolean
-  reason?: 'not_retired'
+  reason?: 'not_retired' | 'wrong_nationality' | 'wrong_club' | 'wrong_both'
 }
 
 async function verifyGuess(
@@ -240,8 +242,7 @@ export function NationalityPlayersPage() {
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<{ id: number; name: string; photo_url: string | null }[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
-  const [wrongGuess, setWrongGuess] = useState<string | null>(null)
-  const [notRetiredGuess, setNotRetiredGuess] = useState(false)
+  const [wrongGuessMsg, setWrongGuessMsg] = useState<string | null>(null)
   const [verifying, setVerifying] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -366,9 +367,16 @@ export function NationalityPlayersPage() {
           saveProgress(saved)
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current)
-          setWrongGuess(name)
-          setNotRetiredGuess(result.reason === 'not_retired')
-          wrongTimer.current = setTimeout(() => { setWrongGuess(null); setNotRetiredGuess(false) }, 2500)
+          const displayName = result.foundName ?? `"${name}"`
+          const actualNat = result.foundNationality ? (nationalityAdjective(result.foundNationality) || result.foundNationality) : null
+          const msg =
+            result.reason === 'not_retired' ? `Correct, but ${displayName} isn't retired yet!` :
+            result.reason === 'wrong_nationality' && actualNat ? `${displayName} is actually ${actualNat}` :
+            result.reason === 'wrong_club' ? `${displayName} didn't play for ${currentRound.club}` :
+            result.reason === 'wrong_both' ? `${displayName} wasn't either` :
+            `${displayName} is not a valid answer`
+          setWrongGuessMsg(msg)
+          wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500)
         }
       } finally {
         setVerifying(false)
@@ -547,11 +555,9 @@ export function NationalityPlayersPage() {
                 )}
 
                 {/* Wrong guess flash */}
-                {wrongGuess && (
+                {wrongGuessMsg && (
                   <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center animate-pulse">
-                    {notRetiredGuess
-                      ? `Correct, but ${wrongGuess} isn't retired yet!`
-                      : `"${wrongGuess}" didn't play for ${currentRound.club} (or isn't ${currentRound.nationality})`}
+                    {wrongGuessMsg}
                   </div>
                 )}
               </div>
