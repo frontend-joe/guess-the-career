@@ -512,9 +512,17 @@ export function NationalityPlayersPage() {
               <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
                 {/* Combo header */}
                 <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3 overflow-hidden">
-                  {currentRound.playerCount <= 6 && (
+                  {currentRound.playerCount <= 6 ? (
                     <div className="absolute top-3.5 -right-5.5 rotate-45 bg-red-500 text-white text-[9px] font-bold tracking-wider uppercase px-7 py-0.5 shadow-sm">
                       Solid
+                    </div>
+                  ) : currentRound.playerCount <= 15 ? (
+                    <div className="absolute top-3.5 -right-5.5 rotate-45 bg-amber-400 text-white text-[9px] font-bold tracking-wider uppercase px-7 py-0.5 shadow-sm">
+                      Medium
+                    </div>
+                  ) : (
+                    <div className="absolute top-3.5 -right-5.5 rotate-45 bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase px-7 py-0.5 shadow-sm">
+                      Easy
                     </div>
                   )}
                   <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">{nationalityAdjective(currentRound.nationality)} {currentRound.club} Players</span>
