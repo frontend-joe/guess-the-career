@@ -46,6 +46,10 @@ import { BallonDorsAdminPage } from '@/pages/BallonDorsAdminPage'
 import { WorldCupPage } from '@/pages/WorldCupPage'
 import { WorldCupSchedulePage } from '@/pages/WorldCupSchedulePage'
 import { WorldCupAdminPage } from '@/pages/WorldCupAdminPage'
+import { NationalityPlayersPage } from '@/pages/NationalityPlayersPage'
+import { NationalsAdminPage } from '@/pages/NationalsAdminPage'
+import { NationalsAdminDetailPage } from '@/pages/NationalsAdminDetailPage'
+import { NationalsSchedulePage } from '@/pages/NationalsSchedulePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -69,6 +73,7 @@ const router = createBrowserRouter([
   { path: '/play/more-trophies', element: <HonorGamePage /> },
   { path: '/play/ballon-dors', element: <BallonDorPage /> },
   { path: '/play/world-cup', element: <WorldCupPage /> },
+  { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -101,6 +106,9 @@ const router = createBrowserRouter([
       { path: 'ballon-dors/schedule', element: <BallonDorSchedulePage /> },
       { path: 'world-cup', element: <WorldCupAdminPage /> },
       { path: 'world-cup/schedule', element: <WorldCupSchedulePage /> },
+      { path: 'nationals', element: <NationalsAdminPage /> },
+      { path: 'nationals/schedule', element: <NationalsSchedulePage /> },
+      { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
     ],
   },
 ])

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target, Star, Hash, Route, Globe } from 'lucide-react'
+import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target, Star, Route, Globe, Flag } from 'lucide-react'
 
 export function PlayHubPage() {
   const navigate = useNavigate()
@@ -115,14 +115,6 @@ export function PlayHubPage() {
           <span className="text-gray-400 text-xs">100+ goals &amp; appearances</span>
         </button>
         <button
-          onClick={() => navigate('/play/guess-the-kit')}
-          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
-        >
-          <Hash size={32} className="text-white/80" />
-          <span className="font-bold text-sm tracking-widest uppercase">Guess the Kit</span>
-          <span className="text-gray-400 text-xs">Kit + number → who wore it?</span>
-        </button>
-        <button
           onClick={() => navigate('/play/more-trophies')}
           className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
         >
@@ -145,6 +137,14 @@ export function PlayHubPage() {
           <Shield size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">World Cup</span>
           <span className="text-gray-400 text-xs">Name the squad</span>
+        </button>
+        <button
+          onClick={() => navigate('/play/nationality-players')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <Flag size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">Nationality Players</span>
+          <span className="text-gray-400 text-xs">Flag + club = 5 players</span>
         </button>
       </div>
     </div>

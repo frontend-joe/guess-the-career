@@ -25,6 +25,9 @@ export const CLUB_ALIASES: Record<string, string> = {
   "PSV Eindhoven": "PSV",
   // Dortmund
   "Borussia Dortmund": "Dortmund",
+  // Lazio
+  "S.S. Lazio": "Lazio",
+  "SS Lazio": "Lazio",
   // Hamburger SV
   Hamburg: "Hamburger SV",
   "HSV": "Hamburger SV",

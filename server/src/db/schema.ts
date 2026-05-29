@@ -323,3 +323,21 @@ export const world_cup_schedule = sqliteTable('world_cup_schedule', {
 export type WorldCupSquad = typeof world_cup_squads.$inferSelect
 export type WorldCupSquadPlayer = typeof world_cup_squad_players.$inferSelect
 export type WorldCupScheduleEntry = typeof world_cup_schedule.$inferSelect
+
+export const nationals_enabled_combos = sqliteTable('nationals_enabled_combos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  nationality: text('nationality').notNull(),
+  club: text('club').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const nationals_schedule = sqliteTable('nationals_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  nationality: text('nationality').notNull(),
+  club: text('club').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type NationalsEnabledCombo = typeof nationals_enabled_combos.$inferSelect
+export type NationalsScheduleEntry = typeof nationals_schedule.$inferSelect
