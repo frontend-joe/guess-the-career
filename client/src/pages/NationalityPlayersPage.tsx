@@ -9,6 +9,36 @@ import { nationalityToFlagUrl } from '@/lib/flags'
 
 const TARGET = 5
 
+const COUNTRY_ADJECTIVE: Record<string, string> = {
+  England: 'English', Scotland: 'Scottish', Wales: 'Welsh', 'Northern Ireland': 'Northern Irish',
+  France: 'French', Germany: 'German', Spain: 'Spanish', Italy: 'Italian', Portugal: 'Portuguese',
+  Netherlands: 'Dutch', Belgium: 'Belgian', Brazil: 'Brazilian', Argentina: 'Argentine',
+  Croatia: 'Croatian', Uruguay: 'Uruguayan', Colombia: 'Colombian', Chile: 'Chilean',
+  Mexico: 'Mexican', 'United States': 'American', Turkey: 'Turkish', Russia: 'Russian',
+  Ukraine: 'Ukrainian', Poland: 'Polish', 'Czech Republic': 'Czech', Slovakia: 'Slovak',
+  Austria: 'Austrian', Switzerland: 'Swiss', Sweden: 'Swedish', Norway: 'Norwegian',
+  Denmark: 'Danish', Finland: 'Finnish', Iceland: 'Icelandic', Serbia: 'Serbian',
+  Greece: 'Greek', Romania: 'Romanian', Hungary: 'Hungarian', Slovenia: 'Slovenian',
+  'North Macedonia': 'Macedonian', Albania: 'Albanian', 'Bosnia and Herzegovina': 'Bosnian',
+  Montenegro: 'Montenegrin', Bulgaria: 'Bulgarian', Georgia: 'Georgian', Armenia: 'Armenian',
+  Belarus: 'Belarusian', Azerbaijan: 'Azerbaijani', Ireland: 'Irish', 'Republic of Ireland': 'Irish',
+  Ecuador: 'Ecuadorian', Paraguay: 'Paraguayan', Bolivia: 'Bolivian', Peru: 'Peruvian',
+  Venezuela: 'Venezuelan', Japan: 'Japanese', 'South Korea': 'South Korean', Australia: 'Australian',
+  Morocco: 'Moroccan', Algeria: 'Algerian', Nigeria: 'Nigerian', Senegal: 'Senegalese',
+  Ghana: 'Ghanaian', 'Ivory Coast': 'Ivorian', Cameroon: 'Cameroonian', Egypt: 'Egyptian',
+  Tunisia: 'Tunisian', Liberia: 'Liberian', Mali: 'Malian', Guinea: 'Guinean',
+  Yugoslavia: 'Yugoslav', 'West Germany': 'German',
+  Latvia: 'Latvian', Lithuania: 'Lithuanian', Estonia: 'Estonian',
+  Israel: 'Israeli', 'Saudi Arabia': 'Saudi', Qatar: 'Qatari',
+  'Costa Rica': 'Costa Rican', Jamaica: 'Jamaican', 'Trinidad and Tobago': 'Trinidadian',
+  Zimbabwe: 'Zimbabwean', 'DR Congo': 'Congolese', 'South Africa': 'South African',
+  Kosovo: 'Kosovan',
+}
+
+function nationalityAdjective(nat: string): string {
+  return COUNTRY_ADJECTIVE[nat] ?? nat
+}
+
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
 const PROGRESS_KEY = 'np_progress'
@@ -88,7 +118,7 @@ function NationalityBadge({ nationality }: { nationality: string }) {
     <div className="flex flex-col items-center gap-1.5 w-24">
       <div className="w-14 h-14 bg-white border border-gray-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
         {flagUrl
-          ? <img src={flagUrl} alt={nationality} className="w-full h-full object-cover" />
+          ? <img src={flagUrl} alt={nationality} className="w-full h-full object-cover p-2 bg-gray-50" />
           : <span className="text-gray-500 font-bold text-xl">{nationality.charAt(0)}</span>}
       </div>
       <span className="text-gray-800 font-semibold text-xs text-center leading-tight max-w-20 h-8 flex items-start justify-center line-clamp-2">{nationality}</span>
@@ -482,7 +512,7 @@ export function NationalityPlayersPage() {
               <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
                 {/* Combo header */}
                 <div className="bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3">
-                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Which players played for both?</span>
+                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">{nationalityAdjective(currentRound.nationality)} {currentRound.club} Players</span>
                   <div className="flex items-center justify-center gap-6">
                     <NationalityBadge nationality={currentRound.nationality} />
                     <span className="text-gray-400 font-bold text-lg">&amp;</span>
