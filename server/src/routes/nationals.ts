@@ -303,7 +303,7 @@ nationalsRouter.post(
   '/verify',
   zValidator('json', z.object({
     footballerName: z.string().min(1),
-    footballerId: z.number().int().optional(),
+    footballerId: z.number().int().nullish(),
     nationality: z.string().min(1),
     club: z.string().min(1),
   })),

@@ -181,13 +181,19 @@ async function verifyGuess(
   nationality: string,
   club: string,
 ): Promise<VerifyResult> {
-  const res = await fetch('/api/nationals/verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ footballerName, footballerId, nationality, club }),
-  })
-  if (!res.ok) return { valid: false, footballer: null, imported: false }
-  return res.json()
+  try {
+    const body: Record<string, unknown> = { footballerName, nationality, club }
+    if (footballerId != null) body.footballerId = footballerId
+    const res = await fetch('/api/nationals/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) return { valid: false, footballer: null, imported: false }
+    return await res.json()
+  } catch {
+    return { valid: false, footballer: null, imported: false }
+  }
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
@@ -289,9 +295,10 @@ export function NationalityPlayersPage() {
   // ── Submit guess ──────────────────────────────────────────────────────────
   async function submitGuess(name: string) {
     if (!currentState || !currentKey || !currentRound || verifying) return
-    if (currentState.guessedIds.size >= TARGET) return
     const players = currentState.players
     if (!players) return
+    const activeGuesses = players.filter(p => currentState.guessedIds.has(p.id)).length
+    if (activeGuesses >= TARGET) return
 
     setInputValue('')
     setSuggestions([])
@@ -359,7 +366,11 @@ export function NationalityPlayersPage() {
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
     const key = comboKey(r.nationality, r.club)
     const state = roundStates[key]
-    const guessed = Math.min(state?.guessedIds.size ?? 0, TARGET)
+    const statePlayers = state?.players
+    const validIds = statePlayers
+      ? statePlayers.filter(p => state!.guessedIds.has(p.id)).length
+      : state?.guessedIds.size ?? 0
+    const guessed = Math.min(validIds, TARGET)
     return {
       name: <span className="text-xs font-medium"><span className="text-gray-400 mr-1">#{i + 1}</span>{r.nationality} × {r.club}</span>,
       icon: (
@@ -389,13 +400,19 @@ export function NationalityPlayersPage() {
   const filteredProgressRounds = filteredProgressData.map(d => d.r)
   const filteredOriginalIndices = filteredProgressData.map(d => d.i)
 
-  const guessedCount = currentState?.guessedIds.size ?? 0
-  const isDone = guessedCount >= TARGET
   const players = currentState?.players ?? null
+
+  // Only count IDs that exist in the loaded players list — guards against stale localStorage IDs
+  // from players that were deleted and re-imported with a new ID.
+  const validGuessedIds = players
+    ? new Set(players.filter(p => currentState!.guessedIds.has(p.id)).map(p => p.id))
+    : currentState?.guessedIds ?? new Set<number>()
+  const guessedCount = validGuessedIds.size
+  const isDone = guessedCount >= TARGET
 
   const foundPlayers: (Player | null)[] = Array.from({ length: TARGET }, (_, i) => {
     if (!players) return null
-    const found = players.filter(p => currentState!.guessedIds.has(p.id))
+    const found = players.filter(p => validGuessedIds.has(p.id))
     return found[i] ?? null
   })
 
