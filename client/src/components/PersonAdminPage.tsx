@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { RescrapeButton } from '@/components/RescrapeButton'
 import { Button } from '@/components/ui/button'
