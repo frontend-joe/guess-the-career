@@ -158,6 +158,9 @@ function findValidCombos(): [string, string, number][] {
 
 // GET /api/nationals/admin/combos
 nationalsRouter.get('/admin/combos', (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const pageSize = Math.min(50, Math.max(1, parseInt(c.req.query('pageSize') ?? '25', 10)))
+
   const validCombos = findValidCombos()
 
   const existingCount = (sqlite.prepare(`SELECT COUNT(*) as n FROM nationals_enabled_combos`).get() as { n: number }).n
@@ -172,20 +175,23 @@ nationalsRouter.get('/admin/combos', (c) => {
   const enabledRows = sqlite.prepare(`SELECT nationality, club FROM nationals_enabled_combos`).all() as { nationality: string; club: string }[]
   const enabledSet = new Set(enabledRows.map(r => `${r.nationality}|||${r.club}`))
 
-  const result = validCombos
-    .sort((a, b) => b[2] - a[2])
-    .map(([nationality, club, playerCount]) => {
-      const clubRow = sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(club) as { wikipedia_url: string | null } | undefined
-      return {
-        nationality,
-        club,
-        clubWikiUrl: clubRow?.wikipedia_url ?? null,
-        playerCount,
-        enabled: enabledSet.has(`${nationality}|||${club}`),
-      }
-    })
+  const sorted = validCombos.sort((a, b) => b[2] - a[2])
+  const total = sorted.length
+  const enabledCount = sorted.filter(([nat, club]) => enabledSet.has(`${nat}|||${club}`)).length
+  const page_data = sorted.slice((page - 1) * pageSize, page * pageSize)
 
-  return c.json(result)
+  const data = page_data.map(([nationality, club, playerCount]) => {
+    const clubRow = sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(club) as { wikipedia_url: string | null } | undefined
+    return {
+      nationality,
+      club,
+      clubWikiUrl: clubRow?.wikipedia_url ?? null,
+      playerCount,
+      enabled: enabledSet.has(`${nationality}|||${club}`),
+    }
+  })
+
+  return c.json({ data, total, enabledCount, page, pageSize })
 })
 
 // POST /api/nationals/admin/combos/enable

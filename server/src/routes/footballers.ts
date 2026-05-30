@@ -39,6 +39,10 @@ footballersRouter.get('/', async (c) => {
   const search = c.req.query('search')
   const unassigned = c.req.query('unassigned') === 'true'
   const excludeDate = c.req.query('excludeDate')
+  const pageParam = c.req.query('page')
+  const pageSizeParam = c.req.query('pageSize')
+  const missingNationality = c.req.query('missingNationality') === 'true'
+  const missingPhoto = c.req.query('missingPhoto') === 'true'
 
   const conditions = []
 
@@ -47,14 +51,20 @@ footballersRouter.get('/', async (c) => {
     conditions.push(sql`normalize(${footballers.name}) LIKE ${`%${normalized}%`}`)
   }
 
+  if (missingNationality) {
+    conditions.push(sql`(${footballers.nationality} IS NULL OR ${footballers.nationality} = '')`)
+  }
+
+  if (missingPhoto) {
+    conditions.push(sql`(${footballers.photo_url} IS NULL OR ${footballers.photo_url} = '')`)
+  }
+
   if (unassigned) {
-    // Build the set of assigned footballer IDs to exclude
     const assignedRows = await db
       .selectDistinct({ footballer_id: days.footballer_id })
       .from(days)
       .where(isNotNull(days.footballer_id))
 
-    // If excludeDate is provided, keep that date's current footballer visible
     let excludeId: number | null = null
     if (excludeDate) {
       const [currentDay] = await db
@@ -73,11 +83,21 @@ footballersRouter.get('/', async (c) => {
     }
   }
 
-  const rows = await db
-    .select()
-    .from(footballers)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+  const where = conditions.length > 0 ? and(...conditions) : undefined
 
+  // Paginated mode — return { data, total }
+  if (pageParam != null) {
+    const page = Math.max(1, parseInt(pageParam, 10))
+    const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeParam ?? '25', 10)))
+    const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` }).from(footballers).where(where)
+    const data = await db.select().from(footballers).where(where)
+      .orderBy(footballers.name)
+      .limit(pageSize)
+      .offset((page - 1) * pageSize)
+    return c.json({ data, total: Number(total) })
+  }
+
+  const rows = await db.select().from(footballers).where(where)
   return c.json(rows)
 })
 

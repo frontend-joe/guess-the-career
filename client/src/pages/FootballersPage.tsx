@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import {
-  getFootballers, deleteFootballer, deleteAllFootballers, getDuplicates, rescrapeFootballer, updateFootballer,
+  getFootballers, getFootballersPaginated, deleteFootballer, deleteAllFootballers, getDuplicates, rescrapeFootballer, updateFootballer,
   type Footballer,
 } from '@/api/footballers'
 
@@ -24,11 +24,6 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
     header: 'Position',
     className: 'hidden md:table-cell text-sm text-muted-foreground',
     render: (f) => f.position ?? '—',
-  },
-  {
-    header: 'All Positions',
-    className: 'hidden lg:table-cell text-sm text-muted-foreground',
-    render: (f) => f.all_positions ?? '—',
   },
   {
     header: 'Height',
@@ -53,6 +48,8 @@ export function FootballersPage() {
     rescrapeUrl: '/api/footballers/rescrape-all',
     extraColumns: BASE_COLUMNS,
     getPeople: (opts) => getFootballers(opts),
+    getPeoplePaged: (opts) => getFootballersPaginated({ ...opts, missingNationality, missingPhoto }),
+    pageSize: 25,
     deletePerson: deleteFootballer,
     deleteAllPeople: deleteAllFootballers,
     getDuplicates,
@@ -70,19 +67,15 @@ export function FootballersPage() {
       { abbr: 'WG', value: 'Winger' },
       { abbr: 'ST', value: 'Striker' },
     ],
-    filterPeople: (missingNationality || missingPhoto || singleGenericPosition)
-      ? (people) => people.filter(f =>
-          (!missingNationality || !f.nationality) &&
-          (!missingPhoto || !f.photo_url) &&
-          (!singleGenericPosition || (() => {
-            const isGenericOrEmpty = (v: string | null) => !v || v.toLowerCase() === 'defender' || v.toLowerCase() === 'midfielder'
-            return (
-              (f.position?.toLowerCase() === 'defender' || f.position?.toLowerCase() === 'midfielder') &&
-              !f.all_positions &&
-              isGenericOrEmpty(f.custom_position)
-            )
-          })())
-        )
+    filterPeople: singleGenericPosition
+      ? (people) => people.filter(f => {
+          const isGenericOrEmpty = (v: string | null) => !v || v.toLowerCase() === 'defender' || v.toLowerCase() === 'midfielder'
+          return (
+            (f.position?.toLowerCase() === 'defender' || f.position?.toLowerCase() === 'midfielder') &&
+            !f.all_positions &&
+            isGenericOrEmpty(f.custom_position)
+          )
+        })
       : undefined,
     extraFilters: (
       <>

@@ -6,8 +6,16 @@ export interface AdminCombo {
   enabled: boolean
 }
 
-export async function getAdminCombos(): Promise<AdminCombo[]> {
-  const res = await fetch('/api/nationals/admin/combos')
+export interface AdminCombosResult {
+  data: AdminCombo[]
+  total: number
+  enabledCount: number
+  page: number
+  pageSize: number
+}
+
+export async function getAdminCombos(page = 1, pageSize = 25): Promise<AdminCombosResult> {
+  const res = await fetch(`/api/nationals/admin/combos?page=${page}&pageSize=${pageSize}`)
   if (!res.ok) throw new Error('Failed to fetch admin combos')
   return res.json()
 }

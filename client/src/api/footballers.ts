@@ -55,6 +55,24 @@ export async function getFootballers(opts?: {
   return res.json()
 }
 
+export async function getFootballersPaginated(opts: {
+  search?: string
+  page: number
+  pageSize: number
+  missingNationality?: boolean
+  missingPhoto?: boolean
+}): Promise<{ data: Footballer[]; total: number }> {
+  const params = new URLSearchParams()
+  params.set('page', String(opts.page))
+  params.set('pageSize', String(opts.pageSize))
+  if (opts.search) params.set('search', opts.search)
+  if (opts.missingNationality) params.set('missingNationality', 'true')
+  if (opts.missingPhoto) params.set('missingPhoto', 'true')
+  const res = await fetch(`/api/footballers?${params.toString()}`)
+  if (!res.ok) throw new Error('Failed to fetch footballers')
+  return res.json()
+}
+
 export async function getFootballer(id: number): Promise<FootballerWithStints> {
   const res = await fetch(`/api/footballers/${id}`)
   if (!res.ok) throw new Error('Failed to fetch footballer')

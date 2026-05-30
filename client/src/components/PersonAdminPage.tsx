@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { useNavigate } from 'react-router'
-import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy, CalendarDays } from 'lucide-react'
+import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { RescrapeButton } from '@/components/RescrapeButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -369,6 +369,8 @@ export interface PersonAdminConfig<T extends { id: number; name: string; wikiped
   rescrapeUrl: string
   extraColumns: ExtraColumn<T>[]
   getPeople: (opts?: { search?: string }) => Promise<T[]>
+  getPeoplePaged?: (opts: { search?: string; page: number; pageSize: number }) => Promise<{ data: T[]; total: number }>
+  pageSize?: number
   deletePerson: (id: number) => Promise<void>
   deleteAllPeople: () => Promise<void>
   getDuplicates: () => Promise<T[][]>
@@ -388,6 +390,8 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [people, setPeople] = useState<T[]>([])
+  const [total, setTotal] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -403,13 +407,24 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   const [savingCustomPositions, setSavingCustomPositions] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
+  const isPaginated = !!(config.getPeoplePaged && config.pageSize)
+  const pageSize = config.pageSize ?? 25
+  const totalPages = total != null ? Math.max(1, Math.ceil(total / pageSize)) : 1
+
   const debouncedSearch = useDebounce(search, 250)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = 1) => {
     setLoading(true)
     setError(null)
     try {
-      setPeople(await config.getPeople(debouncedSearch ? { search: debouncedSearch } : undefined))
+      if (config.getPeoplePaged && config.pageSize) {
+        const result = await config.getPeoplePaged({ search: debouncedSearch || undefined, page: p, pageSize: config.pageSize })
+        setPeople(result.data)
+        setTotal(result.total)
+        setPage(p)
+      } else {
+        setPeople(await config.getPeople(debouncedSearch ? { search: debouncedSearch } : undefined))
+      }
     } catch {
       setError(`Failed to load ${config.label.toLowerCase()}s`)
     } finally {
@@ -417,14 +432,18 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
     }
   }, [debouncedSearch, config])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(1) }, [load])
 
   async function handleDelete(item: T) {
     if (!confirm(`Delete ${item.name}? This cannot be undone.`)) return
     setDeletingId(item.id)
     try {
       await config.deletePerson(item.id)
-      setPeople((prev) => prev.filter((x) => x.id !== item.id))
+      if (isPaginated) {
+        await load(page)
+      } else {
+        setPeople((prev) => prev.filter((x) => x.id !== item.id))
+      }
     } catch {
       alert(`Failed to delete ${config.label.toLowerCase()}`)
     } finally {
@@ -519,12 +538,12 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   }
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="p-4 md:p-6 md:flex md:flex-col md:h-full">
       <div className="flex items-start justify-between gap-3 mb-5">
         <div>
           <h1 className="text-xl font-semibold">{config.label}s</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {people.length} {config.label.toLowerCase()}{people.length !== 1 ? 's' : ''} in database
+            {total ?? people.length} {config.label.toLowerCase()}{(total ?? people.length) !== 1 ? 's' : ''} in database
           </p>
         </div>
         <div className="flex gap-2 shrink-0 flex-wrap justify-end">
@@ -586,7 +605,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
 
       {deleteAllConfirm && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
-          <span className="text-destructive">Delete all {people.length} {config.label.toLowerCase()}s? This cannot be undone.</span>
+          <span className="text-destructive">Delete all {total ?? people.length} {config.label.toLowerCase()}s? This cannot be undone.</span>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={() => setDeleteAllConfirm(false)}>Cancel</Button>
             <Button
@@ -613,6 +632,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
         </div>
       )}
 
+      <div className="md:flex-1 md:overflow-y-auto md:min-h-0">
       {loading ? (
         <div className="text-sm text-muted-foreground py-8 text-center">Loading…</div>
       ) : visiblePeople.length === 0 ? (
@@ -766,6 +786,23 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                 ))}
               </TableBody>
             </Table>
+          </div>
+        </div>
+      )}
+      </div>
+
+      {isPaginated && total != null && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 md:mt-2 md:pt-3 md:border-t md:shrink-0">
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages} · {total} {config.label.toLowerCase()}s
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => load(page - 1)} disabled={page <= 1}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => load(page + 1)} disabled={page >= totalPages}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       )}
