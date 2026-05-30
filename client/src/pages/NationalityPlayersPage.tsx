@@ -7,7 +7,11 @@ import { OverallProgressScreen, type ProgressRound } from '@/components/OverallP
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { nationalityToFlagUrl } from '@/lib/flags'
 
-const TARGET = 5
+function roundTarget(playerCount: number): number {
+  if (playerCount <= 6) return 5
+  if (playerCount <= 15) return 10
+  return 15
+}
 
 const COUNTRY_ADJECTIVE: Record<string, string> = {
   England: 'English', Scotland: 'Scottish', Wales: 'Welsh', 'Northern Ireland': 'Northern Irish',
@@ -329,7 +333,7 @@ export function NationalityPlayersPage() {
     const players = currentState.players
     if (!players) return
     const activeGuesses = players.filter(p => currentState.guessedIds.has(p.id)).length
-    if (activeGuesses >= TARGET) return
+    if (activeGuesses >= roundTarget(currentRound.playerCount)) return
 
     setInputValue('')
     setSuggestions([])
@@ -408,7 +412,8 @@ export function NationalityPlayersPage() {
     const validIds = statePlayers
       ? statePlayers.filter(p => state!.guessedIds.has(p.id)).length
       : state?.guessedIds.size ?? 0
-    const guessed = Math.min(validIds, TARGET)
+    const target = roundTarget(r.playerCount)
+    const guessed = Math.min(validIds, target)
     return {
       name: <span className="text-xs font-medium"><span className="text-gray-400 mr-1">#{i + 1}</span>{r.nationality} × {r.club}</span>,
       icon: (
@@ -421,11 +426,15 @@ export function NationalityPlayersPage() {
         </div>
       ),
       guessed,
-      total: TARGET,
+      total: target,
     }
   })
 
-  const totalGuessed = Object.values(roundStates).filter(s => s.guessedIds.size >= TARGET).length
+  const totalGuessed = rounds.filter(r => {
+    const key = comboKey(r.nationality, r.club)
+    const state = roundStates[key]
+    return (state?.guessedIds.size ?? 0) >= roundTarget(r.playerCount)
+  }).length
   const totalPlayers = rounds.length
 
   const filteredProgressData = progressRounds
@@ -442,13 +451,15 @@ export function NationalityPlayersPage() {
 
   // Only count IDs that exist in the loaded players list — guards against stale localStorage IDs
   // from players that were deleted and re-imported with a new ID.
+  const target = currentRound ? roundTarget(currentRound.playerCount) : 5
+
   const validGuessedIds = players
     ? new Set(players.filter(p => currentState!.guessedIds.has(p.id)).map(p => p.id))
     : currentState?.guessedIds ?? new Set<number>()
   const guessedCount = validGuessedIds.size
-  const isDone = guessedCount >= TARGET
+  const isDone = guessedCount >= target
 
-  const foundPlayers: (Player | null)[] = Array.from({ length: TARGET }, (_, i) => {
+  const foundPlayers: (Player | null)[] = Array.from({ length: target }, (_, i) => {
     if (!players) return null
     const found = players.filter(p => validGuessedIds.has(p.id))
     return found[i] ?? null
@@ -521,15 +532,15 @@ export function NationalityPlayersPage() {
                 {/* Combo header */}
                 <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3 overflow-hidden">
                   {currentRound.playerCount <= 6 ? (
-                    <div className="absolute top-3.5 -right-5.5 rotate-45 bg-red-500 text-white text-[9px] font-bold tracking-wider uppercase px-7 py-0.5 shadow-sm">
+                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-red-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                       Solid
                     </div>
                   ) : currentRound.playerCount <= 15 ? (
-                    <div className="absolute top-3.5 -right-5.5 rotate-45 bg-amber-400 text-white text-[9px] font-bold tracking-wider uppercase px-7 py-0.5 shadow-sm">
+                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-amber-400 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                       Medium
                     </div>
                   ) : (
-                    <div className="absolute top-3.5 -right-5.5 rotate-45 bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase px-7 py-0.5 shadow-sm">
+                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                       Easy
                     </div>
                   )}
@@ -568,7 +579,7 @@ export function NationalityPlayersPage() {
           {currentRound && (
             <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
               <p className={`text-xs mb-2 ${verifying ? 'text-yellow-400' : guessedCount > 0 ? 'text-green-400' : 'text-white/50'}`}>
-                {verifying ? 'Checking…' : isDone ? `All ${TARGET} found! ✓` : `${guessedCount} / ${TARGET} found`}
+                {verifying ? 'Checking…' : isDone ? `All ${target} found! ✓` : `${guessedCount} / ${target} found`}
               </p>
 
               {!isDone && (
