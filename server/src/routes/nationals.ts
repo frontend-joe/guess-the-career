@@ -671,170 +671,199 @@ nationalsRouter.post(
         const t = stripDiacritics(title);
         return nameParts.length > 0 && nameParts.every((p) => t.includes(p));
       }
-      async function wikiSearch(query: string) {
-        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`;
+      async function wikiSearch(query: string): Promise<string[]> {
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=5`;
         const res = await fetch(url, { headers: wikiHeaders });
-        if (!res.ok) return null;
+        if (!res.ok) return [];
         const data = (await res.json()) as {
           query?: { search?: { title: string }[] };
         };
-        return data.query?.search?.[0] ?? null;
+        return (data.query?.search ?? []).map((s) => s.title);
       }
 
-      let firstResult = await wikiSearch(footballerName + " footballer");
-      if (!firstResult || !titleMatchesName(firstResult.title)) {
-        const r2 = await wikiSearch(footballerName + " " + club);
-        if (r2 && titleMatchesName(r2.title)) firstResult = r2;
-      }
-      if (!firstResult || !titleMatchesName(firstResult.title)) {
-        const r3 = await wikiSearch(footballerName);
-        if (r3 && titleMatchesName(r3.title)) firstResult = r3;
-      }
-      if (!firstResult || !titleMatchesName(firstResult.title))
-        return c.json({ valid: false, footballer: null, imported: false });
-
-      const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(firstResult.title.replace(/ /g, "_"))}`;
-
-      const byUrl = await db
-        .select({
-          id: footballers.id,
-          name: footballers.name,
-          photo_url: footballers.photo_url,
-          nationality: footballers.nationality,
-        })
-        .from(footballers)
-        .where(eq(footballers.wikipedia_url, wikiUrl))
-        .limit(1)
-        .then((r) => r[0]);
-
-      if (byUrl) {
-        const stints = await db
-          .select({ club: career_stints.club })
-          .from(career_stints)
-          .where(
-            sql`${career_stints.footballer_id} = ${byUrl.id} AND ${career_stints.stint_type} = 'senior'`,
-          );
-        const stintClubs = stints.map((s) => s.club);
-        if (checkQualifies(stintClubs, byUrl.nationality)) {
-          return c.json({
-            valid: true,
-            footballer: {
-              id: byUrl.id,
-              name: byUrl.name,
-              photo_url: byUrl.photo_url,
-            },
-            imported: false,
-          });
+      // Gather candidate titles across queries. A name like "Javier Garrido"
+      // matches several Wikipedia people, so we can't trust the first hit —
+      // collect every name-matching candidate and later keep the one that
+      // actually qualifies for this nationality + club.
+      const candidateTitles: string[] = [];
+      for (const query of [
+        footballerName + " footballer",
+        footballerName + " " + club,
+        footballerName,
+      ]) {
+        for (const title of await wikiSearch(query)) {
+          if (titleMatchesName(title) && !candidateTitles.includes(title)) {
+            candidateTitles.push(title);
+          }
         }
       }
 
-      await new Promise((r) => setTimeout(r, 300));
-      const scraped = await scrapeWikipedia(wikiUrl);
-      const seniorStints = scraped.stints.filter(
-        (s) => s.stint_type === "senior",
-      );
-      const stintClubs = seniorStints.map((s) => s.club);
+      if (candidateTitles.length === 0)
+        return c.json({ valid: false, footballer: null, imported: false });
 
-      if (!checkQualifies(stintClubs, scraped.nationality)) {
-        return c.json(
-          invalidJson(scraped.name, scraped.nationality, stintClubs),
+      // Remember the first concrete "wrong" result so we can return a
+      // meaningful reason if no candidate ends up qualifying.
+      let fallbackInvalid: ReturnType<typeof invalidJson> | null = null;
+
+      for (const title of candidateTitles.slice(0, 6)) {
+        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+
+        const byUrl = await db
+          .select({
+            id: footballers.id,
+            name: footballers.name,
+            photo_url: footballers.photo_url,
+            nationality: footballers.nationality,
+          })
+          .from(footballers)
+          .where(eq(footballers.wikipedia_url, wikiUrl))
+          .limit(1)
+          .then((r) => r[0]);
+
+        if (byUrl) {
+          const stints = await db
+            .select({ club: career_stints.club })
+            .from(career_stints)
+            .where(
+              sql`${career_stints.footballer_id} = ${byUrl.id} AND ${career_stints.stint_type} = 'senior'`,
+            );
+          const stintClubs = stints.map((s) => s.club);
+          if (checkQualifies(stintClubs, byUrl.nationality)) {
+            return c.json({
+              valid: true,
+              footballer: {
+                id: byUrl.id,
+                name: byUrl.name,
+                photo_url: byUrl.photo_url,
+              },
+              imported: false,
+            });
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 300));
+        let scraped;
+        try {
+          scraped = await scrapeWikipedia(wikiUrl);
+        } catch {
+          // Disambiguation page / no infobox — try the next candidate.
+          continue;
+        }
+        const seniorStints = scraped.stints.filter(
+          (s) => s.stint_type === "senior",
         );
-      }
-      if (!isRetired(scraped.stints)) {
-        return c.json({
-          valid: false,
-          foundName: scraped.name,
-          foundNationality: null,
-          imported: false,
-          reason: "not_retired" as const,
-        });
-      }
+        const stintClubs = seniorStints.map((s) => s.club);
 
-      const knownRecord = byUrl ?? footballer;
-      if (knownRecord) {
-        sqlite
-          .prepare(
-            `UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?), nationality = COALESCE(nationality, ?) WHERE id = ?`,
-          )
-          .run(
-            wikiUrl,
-            scraped.photo_url ?? null,
-            scraped.nationality ?? null,
-            knownRecord.id,
+        if (!checkQualifies(stintClubs, scraped.nationality)) {
+          // Wrong person for this combo — remember why, keep looking.
+          fallbackInvalid ??= invalidJson(
+            scraped.name,
+            scraped.nationality,
+            stintClubs,
           );
-        for (const s of seniorStints) {
-          const existing = sqlite
+          continue;
+        }
+        if (!isRetired(scraped.stints)) {
+          return c.json({
+            valid: false,
+            foundName: scraped.name,
+            foundNationality: null,
+            imported: false,
+            reason: "not_retired" as const,
+          });
+        }
+
+        const knownRecord = byUrl ?? footballer;
+        if (knownRecord) {
+          sqlite
             .prepare(
-              `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`,
+              `UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?), nationality = COALESCE(nationality, ?) WHERE id = ?`,
             )
-            .get(knownRecord.id, s.years, s.club);
-          if (!existing) {
-            const maxOrder = sqlite
+            .run(
+              wikiUrl,
+              scraped.photo_url ?? null,
+              scraped.nationality ?? null,
+              knownRecord.id,
+            );
+          for (const s of seniorStints) {
+            const existing = sqlite
               .prepare(
-                `SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`,
+                `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`,
               )
-              .get(knownRecord.id) as { next: number };
-            await db.insert(career_stints).values({
-              footballer_id: knownRecord.id,
-              sort_order: maxOrder.next,
+              .get(knownRecord.id, s.years, s.club);
+            if (!existing) {
+              const maxOrder = sqlite
+                .prepare(
+                  `SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`,
+                )
+                .get(knownRecord.id) as { next: number };
+              await db.insert(career_stints).values({
+                footballer_id: knownRecord.id,
+                sort_order: maxOrder.next,
+                years: s.years,
+                club: s.club,
+                club_wikipedia_url: s.club_wikipedia_url ?? null,
+                apps: s.apps ?? null,
+                goals: s.goals ?? null,
+                stint_type: "senior",
+              });
+            }
+          }
+          return c.json({
+            valid: true,
+            footballer: {
+              id: knownRecord.id,
+              name: knownRecord.name,
+              photo_url: scraped.photo_url ?? knownRecord.photo_url,
+            },
+            imported: true,
+          });
+        }
+
+        // Truly new footballer — insert
+        const [newFootballer] = await db
+          .insert(footballers)
+          .values({
+            name: scraped.name,
+            wikipedia_url: scraped.wikipedia_url,
+            nationality: scraped.nationality,
+            position: scraped.position,
+            all_positions: scraped.all_positions ?? null,
+            born: scraped.born,
+            photo_url: scraped.photo_url ?? null,
+          })
+          .returning();
+
+        if (seniorStints.length > 0) {
+          await db.insert(career_stints).values(
+            seniorStints.map((s, i) => ({
+              footballer_id: newFootballer.id,
+              sort_order: i,
               years: s.years,
               club: s.club,
               club_wikipedia_url: s.club_wikipedia_url ?? null,
               apps: s.apps ?? null,
               goals: s.goals ?? null,
-              stint_type: "senior",
-            });
-          }
+              stint_type: "senior" as const,
+            })),
+          );
         }
+
         return c.json({
           valid: true,
           footballer: {
-            id: knownRecord.id,
-            name: knownRecord.name,
-            photo_url: scraped.photo_url ?? knownRecord.photo_url,
+            id: newFootballer.id,
+            name: newFootballer.name,
+            photo_url: newFootballer.photo_url ?? null,
           },
           imported: true,
         });
       }
 
-      // Truly new footballer — insert
-      const [newFootballer] = await db
-        .insert(footballers)
-        .values({
-          name: scraped.name,
-          wikipedia_url: scraped.wikipedia_url,
-          nationality: scraped.nationality,
-          position: scraped.position,
-          all_positions: scraped.all_positions ?? null,
-          born: scraped.born,
-          photo_url: scraped.photo_url ?? null,
-        })
-        .returning();
-
-      if (seniorStints.length > 0) {
-        await db.insert(career_stints).values(
-          seniorStints.map((s, i) => ({
-            footballer_id: newFootballer.id,
-            sort_order: i,
-            years: s.years,
-            club: s.club,
-            club_wikipedia_url: s.club_wikipedia_url ?? null,
-            apps: s.apps ?? null,
-            goals: s.goals ?? null,
-            stint_type: "senior" as const,
-          })),
-        );
-      }
-
-      return c.json({
-        valid: true,
-        footballer: {
-          id: newFootballer.id,
-          name: newFootballer.name,
-          photo_url: newFootballer.photo_url ?? null,
-        },
-        imported: true,
-      });
+      // No candidate qualified — surface the first concrete mismatch if any.
+      return c.json(
+        fallbackInvalid ?? { valid: false, footballer: null, imported: false },
+      );
     } catch {
       return c.json({ valid: false, footballer: null, imported: false });
     }
