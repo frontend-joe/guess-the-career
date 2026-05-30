@@ -366,13 +366,16 @@ twoClubsRouter.post(
         return data.query?.search?.[0] ?? null
       }
 
-      // Try name+clubA first; if the result title doesn't match the player name, retry with name alone
-      let firstResult = await wikiSearch(footballerName + ' ' + clubA)
+      let firstResult = await wikiSearch(footballerName + ' footballer')
       if (!firstResult || !titleMatchesName(firstResult.title)) {
-        const fallback = await wikiSearch(footballerName)
-        if (fallback && titleMatchesName(fallback.title)) firstResult = fallback
+        const r2 = await wikiSearch(footballerName + ' ' + clubA)
+        if (r2 && titleMatchesName(r2.title)) firstResult = r2
       }
-      if (!firstResult) return c.json({ valid: false, footballer: null, imported: false })
+      if (!firstResult || !titleMatchesName(firstResult.title)) {
+        const r3 = await wikiSearch(footballerName)
+        if (r3 && titleMatchesName(r3.title)) firstResult = r3
+      }
+      if (!firstResult || !titleMatchesName(firstResult.title)) return c.json({ valid: false, footballer: null, imported: false })
 
       const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(firstResult.title.replace(/ /g, '_'))}`
 
