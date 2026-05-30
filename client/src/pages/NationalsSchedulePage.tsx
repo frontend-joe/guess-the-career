@@ -133,9 +133,9 @@ export function NationalsSchedulePage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [sched, comboList] = await Promise.all([getNationalsSchedule(), getAdminCombos()])
+      const [sched, comboResult] = await Promise.all([getNationalsSchedule(), getAdminCombos(1, 9999)])
       setEntries(sched)
-      setCombos(comboList)
+      setCombos(comboResult.data)
     } finally {
       setLoading(false)
     }
