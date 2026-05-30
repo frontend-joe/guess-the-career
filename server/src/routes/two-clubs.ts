@@ -356,7 +356,7 @@ twoClubsRouter.post(
       const nameParts = footballerName.toLowerCase().split(/\s+/).filter(p => p.length > 2)
       function titleMatchesName(title: string) {
         const t = title.toLowerCase()
-        return nameParts.some(p => t.includes(p))
+        return nameParts.length > 0 && nameParts.every(p => t.includes(p))
       }
       async function wikiSearch(query: string) {
         const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`

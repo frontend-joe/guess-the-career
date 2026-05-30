@@ -328,7 +328,7 @@ export function NationalityPlayersPage() {
   }
 
   // ── Submit guess ──────────────────────────────────────────────────────────
-  async function submitGuess(name: string) {
+  async function submitGuess(name: string, id: number | null = null) {
     if (!currentState || !currentKey || !currentRound || verifying) return
     const players = currentState.players
     if (!players) return
@@ -354,7 +354,7 @@ export function NationalityPlayersPage() {
     } else {
       setVerifying(true)
       try {
-        const result = await verifyGuess(name, null, currentRound.nationality, currentRound.club)
+        const result = await verifyGuess(name, id, currentRound.nationality, currentRound.club)
         if (result.valid && result.footballer) {
           const f = result.footballer
           setRoundStates(prev => {
@@ -394,7 +394,8 @@ export function NationalityPlayersPage() {
     if (e.key === 'Enter' && inputValue.trim()) {
       const term = inputValue.trim()
       const exact = suggestions.find(s => s.name.toLowerCase() === term.toLowerCase())
-      submitGuess(exact?.name ?? suggestions[0]?.name ?? term)
+      const match = exact ?? suggestions[0]
+      submitGuess(match?.name ?? term, match?.id ?? null)
     }
     if (e.key === 'Escape') { setSuggestions([]); setShowDropdown(false) }
   }
@@ -603,7 +604,7 @@ export function NationalityPlayersPage() {
                       {suggestions.map(f => (
                         <button
                           key={f.id}
-                          onMouseDown={e => { e.preventDefault(); submitGuess(f.name) }}
+                          onMouseDown={e => { e.preventDefault(); submitGuess(f.name, f.id) }}
                           className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
                         >
                           {f.name}
