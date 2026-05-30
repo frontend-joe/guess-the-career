@@ -565,12 +565,6 @@ export function NationalityPlayersPage() {
                   </div>
                 )}
 
-                {/* Wrong guess flash */}
-                {wrongGuessMsg && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center animate-pulse">
-                    {wrongGuessMsg}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -581,6 +575,12 @@ export function NationalityPlayersPage() {
               <p className={`text-xs mb-2 ${verifying ? 'text-yellow-400' : guessedCount > 0 ? 'text-green-400' : 'text-white/50'}`}>
                 {verifying ? 'Checking…' : isDone ? `All ${target} found! ✓` : `${guessedCount} / ${target} found`}
               </p>
+
+              {wrongGuessMsg && (
+                <div className="mb-2 px-1 text-xs text-red-400 text-center font-medium">
+                  {wrongGuessMsg}
+                </div>
+              )}
 
               {!isDone && (
                 <div className="relative mb-3">
