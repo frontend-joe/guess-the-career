@@ -8,8 +8,8 @@ import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { nationalityToFlagUrl } from '@/lib/flags'
 
 function roundTarget(playerCount: number): number {
-  if (playerCount <= 6) return 5
-  if (playerCount <= 15) return 10
+  if (playerCount < 10) return 5
+  if (playerCount <= 20) return 10
   return 15
 }
 
@@ -531,11 +531,11 @@ export function NationalityPlayersPage() {
               <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
                 {/* Combo header */}
                 <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3 overflow-hidden">
-                  {currentRound.playerCount <= 6 ? (
+                  {currentRound.playerCount < 10 ? (
                     <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-red-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                       Solid
                     </div>
-                  ) : currentRound.playerCount <= 15 ? (
+                  ) : currentRound.playerCount <= 20 ? (
                     <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-amber-400 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                       Medium
                     </div>

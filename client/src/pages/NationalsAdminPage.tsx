@@ -109,7 +109,7 @@ export function NationalsAdminPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
-                    {combo.playerCount <= 6 && (
+                    {combo.playerCount < 10 && (
                       <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                         Solid
                       </span>
