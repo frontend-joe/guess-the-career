@@ -155,7 +155,7 @@ function ClubBadge({ name, wikiUrl }: { name: string; wikiUrl: string | null }) 
 
 // ─── Player slot ──────────────────────────────────────────────────────────────
 
-const MAX_SLOTS = 8;
+const MAX_SLOTS = 5;
 
 interface Player {
   id: number;
