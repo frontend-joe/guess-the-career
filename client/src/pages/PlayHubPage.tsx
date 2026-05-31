@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target, Star, Route, Globe, Flag } from 'lucide-react'
+import { Users, Trophy, Handshake, TrendingUp, Footprints, Shirt, Shield, Link2, Medal, MapPin, BookOpen, Target, Star, Route, Globe, Flag, ArrowLeftRight } from 'lucide-react'
 
 export function PlayHubPage() {
   const navigate = useNavigate()
@@ -153,6 +153,14 @@ export function PlayHubPage() {
           <Star size={32} className="text-white/80" />
           <span className="font-bold text-sm tracking-widest uppercase">Club Legends</span>
           <span className="text-gray-400 text-xs">Name the 100+ app players</span>
+        </button>
+        <button
+          onClick={() => navigate('/play/transfers')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <ArrowLeftRight size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">Know Your Transfers</span>
+          <span className="text-gray-400 text-xs">Name players who moved club to club</span>
         </button>
       </div>
     </div>

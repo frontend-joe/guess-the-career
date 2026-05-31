@@ -43,6 +43,7 @@ footballersRouter.get('/', async (c) => {
   const pageSizeParam = c.req.query('pageSize')
   const missingNationality = c.req.query('missingNationality') === 'true'
   const missingPhoto = c.req.query('missingPhoto') === 'true'
+  const nonRetired = c.req.query('nonRetired') === 'true'
 
   const conditions = []
 
@@ -57,6 +58,21 @@ footballersRouter.get('/', async (c) => {
 
   if (missingPhoto) {
     conditions.push(sql`(${footballers.photo_url} IS NULL OR ${footballers.photo_url} = '')`)
+  }
+
+  // Non-retired = has an active senior stint (years contains "present" or ends
+  // with a dash, e.g. "2021–"). Mirrors isRetired() in services/scraper.ts.
+  if (nonRetired) {
+    conditions.push(sql`EXISTS (
+      SELECT 1 FROM career_stints cs
+      WHERE cs.footballer_id = ${footballers.id}
+        AND cs.stint_type = 'senior'
+        AND (
+          LOWER(cs.years) LIKE '%present%'
+          OR TRIM(cs.years) LIKE '%–'
+          OR TRIM(cs.years) LIKE '%-'
+        )
+    )`)
   }
 
   if (unassigned) {
