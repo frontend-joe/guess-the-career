@@ -50,6 +50,9 @@ import { NationalityPlayersPage } from '@/pages/NationalityPlayersPage'
 import { NationalsAdminPage } from '@/pages/NationalsAdminPage'
 import { NationalsAdminDetailPage } from '@/pages/NationalsAdminDetailPage'
 import { NationalsSchedulePage } from '@/pages/NationalsSchedulePage'
+import { ClubLegendsPage } from '@/pages/ClubLegendsPage'
+import { ClubLegendsAdminPage } from '@/pages/ClubLegendsAdminPage'
+import { ClubLegendsSchedulePage } from '@/pages/ClubLegendsSchedulePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -74,6 +77,7 @@ const router = createBrowserRouter([
   { path: '/play/ballon-dors', element: <BallonDorPage /> },
   { path: '/play/world-cup', element: <WorldCupPage /> },
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
+  { path: '/play/club-legends', element: <ClubLegendsPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -109,6 +113,8 @@ const router = createBrowserRouter([
       { path: 'nationals', element: <NationalsAdminPage /> },
       { path: 'nationals/schedule', element: <NationalsSchedulePage /> },
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
+      { path: 'club-legends', element: <ClubLegendsAdminPage /> },
+      { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
     ],
   },
 ])

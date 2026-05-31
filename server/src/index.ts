@@ -36,6 +36,7 @@ import { ballonDorScheduleRouter } from './routes/ballon-dor-schedule.ts'
 import { worldCupSquadsRouter } from './routes/world-cup-squads.ts'
 import { worldCupScheduleRouter } from './routes/world-cup-schedule.ts'
 import { nationalsRouter } from './routes/nationals.ts'
+import { clubLegendsRouter } from './routes/club-legends.ts'
 
 runMigrations()
 
@@ -77,6 +78,7 @@ app.route('/api/ballon-dor-schedule', ballonDorScheduleRouter)
 app.route('/api/world-cup-squads', worldCupSquadsRouter)
 app.route('/api/world-cup-schedule', worldCupScheduleRouter)
 app.route('/api/nationals', nationalsRouter)
+app.route('/api/club-legends', clubLegendsRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 

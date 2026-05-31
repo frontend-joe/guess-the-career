@@ -341,3 +341,19 @@ export const nationals_schedule = sqliteTable('nationals_schedule', {
 
 export type NationalsEnabledCombo = typeof nationals_enabled_combos.$inferSelect
 export type NationalsScheduleEntry = typeof nationals_schedule.$inferSelect
+
+export const club_legends_enabled_clubs = sqliteTable('club_legends_enabled_clubs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  club: text('club').notNull().unique(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const club_legends_schedule = sqliteTable('club_legends_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  club: text('club').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type ClubLegendsEnabledClub = typeof club_legends_enabled_clubs.$inferSelect
+export type ClubLegendsScheduleEntry = typeof club_legends_schedule.$inferSelect

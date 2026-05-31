@@ -146,6 +146,14 @@ export function PlayHubPage() {
           <span className="font-bold text-sm tracking-widest uppercase">Nationality Players</span>
           <span className="text-gray-400 text-xs">Flag + club = 5 players</span>
         </button>
+        <button
+          onClick={() => navigate('/play/club-legends')}
+          className="flex flex-col items-center justify-center gap-2 bg-[#2a2a4e] hover:bg-[#3a3a5e] text-white rounded-xl py-8 transition-colors border border-white/10"
+        >
+          <Star size={32} className="text-white/80" />
+          <span className="font-bold text-sm tracking-widest uppercase">Club Legends</span>
+          <span className="text-gray-400 text-xs">Name the 100+ app players</span>
+        </button>
       </div>
     </div>
   )
