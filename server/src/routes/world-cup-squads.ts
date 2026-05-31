@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, asc, sql, and } from 'drizzle-orm'
 import { db } from '../db/client.ts'
-import { world_cup_squads, world_cup_squad_players, footballers } from '../db/schema.ts'
+import { world_cup_squads, world_cup_squad_players, footballers, career_stints } from '../db/schema.ts'
 import { scrapeWorldCupSquadsPage, scrapeWikipedia } from '../services/scraper.ts'
 
 function normalizeWikiTitle(url: string): string {
@@ -14,6 +14,71 @@ function normalizeWikiTitle(url: string): string {
     .normalize('NFD').replace(/\p{Mn}/gu, '')
     .toLowerCase()
     .trim()
+}
+
+// Resolve a squad player to a footballer id: match an existing footballer by
+// name / wikipedia_url, otherwise scrape their Wikipedia page and create one
+// (with career stints). Returns null if they can't be resolved or created.
+// `normalizedUrlMap` is kept in sync so duplicates within a batch reuse the new row.
+async function resolveOrCreateFootballer(
+  name: string,
+  wikipediaUrl: string | null | undefined,
+  normalizedUrlMap: Map<string, number>,
+): Promise<number | null> {
+  const [byName] = await db.select({ id: footballers.id }).from(footballers)
+    .where(sql`LOWER(${footballers.name}) = LOWER(${name})`).limit(1)
+  if (byName) return byName.id
+
+  if (!wikipediaUrl) return null
+
+  const [byUrl] = await db.select({ id: footballers.id }).from(footballers)
+    .where(eq(footballers.wikipedia_url, wikipediaUrl)).limit(1)
+  if (byUrl) return byUrl.id
+
+  const normId = normalizedUrlMap.get(normalizeWikiTitle(wikipediaUrl))
+  if (normId) return normId
+
+  // Not in DB — scrape and create the footballer.
+  try {
+    const scraped = await scrapeWikipedia(wikipediaUrl)
+
+    // Guard against a unique-constraint clash if the canonical URL already exists.
+    const [existingByScrapedUrl] = await db.select({ id: footballers.id }).from(footballers)
+      .where(eq(footballers.wikipedia_url, scraped.wikipedia_url)).limit(1)
+    if (existingByScrapedUrl) return existingByScrapedUrl.id
+
+    const [created] = await db.insert(footballers).values({
+      name: scraped.name,
+      wikipedia_url: scraped.wikipedia_url,
+      nationality: scraped.nationality,
+      position: scraped.position,
+      all_positions: scraped.all_positions ?? null,
+      born: scraped.born,
+      photo_url: scraped.photo_url ?? null,
+    }).returning()
+
+    const seniorStints = scraped.stints.filter(s => s.stint_type === 'senior')
+    if (seniorStints.length > 0) {
+      await db.insert(career_stints).values(
+        seniorStints.map((s, i) => ({
+          footballer_id: created.id,
+          sort_order: i,
+          years: s.years,
+          club: s.club,
+          club_wikipedia_url: s.club_wikipedia_url ?? null,
+          apps: s.apps ?? null,
+          goals: s.goals ?? null,
+          stint_type: 'senior' as const,
+        })),
+      )
+    }
+
+    const norm = normalizeWikiTitle(scraped.wikipedia_url)
+    if (norm) normalizedUrlMap.set(norm, created.id)
+    return created.id
+  } catch {
+    return null
+  }
 }
 
 const playerSchema = z.object({
@@ -123,35 +188,24 @@ worldCupSquadsRouter.post(
         .returning()
 
       if (squad.players.length > 0) {
-        const playerValues = await Promise.all(
-          squad.players.map(async (p) => {
-            let footballerId: number | null = null
-            const [byName] = await db.select({ id: footballers.id }).from(footballers)
-              .where(sql`LOWER(${footballers.name}) = LOWER(${p.name})`).limit(1)
-            footballerId = byName?.id ?? null
-
-            if (!footballerId && p.wikipedia_url) {
-              const [byUrl] = await db.select({ id: footballers.id }).from(footballers)
-                .where(eq(footballers.wikipedia_url, p.wikipedia_url)).limit(1)
-              footballerId = byUrl?.id ?? null
-              if (!footballerId) {
-                const norm = normalizeWikiTitle(p.wikipedia_url)
-                footballerId = normalizedUrlMap.get(norm) ?? null
-              }
-            }
-
-            return {
-              squad_id: entry.id,
-              footballer_id: footballerId,
-              shirt_number: p.shirt_number,
-              position: p.position,
-              name: p.name,
-              club: p.club,
-              nationality: squad.team,
-              wikipedia_url: p.wikipedia_url ?? null,
-            }
+        const playerValues = []
+        for (const p of squad.players) {
+          const footballerId = await resolveOrCreateFootballer(
+            p.name,
+            p.wikipedia_url,
+            normalizedUrlMap,
+          )
+          playerValues.push({
+            squad_id: entry.id,
+            footballer_id: footballerId,
+            shirt_number: p.shirt_number,
+            position: p.position,
+            name: p.name,
+            club: p.club,
+            nationality: squad.team,
+            wikipedia_url: p.wikipedia_url ?? null,
           })
-        )
+        }
         await db.insert(world_cup_squad_players).values(playerValues)
       }
       imported++
@@ -192,20 +246,11 @@ worldCupSquadsRouter.post('/:id/refresh', async (c) => {
       .limit(1)
     if (!existing) continue
 
-    let footballerId: number | null = null
-    const [byName] = await db.select({ id: footballers.id }).from(footballers)
-      .where(sql`LOWER(${footballers.name}) = LOWER(${sp.name})`).limit(1)
-    footballerId = byName?.id ?? null
-
-    if (!footballerId && sp.wikipedia_url) {
-      const [byUrl] = await db.select({ id: footballers.id }).from(footballers)
-        .where(eq(footballers.wikipedia_url, sp.wikipedia_url)).limit(1)
-      footballerId = byUrl?.id ?? null
-      if (!footballerId) {
-        const norm = normalizeWikiTitle(sp.wikipedia_url)
-        footballerId = normalizedUrlMap.get(norm) ?? null
-      }
-    }
+    const footballerId = await resolveOrCreateFootballer(
+      sp.name,
+      sp.wikipedia_url,
+      normalizedUrlMap,
+    )
 
     // If footballer has no position, try to fill it via scrape
     if (footballerId) {

@@ -402,9 +402,12 @@ clubLegendsRouter.post(
       }
     }
 
+    // If no candidate qualifies, this holds the most relevant "why not" reason.
+    let fallbackInvalid: ReturnType<typeof invalidJson> | null = null;
+
     // Step 2: if found, check stints
     if (footballer) {
-      const stints = await db
+      let stints = await db
         .select({ club: career_stints.club, apps: career_stints.apps })
         .from(career_stints)
         .where(
@@ -454,13 +457,13 @@ clubLegendsRouter.post(
               });
             }
           }
-          const refreshed = await db
+          stints = await db
             .select({ club: career_stints.club, apps: career_stints.apps })
             .from(career_stints)
             .where(
               sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`,
             );
-          if (checkQualifies(refreshed)) {
+          if (checkQualifies(stints)) {
             return c.json({
               valid: true,
               footballer: {
@@ -475,6 +478,15 @@ clubLegendsRouter.post(
           // fall through to Wikipedia search
         }
       }
+
+      // This DB record matches the typed name. If they genuinely played for the
+      // club, report on them (e.g. not enough apps) rather than chasing a
+      // same-named player on Wikipedia. Otherwise keep their mismatch as a
+      // fallback but still let a namesake qualify below.
+      if (hasClub(stints.map((s) => s.club), club)) {
+        return c.json(invalidJson(footballer.name, stints));
+      }
+      fallbackInvalid = invalidJson(footballer.name, stints);
     }
 
     // Step 3: not in DB — try Wikipedia name search
@@ -517,9 +529,9 @@ clubLegendsRouter.post(
       }
 
       if (candidateTitles.length === 0)
-        return c.json({ valid: false, footballer: null, imported: false });
-
-      let fallbackInvalid: ReturnType<typeof invalidJson> | null = null;
+        return c.json(
+          fallbackInvalid ?? { valid: false, footballer: null, imported: false },
+        );
 
       for (const title of candidateTitles.slice(0, 6)) {
         const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;

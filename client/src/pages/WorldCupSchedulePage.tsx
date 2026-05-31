@@ -136,29 +136,31 @@ export function WorldCupSchedulePage() {
   async function handleAutoAssign() {
     setAutoState('running')
     try {
-      const scheduledIds = new Set(
-        entries.filter(e => e.squad_id !== null).map(e => e.squad_id!)
-      )
-      // Sort by year ASC then team ASC
-      const unscheduled = squads
-        .filter(s => !scheduledIds.has(s.id))
-        .sort((a, b) => a.year !== b.year ? a.year - b.year : a.team.localeCompare(b.team))
-      if (unscheduled.length === 0) return
-
-      const assigned = entries.filter(e => e.squad_id !== null)
       const todayIso = new Date().toISOString().split('T')[0]
-      const latestDate = assigned.length
-        ? [...assigned].sort((a, b) => b.date.localeCompare(a.date))[0].date
-        : todayIso
-      const startDate = latestDate > todayIso ? addDays(latestDate, 1) : addDays(todayIso, 1)
 
-      const assignedDates = new Set(entries.map(e => e.date))
-      let offset = 0
-      for (const sq of unscheduled) {
-        let date: string
-        do { date = addDays(startDate, offset++) } while (assignedDates.has(date))
-        assignedDates.add(date)
-        await assignWorldCupDay(date, sq.id)
+      // Squads already shown (scheduled on a past/today date) stay put.
+      const doneSquadIds = new Set(
+        entries.filter(e => e.squad_id !== null && e.date <= todayIso).map(e => e.squad_id!)
+      )
+
+      // Everything not yet shown, in chronological order (year then team). We
+      // repack the whole upcoming schedule each time so newly-added squads slot
+      // into their correct chronological position rather than being appended.
+      const toSchedule = squads
+        .filter(s => !doneSquadIds.has(s.id))
+        .sort((a, b) => a.year !== b.year ? a.year - b.year : a.team.localeCompare(b.team))
+      if (toSchedule.length === 0) return
+
+      const startDate = addDays(todayIso, 1)
+      const targetDates = toSchedule.map((_, i) => addDays(startDate, i))
+      for (let i = 0; i < toSchedule.length; i++) {
+        await assignWorldCupDay(targetDates[i], toSchedule[i].id)
+      }
+
+      // Remove any stale future entries left beyond the repacked range.
+      const lastDate = targetDates[targetDates.length - 1]
+      for (const e of entries.filter(e => e.date > lastDate)) {
+        await deleteWorldCupDay(e.date)
       }
     } finally {
       setAutoState('idle')
