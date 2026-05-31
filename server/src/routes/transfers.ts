@@ -4,7 +4,11 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, sqlite } from "../db/client.ts";
 import { footballers, career_stints } from "../db/schema.ts";
-import { normalizeClubAlias, scrapeWikipedia, isRetired } from "../services/scraper.ts";
+import {
+  normalizeClubAlias,
+  scrapeWikipedia,
+  isRetired,
+} from "../services/scraper.ts";
 
 export const transfersRouter = new Hono();
 
@@ -122,7 +126,9 @@ function findValidTransfers(): [string, string, number][] {
 
 function clubWikiUrl(club: string): string | null {
   const row = sqlite
-    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
+    .prepare(
+      `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+    )
     .get(club) as { wikipedia_url: string | null } | undefined;
   return row?.wikipedia_url ?? null;
 }
@@ -135,7 +141,10 @@ interface TransferPlayer {
   year: string | null;
 }
 
-function getTransferPlayers(fromClub: string, toClub: string): TransferPlayer[] {
+function getTransferPlayers(
+  fromClub: string,
+  toClub: string,
+): TransferPlayer[] {
   const fromC = normalizeClubAlias(fromClub);
   const toC = normalizeClubAlias(toClub);
   const ids = [...(buildTransferMap().get(`${fromC}|||${toC}`) ?? [])];
@@ -411,7 +420,9 @@ transfersRouter.post(
           .replace(/[̀-ͯ]/g, "")
           .toLowerCase();
         candidates = sqlite
-          .prepare(`SELECT id, name, wikipedia_url, photo_url FROM footballers WHERE normalize(name) = ?`)
+          .prepare(
+            `SELECT id, name, wikipedia_url, photo_url FROM footballers WHERE normalize(name) = ?`,
+          )
           .all(normalizedName) as typeof candidates;
       }
     }
@@ -421,7 +432,11 @@ transfersRouter.post(
       if (check(seniorStints(cand.id))) {
         return c.json({
           valid: true,
-          footballer: { id: cand.id, name: cand.name, photo_url: cand.photo_url },
+          footballer: {
+            id: cand.id,
+            name: cand.name,
+            photo_url: cand.photo_url,
+          },
           imported: false,
         });
       }
@@ -473,9 +488,12 @@ transfersRouter.post(
       }
     }
 
-    let fallback:
-      | { valid: false; foundName: string; imported: false; reason: string }
-      | null = candidates[0]
+    let fallback: {
+      valid: false;
+      foundName: string;
+      imported: false;
+      reason: string;
+    } | null = candidates[0]
       ? {
           valid: false,
           foundName: candidates[0].name,
@@ -488,10 +506,7 @@ transfersRouter.post(
     try {
       const wikiHeaders = { "User-Agent": "GuessTheCareer-Admin/1.0" };
       const stripDiacritics = (s: string) =>
-        s
-          .normalize("NFD")
-          .replace(/[̀-ͯ]/g, "")
-          .toLowerCase();
+        s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const nameParts = stripDiacritics(footballerName)
         .split(/\s+/)
         .filter((p) => p.length > 2);
