@@ -47,8 +47,27 @@ export function loadProgress(nation: string, position: string): PositionPlayer[]
   }
 }
 
-export function saveProgress(nation: string, position: string, foundPlayers: PositionPlayer[]) {
-  localStorage.setItem(getProgressKey(nation, position), JSON.stringify({ foundPlayers }))
+export function loadWrongGuesses(nation: string, position: string): string[] {
+  try {
+    const raw = localStorage.getItem(getProgressKey(nation, position))
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as { wrong?: string[] }
+    return parsed.wrong ?? []
+  } catch {
+    return []
+  }
+}
+
+export function saveProgress(
+  nation: string,
+  position: string,
+  foundPlayers: PositionPlayer[],
+  wrong: string[] = [],
+) {
+  localStorage.setItem(
+    getProgressKey(nation, position),
+    JSON.stringify({ foundPlayers, wrong }),
+  )
 }
 
 export function clearProgress(nation: string, position: string) {

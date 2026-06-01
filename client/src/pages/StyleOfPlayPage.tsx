@@ -1,28 +1,39 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 import { Home, ChevronRight, ChevronLeft, Shuffle, Trophy, X } from 'lucide-react'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { OverallProgressScreen } from '@/components/OverallProgressScreen'
 import { getSopRounds, type SopRound } from '@/api/sop-schedule'
-import { getFootballers, type Footballer } from '@/api/footballers'
+import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { getSopLeaderboard, submitSopScore, type SopLeaderboardEntry } from '@/api/sop-leaderboard'
 
 type RoundState = 'playing' | 'cleared'
 
 interface RoundResult extends SopRound {
   state: RoundState
+  wrongGuesses: Set<string>
 }
 
 const PROGRESS_KEY = 'sop_progress'
 
+interface RoundProgress {
+  cleared?: boolean
+  wrong?: string[]
+}
 interface SavedProgress {
-  [footballerId: string]: 'cleared'
+  [footballerId: string]: RoundProgress
 }
 
 function loadProgress(): SavedProgress {
   try {
     const raw = localStorage.getItem(PROGRESS_KEY)
-    return raw ? JSON.parse(raw) : {}
+    const parsed = raw ? JSON.parse(raw) : {}
+    // Migrate the old shape ({ [id]: 'cleared' }).
+    const out: SavedProgress = {}
+    for (const [k, v] of Object.entries(parsed)) {
+      out[k] = v === 'cleared' ? { cleared: true } : (v as RoundProgress)
+    }
+    return out
   } catch {
     return {}
   }
@@ -130,10 +141,14 @@ function renderWithBlanks(text: string) {
 }
 
 function buildRounds(data: SopRound[], saved: SavedProgress): RoundResult[] {
-  return data.map(r => ({
-    ...r,
-    state: saved[String(r.footballerId)] === 'cleared' ? 'cleared' : 'playing',
-  }))
+  return data.map(r => {
+    const prog = saved[String(r.footballerId)]
+    return {
+      ...r,
+      state: prog?.cleared ? 'cleared' : 'playing',
+      wrongGuesses: new Set(prog?.wrong ?? []),
+    }
+  })
 }
 
 export function StyleOfPlayPage() {
@@ -142,12 +157,8 @@ export function StyleOfPlayPage() {
   const [error, setError] = useState<string | null>(null)
   const [rounds, setRounds] = useState<RoundResult[]>([])
   const [roundIndex, setRoundIndex] = useState(0)
-  const [inputValue, setInputValue] = useState('')
-  const [suggestions, setSuggestions] = useState<Footballer[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
   const [showFinalScore, setShowFinalScore] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -179,30 +190,22 @@ export function StyleOfPlayPage() {
     }
   }, [roundIndex, loading, error, rounds.length, showFinalScore])
 
-  const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 2) { setSuggestions([]); setShowDropdown(false); return }
-    getFootballers({ search: term })
-      .then(results => { setSuggestions(results.slice(0, 8)); setShowDropdown(results.length > 0) })
-      .catch(() => {})
-  }, [])
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value
-    setInputValue(val)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 200)
-  }
-
   function handleGuess(name: string) {
     const round = rounds[roundIndex]
     if (!round || round.state !== 'playing') return
 
-    setInputValue('')
-    setSuggestions([])
-    setShowDropdown(false)
-
     if (!matchesPlayer(name, round.footballerName)) {
-      inputRef.current?.focus()
+      const newWrong = new Set(round.wrongGuesses)
+      newWrong.add(normalizeGuess(name))
+      const updated = [...rounds]
+      updated[roundIndex] = { ...round, wrongGuesses: newWrong }
+      setRounds(updated)
+      const progress = loadProgress()
+      progress[String(round.footballerId)] = {
+        cleared: false,
+        wrong: [...newWrong],
+      }
+      saveProgress(progress)
       return
     }
 
@@ -211,24 +214,24 @@ export function StyleOfPlayPage() {
     setRounds(updated)
 
     const progress = loadProgress()
-    progress[String(round.footballerId)] = 'cleared'
+    progress[String(round.footballerId)] = {
+      cleared: true,
+      wrong: [...round.wrongGuesses],
+    }
     saveProgress(progress)
-
-    inputRef.current?.focus()
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && inputValue.trim()) handleGuess(inputValue.trim())
-    if (e.key === 'Escape') { setSuggestions([]); setShowDropdown(false) }
+  function guessStatus(round: RoundResult, s: { name: string }) {
+    if (round.state === 'cleared' && matchesPlayer(s.name, round.footballerName))
+      return 'correct' as const
+    if (round.wrongGuesses.has(normalizeGuess(s.name))) return 'incorrect' as const
+    return null
   }
 
   function goToRound(index: number) {
     if (index < 0 || index >= rounds.length) return
     setRoundIndex(index)
     setSearchParams({ n: String(index) }, { replace: true })
-    setInputValue('')
-    setSuggestions([])
-    setShowDropdown(false)
   }
 
   function handleRandom() {
@@ -246,10 +249,7 @@ export function StyleOfPlayPage() {
   const totalPlayers = rounds.length
 
   return (
-    <div
-      className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans"
-      onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
-    >
+    <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#1a1a2e] relative flex items-center justify-between px-3 py-2 shrink-0">
         <button className="text-white p-1" onClick={() => (window.location.href = '/play')}>
@@ -353,33 +353,15 @@ export function StyleOfPlayPage() {
           {currentRound && !isRoundDone && (
             <>
               <p className="text-white/50 text-xs mb-2">Who is this?</p>
-              <div className="relative mb-3">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type a player name…"
-                  className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
-                  style={{ fontSize: '16px' }}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
+              <div className="mb-3">
+                <GuessSearchInput
+                  key={currentRound.footballerId}
+                  inputRef={inputRef}
+                  getKey={f => f.id}
+                  getLabel={f => f.name}
+                  getStatus={f => guessStatus(currentRound, f)}
+                  onSelect={name => handleGuess(name)}
                 />
-                {showDropdown && suggestions.length > 0 && (
-                  <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-                    {suggestions.map(s => (
-                      <button
-                        key={s.id}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                        onMouseDown={e => { e.preventDefault(); handleGuess(s.name) }}
-                      >
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             </>
           )}

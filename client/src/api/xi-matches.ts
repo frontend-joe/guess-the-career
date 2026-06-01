@@ -87,6 +87,20 @@ export function getXiMatch(id: number): Promise<XiMatchDetail> {
   return apiFetch(`/api/xi-matches/${id}`)
 }
 
+export interface RelinkResult {
+  ok: boolean
+  summary: {
+    relinked: string[]
+    imported: string[]
+    failed: string[]
+    alreadyLinked: number
+  }
+}
+
+export function relinkXiMatch(id: number): Promise<RelinkResult> {
+  return apiFetch(`/api/xi-matches/${id}/relink`, { method: 'POST' })
+}
+
 export function scrapeXiMatch(url: string): Promise<MatchScrapeResult> {
   return apiFetch('/api/xi-matches/scrape', {
     method: 'POST',

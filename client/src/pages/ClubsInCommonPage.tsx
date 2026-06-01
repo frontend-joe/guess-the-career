@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Home, Check, X, ChevronRight, Link2 } from 'lucide-react'
 import { getCicSession, searchClubs } from '@/api/clubs-in-common'
 import type { CicPair, ClubSuggestion } from '@/api/clubs-in-common'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { GuessSearchInput } from '@/components/GuessSearchInput'
 
 type RoundState = 'playing' | 'cleared' | 'given_up'
 
@@ -13,6 +14,7 @@ interface CicRoundResult {
   clubWikiUrls: Record<string, string>
   required: number
   guessedClubs: string[]
+  wrongGuesses: string[]
   state: RoundState
 }
 
@@ -21,11 +23,7 @@ export function ClubsInCommonPage() {
   const [error, setError] = useState<string | null>(null)
   const [rounds, setRounds] = useState<CicRoundResult[]>([])
   const [roundIndex, setRoundIndex] = useState(0)
-  const [inputValue, setInputValue] = useState('')
-  const [suggestions, setSuggestions] = useState<ClubSuggestion[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
   const [showFinalScore, setShowFinalScore] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function buildRounds(pairs: CicPair[]): CicRoundResult[] {
@@ -36,6 +34,7 @@ export function ClubsInCommonPage() {
       clubWikiUrls: p.clubWikiUrls ?? {},
       required: p.required,
       guessedClubs: [],
+      wrongGuesses: [],
       state: 'playing' as RoundState,
     }))
   }
@@ -45,9 +44,6 @@ export function ClubsInCommonPage() {
     setError(null)
     setRoundIndex(0)
     setRounds([])
-    setInputValue('')
-    setSuggestions([])
-    setShowDropdown(false)
     setShowFinalScore(false)
     getCicSession()
       .then(data => setRounds(buildRounds(data)))
@@ -57,39 +53,21 @@ export function ClubsInCommonPage() {
 
   useEffect(() => { loadSession() }, [])
 
-  const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 1) { setSuggestions([]); setShowDropdown(false); return }
-    searchClubs(term).then(results => {
-      setSuggestions(results)
-      setShowDropdown(results.length > 0)
-    })
-  }, [])
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value
-    setInputValue(val)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 200)
-  }
-
   function handleClubGuess(clubName: string) {
     const round = rounds[roundIndex]
     if (!round || round.state !== 'playing') return
 
-    setInputValue('')
-    setSuggestions([])
-    setShowDropdown(false)
-
     const normalised = clubName.toLowerCase().trim()
 
-    if (round.guessedClubs.some(c => c.toLowerCase() === normalised)) {
-      inputRef.current?.focus()
-      return
-    }
+    if (round.guessedClubs.some(c => c.toLowerCase() === normalised)) return
 
     const matched = round.commonClubs.find(c => c.toLowerCase() === normalised)
     if (!matched) {
-      inputRef.current?.focus()
+      // Wrong guess — remember it so the dropdown greys it out.
+      if (round.wrongGuesses.some(c => c.toLowerCase() === normalised)) return
+      const updated = [...rounds]
+      updated[roundIndex] = { ...round, wrongGuesses: [...round.wrongGuesses, clubName] }
+      setRounds(updated)
       return
     }
 
@@ -98,17 +76,15 @@ export function ClubsInCommonPage() {
     const updated = [...rounds]
     updated[roundIndex] = { ...round, guessedClubs: newGuessed, state: newState }
     setRounds(updated)
-    inputRef.current?.focus()
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && inputValue.trim()) {
-      handleClubGuess(inputValue.trim())
-    }
-    if (e.key === 'Escape') {
-      setSuggestions([])
-      setShowDropdown(false)
-    }
+  function guessStatus(s: ClubSuggestion) {
+    const norm = s.name.toLowerCase().trim()
+    const round = rounds[roundIndex]
+    if (!round) return null
+    if (round.guessedClubs.some(c => c.toLowerCase() === norm)) return 'correct' as const
+    if (round.wrongGuesses.some(c => c.toLowerCase() === norm)) return 'incorrect' as const
+    return null
   }
 
   function handleGiveUp() {
@@ -122,9 +98,6 @@ export function ClubsInCommonPage() {
   function handleNextRound() {
     if (roundIndex < rounds.length - 1) {
       setRoundIndex(i => i + 1)
-      setInputValue('')
-      setSuggestions([])
-      setShowDropdown(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }
@@ -136,10 +109,7 @@ export function ClubsInCommonPage() {
   const totalRequired = rounds.reduce((sum, r) => sum + r.required, 0)
 
   return (
-    <div
-      className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans"
-      onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
-    >
+    <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button
@@ -238,33 +208,17 @@ export function ClubsInCommonPage() {
 
           {/* Input */}
           {!isRoundDone && (
-            <div className="relative mb-3">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
+            <div className="mb-3">
+              <GuessSearchInput<ClubSuggestion>
+                key={roundIndex}
+                inputRef={inputRef}
+                search={searchClubs}
                 placeholder="Type a club name…"
-                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
-                style={{ fontSize: '16px' }}
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
+                getKey={s => s.id}
+                getLabel={s => s.name}
+                getStatus={guessStatus}
+                onSelect={name => handleClubGuess(name)}
               />
-              {showDropdown && suggestions.length > 0 && (
-                <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-                  {suggestions.map(s => (
-                    <button
-                      key={s.id}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                      onMouseDown={e => { e.preventDefault(); handleClubGuess(s.name) }}
-                    >
-                      {s.name}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 import { Home, ChevronRight, ChevronLeft, Shuffle, Trophy, X } from "lucide-react";
 import { OverallProgressScreen } from "@/components/OverallProgressScreen";
@@ -6,7 +6,7 @@ import {
   type XiRoundPlayer,
 } from "@/api/guess-the-xi";
 import { getXiScheduleRounds, type XiScheduleRound } from "@/api/xi-schedule";
-import { getFootballers, type Footballer } from "@/api/footballers";
+import { GuessSearchInput } from "@/components/GuessSearchInput";
 import {
   submitXiScore,
   getXiLeaderboard,
@@ -30,6 +30,7 @@ interface RoundResult {
   players: XiRoundPlayer[];
   playerNames: string[];
   guessedIndices: Set<number>;
+  wrongGuesses: Set<string>;
   state: RoundState;
 }
 
@@ -38,6 +39,7 @@ const PROGRESS_KEY = "gxi_schedule_progress";
 interface SavedProgress {
   [roundKey: string]: {
     guessedIndices: number[];
+    wrongGuesses?: string[];
     state: RoundState;
   };
 }
@@ -151,6 +153,7 @@ function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult
       players: r.players,
       playerNames: r.playerNames,
       guessedIndices: prog ? new Set(prog.guessedIndices) : new Set<number>(),
+      wrongGuesses: new Set(prog?.wrongGuesses ?? []),
       state: prog?.state ?? "playing",
     };
   });
@@ -162,12 +165,8 @@ export function GuessTheXiPage() {
   const [error, setError] = useState<string | null>(null);
   const [rounds, setRounds] = useState<RoundResult[]>([]);
   const [roundIndex, setRoundIndex] = useState(0);
-  const [inputValue, setInputValue] = useState("");
-  const [suggestions, setSuggestions] = useState<Footballer[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -191,34 +190,9 @@ export function GuessTheXiPage() {
     }
   }, [roundIndex, loading, error, rounds.length, showFinalScore]);
 
-  const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 2) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      return;
-    }
-    getFootballers({ search: term })
-      .then((results) => {
-        setSuggestions(results.slice(0, 8));
-        setShowDropdown(results.length > 0);
-      })
-      .catch(() => {});
-  }, []);
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setInputValue(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 200);
-  }
-
   function handleGuess(name: string) {
     const round = rounds[roundIndex];
     if (!round || round.state !== "playing") return;
-
-    setInputValue("");
-    setSuggestions([]);
-    setShowDropdown(false);
 
     const matched: number[] = [];
     round.playerNames.forEach((pName, i) => {
@@ -228,7 +202,18 @@ export function GuessTheXiPage() {
     });
 
     if (matched.length === 0) {
-      inputRef.current?.focus();
+      const newWrong = new Set(round.wrongGuesses);
+      newWrong.add(normalizeGuess(name));
+      const updated = [...rounds];
+      updated[roundIndex] = { ...round, wrongGuesses: newWrong };
+      setRounds(updated);
+      const progress = loadProgress();
+      progress[roundKey(round.matchId, round.team)] = {
+        guessedIndices: [...round.guessedIndices],
+        wrongGuesses: [...newWrong],
+        state: round.state,
+      };
+      saveProgress(progress);
       return;
     }
 
@@ -244,30 +229,23 @@ export function GuessTheXiPage() {
     const progress = loadProgress();
     progress[roundKey(round.matchId, round.team)] = {
       guessedIndices: [...newGuessed],
+      wrongGuesses: [...round.wrongGuesses],
       state: newState,
     };
     saveProgress(progress);
-
-    inputRef.current?.focus();
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && inputValue.trim()) {
-      handleGuess(inputValue.trim());
-    }
-    if (e.key === "Escape") {
-      setSuggestions([]);
-      setShowDropdown(false);
-    }
+  function guessStatus(round: RoundResult, s: { name: string }) {
+    if (round.playerNames.some((pn, i) => round.guessedIndices.has(i) && matchesPlayer(s.name, pn)))
+      return "correct" as const;
+    if (round.wrongGuesses.has(normalizeGuess(s.name))) return "incorrect" as const;
+    return null;
   }
 
   function goToRound(index: number) {
     if (index < 0 || index >= rounds.length) return;
     setRoundIndex(index);
     setSearchParams({ n: String(index) }, { replace: true });
-    setInputValue("");
-    setSuggestions([]);
-    setShowDropdown(false);
   }
 
   function handlePrevious() {
@@ -299,15 +277,7 @@ export function GuessTheXiPage() {
   const totalPlayers = rounds.reduce((sum, r) => sum + r.players.length, 0);
 
   return (
-    <div
-      className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans"
-      onClick={() => {
-        if (showDropdown) {
-          setSuggestions([]);
-          setShowDropdown(false);
-        }
-      }}
-    >
+    <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#1a1a2e] relative flex items-center justify-between px-3 py-2 shrink-0">
         <button
@@ -501,36 +471,15 @@ export function GuessTheXiPage() {
 
           {/* Input */}
           {currentRound && !isRoundDone && (
-            <div className="relative mb-3">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Type a player name…"
-                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
-                style={{ fontSize: "16px" }}
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
+            <div className="mb-3">
+              <GuessSearchInput
+                key={roundKey(currentRound.matchId, currentRound.team)}
+                inputRef={inputRef}
+                getKey={(f) => f.id}
+                getLabel={(f) => f.name}
+                getStatus={(f) => guessStatus(currentRound, f)}
+                onSelect={(name) => handleGuess(name)}
               />
-              {showDropdown && suggestions.length > 0 && (
-                <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s.id}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleGuess(s.name);
-                      }}
-                    >
-                      {s.name}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 

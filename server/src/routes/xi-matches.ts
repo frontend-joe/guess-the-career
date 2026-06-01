@@ -313,6 +313,105 @@ xiMatchesRouter.get('/:id', async (c) => {
   return c.json({ match, homePlayers, awayPlayers })
 })
 
+// POST /api/xi-matches/:id/relink — re-link players to footballers, scraping any
+// that are missing. Fixes flags/data after a footballer was deleted & re-added.
+xiMatchesRouter.post('/:id/relink', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  const [match] = await db.select().from(xi_matches).where(eq(xi_matches.id, id)).limit(1)
+  if (!match) return c.json({ error: 'Not found' }, 404)
+
+  const players = await db.select().from(xi_players).where(eq(xi_players.match_id, id))
+
+  const summary = {
+    relinked: [] as string[],
+    imported: [] as string[],
+    failed: [] as string[],
+    alreadyLinked: 0,
+  }
+  const wikiHeaders = { 'User-Agent': 'GuessTheCareer/1.0' }
+
+  for (const player of players) {
+    if (player.footballer_id != null) {
+      summary.alreadyLinked++
+      continue
+    }
+    try {
+      // 1. Existing footballer by name.
+      const [byName] = await db
+        .select({ id: footballers.id, name: footballers.name })
+        .from(footballers)
+        .where(sql`LOWER(${footballers.name}) = LOWER(${player.name})`)
+        .limit(1)
+      if (byName) {
+        await db.update(xi_players).set({ footballer_id: byName.id, name: byName.name }).where(eq(xi_players.id, player.id))
+        summary.relinked.push(byName.name)
+        continue
+      }
+
+      // 2. Resolve a Wikipedia URL by name search.
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(player.name + ' footballer')}&format=json&srlimit=1`
+      const searchRes = await fetch(searchUrl, { headers: wikiHeaders })
+      const searchData = searchRes.ok
+        ? ((await searchRes.json()) as { query?: { search?: { title: string }[] } })
+        : null
+      const firstResult = searchData?.query?.search?.[0]
+      if (!firstResult) { summary.failed.push(player.name); continue }
+      const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(firstResult.title.replace(/ /g, '_'))}`
+
+      // 3. Existing footballer by URL.
+      const [byUrl] = await db
+        .select({ id: footballers.id, name: footballers.name })
+        .from(footballers)
+        .where(eq(footballers.wikipedia_url, wikiUrl))
+        .limit(1)
+      if (byUrl) {
+        await db.update(xi_players).set({ footballer_id: byUrl.id, name: byUrl.name }).where(eq(xi_players.id, player.id))
+        summary.relinked.push(byUrl.name)
+        continue
+      }
+
+      // 4. Scrape and create.
+      await new Promise(resolve => setTimeout(resolve, 400))
+      const scraped = await scrapeWikipedia(wikiUrl)
+      const [byScrapedName] = await db
+        .select({ id: footballers.id, name: footballers.name })
+        .from(footballers)
+        .where(sql`LOWER(${footballers.name}) = LOWER(${scraped.name})`)
+        .limit(1)
+      if (byScrapedName) {
+        await db.update(xi_players).set({ footballer_id: byScrapedName.id, name: byScrapedName.name }).where(eq(xi_players.id, player.id))
+        summary.relinked.push(byScrapedName.name)
+        continue
+      }
+      const [newFootballer] = await db
+        .insert(footballers)
+        .values({
+          name: scraped.name,
+          wikipedia_url: scraped.wikipedia_url,
+          nationality: scraped.nationality,
+          position: scraped.position,
+          all_positions: scraped.all_positions ?? null,
+          born: scraped.born,
+          photo_url: scraped.photo_url ?? null,
+        })
+        .returning()
+      if (scraped.stints.length > 0) {
+        await db.insert(career_stints).values(
+          scraped.stints.map((s, i) => ({ ...s, sort_order: i, footballer_id: newFootballer.id }))
+        )
+      }
+      await db.update(xi_players).set({ footballer_id: newFootballer.id, name: newFootballer.name }).where(eq(xi_players.id, player.id))
+      summary.imported.push(newFootballer.name)
+    } catch {
+      summary.failed.push(player.name)
+    }
+  }
+
+  return c.json({ ok: true, summary })
+})
+
 // PATCH /api/xi-matches/:id
 xiMatchesRouter.patch(
   '/:id',
