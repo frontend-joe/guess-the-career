@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 import {
   Home,
@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Shuffle,
 } from "lucide-react";
-import { getFootballers } from "@/api/footballers";
 import {
   getClubLegendsScheduleRounds,
   type ClubLegendsScheduleRound,
@@ -20,6 +19,7 @@ import {
 } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { NationalityFlag } from "@/components/NationalityFlag";
+import { GuessSearchInput } from "@/components/GuessSearchInput";
 
 // Round the legend pool down to the nearest 5 (e.g. 53 → 50, 36 → 35).
 function roundTarget(playerCount: number): number {
@@ -32,6 +32,7 @@ const PROGRESS_KEY = "cl_progress";
 
 interface RoundProgress {
   guessedIds: number[];
+  wrongGuesses?: string[];
 }
 
 interface SavedProgress {
@@ -49,6 +50,16 @@ function loadProgress(): SavedProgress {
 
 function saveProgress(progress: SavedProgress) {
   localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+}
+
+function persistRound(
+  key: string,
+  guessedIds: Set<number>,
+  wrongGuesses: Set<string>,
+) {
+  const saved = loadProgress();
+  saved[key] = { guessedIds: [...guessedIds], wrongGuesses: [...wrongGuesses] };
+  saveProgress(saved);
 }
 
 // ─── Name matching ────────────────────────────────────────────────────────────
@@ -260,6 +271,7 @@ interface RoundState {
   round: ClubLegendsScheduleRound;
   players: Player[] | null;
   guessedIds: Set<number>;
+  wrongGuesses: Set<string>;
 }
 
 // ─── Verify ───────────────────────────────────────────────────────────────────
@@ -307,14 +319,8 @@ export function ClubLegendsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showProgress, setShowProgress] = useState(false);
   const [progressSearch, setProgressSearch] = useState("");
-  const [inputValue, setInputValue] = useState("");
-  const [suggestions, setSuggestions] = useState<
-    { id: number; name: string; photo_url: string | null }[]
-  >([]);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [wrongGuessMsg, setWrongGuessMsg] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -332,6 +338,7 @@ export function ClubLegendsPage() {
             round: r,
             players: null,
             guessedIds: new Set(prog?.guessedIds ?? []),
+            wrongGuesses: new Set(prog?.wrongGuesses ?? []),
           };
         });
         setRoundStates(states);
@@ -390,27 +397,6 @@ export function ClubLegendsPage() {
   }, [roundIndex, loading, error, rounds.length, showProgress]);
 
   // ── Autocomplete ──────────────────────────────────────────────────────────
-  const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 2) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      return;
-    }
-    getFootballers({ search: term })
-      .then((results) => {
-        setSuggestions(results.slice(0, 8));
-        setShowDropdown(true);
-      })
-      .catch(() => {});
-  }, []);
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setInputValue(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300);
-  }
-
   // ── Submit guess ──────────────────────────────────────────────────────────
   async function submitGuess(name: string, id: number | null = null) {
     if (!currentState || !currentKey || !currentRound || verifying) return;
@@ -421,17 +407,10 @@ export function ClubLegendsPage() {
     ).length;
     if (activeGuesses >= roundTarget(currentRound.legendCount)) return;
 
-    setInputValue("");
-    setSuggestions([]);
-    setShowDropdown(false);
-
     const alreadyFound = players
       .filter((p) => currentState.guessedIds.has(p.id))
       .some((p) => matchesPlayer(name, p.name));
-    if (alreadyFound) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      return;
-    }
+    if (alreadyFound) return;
 
     const matched = players.filter(
       (p) => !currentState.guessedIds.has(p.id) && matchesPlayer(name, p.name),
@@ -445,15 +424,14 @@ export function ClubLegendsPage() {
         ...prev,
         [currentKey]: { ...prev[currentKey], guessedIds: newGuessedIds },
       }));
-      const saved = loadProgress();
-      saved[currentKey] = { guessedIds: [...newGuessedIds] };
-      saveProgress(saved);
+      persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
     } else {
       setVerifying(true);
       try {
         const result = await verifyGuess(name, id, currentRound.club);
         if (result.valid && result.footballer) {
           const f = result.footballer;
+          const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
           setRoundStates((prev) => {
             const state = prev[currentKey];
             if (!state) return prev;
@@ -461,20 +439,16 @@ export function ClubLegendsPage() {
             const newPlayers = alreadyInList
               ? state.players!
               : [...(state.players ?? []), f];
-            const newGuessedIds = new Set([...state.guessedIds, f.id]);
             return {
               ...prev,
               [currentKey]: {
                 ...state,
                 players: newPlayers,
-                guessedIds: newGuessedIds,
+                guessedIds: new Set([...state.guessedIds, f.id]),
               },
             };
           });
-          const saved = loadProgress();
-          const existing = saved[currentKey]?.guessedIds ?? [];
-          saved[currentKey] = { guessedIds: [...new Set([...existing, f.id])] };
-          saveProgress(saved);
+          persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
@@ -488,28 +462,27 @@ export function ClubLegendsPage() {
                   : `${displayName} is not a valid answer`;
           setWrongGuessMsg(msg);
           wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
+
+          const newWrong = new Set(currentState.wrongGuesses);
+          newWrong.add(normalizeGuess(name));
+          setRoundStates((prev) => ({
+            ...prev,
+            [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong },
+          }));
+          persistRound(currentKey, currentState.guessedIds, newWrong);
         }
       } finally {
         setVerifying(false);
       }
     }
-
-    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && inputValue.trim()) {
-      const term = inputValue.trim();
-      const exact = suggestions.find(
-        (s) => s.name.toLowerCase() === term.toLowerCase(),
-      );
-      const match = exact ?? suggestions[0];
-      submitGuess(match?.name ?? term, match?.id ?? null);
-    }
-    if (e.key === "Escape") {
-      setSuggestions([]);
-      setShowDropdown(false);
-    }
+  function guessStatus(s: { id: number; name: string }) {
+    if (!currentState) return null;
+    if (currentState.guessedIds.has(s.id)) return "correct" as const;
+    if (currentState.wrongGuesses.has(normalizeGuess(s.name)))
+      return "incorrect" as const;
+    return null;
   }
 
   function handleRandom() {
@@ -603,15 +576,7 @@ export function ClubLegendsPage() {
   }
 
   return (
-    <div
-      className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans"
-      onClick={() => {
-        if (showDropdown) {
-          setSuggestions([]);
-          setShowDropdown(false);
-        }
-      }}
-    >
+    <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* ── Header ── */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button
@@ -728,37 +693,15 @@ export function ClubLegendsPage() {
               )}
 
               {!isDone && (
-                <div className="relative mb-3">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a player name…"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
+                <div className="mb-3">
+                  <GuessSearchInput
+                    inputRef={inputRef}
                     disabled={verifying}
-                    className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none disabled:opacity-60"
-                    style={{ fontSize: "16px" }}
+                    getKey={(f) => f.id}
+                    getLabel={(f) => f.name}
+                    getStatus={guessStatus}
+                    onSelect={(name, item) => submitGuess(name, item?.id ?? null)}
                   />
-                  {showDropdown && suggestions.length > 0 && (
-                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-                      {suggestions.map((f) => (
-                        <button
-                          key={f.id}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            submitGuess(f.name, f.id);
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                        >
-                          {f.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
 

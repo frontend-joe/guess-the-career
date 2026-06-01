@@ -1,8 +1,8 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import { Home, ChevronRight, ArrowLeft, Trophy } from 'lucide-react'
-import { getFootballers, type Footballer } from '@/api/footballers'
+import { GuessSearchInput } from '@/components/GuessSearchInput'
 import {
-  getPositionPlayers, verifyPositionGuess, loadProgress, saveProgress, clearProgress,
+  getPositionPlayers, verifyPositionGuess, loadProgress, loadWrongGuesses, saveProgress, clearProgress,
   type PositionPlayer,
 } from '@/api/position-knowledge'
 import { nationalityToFlagUrl } from '@/lib/flags'
@@ -43,14 +43,11 @@ export function PositionKnowledgePage() {
   const [roundSize, setRoundSize] = useState(MAX_roundSize)
 
   // Input state
-  const [inputValue, setInputValue] = useState('')
-  const [suggestions, setSuggestions] = useState<Footballer[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [wrongGuess, setWrongGuess] = useState<string | null>(null)
+  const [wrongGuesses, setWrongGuesses] = useState<Set<string>>(new Set())
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const positionLabel = selectedPosition ? (POSITIONS.find(p => p.key === selectedPosition)?.label ?? '') : ''
@@ -68,9 +65,11 @@ export function PositionKnowledgePage() {
       setRoundSize(size)
       const saved = loadProgress(nation, position)
       setPlayers(saved.map(p => ({ ...p, found: true })))
+      setWrongGuesses(new Set(loadWrongGuesses(nation, position)))
     } catch {
       setRoundSize(MAX_roundSize)
       setPlayers([])
+      setWrongGuesses(new Set())
     }
     setView('playing')
     setTimeout(() => inputRef.current?.focus(), 50)
@@ -84,24 +83,8 @@ export function PositionKnowledgePage() {
   function handleBack() {
     setView('lobby')
     setPlayers([])
-    setInputValue('')
-    setSuggestions([])
-    setShowDropdown(false)
+    setWrongGuesses(new Set())
     setWrongGuess(null)
-  }
-
-  const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 2) { setSuggestions([]); setShowDropdown(false); return }
-    getFootballers({ search: term })
-      .then(results => { setSuggestions(results.slice(0, 8)); setShowDropdown(true) })
-      .catch(() => {})
-  }, [])
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value
-    setInputValue(val)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
   }
 
   async function submitGuess(name: string, id: number | null) {
@@ -109,12 +92,10 @@ export function PositionKnowledgePage() {
 
     // Already guessed?
     if (players.some(p => p.id === id || p.name.toLowerCase() === name.toLowerCase())) {
-      setInputValue(''); setSuggestions([]); setShowDropdown(false)
       setTimeout(() => inputRef.current?.focus(), 50)
       return
     }
 
-    setInputValue(''); setSuggestions([]); setShowDropdown(false)
     setVerifying(true)
 
     let result
@@ -133,10 +114,10 @@ export function PositionKnowledgePage() {
         if (prev.some(p => p.id === f.id)) return prev
         const next = [...prev, { id: f.id, name: f.name, photo_url: f.photo_url, found: true }]
         if (next.length >= roundSize) {
-          clearProgress(selectedNation, selectedPosition)
+          clearProgress(selectedNation!, selectedPosition!)
           setTimeout(() => setView('success'), 300)
         } else {
-          saveProgress(selectedNation, selectedPosition, next.map(({ id, name, photo_url }) => ({ id, name, photo_url })))
+          saveProgress(selectedNation!, selectedPosition!, next.map(({ id, name, photo_url }) => ({ id, name, photo_url })), [...wrongGuesses])
         }
         return next
       })
@@ -144,23 +125,22 @@ export function PositionKnowledgePage() {
       if (wrongTimer.current) clearTimeout(wrongTimer.current)
       setWrongGuess(name)
       wrongTimer.current = setTimeout(() => setWrongGuess(null), 1500)
+      const newWrong = new Set(wrongGuesses)
+      newWrong.add(name.toLowerCase().trim())
+      setWrongGuesses(newWrong)
+      saveProgress(
+        selectedNation, selectedPosition,
+        players.map(({ id, name, photo_url }) => ({ id, name, photo_url })),
+        [...newWrong],
+      )
     }
-
-    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && inputValue.trim() && !verifying) {
-      const term = inputValue.trim()
-      const exact = suggestions.find(s => s.name.toLowerCase() === term.toLowerCase())
-      const best = exact ?? suggestions[0]
-      if (best) {
-        submitGuess(best.name, best.id)
-      } else {
-        submitGuess(term, null)
-      }
-    }
-    if (e.key === 'Escape') { setSuggestions([]); setShowDropdown(false) }
+  function guessStatus(s: { id: number; name: string }) {
+    if (players.some(p => p.id === s.id || p.name.toLowerCase() === s.name.toLowerCase()))
+      return 'correct' as const
+    if (wrongGuesses.has(s.name.toLowerCase().trim())) return 'incorrect' as const
+    return null
   }
 
   // Check progress badge for lobby (any saved progress for current nation selection)
@@ -300,10 +280,7 @@ export function PositionKnowledgePage() {
 
   // ── PLAYING ────────────────────────────────────────────────────────────────
   return (
-    <div
-      className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans"
-      onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
-    >
+    <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button className="text-white p-1" onClick={handleBack}>
@@ -359,35 +336,15 @@ export function PositionKnowledgePage() {
           </div>
         )}
 
-        <div className="relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a player name…"
-            disabled={verifying}
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none"
-            style={{ fontSize: '16px' }}
-          />
-          {showDropdown && !wrongGuess && suggestions.length > 0 && (
-            <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-              {suggestions.map(f => (
-                <button
-                  key={f.id}
-                  onMouseDown={e => { e.preventDefault(); submitGuess(f.name, f.id) }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                >
-                  {f.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <GuessSearchInput
+          inputRef={inputRef}
+          disabled={verifying}
+          suppressDropdown={!!wrongGuess}
+          getKey={f => f.id}
+          getLabel={f => f.name}
+          getStatus={guessStatus}
+          onSelect={(name, item) => submitGuess(name, item?.id ?? null)}
+        />
       </div>
     </div>
   )

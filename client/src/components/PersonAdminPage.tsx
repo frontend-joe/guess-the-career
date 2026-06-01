@@ -401,11 +401,14 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [selectingAll, setSelectingAll] = useState(false)
   const [photoEdits, setPhotoEdits] = useState<Map<number, string>>(new Map())
   const [savingPhotos, setSavingPhotos] = useState(false)
   const [customPositionEdits, setCustomPositionEdits] = useState<Map<number, string>>(new Map())
   const [savingCustomPositions, setSavingCustomPositions] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
+  // id -> name cache, accumulated across pages so a cross-page selection keeps names.
+  const namesRef = useRef<Map<number, string>>(new Map())
 
   const isPaginated = !!(config.getPeoplePaged && config.pageSize)
   const pageSize = config.pageSize ?? 25
@@ -419,11 +422,14 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
     try {
       if (config.getPeoplePaged && config.pageSize) {
         const result = await config.getPeoplePaged({ search: debouncedSearch || undefined, page: p, pageSize: config.pageSize })
+        result.data.forEach(r => namesRef.current.set(r.id, r.name))
         setPeople(result.data)
         setTotal(result.total)
         setPage(p)
       } else {
-        setPeople(await config.getPeople(debouncedSearch ? { search: debouncedSearch } : undefined))
+        const all = await config.getPeople(debouncedSearch ? { search: debouncedSearch } : undefined)
+        all.forEach(r => namesRef.current.set(r.id, r.name))
+        setPeople(all)
       }
     } catch {
       setError(`Failed to load ${config.label.toLowerCase()}s`)
@@ -462,9 +468,10 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
     }
   }, [someSelected, allSelected])
 
+  // Every selected player (across all pages), not just the visible page.
   const selectedItems = useMemo(
-    () => visiblePeople.filter(p => selectedIds.has(p.id)).map(p => ({ id: p.id, name: p.name })),
-    [visiblePeople, selectedIds],
+    () => [...selectedIds].map(id => ({ id, name: namesRef.current.get(id) ?? `#${id}` })),
+    [selectedIds],
   )
 
   function toggleSelect(id: number) {
@@ -521,19 +528,35 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
     }
   }
 
-  function toggleSelectAll() {
+  async function toggleSelectAll() {
     if (allSelected) {
-      setSelectedIds(prev => {
-        const next = new Set(prev)
-        visiblePeople.forEach(p => next.delete(p.id))
-        return next
-      })
+      setSelectedIds(new Set())
+      return
+    }
+    // Select every matching row, across all pages (respecting current filters).
+    if (isPaginated && config.getPeoplePaged && config.pageSize) {
+      setSelectingAll(true)
+      try {
+        const ids = new Set<number>()
+        const size = 100
+        let p = 1
+        for (;;) {
+          const res = await config.getPeoplePaged({
+            search: debouncedSearch || undefined,
+            page: p,
+            pageSize: size,
+          })
+          const rows = config.filterPeople ? config.filterPeople(res.data) : res.data
+          rows.forEach(r => { ids.add(r.id); namesRef.current.set(r.id, r.name) })
+          if (res.data.length === 0 || p * size >= res.total) break
+          p++
+        }
+        setSelectedIds(ids)
+      } finally {
+        setSelectingAll(false)
+      }
     } else {
-      setSelectedIds(prev => {
-        const next = new Set(prev)
-        visiblePeople.forEach(p => next.add(p.id))
-        return next
-      })
+      setSelectedIds(new Set(visiblePeople.map(person => person.id)))
     }
   }
 
@@ -649,9 +672,11 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
                     <input
                       ref={selectAllRef}
                       type="checkbox"
-                      className="h-4 w-4 accent-primary"
+                      className="h-4 w-4 accent-primary disabled:opacity-50"
                       checked={allSelected}
+                      disabled={selectingAll}
                       onChange={toggleSelectAll}
+                      title={isPaginated ? 'Select all (every page)' : 'Select all'}
                     />
                   </TableHead>
                   <TableHead>Name</TableHead>

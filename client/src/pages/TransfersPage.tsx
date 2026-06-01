@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 import {
   Home,
@@ -10,7 +10,6 @@ import {
   Shuffle,
   ArrowRight,
 } from "lucide-react";
-import { getFootballers } from "@/api/footballers";
 import {
   getTransfersScheduleRounds,
   type TransfersScheduleRound,
@@ -21,6 +20,7 @@ import {
 } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { NationalityFlag } from "@/components/NationalityFlag";
+import { GuessSearchInput } from "@/components/GuessSearchInput";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
@@ -28,6 +28,7 @@ const PROGRESS_KEY = "transfers_progress";
 
 interface RoundProgress {
   guessedIds: number[];
+  wrongGuesses?: string[];
 }
 interface SavedProgress {
   [key: string]: RoundProgress;
@@ -43,6 +44,15 @@ function loadProgress(): SavedProgress {
 }
 function saveProgress(progress: SavedProgress) {
   localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+}
+function persistRound(
+  key: string,
+  guessedIds: Set<number>,
+  wrongGuesses: Set<string>,
+) {
+  const saved = loadProgress();
+  saved[key] = { guessedIds: [...guessedIds], wrongGuesses: [...wrongGuesses] };
+  saveProgress(saved);
 }
 function roundKey(from: string, to: string): string {
   return `${from}|||${to}`;
@@ -206,22 +216,24 @@ function PlayerSlot({
         {index + 1}
       </span>
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        {revealed && player.photo_url && !imgFailed ? (
-          <img
-            src={player.photo_url}
-            alt={player.name}
-            className="w-7 h-7 rounded-full object-cover shrink-0"
-            onError={() => setImgFailed(true)}
-          />
-        ) : (
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">
-            {revealed ? player.name.charAt(0) : "?"}
-          </div>
-        )}
         {revealed ? (
-          <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
+          <>
+            {player.photo_url && !imgFailed ? (
+              <img
+                src={player.photo_url}
+                alt={player.name}
+                className="w-7 h-7 rounded-full object-cover shrink-0"
+                onError={() => setImgFailed(true)}
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">
+                {player.name.charAt(0)}
+              </div>
+            )}
+            <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
+          </>
         ) : (
-          <span className="text-sm text-gray-300 tracking-widest select-none">———</span>
+          <div className="h-px bg-gray-200 flex-1 rounded-full" />
         )}
         {/* Hints — always visible, on the right */}
         <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -244,6 +256,7 @@ interface RoundState {
   round: TransfersScheduleRound;
   players: Player[] | null;
   guessedIds: Set<number>;
+  wrongGuesses: Set<string>;
 }
 
 // ─── Verify ───────────────────────────────────────────────────────────────────
@@ -288,14 +301,8 @@ export function TransfersPage() {
   const [error, setError] = useState<string | null>(null);
   const [showProgress, setShowProgress] = useState(false);
   const [progressSearch, setProgressSearch] = useState("");
-  const [inputValue, setInputValue] = useState("");
-  const [suggestions, setSuggestions] = useState<
-    { id: number; name: string; photo_url: string | null }[]
-  >([]);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [wrongGuessMsg, setWrongGuessMsg] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -312,6 +319,7 @@ export function TransfersPage() {
             round: r,
             players: null,
             guessedIds: new Set(saved[key]?.guessedIds ?? []),
+            wrongGuesses: new Set(saved[key]?.wrongGuesses ?? []),
           };
         });
         setRoundStates(states);
@@ -370,44 +378,16 @@ export function TransfersPage() {
     }
   }, [roundIndex, loading, error, rounds.length, showProgress]);
 
-  const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 2) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      return;
-    }
-    getFootballers({ search: term })
-      .then((results) => {
-        setSuggestions(results.slice(0, 8));
-        setShowDropdown(true);
-      })
-      .catch(() => {});
-  }, []);
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setInputValue(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300);
-  }
-
   async function submitGuess(name: string, id: number | null = null) {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
     if (currentState.guessedIds.size >= Math.min(currentRound.playerCount, MAX_SLOTS)) return;
 
-    setInputValue("");
-    setSuggestions([]);
-    setShowDropdown(false);
-
     const alreadyFound = players
       .filter((p) => currentState.guessedIds.has(p.id))
       .some((p) => matchesPlayer(name, p.name));
-    if (alreadyFound) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      return;
-    }
+    if (alreadyFound) return;
 
     const matched = players.filter(
       (p) => !currentState.guessedIds.has(p.id) && matchesPlayer(name, p.name),
@@ -421,9 +401,7 @@ export function TransfersPage() {
         ...prev,
         [currentKey]: { ...prev[currentKey], guessedIds: newGuessedIds },
       }));
-      const saved = loadProgress();
-      saved[currentKey] = { guessedIds: [...newGuessedIds] };
-      saveProgress(saved);
+      persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
     } else {
       setVerifying(true);
       try {
@@ -435,6 +413,7 @@ export function TransfersPage() {
         );
         if (result.valid && result.footballer) {
           const f = result.footballer;
+          const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
           setRoundStates((prev) => {
             const state = prev[currentKey];
             if (!state) return prev;
@@ -442,20 +421,16 @@ export function TransfersPage() {
             const newPlayers = alreadyInList
               ? state.players!
               : [...(state.players ?? []), f];
-            const newGuessedIds = new Set([...state.guessedIds, f.id]);
             return {
               ...prev,
               [currentKey]: {
                 ...state,
                 players: newPlayers,
-                guessedIds: newGuessedIds,
+                guessedIds: new Set([...state.guessedIds, f.id]),
               },
             };
           });
-          const saved = loadProgress();
-          const existing = saved[currentKey]?.guessedIds ?? [];
-          saved[currentKey] = { guessedIds: [...new Set([...existing, f.id])] };
-          saveProgress(saved);
+          persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
@@ -467,28 +442,27 @@ export function TransfersPage() {
                 : `${displayName} is not a valid answer`;
           setWrongGuessMsg(msg);
           wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
+
+          const newWrong = new Set(currentState.wrongGuesses);
+          newWrong.add(normalizeGuess(name));
+          setRoundStates((prev) => ({
+            ...prev,
+            [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong },
+          }));
+          persistRound(currentKey, currentState.guessedIds, newWrong);
         }
       } finally {
         setVerifying(false);
       }
     }
-
-    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && inputValue.trim()) {
-      const term = inputValue.trim();
-      const exact = suggestions.find(
-        (s) => s.name.toLowerCase() === term.toLowerCase(),
-      );
-      const match = exact ?? suggestions[0];
-      submitGuess(match?.name ?? term, match?.id ?? null);
-    }
-    if (e.key === "Escape") {
-      setSuggestions([]);
-      setShowDropdown(false);
-    }
+  function guessStatus(s: { id: number; name: string }) {
+    if (!currentState) return null;
+    if (currentState.guessedIds.has(s.id)) return "correct" as const;
+    if (currentState.wrongGuesses.has(normalizeGuess(s.name)))
+      return "incorrect" as const;
+    return null;
   }
 
   function handleRandom() {
@@ -599,15 +573,7 @@ export function TransfersPage() {
   }
 
   return (
-    <div
-      className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans"
-      onClick={() => {
-        if (showDropdown) {
-          setSuggestions([]);
-          setShowDropdown(false);
-        }
-      }}
-    >
+    <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button className="text-white p-1" onClick={() => (window.location.href = "/play")}>
           <Home size={22} />
@@ -711,37 +677,15 @@ export function TransfersPage() {
               )}
 
               {!isDone && (
-                <div className="relative mb-3">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a player name…"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
+                <div className="mb-3">
+                  <GuessSearchInput
+                    inputRef={inputRef}
                     disabled={verifying}
-                    className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none disabled:opacity-60"
-                    style={{ fontSize: "16px" }}
+                    getKey={(f) => f.id}
+                    getLabel={(f) => f.name}
+                    getStatus={guessStatus}
+                    onSelect={(name, item) => submitGuess(name, item?.id ?? null)}
                   />
-                  {showDropdown && suggestions.length > 0 && (
-                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-                      {suggestions.map((f) => (
-                        <button
-                          key={f.id}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            submitGuess(f.name, f.id);
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                        >
-                          {f.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
 

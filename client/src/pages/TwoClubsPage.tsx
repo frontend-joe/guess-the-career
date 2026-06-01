@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 import { Home, Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react'
-import { getFootballers } from '@/api/footballers'
 import { getTwoClubsScheduleRounds, type TwoClubsScheduleRound } from '@/api/two-clubs-schedule'
 import { verifyGuess } from '@/api/two-clubs'
 import { OverallProgressScreen, type ProgressRound } from '@/components/OverallProgressScreen'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
+import { GuessSearchInput } from '@/components/GuessSearchInput'
 
 const TARGET = 5
 
@@ -15,6 +15,7 @@ const PROGRESS_KEY = 'tc_progress'
 
 interface RoundProgress {
   guessedIds: number[]
+  wrongGuesses?: string[]
 }
 
 interface SavedProgress {
@@ -32,6 +33,12 @@ function loadProgress(): SavedProgress {
 
 function saveProgress(progress: SavedProgress) {
   localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress))
+}
+
+function persistRound(key: string, guessedIds: Set<number>, wrongGuesses: Set<string>) {
+  const saved = loadProgress()
+  saved[key] = { guessedIds: [...guessedIds], wrongGuesses: [...wrongGuesses] }
+  saveProgress(saved)
 }
 
 function pairKey(clubA: string, clubB: string): string {
@@ -147,6 +154,7 @@ interface RoundState {
   round: TwoClubsScheduleRound
   players: Player[] | null
   guessedIds: Set<number>
+  wrongGuesses: Set<string>
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
@@ -160,13 +168,9 @@ export function TwoClubsPage() {
   const [error, setError] = useState<string | null>(null)
   const [showProgress, setShowProgress] = useState(false)
   const [progressSearch, setProgressSearch] = useState('')
-  const [inputValue, setInputValue] = useState('')
-  const [suggestions, setSuggestions] = useState<{ id: number; name: string; photo_url: string | null }[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
   const [wrongGuess, setWrongGuess] = useState<string | null>(null)
   const [notRetiredGuess, setNotRetiredGuess] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -185,6 +189,7 @@ export function TwoClubsPage() {
             round: r,
             players: null,
             guessedIds: new Set(prog?.guessedIds ?? []),
+            wrongGuesses: new Set(prog?.wrongGuesses ?? []),
           }
         })
         setRoundStates(states)
@@ -230,21 +235,6 @@ export function TwoClubsPage() {
     }
   }, [roundIndex, loading, error, rounds.length, showProgress])
 
-  // ── Autocomplete ──────────────────────────────────────────────────────────
-  const fetchSuggestions = useCallback((term: string) => {
-    if (term.length < 2) { setSuggestions([]); setShowDropdown(false); return }
-    getFootballers({ search: term })
-      .then(results => { setSuggestions(results.slice(0, 8)); setShowDropdown(true) })
-      .catch(() => {})
-  }, [])
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value
-    setInputValue(val)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
-  }
-
   // ── Submit guess ──────────────────────────────────────────────────────────
   async function submitGuess(name: string) {
     if (!currentState || !currentKey || !currentRound || verifying) return
@@ -252,22 +242,16 @@ export function TwoClubsPage() {
     const players = currentState.players
     if (!players) return
 
-    setInputValue('')
-    setSuggestions([])
-    setShowDropdown(false)
-
     const alreadyFound = players
       .filter(p => currentState.guessedIds.has(p.id))
       .some(p => matchesPlayer(name, p.name))
-    if (alreadyFound) { setTimeout(() => inputRef.current?.focus(), 50); return }
+    if (alreadyFound) return
 
     const matched = players.filter(p => !currentState.guessedIds.has(p.id) && matchesPlayer(name, p.name))
     if (matched.length > 0) {
       const newGuessedIds = new Set([...currentState.guessedIds, ...matched.map(p => p.id)])
       setRoundStates(prev => ({ ...prev, [currentKey]: { ...prev[currentKey], guessedIds: newGuessedIds } }))
-      const saved = loadProgress()
-      saved[currentKey] = { guessedIds: [...newGuessedIds] }
-      saveProgress(saved)
+      persistRound(currentKey, newGuessedIds, currentState.wrongGuesses)
     } else {
       // Not in local list — verify/scrape via server
       setVerifying(true)
@@ -275,39 +259,37 @@ export function TwoClubsPage() {
         const result = await verifyGuess(name, null, currentRound.clubA, currentRound.clubB)
         if (result.valid && result.footballer) {
           const f = result.footballer
+          const newGuessedIds = new Set([...currentState.guessedIds, f.id])
           setRoundStates(prev => {
             const state = prev[currentKey]
             if (!state) return prev
             const alreadyInList = state.players?.some(p => p.id === f.id)
             const newPlayers = alreadyInList ? state.players! : [...(state.players ?? []), f]
-            const newGuessedIds = new Set([...state.guessedIds, f.id])
-            return { ...prev, [currentKey]: { ...state, players: newPlayers, guessedIds: newGuessedIds } }
+            return { ...prev, [currentKey]: { ...state, players: newPlayers, guessedIds: new Set([...state.guessedIds, f.id]) } }
           })
-          const saved = loadProgress()
-          const existing = saved[currentKey]?.guessedIds ?? []
-          saved[currentKey] = { guessedIds: [...new Set([...existing, f.id])] }
-          saveProgress(saved)
+          persistRound(currentKey, newGuessedIds, currentState.wrongGuesses)
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current)
           setWrongGuess(name)
           setNotRetiredGuess(result.reason === 'not_retired')
           wrongTimer.current = setTimeout(() => { setWrongGuess(null); setNotRetiredGuess(false) }, 2500)
+
+          const newWrong = new Set(currentState.wrongGuesses)
+          newWrong.add(normalizeGuess(name))
+          setRoundStates(prev => ({ ...prev, [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong } }))
+          persistRound(currentKey, currentState.guessedIds, newWrong)
         }
       } finally {
         setVerifying(false)
       }
     }
-
-    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && inputValue.trim()) {
-      const term = inputValue.trim()
-      const exact = suggestions.find(s => s.name.toLowerCase() === term.toLowerCase())
-      submitGuess(exact?.name ?? suggestions[0]?.name ?? term)
-    }
-    if (e.key === 'Escape') { setSuggestions([]); setShowDropdown(false) }
+  function guessStatus(s: { id: number; name: string }) {
+    if (!currentState) return null
+    if (currentState.guessedIds.has(s.id)) return 'correct' as const
+    if (currentState.wrongGuesses.has(normalizeGuess(s.name))) return 'incorrect' as const
+    return null
   }
 
   function handleRandom() {
@@ -375,10 +357,7 @@ export function TwoClubsPage() {
   }
 
   return (
-    <div
-      className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans"
-      onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
-    >
+    <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* ── Header ── */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button className="text-white p-1" onClick={() => window.location.href = '/play'}>
@@ -464,34 +443,15 @@ export function TwoClubsPage() {
               </p>
 
               {!isDone && (
-                <div className="relative mb-3">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a player name…"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
+                <div className="mb-3">
+                  <GuessSearchInput
+                    inputRef={inputRef}
                     disabled={verifying}
-                    className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 outline-none disabled:opacity-60"
-                    style={{ fontSize: '16px' }}
+                    getKey={f => f.id}
+                    getLabel={f => f.name}
+                    getStatus={guessStatus}
+                    onSelect={name => submitGuess(name)}
                   />
-                  {showDropdown && suggestions.length > 0 && (
-                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-                      {suggestions.map(f => (
-                        <button
-                          key={f.id}
-                          onMouseDown={e => { e.preventDefault(); submitGuess(f.name) }}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
-                        >
-                          {f.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
 

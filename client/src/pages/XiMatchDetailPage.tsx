@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router'
-import { ArrowLeft, Globe, Pencil, Check, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, Globe, Pencil, Check, X, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   getXiMatch,
+  relinkXiMatch,
   updateXiMatch,
   updateXiPlayer,
   replaceMatchPlayers,
@@ -71,6 +72,29 @@ export function XiMatchDetailPage() {
   const [homePlayers, setHomePlayers] = useState<EditablePlayer[]>([])
   const [awayPlayers, setAwayPlayers] = useState<EditablePlayer[]>([])
   const [savingLineup, setSavingLineup] = useState(false)
+  const [relinking, setRelinking] = useState(false)
+
+  async function handleRelink() {
+    if (!data) return
+    setRelinking(true)
+    try {
+      const res = await relinkXiMatch(data.match.id)
+      const fresh = await getXiMatch(data.match.id)
+      setData(fresh)
+      setHomePlayers(fresh.homePlayers.map(toEditable))
+      setAwayPlayers(fresh.awayPlayers.map(toEditable))
+      const s = res.summary
+      const parts: string[] = []
+      if (s.relinked.length) parts.push(`${s.relinked.length} re-linked`)
+      if (s.imported.length) parts.push(`${s.imported.length} imported`)
+      if (s.failed.length) parts.push(`${s.failed.length} failed`)
+      alert(parts.length ? `Done: ${parts.join(', ')}.` : 'All players were already linked.')
+    } catch {
+      alert('Re-link failed.')
+    } finally {
+      setRelinking(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -166,6 +190,14 @@ export function XiMatchDetailPage() {
             <span className="text-xs text-muted-foreground">{match.competition}</span>
           </div>
         </div>
+        <button
+          onClick={handleRelink}
+          disabled={relinking}
+          className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
+          title="Re-link & re-scrape players"
+        >
+          {relinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        </button>
         <a
           href={match.wikipedia_url}
           target="_blank"
