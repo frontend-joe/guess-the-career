@@ -1863,6 +1863,21 @@ export async function scrapeCompetitionPage(
     FW: 10,
   };
 
+  // Some season pages render TOTY links as surname-only ("James", "Fàbregas").
+  // The href carries the full name — derive it from the slug when it has more
+  // name tokens than the visible text (e.g. /wiki/David_James_(footballer...) → "David James").
+  const fullNameFromUrl = (url: string | null, fallback: string): string => {
+    if (!url) return fallback;
+    const slug = url.split("/wiki/")[1];
+    if (!slug) return fallback;
+    const decoded = decodeURIComponent(slug)
+      .replace(/_/g, " ")
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim();
+    if (!decoded) return fallback;
+    return decoded.split(/\s+/).length > fallback.split(/\s+/).length ? decoded : fallback;
+  };
+
   // Find the wikitable whose first th contains "PFA Team of the Year"
   $("table.wikitable").each((_i, table) => {
     if (pfaTeamOfYear.length > 0) return false;
@@ -1915,7 +1930,7 @@ export async function scrapeCompetitionPage(
                 ? `https://en.wikipedia.org${href}`
                 : null;
               pfaTeamOfYear.push({
-                name: playerName,
+                name: fullNameFromUrl(wikiUrl, playerName),
                 wikipediaUrl: wikiUrl,
                 position: currentPosition!,
                 squadNumber: squadCounters[currentPosition!]++,
@@ -1938,7 +1953,7 @@ export async function scrapeCompetitionPage(
             ? `https://en.wikipedia.org${href}`
             : null;
           pfaTeamOfYear.push({
-            name: playerName,
+            name: fullNameFromUrl(wikiUrl, playerName),
             wikipediaUrl: wikiUrl,
             position: currentPosition!,
             squadNumber: squadCounters[currentPosition!]++,
@@ -2021,7 +2036,7 @@ export async function scrapeCompetitionPage(
           let sqNum = SQUAD_START[pos];
           for (const p of groups[pos]) {
             pfaTeamOfYear.push({
-              name: p.name,
+              name: fullNameFromUrl(p.wikipediaUrl, p.name),
               wikipediaUrl: p.wikipediaUrl,
               position: pos,
               squadNumber: sqNum++,
