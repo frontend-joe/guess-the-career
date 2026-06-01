@@ -146,21 +146,19 @@ xiScheduleRouter.get('/rounds', (c) => {
       teamImageUrl: row.competition_image_url ?? null,
       isToty: row.competition_wikipedia_url !== null,
       players: players.map(p => {
-        // For TOTY rounds: use stored club_at_time (scraped directly from Wikipedia).
-        // If null (pitch diagram format), show no club badge rather than guess from career stints.
-        // For regular rounds: fall back to career stints lookup.
+        // For TOTY rounds: prefer the stored club_at_time (scraped directly from
+        // Wikipedia). When it's missing (surname-only/pitch-diagram formats),
+        // fall back to the player's club at the season year from career stints.
+        // For regular rounds: always use the career-stints lookup.
         const isToty = row.competition_wikipedia_url !== null
-        if (isToty) {
-          const storedClub = p.club_at_time ?? null
-          const clubWikiUrl = storedClub
-            ? (sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(storedClub) as { wikipedia_url: string | null } | undefined)?.wikipedia_url ?? null
-            : null
+        if (isToty && p.club_at_time) {
+          const clubWikiUrl = (sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(p.club_at_time) as { wikipedia_url: string | null } | undefined)?.wikipedia_url ?? null
           return {
             id: p.id,
             position: p.position,
             squadNumber: p.squad_number,
             nationality: p.nationality ?? null,
-            clubAtTime: storedClub,
+            clubAtTime: p.club_at_time,
             clubAtTimeWikipediaUrl: clubWikiUrl,
           }
         }
