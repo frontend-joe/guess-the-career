@@ -431,6 +431,21 @@ export function TransfersPage() {
             };
           });
           persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
+
+          // The verified player wasn't in the precomputed answers (or was just
+          // imported) — refresh the list so their flag/position/year show on reveal.
+          try {
+            const fresh = (await fetch(
+              `/api/transfers/answers?from=${encodeURIComponent(currentRound.fromClub)}&to=${encodeURIComponent(currentRound.toClub)}`,
+            ).then((r) => (r.ok ? r.json() : Promise.reject()))) as Player[];
+            setRoundStates((prev) =>
+              prev[currentKey]
+                ? { ...prev, [currentKey]: { ...prev[currentKey], players: fresh } }
+                : prev,
+            );
+          } catch {
+            /* keep the minimal player on failure */
+          }
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
