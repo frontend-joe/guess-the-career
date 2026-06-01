@@ -21,6 +21,17 @@ function isReserve(canonicalClub: string): boolean {
   return reserveRe.test(canonicalClub.trim());
 }
 
+/** Map a full position string to GK | DF | MF | FW */
+function abbrevPosition(pos: string | null): "GK" | "DF" | "MF" | "FW" | null {
+  if (!pos) return null;
+  const s = pos.toLowerCase();
+  if (s.includes("goalkeeper") || s.includes("goal keeper") || s.includes("goaltender")) return "GK";
+  if (s.includes("back") || s.includes("defender") || s.includes("sweeper") || s.includes("libero")) return "DF";
+  if (s.includes("striker") || s.includes("forward") || s.includes("winger") || s.includes("attacker") || s.includes("centre forward")) return "FW";
+  if (s.includes("midfielder") || s.includes("midfield")) return "MF";
+  return null;
+}
+
 // A transfer is always FROM a permanent club. Loans are one-directional: they
 // emit `lastPermanentClub ⇒ loanClub` but never become a "from" themselves.
 // This avoids spurious loan→loan transfers (e.g. Bendtner: Arsenal loaned to
@@ -138,6 +149,7 @@ interface TransferPlayer {
   name: string;
   photo_url: string | null;
   nationality: string | null;
+  position: "GK" | "DF" | "MF" | "FW" | null;
   year: string | null;
 }
 
@@ -153,9 +165,15 @@ function getTransferPlayers(
 
   const players = sqlite
     .prepare(
-      `SELECT id, name, photo_url, nationality FROM footballers WHERE id IN (${ph}) ORDER BY name ASC`,
+      `SELECT id, name, photo_url, nationality, position FROM footballers WHERE id IN (${ph})`,
     )
-    .all(...ids) as Omit<TransferPlayer, "year">[];
+    .all(...ids) as {
+    id: number;
+    name: string;
+    photo_url: string | null;
+    nationality: string | null;
+    position: string | null;
+  }[];
 
   // Compute each player's transfer year from their ordered senior stints.
   const stintRows = sqlite
@@ -169,10 +187,29 @@ function getTransferPlayers(
     byPlayer.get(r.footballer_id)!.push({ club: r.club, years: r.years });
   }
 
-  return players.map((p) => ({
-    ...p,
-    year: transferYear(byPlayer.get(p.id) ?? [], fromClub, toClub),
-  }));
+  // Stable per-combo pseudo-random order so the game's "random 5" hint set is
+  // consistent across reloads/devices but isn't just alphabetical/chronological.
+  const seed = `${fromC}|||${toC}`;
+  const rank = (id: number) => {
+    let h = 2166136261;
+    const s = `${seed}:${id}`;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  };
+
+  return players
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      photo_url: p.photo_url,
+      nationality: p.nationality,
+      position: abbrevPosition(p.position),
+      year: transferYear(byPlayer.get(p.id) ?? [], fromClub, toClub),
+    }))
+    .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 function seniorStints(footballerId: number): { club: string }[] {

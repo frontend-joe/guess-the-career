@@ -162,46 +162,78 @@ interface Player {
   name: string;
   photo_url: string | null;
   nationality?: string | null;
+  position?: "GK" | "DF" | "MF" | "FW" | null;
   year?: string | null;
 }
 
-function PlayerSlot({ index, player }: { index: number; player: Player | null }) {
+const POSITION_COLOURS: Record<string, string> = {
+  GK: "bg-purple-100 text-purple-700",
+  DF: "bg-blue-100 text-blue-700",
+  MF: "bg-green-100 text-green-700",
+  FW: "bg-orange-100 text-orange-700",
+};
+
+function PositionBadge({ position }: { position: "GK" | "DF" | "MF" | "FW" }) {
+  return (
+    <span
+      className={`text-[9px] font-bold px-1 py-0.5 rounded shrink-0 ${POSITION_COLOURS[position]}`}
+    >
+      {position}
+    </span>
+  );
+}
+
+// `player` is always provided: when `revealed` the name/photo/year show; when
+// not revealed only the flag + position act as hints.
+function PlayerSlot({
+  index,
+  player,
+  revealed,
+}: {
+  index: number;
+  player: Player;
+  revealed: boolean;
+}) {
   const [imgFailed, setImgFailed] = useState(false);
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${player ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
+      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${revealed ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
     >
       <span
-        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${player ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}
+        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${revealed ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}
       >
         {index + 1}
       </span>
-      {player ? (
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {player.photo_url && !imgFailed ? (
-            <img
-              src={player.photo_url}
-              alt={player.name}
-              className="w-7 h-7 rounded-full object-cover shrink-0"
-              onError={() => setImgFailed(true)}
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">
-              {player.name.charAt(0)}
-            </div>
-          )}
-          {player.nationality && <NationalityFlag nationality={player.nationality} size={14} />}
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {revealed && player.photo_url && !imgFailed ? (
+          <img
+            src={player.photo_url}
+            alt={player.name}
+            className="w-7 h-7 rounded-full object-cover shrink-0"
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">
+            {revealed ? player.name.charAt(0) : "?"}
+          </div>
+        )}
+        {revealed ? (
           <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
+        ) : (
+          <span className="text-sm text-gray-300 tracking-widest select-none">———</span>
+        )}
+        {/* Hints — always visible, on the right */}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {player.nationality && <NationalityFlag nationality={player.nationality} size={14} />}
+          {player.position && <PositionBadge position={player.position} />}
           {player.year && (
-            <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">
+            <span className="text-xs font-semibold text-gray-500 tabular-nums">
               {player.year}
             </span>
           )}
         </div>
-      ) : (
-        <div className="h-px bg-gray-200 flex-1 rounded-full" />
-      )}
+      </div>
     </div>
   );
 }
@@ -524,11 +556,23 @@ export function TransfersPage() {
   const guessedCount = validGuessedIds.size;
   const isDone = target > 0 && guessedCount >= target;
 
-  const foundPlayers: (Player | null)[] = Array.from({ length: target }, (_, i) => {
-    if (!players) return null;
-    const found = players.filter((p) => validGuessedIds.has(p.id));
-    return found[i] ?? null;
-  });
+  // Slots: the player's own correct guesses first (revealed, in any order), then
+  // flag/position hints drawn from the round's first `target` (stable-random)
+  // players that haven't been guessed yet. Any valid combo player counts.
+  const guessedPlayers = players
+    ? players.filter((p) => validGuessedIds.has(p.id))
+    : [];
+  const hintPlayers = players ? players.slice(0, target) : [];
+  const unrevealedHints = hintPlayers.filter((p) => !validGuessedIds.has(p.id));
+  const slots: { player: Player; revealed: boolean }[] = [];
+  for (let i = 0; i < target; i++) {
+    if (i < guessedPlayers.length) {
+      slots.push({ player: guessedPlayers[i], revealed: true });
+    } else {
+      const hint = unrevealedHints[i - guessedPlayers.length];
+      if (hint) slots.push({ player: hint, revealed: false });
+    }
+  }
 
   if (loading) {
     return (
@@ -639,8 +683,8 @@ export function TransfersPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {foundPlayers.map((player, i) => (
-                      <PlayerSlot key={i} index={i} player={player} />
+                    {slots.map((s, i) => (
+                      <PlayerSlot key={i} index={i} player={s.player} revealed={s.revealed} />
                     ))}
                   </div>
                 )}
