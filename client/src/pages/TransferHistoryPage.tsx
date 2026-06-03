@@ -5,7 +5,6 @@ import { OverallProgressScreen } from "@/components/OverallProgressScreen";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
-import { PlayerAvatar } from "@/components/PlayerAvatar";
 import {
   getTransferHistoryRounds,
   type TransferScheduleRound,
@@ -304,7 +303,7 @@ export function TransferHistoryPage() {
 
                     <div className="flex-1 min-w-0">
                       {guessed ? (
-                        <span className="text-green-600 font-semibold text-sm truncate block">{name}</span>
+                        <span className="text-gray-900 font-semibold text-sm truncate block">{name}</span>
                       ) : (
                         <div className="h-px bg-gray-300 rounded-full" />
                       )}
@@ -318,17 +317,6 @@ export function TransferHistoryPage() {
                     </span>
 
                     <span className="text-[11px] tabular-nums text-gray-500 shrink-0 w-14 text-right">{t.feeText}</span>
-
-                    {/* Avatar revealed on a correct guess */}
-                    {guessed && (
-                      <PlayerAvatar
-                        id={t.footballerId ?? t.id}
-                        name={name}
-                        wikipediaUrl={t.wikipediaUrl ?? ""}
-                        storedPhotoUrl={t.photoUrl}
-                        size="sm"
-                      />
-                    )}
                   </div>
                 );
               })}

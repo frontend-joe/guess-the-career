@@ -44,6 +44,8 @@ function ClubLabel({
   const [q, setQ] = useState('')
   const [results, setResults] = useState<ClubOption[]>([])
   const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   function openPicker(e: React.MouseEvent) {
     e.stopPropagation()
@@ -64,11 +66,18 @@ function ClubLabel({
 
   useEffect(() => {
     if (!open) return
+    inputRef.current?.focus({ preventScroll: true })
     const close = () => setOpen(false)
-    window.addEventListener('scroll', close, true)
+    // Close only on a click outside the popover (and its trigger), or on resize.
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (popRef.current?.contains(t) || btnRef.current?.contains(t)) return
+      close()
+    }
+    document.addEventListener('mousedown', onDown)
     window.addEventListener('resize', close)
     return () => {
-      window.removeEventListener('scroll', close, true)
+      document.removeEventListener('mousedown', onDown)
       window.removeEventListener('resize', close)
     }
   }, [open])
@@ -87,37 +96,34 @@ function ClubLabel({
         <ChevronDown className="h-3 w-3" />
       </button>
       {open && coords && createPortal(
-        <>
-          <div className="fixed inset-0" style={{ zIndex: 90 }} onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div
-            className="fixed w-56 bg-white border rounded-lg shadow-lg p-2"
-            style={{ top: coords.top, left: coords.left, zIndex: 100 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <input
-              autoFocus
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search clubs…"
-              className="w-full text-xs border rounded px-2 py-1 mb-1 outline-none focus:ring-1 focus:ring-ring"
-            />
-            <div className="max-h-48 overflow-y-auto">
-              {results.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-2 py-1.5">No clubs found</p>
-              ) : (
-                results.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={(e) => { e.stopPropagation(); onPick(r.name); setOpen(false) }}
-                    className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
-                  >
-                    {r.name}
-                  </button>
-                ))
-              )}
-            </div>
+        <div
+          ref={popRef}
+          className="fixed w-56 bg-white border rounded-lg shadow-lg p-2"
+          style={{ top: coords.top, left: coords.left, zIndex: 100 }}
+        >
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search clubs…"
+            className="w-full text-xs border rounded px-2 py-1 mb-1 outline-none focus:ring-1 focus:ring-ring"
+          />
+          <div className="max-h-48 overflow-y-auto">
+            {results.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-2 py-1.5">No clubs found</p>
+            ) : (
+              results.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => { onPick(r.name); setOpen(false) }}
+                  className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
+                >
+                  {r.name}
+                </button>
+              ))
+            )}
           </div>
-        </>,
+        </div>,
         document.body,
       )}
     </>
