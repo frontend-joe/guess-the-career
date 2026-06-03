@@ -56,6 +56,9 @@ import { ClubLegendsSchedulePage } from '@/pages/ClubLegendsSchedulePage'
 import { TransfersPage } from '@/pages/TransfersPage'
 import { TransfersAdminPage } from '@/pages/TransfersAdminPage'
 import { TransfersSchedulePage } from '@/pages/TransfersSchedulePage'
+import { TransferHistoryPage } from '@/pages/TransferHistoryPage'
+import { TransferHistoryAdminPage } from '@/pages/TransferHistoryAdminPage'
+import { TransferHistorySchedulePage } from '@/pages/TransferHistorySchedulePage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -82,6 +85,7 @@ const router = createBrowserRouter([
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
+  { path: '/play/transfer-history', element: <TransferHistoryPage /> },
   {
     path: '/',
     element: <Layout />,
@@ -121,6 +125,8 @@ const router = createBrowserRouter([
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
       { path: 'transfers', element: <TransfersAdminPage /> },
       { path: 'transfers/schedule', element: <TransfersSchedulePage /> },
+      { path: 'transfer-history', element: <TransferHistoryAdminPage /> },
+      { path: 'transfer-history/schedule', element: <TransferHistorySchedulePage /> },
     ],
   },
 ])

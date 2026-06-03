@@ -38,6 +38,7 @@ import { worldCupScheduleRouter } from './routes/world-cup-schedule.ts'
 import { nationalsRouter } from './routes/nationals.ts'
 import { clubLegendsRouter } from './routes/club-legends.ts'
 import { transfersRouter } from './routes/transfers.ts'
+import { transferHistoryRouter } from './routes/transfer-history.ts'
 
 runMigrations()
 
@@ -81,6 +82,7 @@ app.route('/api/world-cup-schedule', worldCupScheduleRouter)
 app.route('/api/nationals', nationalsRouter)
 app.route('/api/club-legends', clubLegendsRouter)
 app.route('/api/transfers', transfersRouter)
+app.route('/api/transfer-history', transferHistoryRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 

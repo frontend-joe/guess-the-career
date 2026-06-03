@@ -10,6 +10,19 @@ export interface Club {
   home_pattern: string | null  // 'stripes' | 'hoops' | 'halves' | 'sash' | 'sleeves' | null
 }
 
+export interface ClubOption {
+  id: number
+  name: string
+}
+
+// Autocomplete search (max 10) for pickers.
+export async function searchClubs(q: string): Promise<ClubOption[]> {
+  if (!q.trim()) return []
+  const res = await fetch(`/api/clubs?q=${encodeURIComponent(q)}`)
+  if (!res.ok) throw new Error('Failed to search clubs')
+  return res.json()
+}
+
 export async function getAllClubs(opts?: { search?: string }): Promise<Club[]> {
   const params = new URLSearchParams()
   if (opts?.search) params.set('q', opts.search)

@@ -2769,3 +2769,144 @@ export async function scrapeWorldCupSquadsPage(url: string): Promise<WorldCupSqu
 
   return { year, squads }
 }
+
+// ── Transfer History (transfermarkt) ────────────────────────────────────────
+// Scrapes a league-season transfers page, e.g.
+// https://www.transfermarkt.com/laliga/transfers/wettbewerb/ES1/saison_id/1997
+// Each club box has an "In" (arrivals) and "Out" (departures) table; a transfer
+// appears in both the buying club's In and the selling club's Out, so we dedupe.
+
+export interface TransfermarktTransfer {
+  player_name: string
+  nationality: string | null
+  position: 'GK' | 'DF' | 'MF' | 'FW' | null
+  from_club: string
+  to_club: string
+  fee_text: string
+  fee_value: number | null
+}
+
+export interface TransfermarktScrapeResult {
+  league: string
+  league_code: string
+  season_id: number
+  season_label: string
+  source_url: string
+  transfers: TransfermarktTransfer[]
+}
+
+function tmAbbrevPosition(pos: string | null): 'GK' | 'DF' | 'MF' | 'FW' | null {
+  if (!pos) return null
+  const s = pos.toLowerCase()
+  if (s.includes('keeper')) return 'GK'
+  if (s.includes('back') || s.includes('defender') || s.includes('sweeper') || s.includes('libero')) return 'DF'
+  if (s.includes('striker') || s.includes('forward') || s.includes('winger') || s.includes('attack')) return 'FW'
+  if (s.includes('midfield')) return 'MF'
+  return null
+}
+
+// Parse a transfermarkt fee string to a € integer. Loans / free / unknown → null
+// (so they sort to the bottom). Keeps the raw text separately for display.
+export function parseTransferFee(feeText: string): number | null {
+  const t = feeText.toLowerCase().trim()
+  if (!t || t === '?' || t === '-' || t === '–') return null
+  if (t.includes('loan') || t.includes('free') || t.includes('draft') || t.includes('end of')) return null
+  const m = t.match(/([\d.,]+)\s*(bn|m|k|th\.?)?/)
+  if (!m) return null
+  const num = parseFloat(m[1].replace(/,/g, ''))
+  if (Number.isNaN(num)) return null
+  const unit = m[2]
+  if (unit === 'bn') return Math.round(num * 1_000_000_000)
+  if (unit === 'm') return Math.round(num * 1_000_000)
+  if (unit === 'k' || (unit && unit.startsWith('th'))) return Math.round(num * 1_000)
+  return Math.round(num)
+}
+
+export async function scrapeTransfermarktTransfers(url: string): Promise<TransfermarktScrapeResult> {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml',
+    },
+  })
+  if (!res.ok) {
+    throw new Error(`Transfermarkt returned ${res.status}. The page may be rate-limited or blocked.`)
+  }
+  const html = await res.text()
+  const $ = cheerio.load(html)
+
+  const league =
+    $('.data-header__headline-wrapper').first().text().replace(/\s+/g, ' ').trim() ||
+    ($('title').first().text().split(' - ')[0] || '').trim() ||
+    'League'
+
+  const seasonMatch = url.match(/saison_id\/(\d+)/)
+  const season_id = seasonMatch ? parseInt(seasonMatch[1], 10) : 0
+  const codeMatch = url.match(/wettbewerb\/([A-Za-z0-9]+)/)
+  const league_code = codeMatch ? codeMatch[1] : ''
+  const season_label = season_id
+    ? `${season_id}/${String((season_id + 1) % 100).padStart(2, '0')}`
+    : ''
+
+  const byKey = new Map<string, TransfermarktTransfer>()
+
+  $('.content-box-headline[id]').each((_i, headlineEl) => {
+    const $headline = $(headlineEl)
+    const id = $headline.attr('id') ?? ''
+    if (!/^to-/.test(id)) return
+    const thisClub = $headline.text().replace(/\s+/g, ' ').trim()
+    if (!thisClub) return
+
+    const $box = $headline.closest('.box')
+    $box.find('table').each((_j, tableEl) => {
+      const $table = $(tableEl)
+      const dir = $table.find('thead th').first().text().trim().toLowerCase()
+      const isArrival = dir === 'in'
+      const isDeparture = dir === 'out'
+      if (!isArrival && !isDeparture) return
+
+      $table.find('tbody > tr').each((_k, trEl) => {
+        const $tr = $(trEl)
+        const cells = $tr.children('td')
+        const $nameAnchor = $tr.find('a[href*="/profil/spieler/"]').first()
+        if ($nameAnchor.length === 0) return // skip placeholder / total rows
+        const player_name = ($nameAnchor.attr('title') || $nameAnchor.text()).replace(/\s+/g, ' ').trim()
+        const idMatch = ($nameAnchor.attr('href') ?? '').match(/\/spieler\/(\d+)/)
+        const playerId = idMatch ? idMatch[1] : player_name
+
+        const nationality = $tr.find('td.nat-transfer-cell img').first().attr('title')?.trim() || null
+        const position = tmAbbrevPosition($tr.find('td.pos-transfer-cell').first().text().trim() || null)
+
+        const $clubCell = $tr.find('td.verein-flagge-transfer-cell').first()
+        const counterClub =
+          ($clubCell.find('a').first().attr('title') || $clubCell.text()).replace(/\s+/g, ' ').trim()
+        if (!counterClub) return
+
+        const fee_text = $(cells[cells.length - 1]).text().replace(/\s+/g, ' ').trim()
+        const fee_value = parseTransferFee(fee_text)
+
+        const from_club = isArrival ? counterClub : thisClub
+        const to_club = isArrival ? thisClub : counterClub
+
+        const key = `${playerId}|${fee_text}`
+        if (!byKey.has(key)) {
+          byKey.set(key, { player_name, nationality, position, from_club, to_club, fee_text, fee_value })
+        }
+      })
+    })
+  })
+
+  const transfers = [...byKey.values()].sort((a, b) => {
+    const av = a.fee_value ?? -1
+    const bv = b.fee_value ?? -1
+    return bv - av
+  })
+
+  if (transfers.length === 0) {
+    throw new Error('No transfers found on this page — the structure may have changed or the page was blocked.')
+  }
+
+  return { league, league_code, season_id, season_label, source_url: url, transfers }
+}

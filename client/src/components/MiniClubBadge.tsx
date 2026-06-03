@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 interface Props {
   club: string
   wikipediaUrl: string | null
+  /** Badge size in px (width & height). Defaults to 20. */
+  size?: number
 }
 
-export function MiniClubBadge({ club, wikipediaUrl }: Props) {
+export function MiniClubBadge({ club, wikipediaUrl, size = 20 }: Props) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -33,7 +35,7 @@ export function MiniClubBadge({ club, wikipediaUrl }: Props) {
   }, [open])
 
   return (
-    <div ref={ref} className="relative w-5 h-5 flex items-center justify-center shrink-0" onClick={() => setOpen(v => !v)}>
+    <div ref={ref} className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }} onClick={() => setOpen(v => !v)}>
       {logoUrl === null
         ? <div className="w-full h-full bg-gray-100 animate-pulse rounded" />
         : logoUrl === false

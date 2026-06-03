@@ -143,6 +143,43 @@ export const xi_leaderboard = sqliteTable('xi_leaderboard', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+// Transfer History game (transfermarkt-scraped league-season transfers).
+// A window = one league-season; transfer_window_players = the selected transfers.
+export const transfer_windows = sqliteTable('transfer_windows', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  league: text('league').notNull(),
+  league_code: text('league_code').notNull(),
+  season_id: integer('season_id').notNull(),
+  season_label: text('season_label').notNull(),
+  source_url: text('source_url').notNull().unique(),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const transfer_window_players = sqliteTable('transfer_window_players', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  window_id: integer('window_id').notNull().references(() => transfer_windows.id, { onDelete: 'cascade' }),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  player_name: text('player_name').notNull(),
+  nationality: text('nationality'),
+  position: text('position'),
+  from_club: text('from_club').notNull(),
+  from_club_wikipedia_url: text('from_club_wikipedia_url'),
+  to_club: text('to_club').notNull(),
+  to_club_wikipedia_url: text('to_club_wikipedia_url'),
+  fee_text: text('fee_text'),
+  fee_value: integer('fee_value'),
+  sort_order: integer('sort_order').notNull().default(0),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const transfer_history_schedule = sqliteTable('transfer_history_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  window_id: integer('window_id').references(() => transfer_windows.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export const competitions = sqliteTable('competitions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
