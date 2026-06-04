@@ -142,14 +142,12 @@ export function TransferHistorySchedulePage() {
     setAutoState('running')
     try {
       const scheduled = new Set(entries.filter(e => e.window_id !== null).map(e => e.window_id))
-      const slots = windows.filter(w => w.active && !scheduled.has(w.id)).map(w => w.id)
+      // Assign in chronological order: oldest season first (league as tie-break).
+      const slots = windows
+        .filter(w => w.active && !scheduled.has(w.id))
+        .sort((a, b) => a.season_id - b.season_id || a.league.localeCompare(b.league))
+        .map(w => w.id)
       if (slots.length === 0) return
-
-      // Shuffle
-      for (let i = slots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slots[i], slots[j]] = [slots[j], slots[i]]
-      }
 
       const assigned = entries.filter(e => e.window_id !== null)
       const todayIso = new Date().toISOString().split('T')[0]

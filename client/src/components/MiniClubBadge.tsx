@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   club: string
@@ -9,8 +10,11 @@ interface Props {
 
 export function MiniClubBadge({ club, wikipediaUrl, size = 20 }: Props) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
-  const [open, setOpen] = useState(false)
+  // Tooltip is portaled to <body> and positioned from the badge's viewport rect
+  // so it can't be clipped by scrollable/overflow-hidden ancestors.
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const open = coords !== null
 
   useEffect(() => {
     const title = wikipediaUrl
@@ -25,27 +29,45 @@ export function MiniClubBadge({ club, wikipediaUrl, size = 20 }: Props) {
     return () => controller.abort()
   }, [wikipediaUrl, club])
 
+  function toggle() {
+    if (open) { setCoords(null); return }
+    const r = ref.current?.getBoundingClientRect()
+    if (r) setCoords({ top: r.top, left: r.left + r.width / 2 })
+  }
+
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    const close = () => setCoords(null)
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close()
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('mousedown', onDown)
+    // Any scroll/resize invalidates the captured position — just dismiss.
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
   }, [open])
 
   return (
-    <div ref={ref} className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }} onClick={() => setOpen(v => !v)}>
+    <div ref={ref} className="flex items-center justify-center shrink-0" style={{ width: size, height: size }} onClick={toggle}>
       {logoUrl === null
         ? <div className="w-full h-full bg-gray-100 animate-pulse rounded" />
         : logoUrl === false
           ? <span className="text-[9px] text-gray-400 font-bold leading-none">{club.charAt(0)}</span>
           : <img src={logoUrl} alt={club} className="max-h-full max-w-full object-contain" />
       }
-      {open && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-white text-gray-700 text-xs rounded-lg shadow-md whitespace-nowrap z-50 pointer-events-none">
+      {open && coords && createPortal(
+        <div
+          className="fixed -translate-x-1/2 -translate-y-full px-2 py-1 bg-white text-gray-700 text-xs rounded-lg shadow-md whitespace-nowrap pointer-events-none"
+          style={{ top: coords.top - 6, left: coords.left, zIndex: 100 }}
+        >
           {club}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
