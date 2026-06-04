@@ -278,6 +278,62 @@ async function resolveOrCreateFootballer(
   return { id: null, created: false }
 }
 
+// ── Game-shaped transfers for a window ──────────────────────────────────────
+// Used by both the playable rounds feed and the admin detail view so they're
+// guaranteed to match. Ordered exactly as the game shows them (fee desc).
+function windowTransfers(windowId: number) {
+  const players = sqlite
+    .prepare(
+      `SELECT tp.id, tp.player_name, tp.nationality, tp.position,
+              tp.from_club, tp.from_club_wikipedia_url, tp.to_club, tp.to_club_wikipedia_url,
+              tp.fee_text, tp.fee_value, tp.footballer_id,
+              f.name AS footballer_name, f.nationality AS footballer_nationality,
+              f.position AS footballer_position, f.photo_url, f.wikipedia_url
+       FROM transfer_window_players tp
+       LEFT JOIN footballers f ON tp.footballer_id = f.id
+       WHERE tp.window_id = ?
+       ORDER BY (tp.fee_value IS NULL), tp.fee_value DESC, tp.sort_order ASC`,
+    )
+    .all(windowId) as {
+    id: number
+    player_name: string
+    nationality: string | null
+    position: string | null
+    from_club: string
+    from_club_wikipedia_url: string | null
+    to_club: string
+    to_club_wikipedia_url: string | null
+    fee_text: string | null
+    fee_value: number | null
+    footballer_id: number | null
+    footballer_name: string | null
+    footballer_nationality: string | null
+    footballer_position: string | null
+    photo_url: string | null
+    wikipedia_url: string | null
+  }[]
+
+  return players.map((p) => ({
+    id: p.id,
+    fromClub: p.from_club,
+    fromClubWikipediaUrl: p.from_club_wikipedia_url,
+    toClub: p.to_club,
+    toClubWikipediaUrl: p.to_club_wikipedia_url,
+    feeText: p.fee_text ?? '',
+    feeValue: p.fee_value,
+    playerName: p.footballer_name ?? p.player_name,
+    nationality: p.footballer_nationality ?? p.nationality,
+    // Prefer the scraped GK/DF/MF/FW abbreviation; the footballer record stores
+    // a full-text position ("Striker") that won't fit the badge.
+    position: p.position ?? null,
+    footballerId: p.footballer_id,
+    wikipediaUrl: p.wikipedia_url,
+    photoUrl: p.photo_url,
+    // Admin-only: whether this row is linked to a footballer in our DB.
+    linked: p.footballer_id !== null,
+  }))
+}
+
 // ── Scrape preview ──────────────────────────────────────────────────────────
 // POST /api/transfer-history/scrape — scrape transfermarkt + flag which players
 // already exist in our DB. No DB writes.
@@ -413,21 +469,12 @@ transferHistoryRouter.get('/windows', async (c) => {
   return c.json(rows)
 })
 
-// GET /api/transfer-history/windows/:id
+// GET /api/transfer-history/windows/:id — window + its transfers in game order
 transferHistoryRouter.get('/windows/:id', async (c) => {
   const id = parseInt(c.req.param('id'), 10)
   const [window] = await db.select().from(transfer_windows).where(eq(transfer_windows.id, id)).limit(1)
   if (!window) return c.json({ error: 'Not found' }, 404)
-  const players = sqlite
-    .prepare(
-      `SELECT tp.*, f.name AS footballer_name, f.photo_url, f.wikipedia_url
-       FROM transfer_window_players tp
-       LEFT JOIN footballers f ON tp.footballer_id = f.id
-       WHERE tp.window_id = ?
-       ORDER BY (tp.fee_value IS NULL), tp.fee_value DESC, tp.sort_order ASC`,
-    )
-    .all(id)
-  return c.json({ window, players })
+  return c.json({ window, transfers: windowTransfers(id) })
 })
 
 // PATCH /api/transfer-history/windows/:id — toggle active / edit meta
@@ -505,58 +552,7 @@ transferHistoryRouter.get('/schedule/rounds', (c) => {
     .all() as { date: string; window_id: number; league: string; season_label: string }[]
 
   const rounds = rows.map((row) => {
-    const players = sqlite
-      .prepare(
-        `SELECT tp.id, tp.player_name, tp.nationality, tp.position,
-                tp.from_club, tp.from_club_wikipedia_url, tp.to_club, tp.to_club_wikipedia_url,
-                tp.fee_text, tp.fee_value, tp.footballer_id,
-                f.name AS footballer_name, f.nationality AS footballer_nationality,
-                f.position AS footballer_position, f.photo_url, f.wikipedia_url
-         FROM transfer_window_players tp
-         LEFT JOIN footballers f ON tp.footballer_id = f.id
-         WHERE tp.window_id = ?
-         ORDER BY (tp.fee_value IS NULL), tp.fee_value DESC, tp.sort_order ASC`,
-      )
-      .all(row.window_id) as {
-      id: number
-      player_name: string
-      nationality: string | null
-      position: string | null
-      from_club: string
-      from_club_wikipedia_url: string | null
-      to_club: string
-      to_club_wikipedia_url: string | null
-      fee_text: string | null
-      fee_value: number | null
-      footballer_id: number | null
-      footballer_name: string | null
-      footballer_nationality: string | null
-      footballer_position: string | null
-      photo_url: string | null
-      wikipedia_url: string | null
-    }[]
-
-    const transfers = players.map((p) => {
-      const name = p.footballer_name ?? p.player_name
-      return {
-        id: p.id,
-        fromClub: p.from_club,
-        fromClubWikipediaUrl: p.from_club_wikipedia_url,
-        toClub: p.to_club,
-        toClubWikipediaUrl: p.to_club_wikipedia_url,
-        feeText: p.fee_text ?? '',
-        feeValue: p.fee_value,
-        playerName: name,
-        nationality: p.footballer_nationality ?? p.nationality,
-        // Prefer the scraped GK/DF/MF/FW abbreviation; the footballer record
-        // stores a full-text position ("Striker") that won't fit the badge.
-        position: p.position ?? null,
-        footballerId: p.footballer_id,
-        wikipediaUrl: p.wikipedia_url,
-        photoUrl: p.photo_url,
-      }
-    })
-
+    const transfers = windowTransfers(row.window_id)
     return {
       date: row.date,
       windowId: row.window_id,

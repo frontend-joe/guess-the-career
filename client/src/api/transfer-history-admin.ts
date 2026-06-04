@@ -100,6 +100,32 @@ export function deleteTransferWindow(id: number): Promise<{ ok: boolean }> {
   return apiFetch(`/api/transfer-history/windows/${id}`, { method: 'DELETE' })
 }
 
+export interface DetailTransfer {
+  id: number
+  fromClub: string
+  fromClubWikipediaUrl: string | null
+  toClub: string
+  toClubWikipediaUrl: string | null
+  feeText: string
+  feeValue: number | null
+  playerName: string
+  nationality: string | null
+  position: string | null
+  footballerId: number | null
+  wikipediaUrl: string | null
+  photoUrl: string | null
+  linked: boolean
+}
+
+export interface TransferWindowDetail {
+  window: Omit<TransferWindowListItem, 'player_count'>
+  transfers: DetailTransfer[]
+}
+
+export function getTransferWindowDetail(id: number): Promise<TransferWindowDetail> {
+  return apiFetch(`/api/transfer-history/windows/${id}`)
+}
+
 export interface RelinkResult {
   ok: boolean
   summary: { relinked: string[]; failed: string[] }

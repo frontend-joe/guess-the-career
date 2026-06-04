@@ -417,10 +417,14 @@ export function TransferHistoryAdminPage() {
         )}
         {items.map(item => (
           <div key={item.id} className={`flex items-center gap-3 border rounded-lg px-3 py-2.5 ${item.active ? '' : 'opacity-60'}`}>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">{item.league} {item.season_label}</p>
+            <button
+              onClick={() => navigate(`/transfer-history/${item.id}`)}
+              className="flex-1 min-w-0 text-left group"
+              title="View transfers as they appear in the game"
+            >
+              <p className="text-sm font-semibold truncate group-hover:underline">{item.league} {item.season_label}</p>
               <p className="text-xs text-muted-foreground">{item.player_count} transfers</p>
-            </div>
+            </button>
             <button
               onClick={() => handleToggleActive(item)}
               title={item.active ? 'Active — click to disable' : 'Disabled — click to enable'}

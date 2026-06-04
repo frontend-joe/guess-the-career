@@ -59,6 +59,7 @@ import { TransfersSchedulePage } from '@/pages/TransfersSchedulePage'
 import { TransferHistoryPage } from '@/pages/TransferHistoryPage'
 import { TransferHistoryAdminPage } from '@/pages/TransferHistoryAdminPage'
 import { TransferHistorySchedulePage } from '@/pages/TransferHistorySchedulePage'
+import { TransferWindowDetailPage } from '@/pages/TransferWindowDetailPage'
 
 const router = createBrowserRouter([
   { path: '/play', element: <PlayHubPage /> },
@@ -127,6 +128,7 @@ const router = createBrowserRouter([
       { path: 'transfers/schedule', element: <TransfersSchedulePage /> },
       { path: 'transfer-history', element: <TransferHistoryAdminPage /> },
       { path: 'transfer-history/schedule', element: <TransferHistorySchedulePage /> },
+      { path: 'transfer-history/:id', element: <TransferWindowDetailPage /> },
     ],
   },
 ])
