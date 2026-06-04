@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import {
   Trash2, ExternalLink, Calendar, CheckCircle2, Loader2, Circle, Power, RefreshCw, ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
-import { searchClubs, type ClubOption } from '@/api/clubs'
+import { ClubPicker } from '@/components/ClubPicker'
 import {
   scrapeTransferWindow,
   importTransferWindow,
@@ -28,8 +27,7 @@ const POSITION_COLORS: Record<string, string> = {
 const EXAMPLE_URL = 'https://www.transfermarkt.com/laliga/transfers/wettbewerb/ES1/saison_id/1997'
 
 // A matched club renders as plain text. An unmatched one is a red badge that
-// opens a searchable dropdown (portaled to <body> so it isn't clipped by the
-// scrollable table) to pick the right club from our DB.
+// opens a searchable club dropdown to pick the right club from our DB.
 function ClubLabel({
   name,
   matched,
@@ -39,94 +37,17 @@ function ClubLabel({
   matched: boolean
   onPick: (name: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
-  const [q, setQ] = useState('')
-  const [results, setResults] = useState<ClubOption[]>([])
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const popRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  function openPicker(e: React.MouseEvent) {
-    e.stopPropagation()
-    const r = btnRef.current?.getBoundingClientRect()
-    if (r) setCoords({ top: r.bottom + 4, left: r.left })
-    setQ(name)
-    setOpen(true)
-  }
-
-  useEffect(() => {
-    if (!open) return
-    let active = true
-    const id = setTimeout(() => {
-      searchClubs(q).then((r) => active && setResults(r)).catch(() => {})
-    }, 150)
-    return () => { active = false; clearTimeout(id) }
-  }, [q, open])
-
-  useEffect(() => {
-    if (!open) return
-    inputRef.current?.focus({ preventScroll: true })
-    const close = () => setOpen(false)
-    // Close only on a click outside the popover (and its trigger), or on resize.
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (popRef.current?.contains(t) || btnRef.current?.contains(t)) return
-      close()
-    }
-    document.addEventListener('mousedown', onDown)
-    window.addEventListener('resize', close)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      window.removeEventListener('resize', close)
-    }
-  }, [open])
-
   if (matched) return <span>{name}</span>
-
   return (
-    <>
-      <button
-        ref={btnRef}
-        onClick={openPicker}
-        className="inline-flex items-center gap-0.5 rounded bg-red-100 text-red-700 px-1.5 py-0.5 font-medium hover:bg-red-200 transition-colors"
-        title="No matching club — click to choose one"
-      >
-        {name}
-        <ChevronDown className="h-3 w-3" />
-      </button>
-      {open && coords && createPortal(
-        <div
-          ref={popRef}
-          className="fixed w-56 bg-white border rounded-lg shadow-lg p-2"
-          style={{ top: coords.top, left: coords.left, zIndex: 100 }}
-        >
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search clubs…"
-            className="w-full text-xs border rounded px-2 py-1 mb-1 outline-none focus:ring-1 focus:ring-ring"
-          />
-          <div className="max-h-48 overflow-y-auto">
-            {results.length === 0 ? (
-              <p className="text-xs text-muted-foreground px-2 py-1.5">No clubs found</p>
-            ) : (
-              results.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => { onPick(r.name); setOpen(false) }}
-                  className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
-                >
-                  {r.name}
-                </button>
-              ))
-            )}
-          </div>
-        </div>,
-        document.body,
-      )}
-    </>
+    <ClubPicker
+      onPick={onPick}
+      initialQuery={name}
+      title="No matching club — click to choose one"
+      className="inline-flex items-center gap-0.5 rounded bg-red-100 text-red-700 px-1.5 py-0.5 font-medium hover:bg-red-200 transition-colors"
+    >
+      {name}
+      <ChevronDown className="h-3 w-3" />
+    </ClubPicker>
   )
 }
 

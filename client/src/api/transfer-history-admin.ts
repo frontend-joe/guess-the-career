@@ -126,6 +126,25 @@ export function getTransferWindowDetail(id: number): Promise<TransferWindowDetai
   return apiFetch(`/api/transfer-history/windows/${id}`)
 }
 
+export interface UpdatedClubs {
+  ok: boolean
+  fromClub: string
+  fromClubWikipediaUrl: string | null
+  toClub: string
+  toClubWikipediaUrl: string | null
+}
+
+export function updateTransferClubs(
+  id: number,
+  data: { from_club?: string; to_club?: string },
+): Promise<UpdatedClubs> {
+  return apiFetch(`/api/transfer-history/transfers/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
 export interface RelinkResult {
   ok: boolean
   summary: { relinked: string[]; failed: string[] }

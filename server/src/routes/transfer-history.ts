@@ -510,6 +510,41 @@ transferHistoryRouter.delete('/windows/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+// PATCH /api/transfer-history/transfers/:id — manually fix a transfer's clubs.
+// The chosen name is an exact DB club, so we resolve its badge URL directly.
+transferHistoryRouter.patch(
+  '/transfers/:id',
+  zValidator('json', z.object({
+    from_club: z.string().min(1).optional(),
+    to_club: z.string().min(1).optional(),
+  })),
+  async (c) => {
+    const id = parseInt(c.req.param('id'), 10)
+    const { from_club, to_club } = c.req.valid('json')
+    const set: Partial<{
+      from_club: string; from_club_wikipedia_url: string | null
+      to_club: string; to_club_wikipedia_url: string | null
+    }> = {}
+    if (from_club !== undefined) { set.from_club = from_club; set.from_club_wikipedia_url = clubWikiUrl(from_club) }
+    if (to_club !== undefined) { set.to_club = to_club; set.to_club_wikipedia_url = clubWikiUrl(to_club) }
+    if (Object.keys(set).length === 0) return c.json({ error: 'Nothing to update' }, 400)
+
+    const [updated] = await db
+      .update(transfer_window_players)
+      .set(set)
+      .where(eq(transfer_window_players.id, id))
+      .returning()
+    if (!updated) return c.json({ error: 'Not found' }, 404)
+    return c.json({
+      ok: true,
+      fromClub: updated.from_club,
+      fromClubWikipediaUrl: updated.from_club_wikipedia_url,
+      toClub: updated.to_club,
+      toClubWikipediaUrl: updated.to_club_wikipedia_url,
+    })
+  },
+)
+
 // POST /api/transfer-history/windows/:id/relink — resolve still-unlinked players
 transferHistoryRouter.post('/windows/:id/relink', async (c) => {
   const id = parseInt(c.req.param('id'), 10)

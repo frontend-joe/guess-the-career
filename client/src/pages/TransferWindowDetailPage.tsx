@@ -4,7 +4,8 @@ import { ArrowLeft, ArrowRight, ExternalLink, AlertTriangle } from 'lucide-react
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
-import { getTransferWindowDetail, type TransferWindowDetail } from '@/api/transfer-history-admin'
+import { ClubPicker } from '@/components/ClubPicker'
+import { getTransferWindowDetail, updateTransferClubs, type TransferWindowDetail } from '@/api/transfer-history-admin'
 
 const POSITION_COLORS: Record<string, string> = {
   GK: 'bg-purple-100 text-purple-700',
@@ -30,6 +31,28 @@ export function TransferWindowDetailPage() {
   }, [id])
 
   const unlinked = data?.transfers.filter((t) => !t.linked).length ?? 0
+
+  async function changeClub(transferId: number, side: 'from' | 'to', name: string) {
+    const res = await updateTransferClubs(transferId, side === 'from' ? { from_club: name } : { to_club: name })
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            transfers: prev.transfers.map((t) =>
+              t.id === transferId
+                ? {
+                    ...t,
+                    fromClub: res.fromClub,
+                    fromClubWikipediaUrl: res.fromClubWikipediaUrl,
+                    toClub: res.toClub,
+                    toClubWikipediaUrl: res.toClubWikipediaUrl,
+                  }
+                : t,
+            ),
+          }
+        : prev,
+    )
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-3xl">
@@ -80,9 +103,25 @@ export function TransferWindowDetailPage() {
                 </span>
 
                 <span className="flex items-center gap-1 shrink-0">
-                  <MiniClubBadge club={t.fromClub} wikipediaUrl={t.fromClubWikipediaUrl} size={18} />
+                  <ClubPicker
+                    onPick={(n) => changeClub(t.id, 'from', n)}
+                    initialQuery={t.fromClub}
+                    title="Change the club they left"
+                    className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted max-w-40"
+                  >
+                    <span className="pointer-events-none flex items-center"><MiniClubBadge club={t.fromClub} wikipediaUrl={t.fromClubWikipediaUrl} size={18} /></span>
+                    <span className="text-xs truncate">{t.fromClub}</span>
+                  </ClubPicker>
                   <ArrowRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                  <MiniClubBadge club={t.toClub} wikipediaUrl={t.toClubWikipediaUrl} size={18} />
+                  <ClubPicker
+                    onPick={(n) => changeClub(t.id, 'to', n)}
+                    initialQuery={t.toClub}
+                    title="Change the club they joined"
+                    className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted max-w-40"
+                  >
+                    <span className="pointer-events-none flex items-center"><MiniClubBadge club={t.toClub} wikipediaUrl={t.toClubWikipediaUrl} size={18} /></span>
+                    <span className="text-xs truncate">{t.toClub}</span>
+                  </ClubPicker>
                 </span>
 
                 <span className="text-[11px] tabular-nums text-gray-500 shrink-0 w-16 text-right">{t.feeText}</span>
