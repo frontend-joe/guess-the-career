@@ -278,6 +278,19 @@ async function resolveOrCreateFootballer(
   return { id: null, created: false }
 }
 
+// Abbreviate a full-text position ("Attacking midfielder", "Centre-back") to a
+// GK/DF/MF/FW badge. Midfield is checked first so "attacking/defensive
+// midfield" doesn't fall through to the FW/DF checks.
+function abbrevPosition(pos: string | null): 'GK' | 'DF' | 'MF' | 'FW' | null {
+  if (!pos) return null
+  const s = pos.toLowerCase()
+  if (s.includes('keeper') || s.includes('goalie')) return 'GK'
+  if (s.includes('midfield')) return 'MF'
+  if (s.includes('back') || s.includes('defender') || s.includes('sweeper') || s.includes('libero')) return 'DF'
+  if (s.includes('striker') || s.includes('forward') || s.includes('winger') || s.includes('attack')) return 'FW'
+  return null
+}
+
 // ── Game-shaped transfers for a window ──────────────────────────────────────
 // Used by both the playable rounds feed and the admin detail view so they're
 // guaranteed to match. Ordered exactly as the game shows them (fee desc).
@@ -323,9 +336,9 @@ function windowTransfers(windowId: number) {
     feeValue: p.fee_value,
     playerName: p.footballer_name ?? p.player_name,
     nationality: p.footballer_nationality ?? p.nationality,
-    // Prefer the scraped GK/DF/MF/FW abbreviation; the footballer record stores
-    // a full-text position ("Striker") that won't fit the badge.
-    position: p.position ?? null,
+    // Use the linked footballer's DB position (abbreviated); fall back to the
+    // scraped GK/DF/MF/FW when no footballer is linked.
+    position: abbrevPosition(p.footballer_position) ?? p.position ?? null,
     footballerId: p.footballer_id,
     wikipediaUrl: p.wikipedia_url,
     photoUrl: p.photo_url,

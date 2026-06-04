@@ -2799,9 +2799,11 @@ function tmAbbrevPosition(pos: string | null): 'GK' | 'DF' | 'MF' | 'FW' | null 
   if (!pos) return null
   const s = pos.toLowerCase()
   if (s.includes('keeper')) return 'GK'
+  // Check midfield first so "Attacking Midfield" / "Defensive Midfield" don't
+  // fall through to the FW ("attack") or DF ("defen…") checks below.
+  if (s.includes('midfield')) return 'MF'
   if (s.includes('back') || s.includes('defender') || s.includes('sweeper') || s.includes('libero')) return 'DF'
   if (s.includes('striker') || s.includes('forward') || s.includes('winger') || s.includes('attack')) return 'FW'
-  if (s.includes('midfield')) return 'MF'
   return null
 }
 
