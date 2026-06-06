@@ -63,19 +63,18 @@ export function ScheduleAdminPage({ config }: { config: ScheduleAdminConfig }) {
   const [autoState, setAutoState] = useState<AutoState>('idle')
   const [clearState, setClearState] = useState<ClearState>('idle')
 
-  const monthStart = isoDate(year, month, 1)
-  const monthEnd = isoDate(year, month, getDaysInMonth(year, month))
-
+  // Load the full schedule (all dates) so the calendar and the table below both
+  // reflect every assignment, not just the current month.
   const loadDays = useCallback(async () => {
     setLoading(true)
     try {
-      setDays(await config.getDays(monthStart, monthEnd))
+      setDays(await config.getDays())
     } catch {
       // keep previous data
     } finally {
       setLoading(false)
     }
-  }, [monthStart, monthEnd, config])
+  }, [config])
 
   useEffect(() => { loadDays() }, [loadDays])
 
@@ -134,6 +133,9 @@ export function ScheduleAdminPage({ config }: { config: ScheduleAdminConfig }) {
   }
 
   const dayMap = Object.fromEntries(days.map(d => [d.date, d]))
+  const assignedDays = days
+    .filter(d => d.person_id !== null)
+    .sort((a, b) => a.date.localeCompare(b.date))
   const daysInMonth = getDaysInMonth(year, month)
   const firstDow = getFirstDayOfWeek(year, month)
   const todayIso = isoDate(today.getFullYear(), today.getMonth(), today.getDate())
@@ -264,6 +266,57 @@ export function ScheduleAdminPage({ config }: { config: ScheduleAdminConfig }) {
       </div>
 
       {loading && <p className="text-xs text-muted-foreground mt-2">Loading…</p>}
+
+      {/* Full schedule as a flat table (every date, chronological) */}
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold mb-2">
+          Full schedule
+          <span className="text-muted-foreground font-normal"> ({assignedDays.length})</span>
+        </h2>
+        {assignedDays.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No assignments yet.</p>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <div className="max-h-96 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 font-medium w-16">#</th>
+                    <th className="text-left px-3 py-1.5 font-medium w-32">Date</th>
+                    <th className="text-left px-3 py-1.5 font-medium">{config.label}</th>
+                    <th className="px-3 py-1.5 w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {assignedDays.map((d, i) => {
+                    const isPast = d.date < todayIso
+                    const isToday = d.date === todayIso
+                    return (
+                      <tr key={d.id} className={cn('border-t', isPast && 'text-muted-foreground')}>
+                        <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
+                        <td className="px-3 py-1.5 tabular-nums whitespace-nowrap">
+                          {d.date}
+                          {isToday && <span className="ml-2 text-[10px] font-semibold text-primary uppercase">Today</span>}
+                        </td>
+                        <td className="px-3 py-1.5 font-medium">{d.person_name}</td>
+                        <td className="px-3 py-1.5 text-right">
+                          <button
+                            onClick={() => handleAssign(d.date, null)}
+                            className="text-muted-foreground hover:text-destructive"
+                            title="Remove"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
       {selectedDate && (
         <DayAssignModal
