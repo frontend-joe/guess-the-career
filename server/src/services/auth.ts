@@ -41,16 +41,20 @@ export interface SessionPayload {
 // the real request protocol — true in prod, false on local http.
 function isHttps(c: Context): boolean {
   const proto = (c.req.header('x-forwarded-proto') ?? '').split(',')[0].trim()
-  return proto === 'https'
+  return proto === 'https' || process.env.NODE_ENV === 'production'
 }
 
 export async function setSessionCookie(c: Context, user: { id: number; is_admin: boolean }) {
   const exp = Math.floor(Date.now() / 1000) + THIRTY_DAYS
   const token = await sign({ uid: user.id, is_admin: user.is_admin, exp }, authSecret())
+  const https = isHttps(c)
   setCookie(c, COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: 'Lax',
-    secure: isHttps(c),
+    // Prod (HTTPS): SameSite=None + Secure so the cookie survives the
+    // Netlify→Railway proxy round-trip and iOS Safari keeps it on reload.
+    // Local (http): None needs Secure, so fall back to Lax.
+    sameSite: https ? 'None' : 'Lax',
+    secure: https,
     path: '/',
     maxAge: THIRTY_DAYS,
   })
