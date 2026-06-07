@@ -36,13 +36,21 @@ export interface SessionPayload {
   exp: number
 }
 
+// Served over HTTPS in prod (Railway sets x-forwarded-proto). A non-Secure
+// cookie over HTTPS is dropped by iOS Safari on reload, so derive Secure from
+// the real request protocol — true in prod, false on local http.
+function isHttps(c: Context): boolean {
+  const proto = (c.req.header('x-forwarded-proto') ?? '').split(',')[0].trim()
+  return proto === 'https'
+}
+
 export async function setSessionCookie(c: Context, user: { id: number; is_admin: boolean }) {
   const exp = Math.floor(Date.now() / 1000) + THIRTY_DAYS
   const token = await sign({ uid: user.id, is_admin: user.is_admin, exp }, authSecret())
   setCookie(c, COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'Lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttps(c),
     path: '/',
     maxAge: THIRTY_DAYS,
   })
