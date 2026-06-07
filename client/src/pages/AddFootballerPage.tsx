@@ -57,7 +57,7 @@ export function AddFootballerPage() {
         ...preview,
         stints: stints.map((s, i) => ({ ...s, sort_order: i })),
       })
-      navigate(`/footballers/${footballer.id}`)
+      navigate(`/admin/footballers/${footballer.id}`)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save')
     } finally {
@@ -109,7 +109,7 @@ export function AddFootballerPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl">
-      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/footballers')}>
+      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/admin/footballers')}>
         <ArrowLeft className="h-4 w-4 mr-1" />
         Back
       </Button>
@@ -256,7 +256,7 @@ export function AddFootballerPage() {
                   <Button variant="outline" onClick={() => { setBulkItems([]); setBulkText('') }}>
                     Import more
                   </Button>
-                  <Button onClick={() => navigate('/footballers')}>
+                  <Button onClick={() => navigate('/admin/footballers')}>
                     Done
                   </Button>
                 </div>

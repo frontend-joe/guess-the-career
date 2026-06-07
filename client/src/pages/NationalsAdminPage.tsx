@@ -64,7 +64,7 @@ export function NationalsAdminPage() {
             {loading ? 'Loading…' : `${total} qualifying combos · ${enabledCount} enabled`}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/nationals/schedule')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/nationals/schedule')}>
           <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
           Schedule
         </Button>
@@ -97,7 +97,7 @@ export function NationalsAdminPage() {
                   className="cursor-pointer"
                   onClick={() =>
                     navigate(
-                      `/nationals/${encodeURIComponent(combo.nationality)}/${encodeURIComponent(combo.club)}`,
+                      `/admin/nationals/${encodeURIComponent(combo.nationality)}/${encodeURIComponent(combo.club)}`,
                       { state: { clubWikiUrl: combo.clubWikiUrl } }
                     )
                   }

@@ -2,19 +2,15 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { sqlite } from '../db/client.ts'
+import { requireAdmin } from '../services/auth.ts'
 
 export const adminRouter = new Hono()
 
-function authorized(c: { req: { header: (k: string) => string | undefined } }): boolean {
-  const key = process.env.ADMIN_KEY
-  if (!key) return false
-  return c.req.header('x-admin-key') === key
-}
+// All admin endpoints require a logged-in admin session.
+adminRouter.use('*', requireAdmin)
 
 // GET /api/admin/export-db
 adminRouter.get('/export-db', (c) => {
-  if (!authorized(c)) return c.json({ error: 'Unauthorized' }, 401)
-
   const footballers = sqlite.prepare('SELECT * FROM footballers ORDER BY id').all()
   const career_stints = sqlite.prepare('SELECT * FROM career_stints ORDER BY id').all()
   const days = sqlite.prepare('SELECT * FROM days ORDER BY id').all()
@@ -56,8 +52,6 @@ adminRouter.post(
   '/import-db',
   zValidator('json', importSchema),
   (c) => {
-    if (!authorized(c)) return c.json({ error: 'Unauthorized' }, 401)
-
     const body = c.req.valid('json')
 
     sqlite.transaction(() => {

@@ -143,6 +143,16 @@ export const xi_leaderboard = sqliteTable('xi_leaderboard', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+// Users for guessthelist.xyz — public players and admins (is_admin flag).
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  email: text('email').notNull().unique(),
+  password_hash: text('password_hash'),
+  google_id: text('google_id').unique(),
+  is_admin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 // Transfer History game (transfermarkt-scraped league-season transfers).
 // A window = one league-season; transfer_window_players = the selected transfers.
 export const transfer_windows = sqliteTable('transfer_windows', {

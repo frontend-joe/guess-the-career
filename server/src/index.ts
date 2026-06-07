@@ -39,13 +39,18 @@ import { nationalsRouter } from './routes/nationals.ts'
 import { clubLegendsRouter } from './routes/club-legends.ts'
 import { transfersRouter } from './routes/transfers.ts'
 import { transferHistoryRouter } from './routes/transfer-history.ts'
+import { authRouter } from './routes/auth.ts'
+import { bootstrapAdmin } from './services/auth.ts'
 
 runMigrations()
+await bootstrapAdmin()
 
 const app = new Hono()
 
 app.use('*', logger())
-app.use('*', cors({ origin: process.env.CLIENT_URL ?? '*' }))
+// credentials:true so the httpOnly session cookie is sent/accepted. Falls back
+// to reflecting the request origin when CLIENT_URL isn't set (dev/proxy).
+app.use('*', cors({ origin: process.env.CLIENT_URL ?? ((origin) => origin), credentials: true }))
 
 app.route('/api/footballers', footballersRouter)
 app.route('/api/days', daysRouter)
@@ -83,6 +88,7 @@ app.route('/api/nationals', nationalsRouter)
 app.route('/api/club-legends', clubLegendsRouter)
 app.route('/api/transfers', transfersRouter)
 app.route('/api/transfer-history', transferHistoryRouter)
+app.route('/api/auth', authRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 

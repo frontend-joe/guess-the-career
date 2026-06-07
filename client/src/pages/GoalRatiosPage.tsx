@@ -152,7 +152,7 @@ export function GoalRatiosPage() {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#1a1a2e]">
         <div className="flex items-center justify-between px-3 py-2 shrink-0">
-          <button className="text-white p-1" onClick={() => window.location.href = '/play'}>
+          <button className="text-white p-1" onClick={() => window.location.href = '/'}>
             <Home size={22} />
           </button>
           <span className="text-white font-bold text-sm tracking-widest uppercase">Goal Ratios</span>
@@ -172,7 +172,7 @@ export function GoalRatiosPage() {
               Reset &amp; play again
             </button>
             <button
-              onClick={() => window.location.href = '/play'}
+              onClick={() => window.location.href = '/'}
               className="w-full text-white/50 text-sm py-2"
             >
               Back to games
@@ -191,7 +191,7 @@ export function GoalRatiosPage() {
     >
       {/* Header */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
-        <button className="text-white p-1" onClick={() => window.location.href = '/play'}>
+        <button className="text-white p-1" onClick={() => window.location.href = '/'}>
           <Home size={22} />
         </button>
         <span className="text-white font-bold text-sm tracking-widest uppercase">Goal Ratios</span>

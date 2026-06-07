@@ -232,7 +232,7 @@ export function BallonDorsAdminPage() {
     <div className="p-4 md:p-6 max-w-3xl space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold">Ballon d&apos;Or</h1>
-        <Button variant="outline" size="sm" onClick={() => navigate('/ballon-dors/schedule')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/ballon-dors/schedule')}>
           <Calendar className="h-3.5 w-3.5 mr-1.5" />
           Schedule
         </Button>

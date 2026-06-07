@@ -57,7 +57,7 @@ export function AddManagerPage() {
         ...preview,
         stints: stints.map((s, i) => ({ ...s, sort_order: i })),
       })
-      navigate(`/managers/${manager.id}`)
+      navigate(`/admin/managers/${manager.id}`)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save')
     } finally {
@@ -108,7 +108,7 @@ export function AddManagerPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl">
-      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/managers')}>
+      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/admin/managers')}>
         <ArrowLeft className="h-4 w-4 mr-1" />
         Back
       </Button>
@@ -245,7 +245,7 @@ export function AddManagerPage() {
                   <Button variant="outline" onClick={() => { setBulkItems([]); setBulkText('') }}>
                     Import more
                   </Button>
-                  <Button onClick={() => navigate('/managers')}>
+                  <Button onClick={() => navigate('/admin/managers')}>
                     Done
                   </Button>
                 </div>

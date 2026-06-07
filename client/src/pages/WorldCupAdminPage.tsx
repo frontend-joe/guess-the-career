@@ -231,7 +231,7 @@ export function WorldCupAdminPage() {
     <div className="p-4 md:p-6 max-w-3xl space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold">World Cup Squads</h1>
-        <Button variant="outline" size="sm" onClick={() => navigate('/world-cup/schedule')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/world-cup/schedule')}>
           <Calendar className="h-3.5 w-3.5 mr-1.5" />
           Schedule
         </Button>

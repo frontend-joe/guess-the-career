@@ -4,7 +4,7 @@ import { getFootballers } from '@/api/footballers'
 
 const config: ScheduleAdminConfig = {
   label: 'Footballer',
-  backPath: '/footballers',
+  backPath: '/admin/footballers',
   getDays: async (from?: string, to?: string): Promise<ScheduleDay[]> => {
     const days = await getDays(from, to)
     return days.map(d => ({

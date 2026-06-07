@@ -198,7 +198,7 @@ export function TransferHistoryAdminPage() {
     <div className="p-4 md:p-6 max-w-4xl space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold">Transfer History</h1>
-        <Button variant="outline" size="sm" onClick={() => navigate('/transfer-history/schedule')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/transfer-history/schedule')}>
           <Calendar className="h-3.5 w-3.5 mr-1.5" />
           Schedule
         </Button>
@@ -339,7 +339,7 @@ export function TransferHistoryAdminPage() {
         {items.map(item => (
           <div key={item.id} className={`flex items-center gap-3 border rounded-lg px-3 py-2.5 ${item.active ? '' : 'opacity-60'}`}>
             <button
-              onClick={() => navigate(`/transfer-history/${item.id}`)}
+              onClick={() => navigate(`/admin/transfer-history/${item.id}`)}
               className="flex-1 min-w-0 text-left group"
               title="View transfers as they appear in the game"
             >

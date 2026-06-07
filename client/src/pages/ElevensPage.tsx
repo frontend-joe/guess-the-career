@@ -44,11 +44,11 @@ export function ElevensPage() {
           <p className="text-sm text-muted-foreground mt-0.5">{matches.length} matches</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate('/elevens/schedule')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/admin/elevens/schedule')}>
             <CalendarDays className="h-4 w-4 mr-1.5" />
             <span className="hidden sm:inline">Schedule</span>
           </Button>
-          <Button onClick={() => navigate('/elevens/add')} size="sm">
+          <Button onClick={() => navigate('/admin/elevens/add')} size="sm">
             <Plus className="h-4 w-4 mr-1.5" />
             Add match
           </Button>
@@ -89,7 +89,7 @@ export function ElevensPage() {
                 <tr
                   key={match.id}
                   className="hover:bg-muted/30 cursor-pointer"
-                  onClick={() => navigate(`/elevens/${match.id}`)}
+                  onClick={() => navigate(`/admin/elevens/${match.id}`)}
                 >
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">{match.year}</td>
                   <td className="px-4 py-3 font-medium">{match.name}</td>

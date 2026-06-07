@@ -109,10 +109,10 @@ export function CompetitionsPage() {
               </Button>
             </>
           )}
-          <Button variant="outline" size="sm" onClick={() => navigate('/competitions/top-scorers-schedule')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/admin/competitions/top-scorers-schedule')}>
             Top Scorers Schedule
           </Button>
-          <Button size="sm" onClick={() => navigate('/competitions/add')}>
+          <Button size="sm" onClick={() => navigate('/admin/competitions/add')}>
             <Plus className="h-4 w-4 mr-1.5" />
             Add competition
           </Button>
@@ -124,7 +124,7 @@ export function CompetitionsPage() {
       ) : competitions.length === 0 ? (
         <div className="border rounded-lg p-12 text-center text-muted-foreground">
           <p className="text-sm">No competitions yet.</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/competitions/add')}>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/admin/competitions/add')}>
             Add your first competition
           </Button>
         </div>
@@ -159,7 +159,7 @@ export function CompetitionsPage() {
                 />
                 <div
                   className="h-7 w-7 shrink-0 flex items-center justify-center cursor-pointer"
-                  onClick={() => navigate(`/competitions/${comp.id}`)}
+                  onClick={() => navigate(`/admin/competitions/${comp.id}`)}
                 >
                   {comp.image_url
                     ? <img src={comp.image_url} alt="" className="max-h-full max-w-full object-contain" />
@@ -168,7 +168,7 @@ export function CompetitionsPage() {
                 </div>
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => navigate(`/competitions/${comp.id}`)}
+                  onClick={() => navigate(`/admin/competitions/${comp.id}`)}
                 >
                   <p className="text-sm font-medium truncate">{comp.name}</p>
                 </div>

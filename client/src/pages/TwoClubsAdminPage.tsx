@@ -50,7 +50,7 @@ export function TwoClubsAdminPage() {
             {loading ? 'Loading…' : `${pairs.length} qualifying pairs · ${enabledCount} enabled`}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/two-clubs/schedule')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/two-clubs/schedule')}>
           <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
           Schedule
         </Button>
@@ -82,7 +82,7 @@ export function TwoClubsAdminPage() {
                 className="cursor-pointer"
                 onClick={() =>
                   navigate(
-                    `/two-clubs/${encodeURIComponent(pair.clubA)}/${encodeURIComponent(pair.clubB)}`,
+                    `/admin/two-clubs/${encodeURIComponent(pair.clubA)}/${encodeURIComponent(pair.clubB)}`,
                     { state: { clubAWikiUrl: pair.clubAWikiUrl, clubBWikiUrl: pair.clubBWikiUrl } }
                   )
                 }

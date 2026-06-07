@@ -183,7 +183,7 @@ export function AddXiMatchPage() {
           )}
         </div>
 
-        <Button onClick={() => navigate(`/elevens/${createdMatchId}`)}>
+        <Button onClick={() => navigate(`/admin/elevens/${createdMatchId}`)}>
           View match
         </Button>
       </div>
@@ -194,7 +194,7 @@ export function AddXiMatchPage() {
     <div className="p-4 md:p-6 max-w-4xl">
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => pageState === 'preview' ? setPageState('url') : navigate('/elevens')}
+          onClick={() => pageState === 'preview' ? setPageState('url') : navigate('/admin/elevens')}
           className="p-1.5 rounded hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />

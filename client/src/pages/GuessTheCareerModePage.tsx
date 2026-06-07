@@ -7,7 +7,7 @@ export function GuessTheCareerModePage() {
   return (
     <div className="h-dvh flex flex-col items-center justify-center bg-[#1a1a2e] px-4 gap-6 font-sans relative">
       <button
-        onClick={() => navigate('/play')}
+        onClick={() => navigate('/')}
         className="absolute top-4 left-4 text-white/60 hover:text-white flex items-center gap-1 text-sm transition-colors"
       >
         <ChevronLeft size={16} />

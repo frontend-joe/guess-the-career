@@ -156,7 +156,7 @@ export function PositionKnowledgePage() {
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#1a1a2e]">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 shrink-0">
-          <button className="text-white p-1" onClick={() => window.location.href = '/play'}>
+          <button className="text-white p-1" onClick={() => window.location.href = '/'}>
             <Home size={22} />
           </button>
           <span className="text-white font-bold text-sm tracking-widest uppercase">Position Knowledge</span>
@@ -244,7 +244,7 @@ export function PositionKnowledgePage() {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#1a1a2e]">
         <div className="flex items-center justify-between px-3 py-2 shrink-0">
-          <button className="text-white p-1" onClick={() => window.location.href = '/play'}>
+          <button className="text-white p-1" onClick={() => window.location.href = '/'}>
             <Home size={22} />
           </button>
           <span className="text-white font-bold text-sm tracking-widest uppercase">Position Knowledge</span>
@@ -267,7 +267,7 @@ export function PositionKnowledgePage() {
               <ChevronRight size={16} />
             </button>
             <button
-              onClick={() => window.location.href = '/play'}
+              onClick={() => window.location.href = '/'}
               className="w-full text-white/50 text-sm py-2"
             >
               Back to games

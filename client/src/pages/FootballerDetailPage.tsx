@@ -58,7 +58,7 @@ export function FootballerDetailPage() {
           photo_url: f.photo_url ?? '',
         })
       })
-      .catch(() => navigate('/footballers'))
+      .catch(() => navigate('/admin/footballers'))
       .finally(() => setLoading(false))
   }, [id, navigate])
 
@@ -108,7 +108,7 @@ export function FootballerDetailPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl">
-      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/footballers')}>
+      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/admin/footballers')}>
         <ArrowLeft className="h-4 w-4 mr-1" />
         Back
       </Button>

@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react'
 import { Download, Upload, Loader2, Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 export function DatabasePage() {
-  const [adminKey, setAdminKey] = useState('')
   const [exportState, setExportState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [importState, setImportState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [importResult, setImportResult] = useState<string | null>(null)
@@ -28,12 +26,9 @@ export function DatabasePage() {
   }
 
   async function handleExport() {
-    if (!adminKey.trim()) return
     setExportState('loading')
     try {
-      const res = await fetch('/api/admin/export-db', {
-        headers: { 'x-admin-key': adminKey },
-      })
+      const res = await fetch('/api/admin/export-db', { credentials: 'include' })
       if (!res.ok) throw new Error(await res.text())
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -50,7 +45,7 @@ export function DatabasePage() {
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file || !adminKey.trim()) return
+    if (!file) return
     setImportState('loading')
     setImportResult(null)
     try {
@@ -58,7 +53,8 @@ export function DatabasePage() {
       const data = JSON.parse(text)
       const res = await fetch('/api/admin/import-db', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       const json = await res.json()
@@ -79,20 +75,10 @@ export function DatabasePage() {
     <div className="p-4 md:p-6 max-w-lg">
       <h1 className="text-xl font-semibold mb-1">Database</h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Export from local, import on production. Requires <code className="text-xs bg-muted px-1 rounded">ADMIN_KEY</code> env var set on the server.
+        Export from local, import on production. You must be signed in as an admin.
       </p>
 
       <div className="space-y-6">
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Admin key</label>
-          <Input
-            type="password"
-            value={adminKey}
-            onChange={e => setAdminKey(e.target.value)}
-            placeholder="Enter ADMIN_KEY value"
-          />
-        </div>
-
         <div className="border rounded-lg p-4 space-y-3">
           <h2 className="text-sm font-medium">Export</h2>
           <p className="text-xs text-muted-foreground">Downloads all footballers, stints and schedule as JSON.</p>
@@ -100,7 +86,7 @@ export function DatabasePage() {
             <Button
               variant="outline"
               onClick={handleExport}
-              disabled={!adminKey.trim() || exportState === 'loading'}
+              disabled={exportState === 'loading'}
             >
               {exportState === 'loading'
                 ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Exporting…</>
@@ -116,7 +102,7 @@ export function DatabasePage() {
                 : <><Copy className="h-4 w-4 mr-1.5" />Copy Wikipedia URLs</>}
             </Button>
           </div>
-          {exportState === 'error' && <p className="text-xs text-destructive">Export failed — check your admin key.</p>}
+          {exportState === 'error' && <p className="text-xs text-destructive">Export failed — make sure you're signed in as an admin.</p>}
           {copyError && <p className="text-xs text-destructive">{copyError}</p>}
         </div>
 
@@ -129,7 +115,7 @@ export function DatabasePage() {
             <Button
               variant="outline"
               onClick={() => fileRef.current?.click()}
-              disabled={!adminKey.trim() || importState === 'loading'}
+              disabled={importState === 'loading'}
             >
               {importState === 'loading'
                 ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Importing…</>

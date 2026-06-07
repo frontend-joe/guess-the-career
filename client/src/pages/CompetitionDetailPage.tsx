@@ -39,7 +39,7 @@ export function CompetitionDetailPage() {
     setDeleting(true)
     try {
       await deleteCompetition(data.competition.id)
-      navigate('/competitions')
+      navigate('/admin/competitions')
     } finally {
       setDeleting(false)
     }
@@ -58,7 +58,7 @@ export function CompetitionDetailPage() {
     <div className="p-4 md:p-6 max-w-3xl">
       <div className="flex items-start justify-between mb-6 gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate('/competitions')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate('/admin/competitions')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-xl font-semibold truncate">{competition.name}</h1>
@@ -256,7 +256,7 @@ export function CompetitionDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/elevens/${competition.pfa_toty_match_id}`)}
+              onClick={() => navigate(`/admin/elevens/${competition.pfa_toty_match_id}`)}
             >
               View in Elevens
             </Button>

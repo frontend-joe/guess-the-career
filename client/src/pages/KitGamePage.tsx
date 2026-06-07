@@ -131,7 +131,7 @@ export function KitGamePage() {
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
-        <button className="text-white p-1" onClick={() => navigate('/play')}>
+        <button className="text-white p-1" onClick={() => navigate('/')}>
           <ArrowLeft size={22} />
         </button>
         <span className="text-white font-bold text-sm tracking-widest uppercase truncate px-2">

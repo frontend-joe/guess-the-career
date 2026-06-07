@@ -282,7 +282,7 @@ export function GuessTheXiPage() {
       <div className="bg-[#1a1a2e] relative flex items-center justify-between px-3 py-2 shrink-0">
         <button
           className="text-white p-1"
-          onClick={() => (window.location.href = "/play")}
+          onClick={() => (window.location.href = "/")}
         >
           <Home size={22} />
         </button>

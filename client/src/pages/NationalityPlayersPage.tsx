@@ -698,7 +698,7 @@ export function NationalityPlayersPage() {
           {error ?? "No rounds scheduled yet"}
         </p>
         <button
-          onClick={() => (window.location.href = "/play")}
+          onClick={() => (window.location.href = "/")}
           className="text-sm text-blue-600 underline"
         >
           Back to games
@@ -713,7 +713,7 @@ export function NationalityPlayersPage() {
       <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
         <button
           className="text-white p-1"
-          onClick={() => (window.location.href = "/play")}
+          onClick={() => (window.location.href = "/")}
         >
           <Home size={22} />
         </button>

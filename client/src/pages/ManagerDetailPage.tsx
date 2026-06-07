@@ -51,7 +51,7 @@ export function ManagerDetailPage() {
           photo_url: m.photo_url ?? '',
         })
       })
-      .catch(() => navigate('/managers'))
+      .catch(() => navigate('/admin/managers'))
       .finally(() => setLoading(false))
   }, [id, navigate])
 
@@ -113,7 +113,7 @@ export function ManagerDetailPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl">
-      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/managers')}>
+      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/admin/managers')}>
         <ArrowLeft className="h-4 w-4 mr-1" />
         Back
       </Button>

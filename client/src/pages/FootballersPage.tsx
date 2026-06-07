@@ -41,11 +41,11 @@ export function FootballersPage() {
   const config: PersonAdminConfig<Footballer> = {
     label: 'Footballer',
     scheduleButtons: [
-      { label: 'GTC Schedule', path: '/footballers/schedule' },
-      { label: 'SOP Schedule', path: '/footballers/sop-schedule' },
+      { label: 'GTC Schedule', path: '/admin/footballers/schedule' },
+      { label: 'SOP Schedule', path: '/admin/footballers/sop-schedule' },
     ],
-    addPath: '/footballers/add',
-    detailPath: (id) => `/footballers/${id}`,
+    addPath: '/admin/footballers/add',
+    detailPath: (id) => `/admin/footballers/${id}`,
     rescrapeUrl: '/api/footballers/rescrape-all',
     extraColumns: BASE_COLUMNS,
     getPeople: (opts) => getFootballers(opts),

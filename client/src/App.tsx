@@ -1,5 +1,9 @@
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
+import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router'
 import { Layout } from '@/components/Layout'
+import { PublicHomePage } from '@/pages/PublicHomePage'
+import { AuthPage } from '@/pages/AuthPage'
+import { RequireAdmin, RequireSignup } from '@/components/guards'
+import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
 import { FootballerDetailPage } from '@/pages/FootballerDetailPage'
@@ -62,41 +66,62 @@ import { TransferHistorySchedulePage } from '@/pages/TransferHistorySchedulePage
 import { TransferWindowDetailPage } from '@/pages/TransferWindowDetailPage'
 
 const router = createBrowserRouter([
-  { path: '/play', element: <PlayHubPage /> },
-  { path: '/play/guess-the-career', element: <GuessTheCareerModePage /> },
-  { path: '/play/guess-the-career/footballers', element: <PlayPage mode="footballer" /> },
-  { path: '/play/guess-the-career/managers', element: <PlayPage mode="manager" /> },
-  { path: '/play/guess-his-clubs', element: <GuessHisClubsPage /> },
-  { path: '/play/clubs-in-common', element: <ClubsInCommonPage /> },
-  { path: '/play/who-scored-more', element: <WhoScoredMorePage /> },
-  { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
+ {
+  element: <RootLayout />,
+  children: [
+  // Public marketing landing + auth
+  { path: '/', element: <PublicHomePage /> },
+  { path: '/login', element: <AuthPage mode="login" /> },
+  { path: '/signup', element: <AuthPage mode="signup" /> },
+
+  // Free game — no signup required
   { path: '/play/guess-the-xi', element: <GuessTheXiPage /> },
-  { path: '/play/know-your-club', element: <KnowYourClubPage /> },
-  { path: '/play/two-clubs', element: <TwoClubsPage /> },
-  { path: '/play/top-scorers', element: <TopScorersPage /> },
-  { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
-  { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
-  { path: '/play/goal-ratios', element: <GoalRatiosPage /> },
-  { path: '/play/centurions', element: <CenturionsHubPage /> },
-  { path: '/play/centurions/:mode', element: <CenturionsGamePage /> },
-  { path: '/play/guess-the-kit', element: <KitGamePage /> },
-  { path: '/play/more-trophies', element: <HonorGamePage /> },
-  { path: '/play/ballon-dors', element: <BallonDorPage /> },
-  { path: '/play/world-cup', element: <WorldCupPage /> },
-  { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
-  { path: '/play/club-legends', element: <ClubLegendsPage /> },
-  { path: '/play/transfers', element: <TransfersPage /> },
-  { path: '/play/transfer-history', element: <TransferHistoryPage /> },
+
+  // All other games require a signed-in account (admins included).
   {
-    path: '/',
-    element: <Layout />,
+    element: <RequireSignup><Outlet /></RequireSignup>,
     children: [
-      { index: true, element: <Navigate to="/footballers" replace /> },
+      { path: '/play/guess-the-career', element: <GuessTheCareerModePage /> },
+      { path: '/play/guess-the-career/footballers', element: <PlayPage mode="footballer" /> },
+      { path: '/play/guess-the-career/managers', element: <PlayPage mode="manager" /> },
+      { path: '/play/guess-his-clubs', element: <GuessHisClubsPage /> },
+      { path: '/play/clubs-in-common', element: <ClubsInCommonPage /> },
+      { path: '/play/who-scored-more', element: <WhoScoredMorePage /> },
+      { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
+      { path: '/play/know-your-club', element: <KnowYourClubPage /> },
+      { path: '/play/two-clubs', element: <TwoClubsPage /> },
+      { path: '/play/top-scorers', element: <TopScorersPage /> },
+      { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
+      { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
+      { path: '/play/goal-ratios', element: <GoalRatiosPage /> },
+      { path: '/play/centurions', element: <CenturionsHubPage /> },
+      { path: '/play/centurions/:mode', element: <CenturionsGamePage /> },
+      { path: '/play/guess-the-kit', element: <KitGamePage /> },
+      { path: '/play/more-trophies', element: <HonorGamePage /> },
+      { path: '/play/ballon-dors', element: <BallonDorPage /> },
+      { path: '/play/world-cup', element: <WorldCupPage /> },
+      { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
+      { path: '/play/club-legends', element: <ClubLegendsPage /> },
+      { path: '/play/transfers', element: <TransfersPage /> },
+      { path: '/play/transfer-history', element: <TransferHistoryPage /> },
+    ],
+  },
+
+  // Admin-only all-games testing hub
+  { path: '/play', element: <RequireAdmin><PlayHubPage /></RequireAdmin> },
+
+  // Admin dashboard (login-protected) — children are relative, so they resolve
+  // under /admin/* automatically.
+  {
+    path: '/admin',
+    element: <RequireAdmin><Layout /></RequireAdmin>,
+    children: [
+      { index: true, element: <Navigate to="/admin/footballers" replace /> },
       { path: 'footballers', element: <FootballersPage /> },
       { path: 'footballers/add', element: <AddFootballerPage /> },
       { path: 'footballers/schedule', element: <FootballerSchedulePage /> },
       { path: 'footballers/:id', element: <FootballerDetailPage /> },
-      { path: 'days', element: <Navigate to="/footballers/schedule" replace /> },
+      { path: 'days', element: <Navigate to="/admin/footballers/schedule" replace /> },
       { path: 'managers', element: <ManagersPage /> },
       { path: 'managers/add', element: <AddManagerPage /> },
       { path: 'managers/schedule', element: <ManagerSchedulePage /> },
@@ -131,6 +156,8 @@ const router = createBrowserRouter([
       { path: 'transfer-history/:id', element: <TransferWindowDetailPage /> },
     ],
   },
+  ],
+ },
 ])
 
 export default function App() {

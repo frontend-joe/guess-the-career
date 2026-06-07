@@ -164,7 +164,7 @@ export function KnowYourClubPage() {
         <div className="flex-1 flex flex-col min-h-0">
           <div className="px-4 pt-8 pb-4 shrink-0">
             <button
-              onClick={() => (window.location.href = '/play')}
+              onClick={() => (window.location.href = '/')}
               className="text-white/60 text-sm flex items-center gap-1 mb-6"
             >
               <ChevronLeft size={16} />

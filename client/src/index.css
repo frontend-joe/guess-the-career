@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Russo+One&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -105,4 +106,61 @@ body {
   font-family: 'Noto Sans', system-ui, sans-serif;
   margin: 0;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── Landing page (guessthelist) — gaming/esports look ──────────────────── */
+.font-display { font-family: 'Russo One', system-ui, sans-serif; letter-spacing: 0.005em; }
+.font-ui { font-family: 'Chakra Petch', system-ui, sans-serif; }
+
+.text-glow { text-shadow: 0 0 28px rgba(34, 197, 94, 0.45); }
+.glow-ring { box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35), 0 18px 50px -18px rgba(34, 197, 94, 0.55); }
+
+/* Frosted glass surfaces (cards, boxes, chips) */
+.glass {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.glass-hover { transition: background-color 200ms ease, border-color 200ms ease, transform 200ms ease; }
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(34, 197, 94, 0.40);
+}
+.glass-strong {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+/* Soft, faded-at-the-edges section separators */
+.divide-soft-b,
+.divide-soft-t,
+.divide-soft-y { border-style: solid; border-width: 0; }
+.divide-soft-b { border-bottom-width: 1px; }
+.divide-soft-t { border-top-width: 1px; }
+.divide-soft-y { border-top-width: 1px; border-bottom-width: 1px; }
+.divide-soft-b, .divide-soft-t, .divide-soft-y {
+  border-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12) 18%, rgba(255, 255, 255, 0.12) 82%, transparent) 1;
+}
+
+/* Subtle stadium-grid backdrop */
+.pitch-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+@keyframes gtl-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes gtl-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes gtl-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.9; } }
+
+.animate-float { animation: gtl-float 6s ease-in-out infinite; }
+.animate-rise { animation: gtl-rise 0.6s ease-out both; }
+.animate-pulse-glow { animation: gtl-pulse 4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float, .animate-rise, .animate-pulse-glow { animation: none !important; }
 }

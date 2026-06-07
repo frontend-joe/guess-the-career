@@ -1,22 +1,23 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import { Users, UserCog, Building2, Database, Gamepad2, LayoutGrid, Trophy, Shuffle, Menu, X, Medal, Globe, Flag, Star, ArrowLeftRight, Banknote } from "lucide-react";
+import { Users, UserCog, Building2, Database, Gamepad2, LayoutGrid, Trophy, Shuffle, Menu, X, Medal, Globe, Flag, Star, ArrowLeftRight, Banknote, Home, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const nav = [
-  { to: "/footballers", label: "Footballers", icon: Users },
-  { to: "/managers", label: "Managers", icon: UserCog },
-  { to: "/clubs", label: "Clubs", icon: Building2 },
-  { to: "/elevens", label: "Elevens", icon: LayoutGrid },
-  { to: "/competitions", label: "Competitions", icon: Trophy },
-  { to: "/two-clubs", label: "Two Clubs", icon: Shuffle },
-  { to: "/nationals", label: "Nationals", icon: Flag },
-  { to: "/club-legends", label: "Club Legends", icon: Star },
-  { to: "/transfers", label: "Transfers", icon: ArrowLeftRight },
-  { to: "/transfer-history", label: "Transfer History", icon: Banknote },
-  { to: "/ballon-dors", label: "Ballon d'Or", icon: Medal },
-  { to: "/world-cup", label: "World Cup", icon: Globe },
-  { to: "/database", label: "Database", icon: Database },
+const nav: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
+  { to: "/", label: "Landing Page", icon: Home, end: true },
+  { to: "/admin/footballers", label: "Footballers", icon: Users },
+  { to: "/admin/managers", label: "Managers", icon: UserCog },
+  { to: "/admin/clubs", label: "Clubs", icon: Building2 },
+  { to: "/admin/elevens", label: "Elevens", icon: LayoutGrid },
+  { to: "/admin/competitions", label: "Competitions", icon: Trophy },
+  { to: "/admin/two-clubs", label: "Two Clubs", icon: Shuffle },
+  { to: "/admin/nationals", label: "Nationals", icon: Flag },
+  { to: "/admin/club-legends", label: "Club Legends", icon: Star },
+  { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight },
+  { to: "/admin/transfer-history", label: "Transfer History", icon: Banknote },
+  { to: "/admin/ballon-dors", label: "Ballon d'Or", icon: Medal },
+  { to: "/admin/world-cup", label: "World Cup", icon: Globe },
+  { to: "/admin/database", label: "Database", icon: Database },
   { to: "/play", label: "Play", icon: Gamepad2 },
 ];
 
@@ -36,10 +37,11 @@ export function Layout() {
           </span>
         </div>
         <nav className="flex-1 p-2 space-y-0.5">
-          {nav.map(({ to, label, icon: Icon }) => (
+          {nav.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
+              end={end}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
@@ -106,10 +108,11 @@ export function Layout() {
           </button>
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {nav.map(({ to, label, icon: Icon }) => (
+          {nav.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
+              end={end}
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 cn(

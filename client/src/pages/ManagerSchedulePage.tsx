@@ -4,7 +4,7 @@ import { getManagers } from '@/api/managers'
 
 const config: ScheduleAdminConfig = {
   label: 'Manager',
-  backPath: '/managers',
+  backPath: '/admin/managers',
   getDays: async (from?: string, to?: string): Promise<ScheduleDay[]> => {
     const days = await getManagerDays(from, to)
     return days.map(d => ({

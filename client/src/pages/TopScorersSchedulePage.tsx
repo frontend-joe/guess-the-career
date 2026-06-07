@@ -198,7 +198,7 @@ export function TopScorersSchedulePage() {
     <div className="p-4 md:p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-4 md:mb-6 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/competitions')}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/admin/competitions')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-xl font-semibold">Top Scorers Schedule</h1>

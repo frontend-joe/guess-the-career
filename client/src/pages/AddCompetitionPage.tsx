@@ -167,7 +167,7 @@ export function AddCompetitionPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl">
-      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/competitions')}>
+      <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => navigate('/admin/competitions')}>
         <ArrowLeft className="h-4 w-4 mr-1" />
         Back
       </Button>
@@ -480,7 +480,7 @@ export function AddCompetitionPage() {
 
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={handleReset}>Add another</Button>
-                <Button size="sm" onClick={() => navigate('/competitions')}>View competitions</Button>
+                <Button size="sm" onClick={() => navigate('/admin/competitions')}>View competitions</Button>
               </div>
             </div>
           )}
@@ -533,7 +533,7 @@ export function AddCompetitionPage() {
               {bulkDone && (
                 <div className="mt-4 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => { setBulkItems([]); setBulkText('') }}>Import more</Button>
-                  <Button onClick={() => navigate('/competitions')}>Done</Button>
+                  <Button onClick={() => navigate('/admin/competitions')}>Done</Button>
                 </div>
               )}
             </>

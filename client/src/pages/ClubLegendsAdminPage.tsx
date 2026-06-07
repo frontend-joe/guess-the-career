@@ -95,7 +95,7 @@ export function ClubLegendsAdminPage() {
             {loading ? 'Loading…' : `${total} qualifying clubs · ${enabledCount} enabled`}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/club-legends/schedule')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/club-legends/schedule')}>
           <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
           Schedule
         </Button>

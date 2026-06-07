@@ -111,7 +111,7 @@ export function XiMatchDetailPage() {
         setHomePlayers(d.homePlayers.map(toEditable))
         setAwayPlayers(d.awayPlayers.map(toEditable))
       })
-      .catch(() => navigate('/elevens'))
+      .catch(() => navigate('/admin/elevens'))
       .finally(() => setLoading(false))
   }, [id, navigate])
 
@@ -177,7 +177,7 @@ export function XiMatchDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate('/elevens')}
+          onClick={() => navigate('/admin/elevens')}
           className="p-1.5 rounded hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
