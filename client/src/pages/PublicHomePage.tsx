@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote,
-  Lock, Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, type LucideIcon,
+  Lock, Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { NationalityFlag } from '@/components/NationalityFlag'
+import { MiniClubBadge } from '@/components/MiniClubBadge'
 import heroFallback from '@/assets/hero.png'
 
 interface Game {
@@ -147,11 +149,18 @@ export function PublicHomePage() {
               className="relative w-64 sm:w-72 lg:w-80 drop-shadow-2xl animate-float"
             />
             {/* floating clue chips */}
-            <span className="absolute left-0 top-10 hidden sm:flex items-center gap-1 glass rounded-2xl px-2.5 py-1.5 text-xs font-bold shadow-xl animate-float" style={{ animationDelay: '0.8s' }}>
-              <span className="text-blue-300">DF</span><span className="text-white/50">·</span><span className="text-green-400">guessed</span>
+            <span className="absolute left-0 top-10 hidden sm:flex items-center gap-1.5 glass rounded-2xl px-2.5 py-1.5 text-xs font-bold shadow-xl animate-float" style={{ animationDelay: '0.8s' }}>
+              <span className="text-blue-300">DF</span>
+              <span className="text-gray-300">+</span>
+              <NationalityFlag nationality="Argentina" className="w-4 h-3.5 object-cover border border-white/10" />
+              <span className="text-gray-300">+</span>
+              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={16} />
             </span>
-            <span className="absolute right-2 bottom-16 hidden sm:flex items-center gap-1 glass rounded-2xl px-2.5 py-1.5 text-xs font-bold shadow-xl animate-float" style={{ animationDelay: '1.6s' }}>
-              <Banknote size={13} className="text-green-400" /> €26.5m
+            <span className="absolute right-2 bottom-16 hidden sm:flex items-center gap-1.5 glass rounded-2xl px-2.5 py-1.5 text-xs font-bold shadow-xl animate-float" style={{ animationDelay: '1.6s' }}>
+              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={16} />
+              <ArrowRight size={11} className="text-gray-300" />
+              <MiniClubBadge club="Real Madrid" wikipediaUrl="https://en.wikipedia.org/wiki/Real_Madrid_CF" size={16} />
+              <span className="text-green-400 ml-0.5">€51.2m</span>
             </span>
           </div>
         </div>
