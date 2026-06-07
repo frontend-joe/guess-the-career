@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
-  Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote,
+  Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag,
   Lock, Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -33,6 +33,7 @@ const GATED_GAMES: Game[] = [
   { name: "Ballon d'Or", pitch: 'Name every player in the running for football’s biggest prize.', to: '/play/ballon-dors', icon: Globe },
   { name: 'World Cup', pitch: 'Recall the squads that went to the World Cup.', to: '/play/world-cup', icon: Shield },
   { name: 'Club Legends', pitch: 'Name the cult heroes with 100+ appearances.', to: '/play/club-legends', icon: Star },
+  { name: 'Nationality Players', pitch: 'A flag and a club — name the players who are both.', to: '/play/nationality-players', icon: Flag },
 ]
 
 const FEATURES = [
@@ -43,7 +44,7 @@ const FEATURES = [
 ]
 
 const STATS = [
-  { value: '8', label: 'games' },
+  { value: '9', label: 'games' },
   { value: 'New', label: 'daily' },
   { value: 'Free', label: 'to start' },
 ]
@@ -257,7 +258,7 @@ export function PublicHomePage() {
           <div className="flex-1 relative">
             <h2 className="font-display text-2xl sm:text-3xl">Win a football shirt</h2>
             <p className="font-medium mt-1.5 opacity-90">
-              Complete all 8 games and you're in with a chance — we give away a classic football shirt to players who finish the lot.
+              Complete all 9 games and you're in with a chance — we give away a classic football shirt to players who finish the lot.
             </p>
           </div>
           {!user && (
@@ -293,7 +294,7 @@ export function PublicHomePage() {
       {!user && (
         <section className="relative max-w-3xl mx-auto px-4 pb-20 text-center">
           <h2 className="font-display text-3xl sm:text-4xl tracking-tight">Ready to play?</h2>
-          <p className="text-white/70 mt-3">Create a free account and unlock all 8 games in seconds.</p>
+          <p className="text-white/70 mt-3">Create a free account and unlock all 9 games in seconds.</p>
           <button
             onClick={() => navigate('/signup')}
             className={`mt-7 bg-green-500 hover:bg-green-400 text-[#0b1020] font-bold rounded-xl px-8 py-4 uppercase tracking-wide text-sm glow-ring hover:-translate-y-0.5 transition-all cursor-pointer ${btnFocus()}`}
