@@ -6,6 +6,8 @@ export interface ScrapedTransfer {
   to_club: string
   fee_text: string
   fee_value: number | null
+  /** When set, link the transfer to this existing footballer instead of resolving by name. */
+  footballer_id?: number | null
 }
 
 export interface CheckedTransfer extends ScrapedTransfer {

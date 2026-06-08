@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import {
-  Trash2, ExternalLink, Calendar, CheckCircle2, Loader2, Circle, Power, RefreshCw, ChevronDown,
+  Trash2, ExternalLink, Calendar, CheckCircle2, Loader2, Circle, Power, RefreshCw, ChevronDown, Link2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { ClubPicker } from '@/components/ClubPicker'
+import { FootballerPicker } from '@/components/FootballerPicker'
 import {
   scrapeTransferWindow,
   importTransferWindow,
@@ -99,6 +100,14 @@ export function TransferHistoryAdminPage() {
     })
   }
 
+  // Manually link a (new) scraped player to an existing footballer in the DB
+  // when the names don't quite match. The import then links by id directly.
+  function setFootballer(i: number, id: number, name: string) {
+    setTransfers(prev => prev.map((t, idx) =>
+      idx === i ? { ...t, footballer_id: id, player_name: name, in_db: true } : t,
+    ))
+  }
+
   // Manually link an unmatched club to a chosen DB club for one transfer; the
   // import sends this name, which the server resolves to the DB club + badge.
   function setClub(i: number, side: 'from' | 'to', name: string) {
@@ -150,6 +159,7 @@ export function TransferHistoryAdminPage() {
           to_club: t.to_club,
           fee_text: t.fee_text,
           fee_value: t.fee_value,
+          footballer_id: t.footballer_id,
         })),
       })
       setImportSummary({
@@ -273,7 +283,17 @@ export function TransferHistoryAdminPage() {
                         <td className="px-2 py-1 font-medium">
                           <span className="flex items-center gap-1.5">
                             <NationalityFlag nationality={t.nationality} />
-                            {t.player_name}
+                            <span>{t.player_name}</span>
+                            {!t.in_db && (
+                              <FootballerPicker
+                                onPick={(id, name) => setFootballer(i, id, name)}
+                                initialQuery={t.player_name}
+                                title="Link to an existing player in the database"
+                                className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-200 transition-colors"
+                              >
+                                <Link2 className="h-3 w-3" /> link
+                              </FootballerPicker>
+                            )}
                           </span>
                         </td>
                         <td className="px-2 py-1 text-center">

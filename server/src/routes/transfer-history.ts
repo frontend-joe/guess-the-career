@@ -396,6 +396,7 @@ const importSchema = z.object({
         to_club: z.string().min(1),
         fee_text: z.string(),
         fee_value: z.number().int().nullable(),
+        footballer_id: z.number().int().nullable().optional(),
       }),
     )
     .min(1),
@@ -435,7 +436,19 @@ transferHistoryRouter.post('/', zValidator('json', importSchema), async (c) => {
 
   let sortOrder = 0
   for (const t of body.transfers) {
-    const { id: footballerId, created } = await resolveOrCreateFootballer(t.player_name, t.to_club)
+    // If the admin manually linked an existing footballer, use it directly;
+    // otherwise resolve by name (DB match, else Wikipedia search + create).
+    let footballerId: number | null = null
+    let created = false
+    if (t.footballer_id != null) {
+      const [f] = await db.select({ id: footballers.id }).from(footballers).where(eq(footballers.id, t.footballer_id)).limit(1)
+      footballerId = f?.id ?? null
+    }
+    if (footballerId === null) {
+      const r = await resolveOrCreateFootballer(t.player_name, t.to_club)
+      footballerId = r.id
+      created = r.created
+    }
     if (footballerId === null) summary.failed.push(t.player_name)
     else if (created) summary.added.push(t.player_name)
     else summary.alreadyExisted.push(t.player_name)
