@@ -16,6 +16,9 @@ export function useGuessSearch<T>(
   const [suggestions, setSuggestions] = useState<T[]>([])
   const [show, setShow] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Monotonic id of the most recent search; stale responses are discarded so
+  // an out-of-order (slower, earlier) request can't overwrite newer results.
+  const seq = useRef(0)
 
   // Keep the latest search fn without forcing handler identity to change.
   const searchRef = useRef(search)
@@ -23,6 +26,7 @@ export function useGuessSearch<T>(
 
   const run = useCallback(
     (term: string) => {
+      const mySeq = ++seq.current
       if (term.trim().length < 2) {
         setSuggestions([])
         setShow(false)
@@ -30,6 +34,7 @@ export function useGuessSearch<T>(
       }
       searchRef.current(term)
         .then((r) => {
+          if (mySeq !== seq.current) return // a newer search has superseded this one
           const list = r.slice(0, limit)
           setSuggestions(list)
           setShow(list.length > 0)
@@ -49,6 +54,7 @@ export function useGuessSearch<T>(
   )
 
   const reset = useCallback(() => {
+    seq.current++ // discard any in-flight response
     if (timer.current) clearTimeout(timer.current)
     setQuery('')
     setSuggestions([])
