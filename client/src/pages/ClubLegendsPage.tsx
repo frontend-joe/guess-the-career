@@ -21,10 +21,8 @@ import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 
-// Round the legend pool down to the nearest 5 (e.g. 53 → 50, 36 → 35).
-function roundTarget(playerCount: number): number {
-  return Math.max(5, Math.floor(playerCount / 5) * 5);
-}
+// Every Club Legends round asks for exactly 5 of the club's legends.
+const ROUND_TARGET = 5;
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
@@ -405,7 +403,7 @@ export function ClubLegendsPage() {
     const activeGuesses = players.filter((p) =>
       currentState.guessedIds.has(p.id),
     ).length;
-    if (activeGuesses >= roundTarget(currentRound.legendCount)) return;
+    if (activeGuesses >= ROUND_TARGET) return;
 
     const alreadyFound = players
       .filter((p) => currentState.guessedIds.has(p.id))
@@ -497,7 +495,7 @@ export function ClubLegendsPage() {
     const validIds = statePlayers
       ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length
       : (state?.guessedIds.size ?? 0);
-    const target = roundTarget(r.legendCount);
+    const target = ROUND_TARGET;
     const guessed = Math.min(validIds, target);
     return {
       name: (
@@ -514,7 +512,7 @@ export function ClubLegendsPage() {
 
   const totalGuessed = rounds.filter((r) => {
     const state = roundStates[r.club];
-    return (state?.guessedIds.size ?? 0) >= roundTarget(r.legendCount);
+    return (state?.guessedIds.size ?? 0) >= ROUND_TARGET;
   }).length;
   const totalPlayers = rounds.length;
 
@@ -530,7 +528,7 @@ export function ClubLegendsPage() {
 
   const players = currentState?.players ?? null;
 
-  const target = currentRound ? roundTarget(currentRound.legendCount) : 5;
+  const target = ROUND_TARGET;
 
   const validGuessedIds = players
     ? new Set(
