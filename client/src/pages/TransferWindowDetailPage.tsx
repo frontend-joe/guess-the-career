@@ -92,17 +92,19 @@ export function TransferWindowDetailPage() {
 
                 <span className="flex-1 min-w-0 text-sm font-medium flex items-center gap-1.5">
                   <span className="truncate">{t.playerName}</span>
-                  {!t.linked && (
-                    <FootballerPicker
-                      onPick={(fid) => linkFootballer(t.id, fid)}
-                      scrape={(query) => resolvePlayer(query, t.toClub)}
-                      initialQuery={t.playerName}
-                      title="Link to an existing player, or scrape the correct name from Wikipedia"
-                      className="inline-flex items-center gap-0.5 rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-amber-200 transition-colors shrink-0"
-                    >
-                      <Link2 className="h-3 w-3" /> link
-                    </FootballerPicker>
-                  )}
+                  <FootballerPicker
+                    onPick={(fid) => linkFootballer(t.id, fid)}
+                    scrape={(query) => resolvePlayer(query, t.toClub)}
+                    initialQuery={t.playerName}
+                    title={t.linked ? 'Re-link to a different player' : 'Link to an existing player, or scrape the correct name from Wikipedia'}
+                    className={
+                      t.linked
+                        ? 'shrink-0 inline-flex items-center text-muted-foreground hover:text-foreground rounded p-0.5'
+                        : 'inline-flex items-center gap-0.5 rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-amber-200 transition-colors shrink-0'
+                    }
+                  >
+                    {t.linked ? <Link2 className="h-3.5 w-3.5" /> : <><Link2 className="h-3 w-3" /> link</>}
+                  </FootballerPicker>
                 </span>
 
                 <span className="flex items-center gap-1 shrink-0">
