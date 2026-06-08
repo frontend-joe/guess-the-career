@@ -478,7 +478,7 @@ transferHistoryRouter.get('/windows', async (c) => {
       player_count: sql<number>`(SELECT COUNT(*) FROM transfer_window_players WHERE window_id = ${transfer_windows.id})`,
     })
     .from(transfer_windows)
-    .orderBy(sql`${transfer_windows.season_id} DESC, ${transfer_windows.league} ASC`)
+    .orderBy(sql`${transfer_windows.season_id} ASC, ${transfer_windows.league} ASC`)
   return c.json(rows)
 })
 
