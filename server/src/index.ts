@@ -40,6 +40,7 @@ import { clubLegendsRouter } from './routes/club-legends.ts'
 import { transfersRouter } from './routes/transfers.ts'
 import { transferHistoryRouter } from './routes/transfer-history.ts'
 import { authRouter } from './routes/auth.ts'
+import { usersRouter } from './routes/users.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
 runMigrations()
@@ -89,6 +90,7 @@ app.route('/api/club-legends', clubLegendsRouter)
 app.route('/api/transfers', transfersRouter)
 app.route('/api/transfer-history', transferHistoryRouter)
 app.route('/api/auth', authRouter)
+app.route('/api/users', usersRouter)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 

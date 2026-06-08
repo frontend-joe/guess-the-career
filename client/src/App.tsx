@@ -3,6 +3,7 @@ import { Layout } from '@/components/Layout'
 import { PublicHomePage } from '@/pages/PublicHomePage'
 import { AuthPage } from '@/pages/AuthPage'
 import { RequireAdmin, RequireSignup } from '@/components/guards'
+import { UsersPage } from '@/pages/UsersPage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
@@ -137,6 +138,7 @@ const router = createBrowserRouter([
       { path: 'footballers/sop-schedule', element: <SopSchedulePage /> },
       { path: 'competitions/:id', element: <CompetitionDetailPage /> },
       { path: 'database', element: <DatabasePage /> },
+      { path: 'users', element: <UsersPage /> },
       { path: 'two-clubs', element: <TwoClubsAdminPage /> },
       { path: 'two-clubs/schedule', element: <TwoClubsSchedulePage /> },
       { path: 'two-clubs/:clubA/:clubB', element: <TwoClubsAdminDetailPage /> },
