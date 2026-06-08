@@ -338,7 +338,7 @@ export function PlayPage({ mode }: Props) {
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-1">
+        <div className="relative flex items-center justify-between pt-1">
           <button
             onClick={handlePrevious}
             disabled={scheduleIndex === 0}
@@ -348,7 +348,7 @@ export function PlayPage({ mode }: Props) {
             Previous
           </button>
 
-          <div className="flex items-center gap-2 text-white text-sm font-bold">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-white text-sm font-bold">
             <span>#{scheduleIndex + 1}</span>
             <button onClick={handleRandom} className="text-gray-400 hover:text-white transition-colors">
               <Shuffle size={14} />

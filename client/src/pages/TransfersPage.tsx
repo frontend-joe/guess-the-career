@@ -714,7 +714,7 @@ export function TransfersPage() {
                   Previous
                 </button>
 
-                <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 text-xs font-mono">
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-xs font-mono">
                   <span>
                     <span className="text-white">#{roundIndex + 1}</span>
                     <span className="text-white/50">/{rounds.length}</span>

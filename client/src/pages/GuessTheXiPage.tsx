@@ -167,6 +167,7 @@ export function GuessTheXiPage() {
   const [roundIndex, setRoundIndex] = useState(0);
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  const [progressSearch, setProgressSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -276,6 +277,27 @@ export function GuessTheXiPage() {
   const totalGuessed = rounds.reduce((sum, r) => sum + r.guessedIndices.size, 0);
   const totalPlayers = rounds.reduce((sum, r) => sum + r.players.length, 0);
 
+  // Progress-screen rounds, filterable by team / competition / match.
+  const progressRounds = rounds
+    .map((r, i) => ({
+      i,
+      name: `${r.year} ${r.competition}${/final/i.test(r.matchName) ? " Final" : ""}`,
+      subtitle: r.team,
+      guessed: r.guessedIndices.size,
+      total: r.players.length,
+    }))
+    .filter(({ i }) => {
+      const t = progressSearch.trim().toLowerCase();
+      if (!t) return true;
+      const r = rounds[i];
+      return (
+        r.team.toLowerCase().includes(t) ||
+        r.competition.toLowerCase().includes(t) ||
+        r.matchName.toLowerCase().includes(t) ||
+        String(r.year).includes(t)
+      );
+    });
+
   return (
     <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
       {/* Header */}
@@ -354,13 +376,8 @@ export function GuessTheXiPage() {
           <OverallProgressScreen
             totalGuessed={totalGuessed}
             totalPlayers={totalPlayers}
-            rounds={rounds.map((r) => ({
-              name: `${r.year} ${r.competition}${/final/i.test(r.matchName) ? ' Final' : ''}`,
-              subtitle: r.team,
-              guessed: r.guessedIndices.size,
-              total: r.players.length,
-            }))}
-            onRoundClick={(i) => { goToRound(i); setShowProgress(false); }}
+            rounds={progressRounds.map(({ name, subtitle, guessed, total }) => ({ name, subtitle, guessed, total }))}
+            onRoundClick={(idx) => { goToRound(progressRounds[idx].i); setShowProgress(false); }}
           />
         )}
 
@@ -457,6 +474,23 @@ export function GuessTheXiPage() {
         )}
       </div>
 
+      {/* Progress filter bar */}
+      {!loading && !error && !showFinalScore && showProgress && rounds.length > 0 && (
+        <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
+          <input
+            type="text"
+            value={progressSearch}
+            onChange={(e) => setProgressSearch(e.target.value)}
+            placeholder="Filter by team or competition…"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+            style={{ fontSize: "16px" }}
+          />
+        </div>
+      )}
+
       {/* Bottom panel */}
       {!loading && !error && !showFinalScore && !showProgress && rounds.length > 0 && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
@@ -484,7 +518,7 @@ export function GuessTheXiPage() {
           )}
 
           {/* Nav row */}
-          <div className="flex items-center justify-between pt-1">
+          <div className="relative flex items-center justify-between pt-1">
             <button
               onClick={handlePrevious}
               disabled={roundIndex === 0}
@@ -494,7 +528,7 @@ export function GuessTheXiPage() {
               Previous
             </button>
 
-            <div className="flex items-center gap-2 text-white/60 text-xs font-mono">
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-white/60 text-xs font-mono">
               <span>#{roundIndex + 1}</span>
               <button onClick={handleRandom} className="text-white/40 hover:text-white transition-colors">
                 <Shuffle size={13} />

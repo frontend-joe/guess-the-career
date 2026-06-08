@@ -451,7 +451,7 @@ export function TopScorersPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-1">
+          <div className="relative flex items-center justify-between pt-1">
             <button
               onClick={handlePrevious}
               disabled={roundIndex === 0}
@@ -461,7 +461,7 @@ export function TopScorersPage() {
               Previous
             </button>
 
-            <div className="flex items-center gap-2 text-white/60 text-xs font-mono">
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-white/60 text-xs font-mono">
               <span>#{roundIndex + 1}</span>
               <button
                 onClick={handleRandom}
