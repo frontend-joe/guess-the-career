@@ -150,6 +150,33 @@ const FOOTBALLING_NATIONS = new Set([
   "SFR Yugoslavia",
   "FR Yugoslavia",
   "Serbia and Montenegro",
+  // Smaller FIFA member nations (so international caps for them aren't ignored,
+  // which previously left players defaulting to their birthplace country).
+  // Europe
+  "Malta", "Cyprus", "Moldova", "Andorra", "San Marino", "Liechtenstein",
+  "Faroe Islands", "Gibraltar", "Kosovo",
+  // CONCACAF / Caribbean
+  "Trinidad and Tobago", "Curaçao", "Antigua and Barbuda", "Barbados", "Bermuda",
+  "Grenada", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines",
+  "Cayman Islands", "Montserrat", "Guyana", "Suriname", "Dominica", "Aruba",
+  "Belize", "Nicaragua", "Bahamas", "Turks and Caicos Islands",
+  "British Virgin Islands", "U.S. Virgin Islands", "Anguilla", "Puerto Rico",
+  // Africa
+  "Tanzania", "Mozambique", "Namibia", "Botswana", "Malawi", "Madagascar",
+  "Gabon", "Congo", "Togo", "Benin", "Guinea", "Guinea-Bissau", "Sierra Leone",
+  "Gambia", "Cape Verde", "Equatorial Guinea", "Central African Republic",
+  "Chad", "Niger", "Mauritania", "Sudan", "South Sudan", "Burundi", "Rwanda",
+  "Lesotho", "Eswatini", "Comoros", "Seychelles", "São Tomé and Príncipe",
+  "Djibouti", "Eritrea", "Somalia", "Libya", "Mauritius",
+  // Asia
+  "Philippines", "Hong Kong", "Singapore", "Myanmar", "Cambodia", "Laos",
+  "Brunei", "Bangladesh", "Pakistan", "Sri Lanka", "Nepal", "Maldives", "Bhutan",
+  "Mongolia", "North Korea", "Chinese Taipei", "Macau", "Guam", "Bahrain",
+  "Kuwait", "Oman", "Yemen", "Palestine", "Tajikistan", "Kyrgyzstan",
+  "Turkmenistan", "Afghanistan",
+  // Oceania
+  "Fiji", "Papua New Guinea", "New Caledonia", "Tahiti", "Solomon Islands",
+  "Vanuatu", "Samoa", "American Samoa", "Tonga", "Cook Islands",
 ]);
 
 const COUNTRY_NORMALIZE: Record<string, string> = {

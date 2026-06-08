@@ -29,7 +29,7 @@ export function SignupBanner() {
       <div className="max-w-3xl mx-auto flex items-center gap-3 px-3 py-2">
         <Sparkles size={18} className="shrink-0" />
         <p className="text-xs sm:text-sm font-semibold flex-1 leading-tight">
-          Sign up free to unlock 8 more games — new ones added all the time.
+          Sign up free to unlock 9 more games — new ones added all the time.
         </p>
         <button
           onClick={() => navigate(`/signup?next=${encodeURIComponent(location.pathname)}`)}

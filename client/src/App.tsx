@@ -4,6 +4,9 @@ import { PublicHomePage } from '@/pages/PublicHomePage'
 import { AuthPage } from '@/pages/AuthPage'
 import { RequireAdmin, RequireSignup } from '@/components/guards'
 import { UsersPage } from '@/pages/UsersPage'
+import { ForeignersPage } from '@/pages/ForeignersPage'
+import { ForeignersAdminPage } from '@/pages/ForeignersAdminPage'
+import { ForeignersSchedulePage } from '@/pages/ForeignersSchedulePage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
@@ -102,6 +105,7 @@ const router = createBrowserRouter([
       { path: '/play/ballon-dors', element: <BallonDorPage /> },
       { path: '/play/world-cup', element: <WorldCupPage /> },
       { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
+      { path: '/play/foreigners', element: <ForeignersPage /> },
       { path: '/play/club-legends', element: <ClubLegendsPage /> },
       { path: '/play/transfers', element: <TransfersPage /> },
       { path: '/play/transfer-history', element: <TransferHistoryPage /> },
@@ -148,6 +152,8 @@ const router = createBrowserRouter([
       { path: 'world-cup/schedule', element: <WorldCupSchedulePage /> },
       { path: 'nationals', element: <NationalsAdminPage /> },
       { path: 'nationals/schedule', element: <NationalsSchedulePage /> },
+      { path: 'foreigners', element: <ForeignersAdminPage /> },
+      { path: 'foreigners/schedule', element: <ForeignersSchedulePage /> },
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },

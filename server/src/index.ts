@@ -36,6 +36,7 @@ import { ballonDorScheduleRouter } from './routes/ballon-dor-schedule.ts'
 import { worldCupSquadsRouter } from './routes/world-cup-squads.ts'
 import { worldCupScheduleRouter } from './routes/world-cup-schedule.ts'
 import { nationalsRouter } from './routes/nationals.ts'
+import { foreignersRouter } from './routes/foreigners.ts'
 import { clubLegendsRouter } from './routes/club-legends.ts'
 import { transfersRouter } from './routes/transfers.ts'
 import { transferHistoryRouter } from './routes/transfer-history.ts'
@@ -86,6 +87,7 @@ app.route('/api/ballon-dor-schedule', ballonDorScheduleRouter)
 app.route('/api/world-cup-squads', worldCupSquadsRouter)
 app.route('/api/world-cup-schedule', worldCupScheduleRouter)
 app.route('/api/nationals', nationalsRouter)
+app.route('/api/foreigners', foreignersRouter)
 app.route('/api/club-legends', clubLegendsRouter)
 app.route('/api/transfers', transfersRouter)
 app.route('/api/transfer-history', transferHistoryRouter)

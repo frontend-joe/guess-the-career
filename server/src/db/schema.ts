@@ -405,6 +405,21 @@ export const club_legends_schedule = sqliteTable('club_legends_schedule', {
 export type ClubLegendsEnabledClub = typeof club_legends_enabled_clubs.$inferSelect
 export type ClubLegendsScheduleEntry = typeof club_legends_schedule.$inferSelect
 
+// Foreigners In England game.
+export const foreigners_enabled_countries = sqliteTable('foreigners_enabled_countries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  nationality: text('nationality').notNull().unique(),
+  round_size: integer('round_size').notNull().default(5),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const foreigners_schedule = sqliteTable('foreigners_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  nationality: text('nationality').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export const transfers_enabled_pairs = sqliteTable('transfers_enabled_pairs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   from_club: text('from_club').notNull(),
