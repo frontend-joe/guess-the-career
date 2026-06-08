@@ -16,7 +16,7 @@ interface Props {
 
 export function ClubPicker({ onPick, className, title, initialQuery, children }: Props) {
   const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const [coords, setCoords] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
   const [q, setQ] = useState('')
   const [results, setResults] = useState<ClubOption[]>([])
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -26,7 +26,15 @@ export function ClubPicker({ onPick, className, title, initialQuery, children }:
   function openPicker(e: React.MouseEvent) {
     e.stopPropagation()
     const r = btnRef.current?.getBoundingClientRect()
-    if (r) setCoords({ top: r.bottom + 4, left: r.left })
+    if (r) {
+      // Drop up when there isn't room below (rows near the bottom of the page).
+      const spaceBelow = window.innerHeight - r.bottom
+      setCoords(
+        spaceBelow < 260
+          ? { left: r.left, bottom: window.innerHeight - r.top + 4 }
+          : { left: r.left, top: r.bottom + 4 },
+      )
+    }
     setQ(initialQuery ?? '')
     setOpen(true)
   }
@@ -66,7 +74,7 @@ export function ClubPicker({ onPick, className, title, initialQuery, children }:
         <div
           ref={popRef}
           className="fixed w-56 bg-white border rounded-lg shadow-lg p-2"
-          style={{ top: coords.top, left: coords.left, zIndex: 100 }}
+          style={{ left: coords.left, zIndex: 100, ...(coords.top != null ? { top: coords.top } : { bottom: coords.bottom }) }}
         >
           <input
             ref={inputRef}

@@ -197,35 +197,20 @@ export function XiSchedulePage() {
           .map(e => `${e.match_id}:${e.team}`)
       )
 
-      const unscheduledSlots: { matchId: number; team: string }[] = []
+      const unscheduledSlots: { matchId: number; team: string; year: number }[] = []
       for (const m of matches) {
         if (m.home_team_active && !scheduledKeys.has(`${m.id}:${m.home_team}`)) {
-          unscheduledSlots.push({ matchId: m.id, team: m.home_team })
+          unscheduledSlots.push({ matchId: m.id, team: m.home_team, year: m.year })
         }
         if (m.away_team_active && !scheduledKeys.has(`${m.id}:${m.away_team}`)) {
-          unscheduledSlots.push({ matchId: m.id, team: m.away_team })
+          unscheduledSlots.push({ matchId: m.id, team: m.away_team, year: m.year })
         }
       }
 
       if (unscheduledSlots.length === 0) return
 
-      // Shuffle
-      for (let i = unscheduledSlots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [unscheduledSlots[i], unscheduledSlots[j]] = [unscheduledSlots[j], unscheduledSlots[i]]
-      }
-
-      // Resolve consecutive same-team pairs: scan forward and swap with a later non-matching slot
-      for (let i = 1; i < unscheduledSlots.length; i++) {
-        if (unscheduledSlots[i].team === unscheduledSlots[i - 1].team) {
-          for (let j = i + 1; j < unscheduledSlots.length; j++) {
-            if (unscheduledSlots[j].team !== unscheduledSlots[i - 1].team) {
-              [unscheduledSlots[i], unscheduledSlots[j]] = [unscheduledSlots[j], unscheduledSlots[i]]
-              break
-            }
-          }
-        }
-      }
+      // Order chronologically: oldest match year first (match id as tie-break).
+      unscheduledSlots.sort((a, b) => a.year - b.year || a.matchId - b.matchId)
 
       const assigned = entries.filter(e => e.match_id !== null)
       const todayIso = new Date().toISOString().split('T')[0]

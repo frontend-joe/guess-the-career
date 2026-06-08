@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, ArrowRight, ExternalLink, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, AlertTriangle, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { ClubPicker } from '@/components/ClubPicker'
-import { getTransferWindowDetail, updateTransferClubs, type TransferWindowDetail } from '@/api/transfer-history-admin'
+import { FootballerPicker } from '@/components/FootballerPicker'
+import { getTransferWindowDetail, updateTransfer, resolvePlayer, type TransferWindowDetail } from '@/api/transfer-history-admin'
 
 const POSITION_COLORS: Record<string, string> = {
   GK: 'bg-purple-100 text-purple-700',
@@ -21,37 +22,31 @@ export function TransferWindowDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const reload = useCallback(async () => {
     if (!id) return
-    setLoading(true)
-    getTransferWindowDetail(Number(id))
-      .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setLoading(false))
+    try {
+      setData(await getTransferWindowDetail(Number(id)))
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load')
+    }
   }, [id])
+
+  useEffect(() => {
+    setLoading(true)
+    reload().finally(() => setLoading(false))
+  }, [reload])
 
   const unlinked = data?.transfers.filter((t) => !t.linked).length ?? 0
 
   async function changeClub(transferId: number, side: 'from' | 'to', name: string) {
-    const res = await updateTransferClubs(transferId, side === 'from' ? { from_club: name } : { to_club: name })
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            transfers: prev.transfers.map((t) =>
-              t.id === transferId
-                ? {
-                    ...t,
-                    fromClub: res.fromClub,
-                    fromClubWikipediaUrl: res.fromClubWikipediaUrl,
-                    toClub: res.toClub,
-                    toClubWikipediaUrl: res.toClubWikipediaUrl,
-                  }
-                : t,
-            ),
-          }
-        : prev,
-    )
+    await updateTransfer(transferId, side === 'from' ? { from_club: name } : { to_club: name })
+    await reload()
+  }
+
+  async function linkFootballer(transferId: number, footballerId: number) {
+    await updateTransfer(transferId, { footballer_id: footballerId })
+    await reload()
   }
 
   return (
@@ -95,10 +90,18 @@ export function TransferWindowDetailPage() {
                   {t.position ?? '?'}
                 </span>
 
-                <span className="flex-1 min-w-0 text-sm font-medium truncate flex items-center gap-1.5">
-                  {t.playerName}
+                <span className="flex-1 min-w-0 text-sm font-medium flex items-center gap-1.5">
+                  <span className="truncate">{t.playerName}</span>
                   {!t.linked && (
-                    <span className="text-[10px] text-amber-600 font-normal" title="No footballer linked — won't have a flag/avatar in the game">unlinked</span>
+                    <FootballerPicker
+                      onPick={(fid) => linkFootballer(t.id, fid)}
+                      scrape={(query) => resolvePlayer(query, t.toClub)}
+                      initialQuery={t.playerName}
+                      title="Link to an existing player, or scrape the correct name from Wikipedia"
+                      className="inline-flex items-center gap-0.5 rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-amber-200 transition-colors shrink-0"
+                    >
+                      <Link2 className="h-3 w-3" /> link
+                    </FootballerPicker>
                   )}
                 </span>
 

@@ -102,6 +102,15 @@ export function deleteTransferWindow(id: number): Promise<{ ok: boolean }> {
   return apiFetch(`/api/transfer-history/windows/${id}`, { method: 'DELETE' })
 }
 
+// Find an existing footballer by name, or scrape + create from Wikipedia.
+export function resolvePlayer(name: string, club?: string): Promise<{ id: number; name: string }> {
+  return apiFetch('/api/transfer-history/resolve-player', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, club }),
+  })
+}
+
 export interface DetailTransfer {
   id: number
   fromClub: string
@@ -128,18 +137,12 @@ export function getTransferWindowDetail(id: number): Promise<TransferWindowDetai
   return apiFetch(`/api/transfer-history/windows/${id}`)
 }
 
-export interface UpdatedClubs {
-  ok: boolean
-  fromClub: string
-  fromClubWikipediaUrl: string | null
-  toClub: string
-  toClubWikipediaUrl: string | null
-}
-
-export function updateTransferClubs(
+// Update a single transfer row: change clubs and/or link an existing footballer
+// (footballer_id null unlinks). Caller should refetch the window afterwards.
+export function updateTransfer(
   id: number,
-  data: { from_club?: string; to_club?: string },
-): Promise<UpdatedClubs> {
+  data: { from_club?: string; to_club?: string; footballer_id?: number | null },
+): Promise<{ ok: boolean }> {
   return apiFetch(`/api/transfer-history/transfers/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

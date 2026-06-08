@@ -14,6 +14,7 @@ import {
   deleteTransferWindow,
   updateTransferWindow,
   relinkTransferWindow,
+  resolvePlayer,
   type CheckedTransfer,
   type TransferWindowListItem,
 } from '@/api/transfer-history-admin'
@@ -287,8 +288,9 @@ export function TransferHistoryAdminPage() {
                             {!t.in_db && (
                               <FootballerPicker
                                 onPick={(id, name) => setFootballer(i, id, name)}
+                                scrape={(query) => resolvePlayer(query, t.to_club)}
                                 initialQuery={t.player_name}
-                                title="Link to an existing player in the database"
+                                title="Link to an existing player, or scrape the correct name from Wikipedia"
                                 className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-200 transition-colors"
                               >
                                 <Link2 className="h-3 w-3" /> link

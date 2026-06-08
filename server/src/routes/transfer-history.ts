@@ -475,6 +475,25 @@ transferHistoryRouter.post('/', zValidator('json', importSchema), async (c) => {
   return c.json({ window, importSummary: summary })
 })
 
+// POST /api/transfer-history/resolve-player — find an existing footballer by
+// name, or scrape + create one from Wikipedia. Used by the picker's "Scrape"
+// action when a player isn't in the DB (e.g. a reversed/garbled scraped name).
+transferHistoryRouter.post(
+  '/resolve-player',
+  zValidator('json', z.object({ name: z.string().min(1), club: z.string().optional() })),
+  async (c) => {
+    const { name, club } = c.req.valid('json')
+    const { id } = await resolveOrCreateFootballer(name, club ?? '')
+    if (id == null) return c.json({ error: `Couldn't find "${name}" on Wikipedia.` }, 404)
+    const [f] = await db
+      .select({ id: footballers.id, name: footballers.name })
+      .from(footballers)
+      .where(eq(footballers.id, id))
+      .limit(1)
+    return c.json(f)
+  },
+)
+
 // ── Windows admin ─────────────────────────────────────────────────────────--
 // GET /api/transfer-history/windows
 transferHistoryRouter.get('/windows', async (c) => {
@@ -523,23 +542,27 @@ transferHistoryRouter.delete('/windows/:id', async (c) => {
   return c.json({ ok: true })
 })
 
-// PATCH /api/transfer-history/transfers/:id — manually fix a transfer's clubs.
-// The chosen name is an exact DB club, so we resolve its badge URL directly.
+// PATCH /api/transfer-history/transfers/:id — manually fix a transfer's clubs
+// and/or link it to an existing footballer. Chosen clubs are exact DB names so
+// we resolve the badge URL directly.
 transferHistoryRouter.patch(
   '/transfers/:id',
   zValidator('json', z.object({
     from_club: z.string().min(1).optional(),
     to_club: z.string().min(1).optional(),
+    footballer_id: z.number().int().nullable().optional(),
   })),
   async (c) => {
     const id = parseInt(c.req.param('id'), 10)
-    const { from_club, to_club } = c.req.valid('json')
+    const { from_club, to_club, footballer_id } = c.req.valid('json')
     const set: Partial<{
       from_club: string; from_club_wikipedia_url: string | null
       to_club: string; to_club_wikipedia_url: string | null
+      footballer_id: number | null
     }> = {}
     if (from_club !== undefined) { set.from_club = from_club; set.from_club_wikipedia_url = clubWikiUrl(from_club) }
     if (to_club !== undefined) { set.to_club = to_club; set.to_club_wikipedia_url = clubWikiUrl(to_club) }
+    if (footballer_id !== undefined) set.footballer_id = footballer_id
     if (Object.keys(set).length === 0) return c.json({ error: 'Nothing to update' }, 400)
 
     const [updated] = await db
@@ -548,13 +571,7 @@ transferHistoryRouter.patch(
       .where(eq(transfer_window_players.id, id))
       .returning()
     if (!updated) return c.json({ error: 'Not found' }, 404)
-    return c.json({
-      ok: true,
-      fromClub: updated.from_club,
-      fromClubWikipediaUrl: updated.from_club_wikipedia_url,
-      toClub: updated.to_club,
-      toClubWikipediaUrl: updated.to_club_wikipedia_url,
-    })
+    return c.json({ ok: true })
   },
 )
 
