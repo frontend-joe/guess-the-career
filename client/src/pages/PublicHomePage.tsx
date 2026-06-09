@@ -149,7 +149,7 @@ export function PublicHomePage() {
 
         <div className="relative max-w-6xl mx-auto px-4 pt-12 sm:pt-16 pb-16 grid md:grid-cols-2 gap-10 lg:gap-6 items-center">
           <div className="animate-rise text-center md:text-left">
-            <span className="inline-flex items-center gap-1.5 text-green-400 text-xs font-bold uppercase tracking-[0.18em] mb-5 glass rounded-full px-3 py-1.5">
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-green-400 text-xs font-bold uppercase tracking-[0.18em] mb-5 glass rounded-full px-3 py-1.5">
               <Trophy size={14} /> Win a FOOTBALL shirt for completing every game
             </span>
             <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.04] tracking-tight">
