@@ -152,10 +152,10 @@ export function GoalRatiosPage() {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#1a1a2e]">
         <div className="flex items-center justify-between px-3 py-2 shrink-0">
-          <button className="text-white p-1" onClick={() => window.location.href = '/'}>
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => window.location.href = '/'}>
             <Home size={22} />
           </button>
-          <span className="text-white font-bold text-sm tracking-widest uppercase">Goal Ratios</span>
+          <span className="text-white font-display text-sm tracking-wide uppercase">Goal Ratios</span>
           <div className="w-8" />
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 text-center">
@@ -190,11 +190,11 @@ export function GoalRatiosPage() {
       onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
     >
       {/* Header */}
-      <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
-        <button className="text-white p-1" onClick={() => window.location.href = '/'}>
+      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => window.location.href = '/'}>
           <Home size={22} />
         </button>
-        <span className="text-white font-bold text-sm tracking-widest uppercase">Goal Ratios</span>
+        <span className="text-white font-display text-sm tracking-wide uppercase">Goal Ratios</span>
         <span className="text-white/60 text-sm font-mono whitespace-nowrap">
           {foundCount}/{totalCount}
         </span>

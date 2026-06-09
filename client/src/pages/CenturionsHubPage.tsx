@@ -8,10 +8,10 @@ export function CenturionsHubPage() {
   return (
     <div className="min-h-dvh bg-[#1a1a2e] font-sans flex flex-col w-full max-w-100 mx-auto">
       <div className="flex items-center justify-between px-3 py-2 shrink-0">
-        <button className="text-white p-1" onClick={() => navigate('/')}>
+        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => navigate('/')}>
           <Home size={22} />
         </button>
-        <span className="text-white font-bold text-sm tracking-widest uppercase">The Centurions</span>
+        <span className="text-white font-display text-sm tracking-wide uppercase">The Centurions</span>
         <div className="w-8" />
       </div>
 

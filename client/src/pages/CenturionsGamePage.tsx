@@ -226,11 +226,11 @@ export function CenturionsGamePage() {
       onClick={() => { if (showDropdown) { setSuggestions([]); setShowDropdown(false) } }}
     >
       {/* Header */}
-      <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
-        <button className="text-white p-1" onClick={() => navigate('/play/centurions')}>
+      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => navigate('/play/centurions')}>
           <ArrowLeft size={22} />
         </button>
-        <span className="text-white font-bold text-sm tracking-widest uppercase truncate px-2">
+        <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">
           {modeConfig.title}
         </span>
         <span className="text-white/60 text-sm font-mono whitespace-nowrap">

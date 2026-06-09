@@ -130,11 +130,11 @@ export function KitGamePage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
-      <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
-        <button className="text-white p-1" onClick={() => navigate('/')}>
+      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => navigate('/')}>
           <ArrowLeft size={22} />
         </button>
-        <span className="text-white font-bold text-sm tracking-widest uppercase truncate px-2">
+        <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">
           Guess the Kit
         </span>
         <span className="text-white/60 text-sm font-mono whitespace-nowrap flex items-center gap-1">

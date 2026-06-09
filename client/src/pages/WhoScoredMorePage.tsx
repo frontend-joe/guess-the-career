@@ -116,14 +116,14 @@ export function WhoScoredMorePage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
-      <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <button
-          className="text-white p-1"
+          className="text-white/90 hover:text-green-400 transition-colors p-1"
           onClick={() => (window.location.href = "/")}
         >
           <Home size={22} />
         </button>
-        <span className="text-white font-bold text-sm tracking-widest uppercase">
+        <span className="text-white font-display text-sm tracking-wide uppercase">
           Who Scored More?
         </span>
         <div className="flex items-center gap-2">
@@ -185,7 +185,7 @@ export function WhoScoredMorePage() {
                 </div>
                 <button
                   onClick={handleStart}
-                  className="bg-[#1a1a2e] text-white font-bold text-sm tracking-widest uppercase px-10 py-3 rounded-xl"
+                  className="bg-[#1a1a2e] text-white font-display text-sm tracking-wide uppercase px-10 py-3 rounded-xl"
                 >
                   Start
                 </button>
@@ -407,7 +407,7 @@ function WonScreen({
 
       <button
         onClick={onPlayAgain}
-        className="bg-[#1a1a2e] text-white font-bold text-sm tracking-widest uppercase px-8 py-3 rounded-xl"
+        className="bg-[#1a1a2e] text-white font-display text-sm tracking-wide uppercase px-8 py-3 rounded-xl"
       >
         Play Again
       </button>

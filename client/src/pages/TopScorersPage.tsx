@@ -260,14 +260,14 @@ export function TopScorersPage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
-      <div className="bg-[#1a1a2e] relative flex items-center justify-between px-3 py-2 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <button
-          className="text-white p-1"
+          className="text-white/90 hover:text-green-400 transition-colors p-1"
           onClick={() => (window.location.href = "/")}
         >
           <Home size={22} />
         </button>
-        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-bold text-sm tracking-widest uppercase">
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Top Scorers
         </span>
         {rounds.length > 0 ? (

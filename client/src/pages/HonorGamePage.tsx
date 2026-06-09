@@ -111,7 +111,7 @@ export function HonorGamePage() {
           </div>
           <button
             onClick={() => setStatus('playing')}
-            className="bg-[#1a1a2e] text-white font-bold text-sm tracking-widest uppercase px-10 py-3 rounded-xl"
+            className="bg-[#1a1a2e] text-white font-display text-sm tracking-wide uppercase px-10 py-3 rounded-xl"
           >
             Start
           </button>
@@ -132,7 +132,7 @@ export function HonorGamePage() {
           </div>
           <button
             onClick={loadSession}
-            className="bg-[#1a1a2e] text-white font-bold text-sm tracking-widest uppercase px-10 py-3 rounded-xl"
+            className="bg-[#1a1a2e] text-white font-display text-sm tracking-wide uppercase px-10 py-3 rounded-xl"
           >
             Play again
           </button>
@@ -224,11 +224,11 @@ export function HonorGamePage() {
 
 function Header({ onHome, round, total }: { onHome: () => void; round: number; total: number }) {
   return (
-    <div className="bg-[#1a1a2e] flex items-center justify-between px-3 py-2 shrink-0">
-      <button onClick={onHome} className="text-white p-1">
+    <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <button onClick={onHome} className="text-white/90 hover:text-green-400 transition-colors p-1">
         <Home className="w-5 h-5" />
       </button>
-      <span className="text-white font-bold text-sm tracking-widest uppercase">More Trophies?</span>
+      <span className="text-white font-display text-sm tracking-wide uppercase">More Trophies?</span>
       <span className="text-white text-sm font-semibold w-12 text-right">
         {round}/{total}
       </span>

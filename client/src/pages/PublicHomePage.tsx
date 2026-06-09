@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ArrowRight, type LucideIcon,
+  BookOpen, Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NationalityFlag } from '@/components/NationalityFlag'
@@ -35,6 +35,7 @@ const GATED_GAMES: Game[] = [
   { name: 'World Cup', pitch: 'Recall the squads that went to the World Cup.', to: '/play/world-cup', icon: Shield },
   { name: 'Club Legends', pitch: 'Name the cult heroes with 100+ appearances.', to: '/play/club-legends', icon: Star },
   { name: 'Know Your Transfers', pitch: 'Which players made that move from one club to another?', to: '/play/transfers', icon: ArrowLeftRight },
+  { name: 'Style of Play', pitch: 'Guess the player from their style of play.', to: '/play/style-of-play', icon: BookOpen },
 ]
 
 const FEATURES = [
@@ -45,7 +46,7 @@ const FEATURES = [
 ]
 
 const STATS = [
-  { value: '10', label: 'games' },
+  { value: '11', label: 'games' },
   { value: 'New', label: 'daily' },
   { value: 'Free', label: 'to start' },
 ]
@@ -249,7 +250,7 @@ export function PublicHomePage() {
           <div className="flex-1 relative">
             <h2 className="font-display text-2xl sm:text-3xl">Win a football shirt</h2>
             <p className="font-medium mt-1.5 opacity-90">
-              Complete all 10 games and you're in with a chance — we give away a classic football shirt to players who finish the lot.
+              Complete all 11 games and you're in with a chance — we give away a classic football shirt to players who finish the lot.
             </p>
           </div>
           {!user && (
