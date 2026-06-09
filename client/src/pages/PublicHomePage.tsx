@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
@@ -59,15 +59,24 @@ export function PublicHomePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [heroSrc, setHeroSrc] = useState('/hero-phone.png')
+  // Frost the fixed header only once the page is scrolled; at the very top it
+  // stays transparent so it blends into the hero.
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   function openGame(g: Game) {
     navigate(g.to)
   }
 
   return (
-    <div className="min-h-dvh bg-[#0b0c1a] pitch-grid text-white font-ui overflow-x-hidden selection:bg-green-400/30">
+    <div className="min-h-dvh bg-[#0b0c1a] pitch-grid text-white font-ui overflow-x-clip selection:bg-green-400/30">
       {/* Nav */}
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#0b0c1a]/80 divide-soft-b">
+      <header className={`sticky top-0 z-50 transition-colors duration-300 ${scrolled ? 'backdrop-blur-md bg-[#0b0c1a]/80 divide-soft-b' : 'bg-transparent'}`}>
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
           <span className="font-display text-base sm:text-lg tracking-wide">
             GUESS THE <span className="text-green-400 text-glow">LIST</span>
