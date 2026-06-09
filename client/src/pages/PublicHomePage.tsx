@@ -141,6 +141,8 @@ export function PublicHomePage() {
         </div>
       </header>
 
+      {/* Signed-in users get a stripped-back view: just the header + game cards. */}
+      {!user && (<>
       {/* Hero */}
       <section className="relative">
         {/* glow blooms */}
@@ -214,24 +216,25 @@ export function PublicHomePage() {
             <FeaturedIcon size={32} />
           </div>
           <div className="flex-1">
-            <span className="text-green-400 text-xs font-bold uppercase tracking-widest">Featured game</span>
-            <h2 className="font-display text-2xl mt-1.5">{featured.name}</h2>
+            <span className="text-green-400 text-xs font-bold uppercase tracking-widest">New here?</span>
+            <h2 className="font-display text-2xl mt-1.5">Play {featured.name}</h2>
             <p className="text-white/70 mt-1.5 max-w-xl">{featured.pitch}</p>
           </div>
           <button
             onClick={() => navigate(featured.to)}
             className={`bg-green-500 hover:bg-green-400 text-[#0b1020] font-bold rounded-xl px-6 py-3 uppercase tracking-wide text-sm whitespace-nowrap transition-colors cursor-pointer ${btnFocus()}`}
           >
-            Play {featured.name}
+            Play now
           </button>
         </div>
       </section>
+      </>)}
 
       {/* List Games */}
       <section id="games" className="max-w-6xl mx-auto px-4 pt-14 pb-6 scroll-mt-20">
         <div className="flex items-end justify-between mb-7 flex-wrap gap-2">
           <h2 className="font-display text-3xl tracking-tight">List Games</h2>
-          <p className="text-white/50 text-sm">List players with your mates.</p>
+          <p className="text-white/50 text-sm">Reel off legendary lists of players with your mates — <span className="text-green-400 font-semibold">FREE</span> to play</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[FREE_GAME, ...GATED_GAMES].map(renderGameCard)}
@@ -249,6 +252,7 @@ export function PublicHomePage() {
         </div>
       </section>
 
+      {!user && (<>
       {/* Why you'll love it */}
       <section className="divide-soft-y">
         <div className="max-w-6xl mx-auto px-4 py-14">
@@ -333,6 +337,7 @@ export function PublicHomePage() {
           <span>© {new Date().getFullYear()} guessthelist.xyz</span>
         </div>
       </footer>
+      </>)}
     </div>
   )
 }
