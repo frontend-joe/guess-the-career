@@ -313,6 +313,7 @@ footballersRouter.patch(
     'json',
     z.object({
       name: z.string().optional(),
+      wikipedia_url: z.string().url().optional(),
       nationality: z.string().nullable().optional(),
       position: z.string().nullable().optional(),
       all_positions: z.string().nullable().optional(),
@@ -325,11 +326,20 @@ footballersRouter.patch(
   async (c) => {
     const id = parseInt(c.req.param('id'))
     const body = c.req.valid('json')
-    const [updated] = await db
-      .update(footballers)
-      .set({ ...body, updated_at: sql`(datetime('now'))` })
-      .where(eq(footballers.id, id))
-      .returning()
+    let updated
+    try {
+      ;[updated] = await db
+        .update(footballers)
+        .set({ ...body, updated_at: sql`(datetime('now'))` })
+        .where(eq(footballers.id, id))
+        .returning()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      if (msg.includes('UNIQUE constraint failed')) {
+        return c.json({ error: 'duplicate_url', message: 'Another player already uses that Wikipedia URL' }, 409)
+      }
+      throw e
+    }
     if (!updated) return c.json({ error: 'Not found' }, 404)
     return c.json(updated)
   }

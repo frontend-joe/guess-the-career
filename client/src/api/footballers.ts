@@ -120,7 +120,7 @@ export async function createFromScrape(data: ScrapeResult): Promise<Footballer> 
 
 export async function updateFootballer(
   id: number,
-  data: Partial<Pick<Footballer, 'name' | 'nationality' | 'position' | 'all_positions' | 'custom_position' | 'born' | 'height_cm' | 'photo_url'>>
+  data: Partial<Pick<Footballer, 'name' | 'wikipedia_url' | 'nationality' | 'position' | 'all_positions' | 'custom_position' | 'born' | 'height_cm' | 'photo_url'>>
 ): Promise<Footballer> {
   const res = await fetch(`/api/footballers/${id}`, {
     method: 'PATCH',
@@ -128,7 +128,7 @@ export async function updateFootballer(
     body: JSON.stringify(data),
   })
   const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? 'Failed to update footballer')
+  if (!res.ok) throw new Error(json.message ?? json.error ?? 'Failed to update footballer')
   return json
 }
 
