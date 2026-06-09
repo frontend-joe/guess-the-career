@@ -167,14 +167,14 @@ export function PublicHomePage() {
         </div>
       </section>
 
-      {/* Featured free game */}
+      {/* Featured game — a recommended starting point (all games are free) */}
       <section className="max-w-6xl mx-auto px-4 pb-4">
         <div className="relative rounded-4xl glass p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-6 overflow-hidden">
           <div className="shrink-0 w-16 h-16 rounded-2xl bg-green-500 text-[#0b1020] flex items-center justify-center glow-ring">
             <Shirt size={32} />
           </div>
           <div className="flex-1">
-            <span className="text-green-400 text-xs font-bold uppercase tracking-widest">Free · no signup</span>
+            <span className="text-green-400 text-xs font-bold uppercase tracking-widest">New here?</span>
             <h2 className="font-display text-2xl mt-1.5">Start with Guess the XI</h2>
             <p className="text-white/70 mt-1.5 max-w-xl">{FREE_GAME.pitch}</p>
           </div>
