@@ -48,6 +48,18 @@ export function GuessSearchInput<T = Footballer>({
     { limit, debounceMs },
   )
 
+  // Collapse distinct players who share a display name into a single suggestion
+  // (e.g. the two "Michael Johnson"s). Matching a guess is by name, so the game
+  // still accepts whichever same-name player is the round's valid answer — the
+  // user just shouldn't see the same name listed twice.
+  const seenLabels = new Set<string>()
+  const deduped = suggestions.filter((s) => {
+    const key = getLabel(s).toLowerCase()
+    if (seenLabels.has(key)) return false
+    seenLabels.add(key)
+    return true
+  })
+
   function pick(name: string, item: T | null) {
     reset()
     onSelect(name, item)
@@ -57,17 +69,17 @@ export function GuessSearchInput<T = Footballer>({
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && query.trim()) {
       const term = query.trim()
-      const exact = suggestions.find(
+      const exact = deduped.find(
         (s) => getLabel(s).toLowerCase() === term.toLowerCase(),
       )
-      const chosen = exact ?? suggestions[0]
+      const chosen = exact ?? deduped[0]
       if (chosen) pick(getLabel(chosen), chosen)
       else pick(term, null)
     }
     if (e.key === 'Escape') setShow(false)
   }
 
-  const open = show && !suppressDropdown && suggestions.length > 0
+  const open = show && !suppressDropdown && deduped.length > 0
 
   return (
     <div className="relative">
@@ -78,7 +90,7 @@ export function GuessSearchInput<T = Footballer>({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={() => setTimeout(() => setShow(false), 150)}
-        onFocus={() => { if (suggestions.length > 0) setShow(true) }}
+        onFocus={() => { if (deduped.length > 0) setShow(true) }}
         placeholder={placeholder}
         autoComplete="off"
         autoCorrect="off"
@@ -92,7 +104,7 @@ export function GuessSearchInput<T = Footballer>({
       />
       {open && (
         <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-lg overflow-hidden z-10 max-h-48 overflow-y-auto">
-          {suggestions.map((item) => {
+          {deduped.map((item) => {
             const status = getStatus?.(item) ?? null
             if (status) {
               return (

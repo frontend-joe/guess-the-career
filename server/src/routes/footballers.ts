@@ -161,11 +161,13 @@ footballersRouter.post(
   async (c) => {
     const body = c.req.valid('json')
 
-    // Reject if a player with the same name already exists (case-insensitive)
+    // Reject only if this exact Wikipedia page is already imported. Identity is
+    // the wikipedia_url (unique), not the name — distinct players legitimately
+    // share a name (e.g. the two Michael Johnsons), so name is not a dedupe key.
     const [existing] = await db
       .select({ id: footballers.id })
       .from(footballers)
-      .where(sql`LOWER(${footballers.name}) = LOWER(${body.name})`)
+      .where(eq(footballers.wikipedia_url, body.wikipedia_url))
       .limit(1)
     if (existing) {
       return c.json({ error: 'already_exists', message: `${body.name} is already in the database` }, 409)
