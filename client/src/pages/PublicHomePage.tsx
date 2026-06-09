@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
   BookOpen, Handshake, Route, TrendingUp, Footprints,
-  Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ChevronDown, ArrowRight, type LucideIcon,
+  Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ChevronDown, ArrowRight, User, LogOut, type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NationalityFlag } from '@/components/NationalityFlag'
@@ -60,9 +60,24 @@ function btnFocus() {
 }
 
 export function PublicHomePage() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [heroSrc, setHeroSrc] = useState('/hero-phone.png')
+  // Account dropdown (logout) in the header.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [menuOpen])
+  async function handleLogout() {
+    setMenuOpen(false)
+    await logout()
+  }
   // Frost the fixed header only once the page is scrolled; at the very top it
   // stays transparent so it blends into the hero.
   const [scrolled, setScrolled] = useState(false)
@@ -127,7 +142,28 @@ export function PublicHomePage() {
                 {user.is_admin && (
                   <Link to="/admin" className={`text-white/80 hover:text-white font-medium px-3 py-2 rounded-lg ${btnFocus()}`}>Admin</Link>
                 )}
-                <span className="hidden md:inline text-white/40 text-xs px-2">{user.email}</span>
+                <div className="relative" ref={menuRef}>
+                  <button
+                    onClick={() => setMenuOpen((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    className={`flex items-center gap-1.5 text-white/80 hover:text-white font-medium px-2.5 py-2 rounded-lg ${btnFocus()}`}
+                  >
+                    <User size={16} />
+                    <span className="hidden md:inline max-w-44 truncate text-xs text-white/50">{user.email}</span>
+                    <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {menuOpen && (
+                    <div className="absolute right-0 mt-2 w-44 bg-[#0b0c1a]/80 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-xl py-1 z-50">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-white/80 hover:bg-white/5 hover:text-white transition-colors"
+                      >
+                        <LogOut size={15} /> Log out
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
@@ -192,18 +228,18 @@ export function PublicHomePage() {
               className="relative w-64 sm:w-72 lg:w-80 drop-shadow-2xl animate-float"
             />
             {/* floating clue chips */}
-            <span className="absolute left-0 top-10 hidden sm:flex items-center gap-3 glass rounded-3xl px-5 py-3 text-xl font-bold shadow-xl animate-float" style={{ animationDelay: '0.8s' }}>
+            <span className="absolute left-0 top-10 hidden sm:flex items-center gap-2.5 glass rounded-2xl px-4 py-2.5 text-base font-bold shadow-xl animate-float" style={{ animationDelay: '0.8s' }}>
               <span className="text-blue-300">DF</span>
               <span className="text-gray-300">+</span>
-              <NationalityFlag nationality="Argentina" className="w-8 h-6 object-cover border border-white/10" />
+              <NationalityFlag nationality="Argentina" className="w-6 h-4.5 object-cover border border-white/10" />
               <span className="text-gray-300">+</span>
-              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={32} />
+              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={24} />
             </span>
-            <span className="absolute right-2 bottom-16 hidden sm:flex items-center gap-3 glass rounded-3xl px-5 py-3 text-xl font-bold shadow-xl animate-float" style={{ animationDelay: '1.6s' }}>
-              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={32} />
-              <ArrowRight size={22} className="text-gray-300" />
-              <MiniClubBadge club="Real Madrid" wikipediaUrl="https://en.wikipedia.org/wiki/Real_Madrid_CF" size={32} />
-              <span className="text-green-400 ml-1">€51.2m</span>
+            <span className="absolute right-2 bottom-16 hidden sm:flex items-center gap-2.5 glass rounded-2xl px-4 py-2.5 text-base font-bold shadow-xl animate-float" style={{ animationDelay: '1.6s' }}>
+              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={24} />
+              <ArrowRight size={16} className="text-gray-300" />
+              <MiniClubBadge club="Real Madrid" wikipediaUrl="https://en.wikipedia.org/wiki/Real_Madrid_CF" size={24} />
+              <span className="text-green-400 ml-0.5">€51.2m</span>
             </span>
           </div>
         </div>
