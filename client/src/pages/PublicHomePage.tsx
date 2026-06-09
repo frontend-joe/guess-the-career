@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ArrowRight, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints,
+  Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ChevronDown, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NationalityFlag } from '@/components/NationalityFlag'
@@ -38,6 +39,14 @@ const GATED_GAMES: Game[] = [
   { name: 'Style of Play', pitch: 'Guess the player from their style of play.', to: '/play/style-of-play', icon: BookOpen },
 ]
 
+const BANTER_GAMES: Game[] = [
+  { name: 'Clubs in Common', pitch: 'Spot the club two players both turned out for.', to: '/play/clubs-in-common', icon: Handshake },
+  { name: 'Guess His Clubs', pitch: 'Name every club a mystery player turned out for.', to: '/play/guess-his-clubs', icon: Route },
+  { name: 'Who Scored More', pitch: 'Two players head-to-head — who bagged more goals?', to: '/play/who-scored-more', icon: TrendingUp },
+  { name: 'Who Played More', pitch: 'Two players head-to-head — who made more appearances?', to: '/play/who-played-more', icon: Footprints },
+  { name: 'Know Your Club', pitch: 'Identify the club from a handful of cryptic clues.', to: '/play/know-your-club', icon: Shield },
+]
+
 const FEATURES = [
   { icon: Beer, title: 'Built for the pub', body: "Play with your mates and see whose football memory really holds up — the names people pull out are half the fun." },
   { icon: History, title: 'Pure nostalgia', body: 'Centred on the classic, mostly retired greats of roughly 1990–2010. If you grew up on this era, it hits different.' },
@@ -45,11 +54,6 @@ const FEATURES = [
   { icon: Sparkles, title: 'Always fresh', body: 'New games and daily challenges land all the time, so there’s always another one to crack.' },
 ]
 
-const STATS = [
-  { value: '11', label: 'games' },
-  { value: 'New', label: 'daily' },
-  { value: 'Free', label: 'to start' },
-]
 
 function btnFocus() {
   return 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0c1a]'
@@ -69,8 +73,43 @@ export function PublicHomePage() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Featured card under the hero spotlights a random game on each load.
+  const [featured] = useState<Game>(() => {
+    const all = [FREE_GAME, ...GATED_GAMES, ...BANTER_GAMES]
+    return all[Math.floor(Math.random() * all.length)]
+  })
+  const FeaturedIcon = featured.icon
+
   function openGame(g: Game) {
     navigate(g.to)
+  }
+
+  function scrollToGames() {
+    document.getElementById('games')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  function renderGameCard(g: Game) {
+    const Icon = g.icon
+    return (
+      <button
+        key={g.name}
+        onClick={() => openGame(g)}
+        className={`group text-left relative glass glass-hover rounded-3xl p-5 hover:-translate-y-1 cursor-pointer ${btnFocus()}`}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="w-11 h-11 rounded-xl bg-green-400/10 flex items-center justify-center text-green-400 group-hover:bg-green-400/20 transition-colors">
+            <Icon size={22} />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wide text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Free</span>
+        </div>
+        <h3 className="font-display text-lg tracking-tight">{g.name}</h3>
+        <p className="text-white/55 text-sm mt-1.5 leading-snug">{g.pitch}</p>
+        <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-green-400">
+          Play
+          <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+        </span>
+      </button>
+    )
   }
 
   return (
@@ -109,25 +148,25 @@ export function PublicHomePage() {
         <div className="pointer-events-none absolute top-32 -right-32 w-[26rem] h-[26rem] rounded-full bg-emerald-400/10 blur-3xl" />
 
         <div className="relative max-w-6xl mx-auto px-4 pt-12 sm:pt-16 pb-16 grid md:grid-cols-2 gap-10 lg:gap-6 items-center">
-          <div className="animate-rise">
+          <div className="animate-rise text-center md:text-left">
             <span className="inline-flex items-center gap-1.5 text-green-400 text-xs font-bold uppercase tracking-[0.18em] mb-5 glass rounded-full px-3 py-1.5">
-              <Trophy size={14} /> Win a shirt for completing every game
+              <Trophy size={14} /> Win a FOOTBALL shirt for completing every game
             </span>
             <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.04] tracking-tight">
               The daily football<br />
               <span className="text-green-400 text-glow">guessing games.</span>
             </h1>
-            <p className="mt-5 text-white/70 text-lg max-w-md leading-relaxed">
+            <p className="mt-5 text-white/70 text-lg max-w-md leading-relaxed mx-auto md:mx-0">
               Test your knowledge of football's golden era. Clues drip in — club badges,
               squad numbers, positions and flags — until the name clicks. Brilliant solo,
               even better down the pub with your mates.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap gap-3 justify-center md:justify-start">
               <button
-                onClick={() => navigate('/play/guess-the-xi')}
+                onClick={scrollToGames}
                 className={`bg-green-500 hover:bg-green-400 text-[#0b1020] font-bold rounded-xl px-6 py-3.5 uppercase tracking-wide text-sm flex items-center gap-2 transition-all glow-ring hover:-translate-y-0.5 cursor-pointer ${btnFocus()}`}
               >
-                Play Guess the XI — free <ChevronRight size={16} />
+                Explore the games <ChevronDown size={16} />
               </button>
               {!user && (
                 <button
@@ -139,15 +178,6 @@ export function PublicHomePage() {
               )}
             </div>
 
-            {/* stats */}
-            <div className="mt-9 flex items-center gap-6">
-              {STATS.map((s) => (
-                <div key={s.label}>
-                  <div className="font-display text-2xl text-green-400">{s.value}</div>
-                  <div className="text-white/45 text-xs uppercase tracking-widest">{s.label}</div>
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* Phone mockup */}
@@ -160,73 +190,62 @@ export function PublicHomePage() {
               className="relative w-64 sm:w-72 lg:w-80 drop-shadow-2xl animate-float"
             />
             {/* floating clue chips */}
-            <span className="absolute left-0 top-10 hidden sm:flex items-center gap-1.5 glass rounded-2xl px-2.5 py-1.5 text-xs font-bold shadow-xl animate-float" style={{ animationDelay: '0.8s' }}>
+            <span className="absolute left-0 top-10 hidden sm:flex items-center gap-3 glass rounded-3xl px-5 py-3 text-xl font-bold shadow-xl animate-float" style={{ animationDelay: '0.8s' }}>
               <span className="text-blue-300">DF</span>
               <span className="text-gray-300">+</span>
-              <NationalityFlag nationality="Argentina" className="w-4 h-3.5 object-cover border border-white/10" />
+              <NationalityFlag nationality="Argentina" className="w-8 h-6 object-cover border border-white/10" />
               <span className="text-gray-300">+</span>
-              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={16} />
+              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={32} />
             </span>
-            <span className="absolute right-2 bottom-16 hidden sm:flex items-center gap-1.5 glass rounded-2xl px-2.5 py-1.5 text-xs font-bold shadow-xl animate-float" style={{ animationDelay: '1.6s' }}>
-              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={16} />
-              <ArrowRight size={11} className="text-gray-300" />
-              <MiniClubBadge club="Real Madrid" wikipediaUrl="https://en.wikipedia.org/wiki/Real_Madrid_CF" size={16} />
-              <span className="text-green-400 ml-0.5">€51.2m</span>
+            <span className="absolute right-2 bottom-16 hidden sm:flex items-center gap-3 glass rounded-3xl px-5 py-3 text-xl font-bold shadow-xl animate-float" style={{ animationDelay: '1.6s' }}>
+              <MiniClubBadge club="Roma" wikipediaUrl="https://en.wikipedia.org/wiki/AS_Roma" size={32} />
+              <ArrowRight size={22} className="text-gray-300" />
+              <MiniClubBadge club="Real Madrid" wikipediaUrl="https://en.wikipedia.org/wiki/Real_Madrid_CF" size={32} />
+              <span className="text-green-400 ml-1">€51.2m</span>
             </span>
           </div>
         </div>
       </section>
 
-      {/* Featured game — a recommended starting point (all games are free) */}
+      {/* Featured game — spotlights a random game on each load */}
       <section className="max-w-6xl mx-auto px-4 pb-4">
         <div className="relative rounded-4xl glass p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-6 overflow-hidden">
           <div className="shrink-0 w-16 h-16 rounded-2xl bg-green-500 text-[#0b1020] flex items-center justify-center glow-ring">
-            <Shirt size={32} />
+            <FeaturedIcon size={32} />
           </div>
           <div className="flex-1">
-            <span className="text-green-400 text-xs font-bold uppercase tracking-widest">New here?</span>
-            <h2 className="font-display text-2xl mt-1.5">Start with Guess the XI</h2>
-            <p className="text-white/70 mt-1.5 max-w-xl">{FREE_GAME.pitch}</p>
+            <span className="text-green-400 text-xs font-bold uppercase tracking-widest">Featured game</span>
+            <h2 className="font-display text-2xl mt-1.5">{featured.name}</h2>
+            <p className="text-white/70 mt-1.5 max-w-xl">{featured.pitch}</p>
           </div>
           <button
-            onClick={() => navigate('/play/guess-the-xi')}
+            onClick={() => navigate(featured.to)}
             className={`bg-green-500 hover:bg-green-400 text-[#0b1020] font-bold rounded-xl px-6 py-3 uppercase tracking-wide text-sm whitespace-nowrap transition-colors cursor-pointer ${btnFocus()}`}
           >
-            Play now
+            Play {featured.name}
           </button>
         </div>
       </section>
 
-      {/* Games showcase */}
-      <section className="max-w-6xl mx-auto px-4 py-14">
+      {/* List Games */}
+      <section id="games" className="max-w-6xl mx-auto px-4 pt-14 pb-6 scroll-mt-20">
         <div className="flex items-end justify-between mb-7 flex-wrap gap-2">
-          <h2 className="font-display text-3xl tracking-tight">The games</h2>
-          <p className="text-white/50 text-sm">All free to play — no signup needed.</p>
+          <h2 className="font-display text-3xl tracking-tight">List Games</h2>
+          <p className="text-white/50 text-sm">List players with your mates.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[FREE_GAME, ...GATED_GAMES].map((g) => {
-            const Icon = g.icon
-            return (
-              <button
-                key={g.name}
-                onClick={() => openGame(g)}
-                className={`group text-left relative glass glass-hover rounded-3xl p-5 hover:-translate-y-1 cursor-pointer ${btnFocus()}`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-11 h-11 rounded-xl bg-green-400/10 flex items-center justify-center text-green-400 group-hover:bg-green-400/20 transition-colors">
-                    <Icon size={22} />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Free</span>
-                </div>
-                <h3 className="font-display text-lg tracking-tight">{g.name}</h3>
-                <p className="text-white/55 text-sm mt-1.5 leading-snug">{g.pitch}</p>
-                <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-green-400">
-                  Play
-                  <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                </span>
-              </button>
-            )
-          })}
+          {[FREE_GAME, ...GATED_GAMES].map(renderGameCard)}
+        </div>
+      </section>
+
+      {/* Banter Games */}
+      <section className="max-w-6xl mx-auto px-4 pt-6 pb-14">
+        <div className="flex items-end justify-between mb-7 flex-wrap gap-2">
+          <h2 className="font-display text-3xl tracking-tight">Banter Games</h2>
+          <p className="text-white/50 text-sm">Quick-fire games to settle debates with your mates.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {BANTER_GAMES.map(renderGameCard)}
         </div>
       </section>
 
@@ -259,7 +278,7 @@ export function PublicHomePage() {
           <div className="flex-1 relative">
             <h2 className="font-display text-2xl sm:text-3xl">Win a football shirt</h2>
             <p className="font-medium mt-1.5 opacity-90">
-              Complete all 11 games and you're in with a chance — we give away a classic football shirt to players who finish the lot.
+              Complete all 16 games and you're in with a chance — we give away a classic football shirt to players who finish the lot.
             </p>
           </div>
           {!user && (
