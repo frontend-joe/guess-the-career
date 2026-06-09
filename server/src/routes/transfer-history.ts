@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
-import { db, sqlite } from '../db/client.ts'
+import { db, sqlite, normalizeName } from '../db/client.ts'
 import {
   transfer_windows,
   transfer_window_players,
@@ -21,7 +21,7 @@ export const transferHistoryRouter = new Hono()
 const WIKI_HEADERS = { 'User-Agent': 'GuessTheCareer-Admin/1.0' }
 
 function stripDiacritics(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  return normalizeName(s)
 }
 
 // Look up a club's Wikipedia URL from the clubs table (canonicalised name).

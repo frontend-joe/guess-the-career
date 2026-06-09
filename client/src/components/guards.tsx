@@ -20,14 +20,3 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
   }
   return <>{children}</>
 }
-
-// Gated games: any signed-in user (or admin) may play; otherwise → /signup.
-export function RequireSignup({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
-  const location = useLocation()
-  if (loading) return <FullScreenLoading />
-  if (!user) {
-    return <Navigate to={`/signup?next=${encodeURIComponent(location.pathname)}`} replace />
-  }
-  return <>{children}</>
-}

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { sqlite } from '../db/client.ts'
+import { sqlite, normalizeName } from '../db/client.ts'
 import { scrapeWikipedia } from '../services/scraper.ts'
 
 export const centurionsRouter = new Hono()
@@ -402,8 +402,8 @@ centurionsRouter.post(
     }
     if (!footballer) {
       footballer = sqlite.prepare(
-        `SELECT id, name, wikipedia_url, photo_url FROM footballers WHERE LOWER(name) = LOWER(?) LIMIT 1`
-      ).get(name) as FootballerRow | undefined
+        `SELECT id, name, wikipedia_url, photo_url FROM footballers WHERE normalize(name) = ? LIMIT 1`
+      ).get(normalizeName(name)) as FootballerRow | undefined
     }
 
     // Step 2: if found, check qualification; re-scrape if needed
@@ -427,9 +427,9 @@ centurionsRouter.post(
     // Step 3: search Wikipedia, scrape, insert
     try {
       const wikiHeaders = { 'User-Agent': 'GuessTheCareer-Admin/1.0' }
-      const nameParts = name.toLowerCase().split(/\s+/).filter(p => p.length > 2)
+      const nameParts = normalizeName(name).split(/\s+/).filter(p => p.length > 2)
       function titleMatchesName(title: string) {
-        return nameParts.some(p => title.toLowerCase().includes(p))
+        return nameParts.some(p => normalizeName(title).includes(p))
       }
       async function wikiSearch(query: string) {
         const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1`

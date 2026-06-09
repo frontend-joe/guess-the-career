@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { db, sqlite } from "../db/client.ts";
+import { db, sqlite, normalizeName } from "../db/client.ts";
 import { footballers, career_stints } from "../db/schema.ts";
 import {
   CLUB_ALIASES,
@@ -543,10 +543,7 @@ nationalsRouter.post(
     }
 
     if (!footballer) {
-      const normalizedName = footballerName
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .toLowerCase();
+      const normalizedName = normalizeName(footballerName);
       footballer = await db
         .select({
           id: footballers.id,
@@ -659,11 +656,7 @@ nationalsRouter.post(
     // Step 3: not in DB — try Wikipedia name search
     try {
       const wikiHeaders = { "User-Agent": "GuessTheCareer-Admin/1.0" };
-      const stripDiacritics = (s: string) =>
-        s
-          .normalize("NFD")
-          .replace(/[̀-ͯ]/g, "")
-          .toLowerCase();
+      const stripDiacritics = normalizeName;
       const nameParts = stripDiacritics(footballerName)
         .split(/\s+/)
         .filter((p) => p.length > 2);

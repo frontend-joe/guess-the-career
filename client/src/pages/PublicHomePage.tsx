@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  Lock, Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ArrowRight, type LucideIcon,
+  Beer, History, Lightbulb, Sparkles, Trophy, ChevronRight, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NationalityFlag } from '@/components/NationalityFlag'
@@ -60,8 +60,7 @@ export function PublicHomePage() {
   const [heroSrc, setHeroSrc] = useState('/hero-phone.png')
 
   function openGame(g: Game) {
-    if (g.free || user) navigate(g.to)
-    else navigate('/signup')
+    navigate(g.to)
   }
 
   return (
@@ -192,11 +191,10 @@ export function PublicHomePage() {
       <section className="max-w-6xl mx-auto px-4 py-14">
         <div className="flex items-end justify-between mb-7 flex-wrap gap-2">
           <h2 className="font-display text-3xl tracking-tight">The games</h2>
-          {!user && <p className="text-white/50 text-sm">Sign up free to unlock all of them.</p>}
+          <p className="text-white/50 text-sm">All free to play — no signup needed.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[FREE_GAME, ...GATED_GAMES].map((g) => {
-            const locked = !g.free && !user
             const Icon = g.icon
             return (
               <button
@@ -208,20 +206,12 @@ export function PublicHomePage() {
                   <div className="w-11 h-11 rounded-xl bg-green-400/10 flex items-center justify-center text-green-400 group-hover:bg-green-400/20 transition-colors">
                     <Icon size={22} />
                   </div>
-                  {g.free ? (
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Free</span>
-                  ) : locked ? (
-                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/45 bg-white/5 px-2 py-1 rounded-full">
-                      <Lock size={11} /> Locked
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-green-400/80 bg-green-400/10 px-2 py-1 rounded-full">Unlocked</span>
-                  )}
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-green-400 bg-green-400/10 px-2 py-1 rounded-full">Free</span>
                 </div>
                 <h3 className="font-display text-lg tracking-tight">{g.name}</h3>
                 <p className="text-white/55 text-sm mt-1.5 leading-snug">{g.pitch}</p>
                 <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-green-400">
-                  {g.free ? 'Play free' : locked ? 'Sign up to unlock' : 'Play'}
+                  Play
                   <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                 </span>
               </button>
@@ -278,7 +268,7 @@ export function PublicHomePage() {
         <h2 className="font-display text-3xl tracking-tight text-center mb-9">How it works</h2>
         <div className="grid sm:grid-cols-3 gap-5">
           {[
-            { n: 1, t: 'Pick a game', d: 'Start free with Guess the XI, or sign up to unlock the full set.' },
+            { n: 1, t: 'Pick a game', d: 'Every game is free to play — jump straight in, no signup required.' },
             { n: 2, t: 'Read the clues', d: 'Badges, numbers, positions and flags point you towards the answer.' },
             { n: 3, t: 'Name the players', d: 'Type your guesses, rack up your score, then challenge your mates.' },
           ].map((s) => (
@@ -295,7 +285,7 @@ export function PublicHomePage() {
       {!user && (
         <section className="relative max-w-3xl mx-auto px-4 pb-20 text-center">
           <h2 className="font-display text-3xl sm:text-4xl tracking-tight">Ready to play?</h2>
-          <p className="text-white/70 mt-3">Create a free account and unlock all 10 games in seconds.</p>
+          <p className="text-white/70 mt-3">Every game is free. Create an account to save your scores and progress across devices.</p>
           <button
             onClick={() => navigate('/signup')}
             className={`mt-7 bg-green-500 hover:bg-green-400 text-[#0b1020] font-bold rounded-xl px-8 py-4 uppercase tracking-wide text-sm glow-ring hover:-translate-y-0.5 transition-all cursor-pointer ${btnFocus()}`}

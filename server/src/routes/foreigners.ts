@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
-import { db, sqlite } from '../db/client.ts'
+import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
 import { scrapeWikipedia, isRetired, normalizeClubAlias } from '../services/scraper.ts'
 import {
@@ -316,7 +316,7 @@ foreignersRouter.post(
     // Step 3: Wikipedia name search → import
     try {
       const wikiHeaders = { 'User-Agent': 'GuessTheCareer-Admin/1.0' }
-      const strip = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+      const strip = normalizeName
       const nameParts = strip(footballerName).split(/\s+/).filter((p) => p.length > 2)
       const titleMatches = (title: string) => nameParts.length > 0 && nameParts.every((p) => strip(title).includes(p))
       async function wikiSearch(query: string): Promise<string[]> {

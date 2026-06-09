@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
-import { db, sqlite } from '../db/client.ts'
+import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
 import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia, isRetired } from '../services/scraper.ts'
 
@@ -273,7 +273,7 @@ twoClubsRouter.post(
     }
 
     if (!footballer) {
-      const normalizedName = footballerName.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+      const normalizedName = normalizeName(footballerName)
       footballer = await db.select({
         id: footballers.id,
         name: footballers.name,
@@ -353,9 +353,9 @@ twoClubsRouter.post(
     // Step 3: footballer not in DB at all — try Wikipedia name search
     try {
       const wikiHeaders = { 'User-Agent': 'GuessTheCareer-Admin/1.0' }
-      const nameParts = footballerName.toLowerCase().split(/\s+/).filter(p => p.length > 2)
+      const nameParts = normalizeName(footballerName).split(/\s+/).filter(p => p.length > 2)
       function titleMatchesName(title: string) {
-        const t = title.toLowerCase()
+        const t = normalizeName(title)
         return nameParts.length > 0 && nameParts.every(p => t.includes(p))
       }
       async function wikiSearch(query: string) {

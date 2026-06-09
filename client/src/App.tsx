@@ -1,8 +1,8 @@
-import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
 import { Layout } from '@/components/Layout'
 import { PublicHomePage } from '@/pages/PublicHomePage'
 import { AuthPage } from '@/pages/AuthPage'
-import { RequireAdmin, RequireSignup } from '@/components/guards'
+import { RequireAdmin } from '@/components/guards'
 import { UsersPage } from '@/pages/UsersPage'
 import { ForeignersPage } from '@/pages/ForeignersPage'
 import { ForeignersAdminPage } from '@/pages/ForeignersAdminPage'
@@ -78,39 +78,33 @@ const router = createBrowserRouter([
   { path: '/login', element: <AuthPage mode="login" /> },
   { path: '/signup', element: <AuthPage mode="signup" /> },
 
-  // Free game — no signup required
+  // All games are free to play — no signup required (signup is offered for a
+  // better experience, but never gates play).
   { path: '/play/guess-the-xi', element: <GuessTheXiPage /> },
-
-  // All other games require a signed-in account (admins included).
-  {
-    element: <RequireSignup><Outlet /></RequireSignup>,
-    children: [
-      { path: '/play/guess-the-career', element: <GuessTheCareerModePage /> },
-      { path: '/play/guess-the-career/footballers', element: <PlayPage mode="footballer" /> },
-      { path: '/play/guess-the-career/managers', element: <PlayPage mode="manager" /> },
-      { path: '/play/guess-his-clubs', element: <GuessHisClubsPage /> },
-      { path: '/play/clubs-in-common', element: <ClubsInCommonPage /> },
-      { path: '/play/who-scored-more', element: <WhoScoredMorePage /> },
-      { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
-      { path: '/play/know-your-club', element: <KnowYourClubPage /> },
-      { path: '/play/two-clubs', element: <TwoClubsPage /> },
-      { path: '/play/top-scorers', element: <TopScorersPage /> },
-      { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
-      { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
-      { path: '/play/goal-ratios', element: <GoalRatiosPage /> },
-      { path: '/play/centurions', element: <CenturionsHubPage /> },
-      { path: '/play/centurions/:mode', element: <CenturionsGamePage /> },
-      { path: '/play/guess-the-kit', element: <KitGamePage /> },
-      { path: '/play/more-trophies', element: <HonorGamePage /> },
-      { path: '/play/ballon-dors', element: <BallonDorPage /> },
-      { path: '/play/world-cup', element: <WorldCupPage /> },
-      { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
-      { path: '/play/foreigners', element: <ForeignersPage /> },
-      { path: '/play/club-legends', element: <ClubLegendsPage /> },
-      { path: '/play/transfers', element: <TransfersPage /> },
-      { path: '/play/transfer-history', element: <TransferHistoryPage /> },
-    ],
-  },
+  { path: '/play/guess-the-career', element: <GuessTheCareerModePage /> },
+  { path: '/play/guess-the-career/footballers', element: <PlayPage mode="footballer" /> },
+  { path: '/play/guess-the-career/managers', element: <PlayPage mode="manager" /> },
+  { path: '/play/guess-his-clubs', element: <GuessHisClubsPage /> },
+  { path: '/play/clubs-in-common', element: <ClubsInCommonPage /> },
+  { path: '/play/who-scored-more', element: <WhoScoredMorePage /> },
+  { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
+  { path: '/play/know-your-club', element: <KnowYourClubPage /> },
+  { path: '/play/two-clubs', element: <TwoClubsPage /> },
+  { path: '/play/top-scorers', element: <TopScorersPage /> },
+  { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
+  { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
+  { path: '/play/goal-ratios', element: <GoalRatiosPage /> },
+  { path: '/play/centurions', element: <CenturionsHubPage /> },
+  { path: '/play/centurions/:mode', element: <CenturionsGamePage /> },
+  { path: '/play/guess-the-kit', element: <KitGamePage /> },
+  { path: '/play/more-trophies', element: <HonorGamePage /> },
+  { path: '/play/ballon-dors', element: <BallonDorPage /> },
+  { path: '/play/world-cup', element: <WorldCupPage /> },
+  { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
+  { path: '/play/foreigners', element: <ForeignersPage /> },
+  { path: '/play/club-legends', element: <ClubLegendsPage /> },
+  { path: '/play/transfers', element: <TransfersPage /> },
+  { path: '/play/transfer-history', element: <TransferHistoryPage /> },
 
   // Admin-only all-games testing hub
   { path: '/play', element: <RequireAdmin><PlayHubPage /></RequireAdmin> },
