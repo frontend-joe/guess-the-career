@@ -631,7 +631,7 @@ export function TransfersPage() {
                     </div>
                   )}
                   <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">
-                    Transfers
+                    Who went from
                   </span>
                   <div className="flex items-center justify-center gap-3">
                     <ClubBadge name={currentRound.fromClub} wikiUrl={currentRound.fromClubWikiUrl} />
