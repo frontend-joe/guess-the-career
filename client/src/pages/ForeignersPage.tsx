@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
-import { Home, Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle } from "lucide-react";
+import { Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle } from "lucide-react";
+import { GameMenu } from "@/components/GameMenu";
 import {
   getForeignersScheduleRounds,
   type ForeignersScheduleRound,
@@ -252,7 +253,7 @@ export function ForeignersPage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => (window.location.href = "/")}><Home size={22} /></button>
+        <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Foreigners</span>
         <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>{showProgress ? <X size={20} /> : <Trophy size={20} />}</button>
       </div>

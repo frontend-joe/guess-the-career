@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { Home, ChevronRight, ArrowLeft, Trophy } from 'lucide-react'
+import { GameMenu } from '@/components/GameMenu'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import {
   getPositionPlayers, verifyPositionGuess, loadProgress, loadWrongGuesses, saveProgress, clearProgress,
@@ -283,9 +284,12 @@ export function PositionKnowledgePage() {
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={handleBack}>
-          <ArrowLeft size={22} />
-        </button>
+        <div className="flex items-center gap-1">
+          <GameMenu />
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={handleBack}>
+            <ArrowLeft size={22} />
+          </button>
+        </div>
         <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">{gameTitle}</span>
         <span className="text-white/60 text-sm font-mono whitespace-nowrap">
           {foundCount}/{totalCount}

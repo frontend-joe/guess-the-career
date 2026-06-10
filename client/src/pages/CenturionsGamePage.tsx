@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { ArrowLeft, Loader2 } from 'lucide-react'
+import { GameMenu } from '@/components/GameMenu'
 import { getFootballers } from '@/api/footballers'
 import {
   getCenturionPlayers, loadCenturionProgress, saveCenturionProgress,
@@ -227,9 +228,12 @@ export function CenturionsGamePage() {
     >
       {/* Header */}
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => navigate('/play/centurions')}>
-          <ArrowLeft size={22} />
-        </button>
+        <div className="flex items-center gap-1">
+          <GameMenu />
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => navigate('/play/centurions')}>
+            <ArrowLeft size={22} />
+          </button>
+        </div>
         <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">
           {modeConfig.title}
         </span>

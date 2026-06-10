@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 import {
-  Home,
   Loader2,
   Trophy,
   X,
@@ -9,6 +8,7 @@ import {
   ChevronRight,
   Shuffle,
 } from "lucide-react";
+import { GameMenu } from "@/components/GameMenu";
 import {
   getClubLegendsScheduleRounds,
   type ClubLegendsScheduleRound,
@@ -577,12 +577,7 @@ export function ClubLegendsPage() {
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* ── Header ── */}
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button
-          className="text-white/90 hover:text-green-400 transition-colors p-1"
-          onClick={() => (window.location.href = "/")}
-        >
-          <Home size={22} />
-        </button>
+        <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">
           Club Legends
         </span>

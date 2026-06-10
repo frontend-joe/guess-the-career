@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router'
 import { Home, BarChart2, Shuffle, ChevronLeft, ChevronRight, X, Lightbulb, Check } from 'lucide-react'
+import { GameMenu } from '@/components/GameMenu'
 import { getDays } from '@/api/days'
 import { getFootballers, getFootballer } from '@/api/footballers'
 import { getManagerDays } from '@/api/manager-days'
@@ -206,9 +207,12 @@ export function PlayPage({ mode }: Props) {
     <div className="h-dvh flex flex-col bg-gray-100 w-full max-w-100 mx-auto font-sans">
       {/* Top bar */}
       <header className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-4 py-3 shrink-0">
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => window.location.href = '/play/guess-the-career'}>
-          <Home size={22} />
-        </button>
+        <div className="flex items-center gap-1">
+          <GameMenu />
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => window.location.href = '/play/guess-the-career'}>
+            <Home size={22} />
+          </button>
+        </div>
         <h1 className="text-white font-bold text-sm tracking-[0.2em] uppercase">
           Guess the Career
         </h1>

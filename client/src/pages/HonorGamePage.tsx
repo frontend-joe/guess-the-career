@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router'
-import { Home, Trophy } from 'lucide-react'
+import { Trophy } from 'lucide-react'
+import { GameMenu } from '@/components/GameMenu'
 import { getHonorSession } from '@/api/honor-game'
 import type { HonorQuestion, HonorPlayer } from '@/api/honor-game'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
@@ -10,7 +10,6 @@ type GameStatus = 'lobby' | 'playing' | 'correct' | 'wrong' | 'won'
 const TOTAL_ROUNDS = 10
 
 export function HonorGamePage() {
-  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [questions, setQuestions] = useState<HonorQuestion[]>([])
@@ -74,7 +73,7 @@ export function HonorGamePage() {
   if (loading) {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
-        <Header onHome={() => navigate('/')} round={0} total={TOTAL_ROUNDS} />
+        <Header round={0} total={TOTAL_ROUNDS} />
         <div className="flex-1 bg-gray-50 flex items-center justify-center">
           <p className="text-gray-400 text-sm">Loading…</p>
         </div>
@@ -85,7 +84,7 @@ export function HonorGamePage() {
   if (error) {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
-        <Header onHome={() => navigate('/')} round={0} total={TOTAL_ROUNDS} />
+        <Header round={0} total={TOTAL_ROUNDS} />
         <div className="flex-1 bg-gray-50 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <p className="text-gray-600 text-sm">{error}</p>
           <button onClick={loadSession} className="bg-[#1a1a2e] text-white text-sm px-5 py-2 rounded-lg">
@@ -99,7 +98,7 @@ export function HonorGamePage() {
   if (status === 'lobby') {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
-        <Header onHome={() => navigate('/')} round={0} total={TOTAL_ROUNDS} />
+        <Header round={0} total={TOTAL_ROUNDS} />
         <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col items-center justify-center gap-6 px-6 text-center">
           <Trophy className="w-12 h-12 text-yellow-500" />
           <div>
@@ -123,7 +122,7 @@ export function HonorGamePage() {
   if (status === 'won') {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
-        <Header onHome={() => navigate('/')} round={TOTAL_ROUNDS} total={TOTAL_ROUNDS} />
+        <Header round={TOTAL_ROUNDS} total={TOTAL_ROUNDS} />
         <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col items-center justify-center gap-6 px-6 text-center">
           <Trophy className="w-12 h-12 text-yellow-500" />
           <div>
@@ -143,7 +142,7 @@ export function HonorGamePage() {
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
-      <Header onHome={() => navigate('/')} round={round} total={TOTAL_ROUNDS} />
+      <Header round={round} total={TOTAL_ROUNDS} />
 
       <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
         {question && (
@@ -222,12 +221,10 @@ export function HonorGamePage() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function Header({ onHome, round, total }: { onHome: () => void; round: number; total: number }) {
+function Header({ round, total }: { round: number; total: number }) {
   return (
     <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-      <button onClick={onHome} className="text-white/90 hover:text-green-400 transition-colors p-1">
-        <Home className="w-5 h-5" />
-      </button>
+      <GameMenu />
       <span className="text-white font-display text-sm tracking-wide uppercase">More Trophies?</span>
       <span className="text-white text-sm font-semibold w-12 text-right">
         {round}/{total}

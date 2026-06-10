@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router'
-import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
+import { GameMenu } from "@/components/GameMenu";
 import { getKitQuestion, type KitQuestion } from '@/api/kit-game'
 import { KitSvg } from '@/components/KitSvg'
 
@@ -50,7 +50,6 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 type GameStatus = 'playing' | 'correct' | 'gaveup'
 
 export function KitGamePage() {
-  const navigate = useNavigate()
 
   const [question, setQuestion] = useState<KitQuestion | null>(null)
   const [loading, setLoading] = useState(true)
@@ -131,9 +130,7 @@ export function KitGamePage() {
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => navigate('/')}>
-          <ArrowLeft size={22} />
-        </button>
+        <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">
           Guess the Kit
         </span>

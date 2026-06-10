@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Home, Trophy } from 'lucide-react'
+import { Trophy } from 'lucide-react'
+import { GameMenu } from "@/components/GameMenu";
 import { getFootballers, type Footballer } from '@/api/footballers'
 import {
   getGoalRatiosPlayers, loadProgress, saveProgress, clearProgress,
@@ -152,9 +153,7 @@ export function GoalRatiosPage() {
     return (
       <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#1a1a2e]">
         <div className="flex items-center justify-between px-3 py-2 shrink-0">
-          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => window.location.href = '/'}>
-            <Home size={22} />
-          </button>
+          <GameMenu />
           <span className="text-white font-display text-sm tracking-wide uppercase">Goal Ratios</span>
           <div className="w-8" />
         </div>
@@ -191,9 +190,7 @@ export function GoalRatiosPage() {
     >
       {/* Header */}
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => window.location.href = '/'}>
-          <Home size={22} />
-        </button>
+        <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Goal Ratios</span>
         <span className="text-white/60 text-sm font-mono whitespace-nowrap">
           {foundCount}/{totalCount}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Home, ChevronRight, Trophy, Loader2 } from "lucide-react";
+import { ChevronRight, Trophy, Loader2 } from "lucide-react";
+import { GameMenu } from "@/components/GameMenu";
 import {
   getWpmSession,
   submitWpmScore,
@@ -131,12 +132,7 @@ export function WhoPlayedMorePage() {
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button
-          className="text-white/90 hover:text-green-400 transition-colors p-1"
-          onClick={() => (window.location.href = "/")}
-        >
-          <Home size={22} />
-        </button>
+        <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">
           Who Played More?
         </span>

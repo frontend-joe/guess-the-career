@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Home, Check, X, ChevronRight } from 'lucide-react'
+import { Check, X, ChevronRight } from 'lucide-react'
+import { GameMenu } from "@/components/GameMenu";
 import { getGhcSession, searchClubs } from '@/api/guess-his-clubs'
 import type { GhcFootballer, ClubSuggestion } from '@/api/guess-his-clubs'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
@@ -117,12 +118,7 @@ export function GuessHisClubsPage() {
     >
       {/* Header */}
       <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button
-          className="text-white/90 hover:text-green-400 transition-colors p-1"
-          onClick={() => window.location.href = '/'}
-        >
-          <Home size={22} />
-        </button>
+        <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
           Guess His Clubs
         </span>

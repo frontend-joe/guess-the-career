@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
-import { Home, ChevronRight, ChevronLeft, Shuffle, Trophy, X, ArrowRight } from "lucide-react";
+import { ChevronRight, ChevronLeft, Shuffle, Trophy, X, ArrowRight } from "lucide-react";
+import { GameMenu } from "@/components/GameMenu";
 import { OverallProgressScreen } from "@/components/OverallProgressScreen";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
@@ -214,9 +215,7 @@ export function TransferHistoryPage() {
     <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
       {/* Header */}
       <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => (window.location.href = "/")}>
-          <Home size={22} />
-        </button>
+        <GameMenu />
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Transfer History
         </span>
