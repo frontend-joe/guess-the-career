@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
+import { PositionBadge } from '@/components/PositionBadge'
 import { ClubPicker } from '@/components/ClubPicker'
 import { FootballerPicker } from '@/components/FootballerPicker'
 import {
@@ -18,13 +19,6 @@ import {
   type CheckedTransfer,
   type TransferWindowListItem,
 } from '@/api/transfer-history-admin'
-
-const POSITION_COLORS: Record<string, string> = {
-  GK: 'bg-purple-100 text-purple-700',
-  DF: 'bg-blue-100 text-blue-700',
-  MF: 'bg-green-100 text-green-700',
-  FW: 'bg-orange-100 text-orange-700',
-}
 
 const EXAMPLE_URL = 'https://www.transfermarkt.com/laliga/transfers/wettbewerb/ES1/saison_id/1997'
 
@@ -299,11 +293,7 @@ export function TransferHistoryAdminPage() {
                           </span>
                         </td>
                         <td className="px-2 py-1 text-center">
-                          {t.position && (
-                            <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${POSITION_COLORS[t.position] ?? 'bg-gray-100 text-gray-600'}`}>
-                              {t.position}
-                            </span>
-                          )}
+                          <PositionBadge position={t.position} className="inline-block text-[10px] font-semibold px-1.5" />
                         </td>
                         <td className="px-2 py-1 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                           <ClubLabel name={t.from_club} matched={t.from_club_matched} onPick={(n) => setClub(i, 'from', n)} />

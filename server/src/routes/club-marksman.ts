@@ -48,32 +48,6 @@ function sumClubGoals(
 const reserveRe =
   /\s(B|C|II|III|IV|reserves?|under[- ]?\d+|u\d+|youth|academy)$/i;
 
-/** Map a full position string (from the footballers table) to GK | DF | MF | FW */
-function abbrevPosition(pos: string | null): "GK" | "DF" | "MF" | "FW" | null {
-  if (!pos) return null;
-  const s = pos.toLowerCase();
-  // Use the FIRST position keyword that appears in the string (players are
-  // usually listed primary-position-first). Wingers count as midfielders.
-  const groups: ["GK" | "DF" | "MF" | "FW", string[]][] = [
-    ["GK", ["goalkeeper", "goal keeper", "goaltender"]],
-    ["DF", ["wing-back", "wing back", "wingback", "back", "defender", "sweeper", "libero"]],
-    ["MF", ["midfielder", "midfield", "winger", "wing"]],
-    ["FW", ["striker", "forward", "attacker"]],
-  ];
-  let best: "GK" | "DF" | "MF" | "FW" | null = null;
-  let bestIdx = Infinity;
-  for (const [code, kws] of groups) {
-    for (const kw of kws) {
-      const idx = s.indexOf(kw);
-      if (idx !== -1 && idx < bestIdx) {
-        bestIdx = idx;
-        best = code;
-      }
-    }
-  }
-  return best;
-}
-
 interface StintRow {
   footballer_id: number;
   club: string;
@@ -123,7 +97,7 @@ interface MarksmanPlayer {
   photo_url: string | null;
   goals: number;
   nationality: string | null;
-  position: "GK" | "DF" | "MF" | "FW" | null;
+  position: string | null;
 }
 
 // All players with >= MIN_GOALS summed senior goals for the club.
@@ -159,7 +133,7 @@ function getClubMarksmen(club: string): MarksmanPlayer[] {
     photo_url: r.photo_url,
     goals: r.total_goals,
     nationality: r.nationality,
-    position: abbrevPosition(r.position),
+    position: r.position,
   }));
 }
 

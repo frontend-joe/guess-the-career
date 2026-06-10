@@ -1,7 +1,7 @@
 export interface ScrapedTransfer {
   player_name: string
   nationality: string | null
-  position: 'GK' | 'DF' | 'MF' | 'FW' | null
+  position: string | null
   from_club: string
   to_club: string
   fee_text: string

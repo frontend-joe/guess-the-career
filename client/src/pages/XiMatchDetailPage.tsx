@@ -14,15 +14,9 @@ import {
   type ScrapedXiPlayer,
 } from '@/api/xi-matches'
 import { getAllClubs, scrapeKits } from '@/api/clubs'
+import { PositionBadge } from '@/components/PositionBadge'
 
 const POSITIONS = ['GK', 'DF', 'MF', 'FW'] as const
-
-const POSITION_COLORS: Record<string, string> = {
-  GK: 'bg-purple-100 text-purple-800',
-  DF: 'bg-blue-100 text-blue-800',
-  MF: 'bg-green-100 text-green-800',
-  FW: 'bg-orange-100 text-orange-800',
-}
 
 type EditMeta = {
   name: string
@@ -500,9 +494,7 @@ function LineupPanel({
                       {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                     </select>
                   ) : (
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${POSITION_COLORS[p.position] ?? ''}`}>
-                      {p.position}
-                    </span>
+                    <PositionBadge position={p.position} className="text-xs px-1.5 font-medium" />
                   )}
                 </td>
                 <td className="px-2 py-1.5">

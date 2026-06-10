@@ -19,7 +19,7 @@ export interface ClubMarksmanPlayer {
   photo_url: string | null
   goals: number
   nationality: string | null
-  position: 'GK' | 'DF' | 'MF' | 'FW' | null
+  position: string | null
 }
 
 export async function getAdminClubs(page = 1, pageSize = 25): Promise<AdminClubsResult> {

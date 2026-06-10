@@ -278,32 +278,6 @@ async function resolveOrCreateFootballer(
   return { id: null, created: false }
 }
 
-// Abbreviate a full-text position ("Attacking midfielder", "Centre-back") to a
-// GK/DF/MF/FW badge. Uses the FIRST position keyword that appears in the string
-// (players are usually listed primary-position-first); wingers count as MF.
-function abbrevPosition(pos: string | null): 'GK' | 'DF' | 'MF' | 'FW' | null {
-  if (!pos) return null
-  const s = pos.toLowerCase()
-  const groups: ['GK' | 'DF' | 'MF' | 'FW', string[]][] = [
-    ['GK', ['goalkeeper', 'keeper', 'goalie', 'goaltender']],
-    ['DF', ['wing-back', 'wing back', 'wingback', 'back', 'defender', 'sweeper', 'libero']],
-    ['MF', ['midfielder', 'midfield', 'winger', 'wing']],
-    ['FW', ['striker', 'forward', 'attacker']],
-  ]
-  let best: 'GK' | 'DF' | 'MF' | 'FW' | null = null
-  let bestIdx = Infinity
-  for (const [code, kws] of groups) {
-    for (const kw of kws) {
-      const idx = s.indexOf(kw)
-      if (idx !== -1 && idx < bestIdx) {
-        bestIdx = idx
-        best = code
-      }
-    }
-  }
-  return best
-}
-
 // ── Game-shaped transfers for a window ──────────────────────────────────────
 // Used by both the playable rounds feed and the admin detail view so they're
 // guaranteed to match. Ordered exactly as the game shows them (fee desc).
@@ -351,7 +325,7 @@ function windowTransfers(windowId: number) {
     nationality: p.footballer_nationality ?? p.nationality,
     // Use the linked footballer's DB position (abbreviated); fall back to the
     // scraped GK/DF/MF/FW when no footballer is linked.
-    position: abbrevPosition(p.footballer_position) ?? p.position ?? null,
+    position: p.footballer_position ?? p.position ?? null,
     footballerId: p.footballer_id,
     wikipediaUrl: p.wikipedia_url,
     photoUrl: p.photo_url,

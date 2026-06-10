@@ -81,16 +81,10 @@ function abbreviateCompetition(competition: string): string {
   return COMPETITION_ABBR[competition] ?? competition;
 }
 
-const POSITION_COLORS: Record<string, string> = {
-  GK: "bg-purple-100 text-purple-700",
-  DF: "bg-blue-100 text-blue-700",
-  MF: "bg-green-100 text-green-700",
-  FW: "bg-orange-100 text-orange-700",
-};
-
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { PositionBadge } from "@/components/PositionBadge";
 
 const TRANSLITERATE: Record<string, string> = {
   ı: "i", ł: "l", ø: "o", đ: "d", ð: "d",
@@ -426,11 +420,7 @@ export function GuessTheXiPage() {
                             />
                           )}
                         </span>
-                        <span
-                          className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
-                        >
-                          {player.position}
-                        </span>
+                        <PositionBadge position={player.position} className="text-xs font-semibold w-7 text-center py-0.5" />
                         <span className="w-4 shrink-0 flex items-center justify-center">
                           <NationalityFlag nationality={player.nationality} className="w-4 h-3.5 object-cover border border-[#ebebeb]" />
                         </span>
@@ -440,11 +430,7 @@ export function GuessTheXiPage() {
                         <span className="text-gray-400 text-xs tabular-nums w-5 text-right shrink-0">
                           {player.squadNumber ?? "—"}
                         </span>
-                        <span
-                          className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[player.position] ?? "bg-gray-100 text-gray-600"}`}
-                        >
-                          {player.position}
-                        </span>
+                        <PositionBadge position={player.position} className="text-xs font-semibold w-7 text-center py-0.5" />
                         <span className="w-4 shrink-0 flex items-center justify-center">
                           {!nationalityToFlagUrl(currentRound.team)
                             ? <NationalityFlag nationality={player.nationality} className="w-4 h-3.5 object-cover border border-[#ebebeb]" />

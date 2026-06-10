@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { PositionBadge } from '@/components/PositionBadge'
 import {
   scrapeCompetition, checkCompetition, importCompetition,
   type CompetitionScrapeResult, type CheckResult, type ImportSummary,
@@ -19,13 +19,6 @@ type BulkItem = {
   state: 'pending' | 'scraping' | 'saved' | 'failed'
   name?: string
   error?: string
-}
-
-const POSITION_COLOR: Record<string, string> = {
-  GK: 'bg-amber-100 text-amber-800',
-  DF: 'bg-blue-100 text-blue-800',
-  MF: 'bg-green-100 text-green-800',
-  FW: 'bg-red-100 text-red-800',
 }
 
 function buildFootballerEntries(preview: CompetitionScrapeResult) {
@@ -343,9 +336,7 @@ export function AddCompetitionPage() {
                     {filteredPreview.pfaTeamOfYear.map((p, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm py-0.5">
                         <span className="text-xs text-muted-foreground w-4 text-right">{p.squadNumber}</span>
-                        <span className={cn('text-xs font-medium px-1.5 py-0.5 rounded', POSITION_COLOR[p.position])}>
-                          {p.position}
-                        </span>
+                        <PositionBadge position={p.position} className="text-xs font-medium px-1.5" />
                         <span className="font-medium">{p.name}</span>
                       </div>
                     ))}
@@ -420,9 +411,7 @@ export function AddCompetitionPage() {
                     <div className="space-y-0.5">
                       {preview?.pfaTeamOfYear.map((p, i) => (
                         <div key={i} className="flex items-center gap-1.5 text-xs">
-                          <span className={cn('font-medium px-1 py-0.5 rounded text-xs', POSITION_COLOR[p.position])}>
-                            {p.position}
-                          </span>
+                          <PositionBadge position={p.position} className="text-xs font-medium" />
                           <span className="text-muted-foreground">{p.name}</span>
                         </div>
                       ))}

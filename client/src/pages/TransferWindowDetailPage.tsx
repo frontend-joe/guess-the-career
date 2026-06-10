@@ -4,16 +4,10 @@ import { ArrowLeft, ArrowRight, ExternalLink, AlertTriangle, Link2 } from 'lucid
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
+import { PositionBadge } from '@/components/PositionBadge'
 import { ClubPicker } from '@/components/ClubPicker'
 import { FootballerPicker } from '@/components/FootballerPicker'
 import { getTransferWindowDetail, updateTransfer, resolvePlayer, type TransferWindowDetail } from '@/api/transfer-history-admin'
-
-const POSITION_COLORS: Record<string, string> = {
-  GK: 'bg-purple-100 text-purple-700',
-  DF: 'bg-blue-100 text-blue-700',
-  MF: 'bg-green-100 text-green-700',
-  FW: 'bg-orange-100 text-orange-700',
-}
 
 export function TransferWindowDetailPage() {
   const navigate = useNavigate()
@@ -86,9 +80,7 @@ export function TransferWindowDetailPage() {
                   <NationalityFlag nationality={t.nationality} className="w-4 h-3.5 object-cover border border-[#ebebeb]" />
                 </span>
 
-                <span className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[t.position ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {t.position ?? '?'}
-                </span>
+                <PositionBadge position={t.position} className="text-xs font-semibold w-7 text-center py-0.5" />
 
                 <span className="flex-1 min-w-0 text-sm font-medium flex items-center gap-1.5">
                   <span className="truncate">{t.playerName}</span>

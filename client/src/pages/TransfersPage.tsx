@@ -10,6 +10,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { GameMenu } from "@/components/GameMenu";
+import { PositionBadge } from "@/components/PositionBadge";
 import {
   getTransfersScheduleRounds,
   type TransfersScheduleRound,
@@ -172,25 +173,8 @@ interface Player {
   name: string;
   photo_url: string | null;
   nationality?: string | null;
-  position?: "GK" | "DF" | "MF" | "FW" | null;
+  position?: string | null;
   year?: string | null;
-}
-
-const POSITION_COLOURS: Record<string, string> = {
-  GK: "bg-purple-100 text-purple-700",
-  DF: "bg-blue-100 text-blue-700",
-  MF: "bg-green-100 text-green-700",
-  FW: "bg-orange-100 text-orange-700",
-};
-
-function PositionBadge({ position }: { position: "GK" | "DF" | "MF" | "FW" }) {
-  return (
-    <span
-      className={`text-[9px] font-bold px-1 py-0.5 rounded shrink-0 ${POSITION_COLOURS[position]}`}
-    >
-      {position}
-    </span>
-  );
 }
 
 // `player` is always provided: when `revealed` the name/photo/year show; when

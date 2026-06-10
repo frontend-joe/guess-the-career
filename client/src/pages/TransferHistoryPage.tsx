@@ -6,6 +6,7 @@ import { OverallProgressScreen } from "@/components/OverallProgressScreen";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { PositionBadge } from "@/components/PositionBadge";
 import {
   getTransferHistoryRounds,
   type TransferScheduleRound,
@@ -52,13 +53,6 @@ function saveProgress(progress: SavedProgress) {
 function roundKey(windowId: number): string {
   return String(windowId);
 }
-
-const POSITION_COLORS: Record<string, string> = {
-  GK: "bg-purple-100 text-purple-700",
-  DF: "bg-blue-100 text-blue-700",
-  MF: "bg-green-100 text-green-700",
-  FW: "bg-orange-100 text-orange-700",
-};
 
 const TRANSLITERATE: Record<string, string> = {
   ı: "i", ł: "l", ø: "o", đ: "d", ð: "d",
@@ -296,9 +290,7 @@ export function TransferHistoryPage() {
                       <NationalityFlag nationality={t.nationality} className="w-4 h-3.5 object-cover border border-[#ebebeb]" />
                     </span>
 
-                    <span className={`text-xs font-semibold w-7 text-center py-0.5 rounded shrink-0 ${POSITION_COLORS[t.position ?? ""] ?? "bg-gray-100 text-gray-600"}`}>
-                      {t.position ?? "?"}
-                    </span>
+                    <PositionBadge position={t.position} className="text-xs font-semibold w-7 text-center py-0.5" />
 
                     <div className="flex-1 min-w-0">
                       {guessed ? (

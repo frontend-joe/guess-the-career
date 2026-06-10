@@ -6,7 +6,7 @@ export interface BallonDorPlayer {
   points: number | null
   rank: number
   nationality: string | null
-  position: 'GK' | 'DF' | 'MF' | 'FW' | null
+  position: string | null
 }
 
 export interface BallonDorRound {

@@ -16,17 +16,6 @@ function normalizeWikiTitle(url: string): string {
     .trim()
 }
 
-/** Map a full position string (from the footballers table) to GK | DF | MF | FW */
-function abbrevPosition(pos: string | null): 'GK' | 'DF' | 'MF' | 'FW' | null {
-  if (!pos) return null
-  const s = pos.toLowerCase()
-  if (s.includes('goalkeeper') || s.includes('goal keeper') || s.includes('goaltender')) return 'GK'
-  if (s.includes('back') || s.includes('defender') || s.includes('sweeper') || s.includes('libero')) return 'DF'
-  if (s.includes('striker') || s.includes('forward') || s.includes('winger') || s.includes('attacker') || s.includes('centre forward')) return 'FW'
-  if (s.includes('midfielder') || s.includes('midfield')) return 'MF'
-  return null
-}
-
 export const ballonDorScheduleRouter = new Hono()
 
 // GET /api/ballon-dor-schedule — admin list
@@ -107,12 +96,13 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
       ballonDorId: row.ballon_dor_id,
       year: row.ballon_dor_year,
       players: players.map(p => {
-        let position = abbrevPosition(p.footballer_position)
+        // Send the raw position; the client classifies it into the badge.
+        let position = p.footballer_position
         // URL-based fallback: handles cases like "Andreas Herzog" → "Andi Herzog"
         if (!position && p.player_wikipedia_url) {
           const norm = normalizeWikiTitle(p.player_wikipedia_url)
           const pos = normalizedUrlPositionMap.get(norm)
-          if (pos) position = abbrevPosition(pos)
+          if (pos) position = pos
         }
         return {
           id: p.id,

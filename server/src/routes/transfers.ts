@@ -21,32 +21,6 @@ function isReserve(canonicalClub: string): boolean {
   return reserveRe.test(canonicalClub.trim());
 }
 
-/** Map a full position string to GK | DF | MF | FW */
-function abbrevPosition(pos: string | null): "GK" | "DF" | "MF" | "FW" | null {
-  if (!pos) return null;
-  const s = pos.toLowerCase();
-  // Use the FIRST position keyword that appears in the string (players are
-  // usually listed primary-position-first). Wingers count as midfielders.
-  const groups: ["GK" | "DF" | "MF" | "FW", string[]][] = [
-    ["GK", ["goalkeeper", "goal keeper", "goaltender"]],
-    ["DF", ["wing-back", "wing back", "wingback", "back", "defender", "sweeper", "libero"]],
-    ["MF", ["midfielder", "midfield", "winger", "wing"]],
-    ["FW", ["striker", "forward", "attacker"]],
-  ];
-  let best: "GK" | "DF" | "MF" | "FW" | null = null;
-  let bestIdx = Infinity;
-  for (const [code, kws] of groups) {
-    for (const kw of kws) {
-      const idx = s.indexOf(kw);
-      if (idx !== -1 && idx < bestIdx) {
-        bestIdx = idx;
-        best = code;
-      }
-    }
-  }
-  return best;
-}
-
 // A transfer is always FROM a permanent club. Loans are one-directional: they
 // emit `lastPermanentClub ⇒ loanClub` but never become a "from" themselves.
 // This avoids spurious loan→loan transfers (e.g. Bendtner: Arsenal loaned to
@@ -164,7 +138,7 @@ interface TransferPlayer {
   name: string;
   photo_url: string | null;
   nationality: string | null;
-  position: "GK" | "DF" | "MF" | "FW" | null;
+  position: string | null;
   year: string | null;
 }
 
@@ -221,7 +195,7 @@ function getTransferPlayers(
       name: p.name,
       photo_url: p.photo_url,
       nationality: p.nationality,
-      position: abbrevPosition(p.position),
+      position: p.position,
       year: transferYear(byPlayer.get(p.id) ?? [], fromClub, toClub),
     }))
     .sort((a, b) => rank(a.id) - rank(b.id));

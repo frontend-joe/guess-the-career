@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useNavigate } from 'react-router'
 import { Loader2, CalendarDays, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { PositionBadge } from '@/components/PositionBadge'
 import { Button } from '@/components/ui/button'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { NationalityFlag } from '@/components/NationalityFlag'
@@ -15,21 +16,6 @@ import {
 } from '@/api/club-legends-admin'
 
 const PAGE_SIZE = 25
-
-const POSITION_COLOURS: Record<string, string> = {
-  GK: 'bg-purple-100 text-purple-700',
-  DF: 'bg-blue-100 text-blue-700',
-  MF: 'bg-green-100 text-green-700',
-  FW: 'bg-orange-100 text-orange-700',
-}
-
-function PositionBadge({ position }: { position: 'GK' | 'DF' | 'MF' | 'FW' }) {
-  return (
-    <span className={`text-[9px] font-bold px-1 py-0.5 rounded shrink-0 ${POSITION_COLOURS[position]}`}>
-      {position}
-    </span>
-  )
-}
 
 export function ClubLegendsAdminPage() {
   const navigate = useNavigate()
