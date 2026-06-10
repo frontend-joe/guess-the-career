@@ -214,9 +214,11 @@ interface Player {
 function PlayerSlot({
   index,
   player,
+  hint,
 }: {
   index: number;
   player: Player | null;
+  hint?: Player | null;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -255,6 +257,14 @@ function PlayerSlot({
               {player.goals} goals
             </span>
           )}
+        </div>
+      ) : hint ? (
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {hint.nationality && (
+            <NationalityFlag nationality={hint.nationality} size={14} />
+          )}
+          {hint.position && <PositionBadge position={hint.position} />}
+          <div className="h-px bg-gray-200 flex-1 rounded-full" />
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
@@ -540,13 +550,20 @@ export function ClubMarksmanPage() {
   const guessedCount = validGuessedIds.size;
   const isDone = guessedCount >= target;
 
-  const foundPlayers: (Player | null)[] = Array.from(
+  // Each slot is either a revealed (guessed) player or, while empty, a flag +
+  // position hint drawn from the top still-unguessed scorers.
+  const guessedList = players
+    ? players.filter((p) => validGuessedIds.has(p.id))
+    : [];
+  const unguessedList = players
+    ? players.filter((p) => !validGuessedIds.has(p.id))
+    : [];
+  const slots: { player: Player | null; hint: Player | null }[] = Array.from(
     { length: target },
-    (_, i) => {
-      if (!players) return null;
-      const found = players.filter((p) => validGuessedIds.has(p.id));
-      return found[i] ?? null;
-    },
+    (_, i) =>
+      i < guessedList.length
+        ? { player: guessedList[i], hint: null }
+        : { player: null, hint: unguessedList[i - guessedList.length] ?? null },
   );
 
   if (loading) {
@@ -649,8 +666,8 @@ export function ClubMarksmanPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {foundPlayers.map((player, i) => (
-                      <PlayerSlot key={i} index={i} player={player} />
+                    {slots.map((s, i) => (
+                      <PlayerSlot key={i} index={i} player={s.player} hint={s.hint} />
                     ))}
                   </div>
                 )}
