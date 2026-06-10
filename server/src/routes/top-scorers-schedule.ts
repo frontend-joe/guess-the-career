@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db, sqlite } from '../db/client.ts'
 import { top_scorers_schedule } from '../db/schema.ts'
+import { normalizeClubAlias } from '../services/scraper.ts'
 
 export const topScorersScheduleRouter = new Hono()
 
@@ -63,8 +64,12 @@ topScorersScheduleRouter.get('/rounds', (c) => {
       club_wikipedia_url: string | null
     }[]
 
+    // Multi-club scorers (mid-season moves) are stored separated by "/" or ",".
+    // Normalise each name (e.g. "Internazionale" → "Inter Milan") so it resolves
+    // to a club record / crest.
     const resolveClubs = (clubStr: string) =>
-      clubStr.split(/\s*\/\s*/).filter(Boolean).map(name => {
+      clubStr.split(/\s*[/,]\s*/).filter(Boolean).map(raw => {
+        const name = normalizeClubAlias(raw.trim())
         const row = sqlite.prepare('SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1').get(name) as { wikipedia_url: string | null } | undefined
         return { name, wikipedia_url: row?.wikipedia_url ?? null }
       })
