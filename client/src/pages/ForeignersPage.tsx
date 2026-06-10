@@ -254,7 +254,7 @@ export function ForeignersPage() {
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
-        <span className="text-white font-display text-sm tracking-wide uppercase">Foreigners</span>
+        <span className="text-white font-display text-sm tracking-wide uppercase">Overseas Players</span>
         <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>{showProgress ? <X size={20} /> : <Trophy size={20} />}</button>
       </div>
 
@@ -278,11 +278,10 @@ export function ForeignersPage() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && (
               <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
-                <div className="bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3">
-                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Foreigners in England</span>
+                <div className="bg-white rounded-2xl border border-gray-200 px-4 pt-8 pb-4 flex flex-col items-center gap-3">
                   {flagUrl && <img src={flagUrl} alt={currentRound.nationality} className="w-16 h-12 object-cover rounded-md border border-gray-200" />}
                   <span className="text-gray-800 font-bold text-lg">{currentRound.nationality}</span>
-                  <span className="text-gray-400 text-[11px] text-center">Name {target} {currentRound.nationality} players who played for an English club</span>
+                  <span className="text-gray-400 text-[11px] text-center">{currentRound.nationality} players who played for an English club</span>
                 </div>
 
                 {players === null ? (

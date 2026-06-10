@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -26,10 +26,11 @@ export const GATED_GAMES: Game[] = [
   { name: 'Two Clubs', pitch: 'Five players, two clubs — name who turned out for both.', to: '/play/two-clubs', icon: Link2 },
   { name: 'Transfer History', pitch: "Name the season's biggest transfers from the fee and the badges.", to: '/play/transfer-history', icon: Banknote },
   { name: 'Nationality Players', pitch: 'A flag and a club — name the players who are both.', to: '/play/nationality-players', icon: Flag },
-  { name: 'Foreigners in England', pitch: 'Name the overseas players who lined up for an English club.', to: '/play/foreigners', icon: Plane },
+  { name: 'Overseas Players', pitch: 'Name the overseas players who lined up for an English club.', to: '/play/foreigners', icon: Plane },
   { name: "Ballon d'Or", pitch: 'Name every player in the running for football’s biggest prize.', to: '/play/ballon-dors', icon: Globe },
-  { name: 'World Cup', pitch: 'Recall the squads that went to the World Cup.', to: '/play/world-cup', icon: Shield },
+  { name: 'World Cup', pitch: 'Recall the squads that went to the World Cup.', to: '/play/world-cup', icon: Trophy },
   { name: 'Club Legends', pitch: 'Name the cult heroes with 100+ appearances.', to: '/play/club-legends', icon: Star },
+  { name: 'Club Marksman', pitch: 'Name the deadly strikers with 50+ goals for a club.', to: '/play/club-marksman', icon: Target },
   { name: 'Know Your Transfers', pitch: 'Which players made that move from one club to another?', to: '/play/transfers', icon: ArrowLeftRight },
   { name: 'Style of Play', pitch: 'Guess the player from their style of play.', to: '/play/style-of-play', icon: BookOpen },
 ]

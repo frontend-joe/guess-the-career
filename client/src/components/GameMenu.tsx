@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { Menu, X, Home, Settings } from 'lucide-react'
+import { Menu, X, Home, Settings, type LucideIcon } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { LIST_GAMES, BANTER_GAMES, type Game } from '@/lib/games'
+import { LIST_GAMES, BANTER_GAMES } from '@/lib/games'
 
 // In-game burger menu: a frosted drawer that slides in from the left with
 // global navigation (Admin / Home) plus a full game switcher. Sits in the left
@@ -36,20 +36,20 @@ export function GameMenu() {
     navigate(to)
   }
 
-  function GameRow({ g }: { g: Game }) {
-    const Icon = g.icon
-    const active = pathname === g.to
+  // Shared row styling for both nav links (Admin/Home) and game entries.
+  function Row({ icon: Icon, label, desc, to }: { icon: LucideIcon; label: string; desc?: string; to: string }) {
+    const active = pathname === to
     return (
       <button
-        onClick={() => go(g.to)}
-        className={`w-full text-left flex items-start gap-3 px-4 py-2.5 transition-colors ${active ? 'bg-green-400/10' : 'hover:bg-white/5'}`}
+        onClick={() => go(to)}
+        className={`w-full text-left flex ${desc ? 'items-start' : 'items-center'} gap-3 px-4 py-2.5 transition-colors ${active ? 'bg-green-400/10' : 'hover:bg-white/5'}`}
       >
-        <span className={`shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center ${active ? 'bg-green-400/20 text-green-400' : 'bg-white/5 text-green-400'}`}>
+        <span className={`shrink-0 ${desc ? 'mt-0.5' : ''} w-8 h-8 rounded-lg flex items-center justify-center ${active ? 'bg-green-400/20 text-green-400' : 'bg-white/5 text-green-400'}`}>
           <Icon size={16} />
         </span>
         <span className="min-w-0">
-          <span className="block text-sm font-semibold text-white truncate">{g.name}</span>
-          <span className="block text-xs text-white/45 leading-snug">{g.pitch}</span>
+          <span className="block text-sm font-semibold text-white truncate">{label}</span>
+          {desc && <span className="block text-xs text-white/45 leading-snug">{desc}</span>}
         </span>
       </button>
     )
@@ -87,32 +87,20 @@ export function GameMenu() {
               </button>
             </div>
 
-            <nav className="py-1">
-              {user?.is_admin && (
-                <button
-                  onClick={() => go('/admin')}
-                  className="w-full text-left flex items-center gap-3 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/5 hover:text-white transition-colors"
-                >
-                  <Settings size={18} className="text-green-400" /> Admin
-                </button>
-              )}
-              <button
-                onClick={() => go('/')}
-                className="w-full text-left flex items-center gap-3 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/5 hover:text-white transition-colors divide-soft-b"
-              >
-                <Home size={18} className="text-green-400" /> Home
-              </button>
+            <nav className="py-1 divide-soft-b">
+              {user?.is_admin && <Row icon={Settings} label="Admin" to="/admin" />}
+              <Row icon={Home} label="Home" to="/" />
             </nav>
 
             <div className="px-4 pt-3 pb-1">
               <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">List Games</span>
             </div>
-            {LIST_GAMES.map((g) => <GameRow key={g.to} g={g} />)}
+            {LIST_GAMES.map((g) => <Row key={g.to} icon={g.icon} label={g.name} desc={g.pitch} to={g.to} />)}
 
             <div className="px-4 pt-4 pb-1">
               <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">Banter Games</span>
             </div>
-            {BANTER_GAMES.map((g) => <GameRow key={g.to} g={g} />)}
+            {BANTER_GAMES.map((g) => <Row key={g.to} icon={g.icon} label={g.name} desc={g.pitch} to={g.to} />)}
 
             <div className="h-3" />
           </div>

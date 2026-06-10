@@ -61,6 +61,9 @@ import { NationalsSchedulePage } from '@/pages/NationalsSchedulePage'
 import { ClubLegendsPage } from '@/pages/ClubLegendsPage'
 import { ClubLegendsAdminPage } from '@/pages/ClubLegendsAdminPage'
 import { ClubLegendsSchedulePage } from '@/pages/ClubLegendsSchedulePage'
+import { ClubMarksmanPage } from '@/pages/ClubMarksmanPage'
+import { ClubMarksmanAdminPage } from '@/pages/ClubMarksmanAdminPage'
+import { ClubMarksmanSchedulePage } from '@/pages/ClubMarksmanSchedulePage'
 import { TransfersPage } from '@/pages/TransfersPage'
 import { TransfersAdminPage } from '@/pages/TransfersAdminPage'
 import { TransfersSchedulePage } from '@/pages/TransfersSchedulePage'
@@ -103,6 +106,7 @@ const router = createBrowserRouter([
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
   { path: '/play/foreigners', element: <ForeignersPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
+  { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
   { path: '/play/transfer-history', element: <TransferHistoryPage /> },
 
@@ -151,6 +155,8 @@ const router = createBrowserRouter([
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
+      { path: 'club-marksman', element: <ClubMarksmanAdminPage /> },
+      { path: 'club-marksman/schedule', element: <ClubMarksmanSchedulePage /> },
       { path: 'transfers', element: <TransfersAdminPage /> },
       { path: 'transfers/schedule', element: <TransfersSchedulePage /> },
       { path: 'transfer-history', element: <TransferHistoryAdminPage /> },

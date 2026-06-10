@@ -327,12 +327,12 @@ export function BallonDorPage() {
           <div className="px-3 pt-4 pb-2">
             {/* Year header */}
             <div className="mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3">
-              <div className="w-12 h-12 bg-yellow-50 flex items-center justify-center shrink-0 rounded-xl border border-yellow-100">
-                <Trophy size={24} className="text-yellow-500" />
+              <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden">
+                <img src="/ballon-dor.png" alt="Ballon d'Or" className="w-full h-full object-cover" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 uppercase tracking-widest leading-tight">
-                  Ballon d&apos;Or
+                  Ballon d&apos;or Rankings
                 </p>
                 <p className="text-base font-bold text-gray-900 leading-snug truncate">
                   {currentRound.year}

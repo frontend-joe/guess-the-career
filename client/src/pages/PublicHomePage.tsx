@@ -285,7 +285,10 @@ export function PublicHomePage() {
 
       {/* Featured game — spotlights a random game on each load */}
       <section className="max-w-6xl mx-auto px-4 pb-4">
-        <div className="relative rounded-4xl glass p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-6 overflow-hidden">
+        <button
+          onClick={() => navigate(featured.to)}
+          className={`group w-full text-left relative rounded-4xl glass glass-hover p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-6 overflow-hidden hover:-translate-y-0.5 cursor-pointer ${btnFocus()}`}
+        >
           <div className="shrink-0 w-16 h-16 rounded-2xl bg-green-500 text-[#0b1020] flex items-center justify-center glow-ring">
             <FeaturedIcon size={32} />
           </div>
@@ -298,13 +301,10 @@ export function PublicHomePage() {
             </h2>
             <p className="text-white/70 mt-1.5 max-w-xl">{featured.pitch}</p>
           </div>
-          <button
-            onClick={() => navigate(featured.to)}
-            className={`bg-green-500 hover:bg-green-400 text-[#0b1020] font-bold rounded-xl px-6 py-3 uppercase tracking-wide text-sm whitespace-nowrap transition-colors cursor-pointer ${btnFocus()}`}
-          >
+          <span className="bg-green-500 group-hover:bg-green-400 text-[#0b1020] font-bold rounded-xl px-6 py-3 uppercase tracking-wide text-sm whitespace-nowrap transition-colors">
             Play now
-          </button>
-        </div>
+          </span>
+        </button>
       </section>
 
       {/* List Games */}
