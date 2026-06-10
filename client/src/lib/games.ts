@@ -15,7 +15,7 @@ export interface Game {
 
 export const FREE_GAME: Game = {
   name: 'Guess the XI',
-  pitch: 'Name every player in a classic starting line-up from club badges, shirt numbers, positions and flags.',
+  pitch: 'Name every player in a classic starting line-up with clues.',
   to: '/play/guess-the-xi',
   icon: Shirt,
   free: true,

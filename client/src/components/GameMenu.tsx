@@ -11,18 +11,28 @@ export function GameMenu() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false) // in the DOM (kept during exit)
+  const [visible, setVisible] = useState(false) // drives the slide/fade transition
+
+  function openMenu() {
+    setMounted(true)
+    requestAnimationFrame(() => setVisible(true))
+  }
+  function closeMenu() {
+    setVisible(false)
+    setTimeout(() => setMounted(false), 200) // unmount after the slide-out
+  }
 
   // Close on Escape while open.
   useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    if (!mounted) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [mounted])
 
   function go(to: string) {
-    setOpen(false)
+    closeMenu()
     navigate(to)
   }
 
@@ -48,28 +58,28 @@ export function GameMenu() {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={openMenu}
         aria-label="Open menu"
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={mounted}
         className="text-white/90 hover:text-green-400 transition-colors p-1"
       >
         <Menu size={22} />
       </button>
 
-      {open && (
+      {mounted && (
         <div className="fixed inset-0 z-60 font-ui">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50 animate-fade-in"
-            onClick={() => setOpen(false)}
+            className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
+            onClick={closeMenu}
           />
           {/* Panel */}
-          <div className="absolute inset-y-0 left-0 z-70 w-80 max-w-[85vw] bg-[#0b0c1a]/70 backdrop-blur-xl shadow-2xl overflow-y-auto flex flex-col animate-slide-in-left">
+          <div className={`absolute inset-y-0 left-0 z-70 w-80 max-w-[85vw] bg-[#0b0c1a]/70 backdrop-blur-xl shadow-2xl overflow-y-auto flex flex-col transition-transform duration-200 ease-out ${visible ? 'translate-x-0' : '-translate-x-full'}`}>
             <div className="sticky top-0 bg-[#0b0c1a]/80 backdrop-blur-md divide-soft-b flex items-center justify-between px-4 py-3">
               <span className="font-display text-sm tracking-wide uppercase text-white">Menu</span>
               <button
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
                 aria-label="Close menu"
                 className="text-white/90 hover:text-green-400 transition-colors p-1"
               >
