@@ -279,16 +279,29 @@ async function resolveOrCreateFootballer(
 }
 
 // Abbreviate a full-text position ("Attacking midfielder", "Centre-back") to a
-// GK/DF/MF/FW badge. Midfield is checked first so "attacking/defensive
-// midfield" doesn't fall through to the FW/DF checks.
+// GK/DF/MF/FW badge. Uses the FIRST position keyword that appears in the string
+// (players are usually listed primary-position-first); wingers count as MF.
 function abbrevPosition(pos: string | null): 'GK' | 'DF' | 'MF' | 'FW' | null {
   if (!pos) return null
   const s = pos.toLowerCase()
-  if (s.includes('keeper') || s.includes('goalie')) return 'GK'
-  if (s.includes('midfield')) return 'MF'
-  if (s.includes('back') || s.includes('defender') || s.includes('sweeper') || s.includes('libero')) return 'DF'
-  if (s.includes('striker') || s.includes('forward') || s.includes('winger') || s.includes('attack')) return 'FW'
-  return null
+  const groups: ['GK' | 'DF' | 'MF' | 'FW', string[]][] = [
+    ['GK', ['goalkeeper', 'keeper', 'goalie', 'goaltender']],
+    ['DF', ['wing-back', 'wing back', 'wingback', 'back', 'defender', 'sweeper', 'libero']],
+    ['MF', ['midfielder', 'midfield', 'winger', 'wing']],
+    ['FW', ['striker', 'forward', 'attacker']],
+  ]
+  let best: 'GK' | 'DF' | 'MF' | 'FW' | null = null
+  let bestIdx = Infinity
+  for (const [code, kws] of groups) {
+    for (const kw of kws) {
+      const idx = s.indexOf(kw)
+      if (idx !== -1 && idx < bestIdx) {
+        bestIdx = idx
+        best = code
+      }
+    }
+  }
+  return best
 }
 
 // ── Game-shaped transfers for a window ──────────────────────────────────────
