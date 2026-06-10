@@ -1305,7 +1305,7 @@ export function deriveCompetition(matchName: string): string {
 }
 
 export function normalizeClubAlias(club: string): string {
-  const stripped = club.replace(/^→\s*/, "").replace(/\s*\(loan\)\s*$/i, "").trim();
+  const stripped = club.replace(/^→\s*/, "").replace(/\s*\((loan|trial)\)\s*$/i, "").trim();
   return CLUB_ALIASES[stripped] ?? stripped;
 }
 
