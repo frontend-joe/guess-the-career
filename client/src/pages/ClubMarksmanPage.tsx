@@ -26,7 +26,7 @@ const ROUND_TARGET = 5;
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
-const PROGRESS_KEY = "cl_progress";
+const PROGRESS_KEY = "cm_progress";
 
 interface RoundProgress {
   guessedIds: number[];
