@@ -61,11 +61,11 @@ export function GameMenu() {
         <div className="fixed inset-0 z-60 font-ui">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
+            className="absolute inset-0 bg-black/50 animate-fade-in"
             onClick={() => setOpen(false)}
           />
           {/* Panel */}
-          <div className="absolute inset-y-0 left-0 z-70 w-80 max-w-[85vw] bg-[#0b0c1a]/90 backdrop-blur-xl border-r border-white/5 shadow-2xl overflow-y-auto flex flex-col animate-slide-in-left">
+          <div className="absolute inset-y-0 left-0 z-70 w-80 max-w-[85vw] bg-[#0b0c1a]/70 backdrop-blur-xl shadow-2xl overflow-y-auto flex flex-col animate-slide-in-left">
             <div className="sticky top-0 bg-[#0b0c1a]/80 backdrop-blur-md divide-soft-b flex items-center justify-between px-4 py-3">
               <span className="font-display text-sm tracking-wide uppercase text-white">Menu</span>
               <button
