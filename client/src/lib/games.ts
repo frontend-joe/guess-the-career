@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -36,6 +36,7 @@ export const GATED_GAMES: Game[] = [
 ]
 
 export const BANTER_GAMES: Game[] = [
+  { name: 'Guess the Career', pitch: 'Name the mystery player from his club-by-club career.', to: '/play/guess-the-career', icon: Users },
   { name: 'Clubs in Common', pitch: 'Spot the club two players both turned out for.', to: '/play/clubs-in-common', icon: Handshake },
   { name: 'Guess His Clubs', pitch: 'Name every club a mystery player turned out for.', to: '/play/guess-his-clubs', icon: Route },
   { name: 'Who Scored More', pitch: 'Two players head-to-head — who bagged more goals?', to: '/play/who-scored-more', icon: TrendingUp },
