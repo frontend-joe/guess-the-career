@@ -206,14 +206,14 @@ export function PlayPage({ mode }: Props) {
   return (
     <div className="h-dvh flex flex-col bg-gray-100 w-full max-w-100 mx-auto font-sans">
       {/* Top bar */}
-      <header className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-4 py-3 shrink-0">
+      <header className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <div className="flex items-center gap-1">
           <GameMenu />
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => window.location.href = '/play/guess-the-career'}>
             <Home size={22} />
           </button>
         </div>
-        <h1 className="text-white font-bold text-sm tracking-[0.2em] uppercase">
+        <h1 className="text-white font-display text-sm tracking-wide uppercase absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
           Guess the Career
         </h1>
         <button className="text-white/90 hover:text-green-400 transition-colors p-1">
