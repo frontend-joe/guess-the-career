@@ -3,6 +3,10 @@ import type { CheerioAPI } from "cheerio";
 import type { AnyNode } from "domhandler";
 
 export const CLUB_ALIASES: Record<string, string> = {
+  // West Bromwich Albion
+  "West Brom": "West Bromwich Albion",
+  "West Bromwich": "West Bromwich Albion",
+  WBA: "West Bromwich Albion",
   // Inter Milan
   Internazionale: "Inter Milan",
   "FC Internazionale": "Inter Milan",
