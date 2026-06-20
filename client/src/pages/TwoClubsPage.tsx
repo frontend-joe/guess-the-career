@@ -110,6 +110,7 @@ interface Player {
   nationality?: string | null
   position?: string | null
   apps?: number
+  careerYears?: string | null
 }
 
 function PlayerSlot({ index, player, hint }: { index: number; player: Player | null; hint?: Player | null }) {
@@ -123,12 +124,14 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
           {player.nationality && <NationalityFlag nationality={player.nationality} size={14} />}
           {player.position && <PositionBadge position={player.position} />}
           <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
+          {player.careerYears && <span className="ml-auto text-[11px] font-medium text-gray-400 tabular-nums shrink-0">{player.careerYears}</span>}
         </div>
       ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {hint.nationality && <NationalityFlag nationality={hint.nationality} size={14} />}
           {hint.position && <PositionBadge position={hint.position} />}
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
+          {hint.careerYears && <span className="text-[11px] font-medium text-gray-400 tabular-nums shrink-0">{hint.careerYears}</span>}
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
@@ -158,7 +161,6 @@ export function TwoClubsPage() {
   const [showProgress, setShowProgress] = useState(false)
   const [progressSearch, setProgressSearch] = useState('')
   const [wrongGuess, setWrongGuess] = useState<string | null>(null)
-  const [notRetiredGuess, setNotRetiredGuess] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -259,9 +261,14 @@ export function TwoClubsPage() {
           persistRound(currentKey, newGuessedIds, currentState.wrongGuesses)
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current)
-          setWrongGuess(name)
-          setNotRetiredGuess(result.reason === 'not_retired')
-          wrongTimer.current = setTimeout(() => { setWrongGuess(null); setNotRetiredGuess(false) }, 2500)
+          const displayName = result.foundName ?? `"${name}"`
+          const msg = result.reason === 'not_retired'
+            ? `Correct, but ${displayName} isn't retired yet!`
+            : result.missingClubs && result.missingClubs.length > 0
+              ? `${displayName} didn't play for ${result.missingClubs.join(' or ')}`
+              : `${displayName} didn't play for both clubs`
+          setWrongGuess(msg)
+          wrongTimer.current = setTimeout(() => setWrongGuess(null), 2500)
 
           const newWrong = new Set(currentState.wrongGuesses)
           newWrong.add(normalizeGuess(name))
@@ -424,9 +431,7 @@ export function TwoClubsPage() {
                 {/* Wrong guess flash */}
                 {wrongGuess && (
                   <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center animate-pulse">
-                    {notRetiredGuess
-                      ? `Correct, but ${wrongGuess} isn't retired yet!`
-                      : `"${wrongGuess}" didn't play for both clubs`}
+                    {wrongGuess}
                   </div>
                 )}
               </div>

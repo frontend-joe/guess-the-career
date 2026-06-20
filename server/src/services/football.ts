@@ -159,3 +159,25 @@ const ENGLISH_CLUB_SET = new Set(
 export function isEnglishClub(club: string): boolean {
   return ENGLISH_CLUB_SET.has(normalizeClubAlias(club).toLowerCase())
 }
+
+// SELECT fragment computing a footballer's senior career start/end years (same
+// logic as the Style of Play game). Requires the outer query to alias the
+// footballers row as `f`. Pair with formatCareerYears() to get "1985–2002".
+export const CAREER_SPAN_SELECT = `
+  (SELECT CAST(MIN(CAST(SUBSTR(cs2.years, 1, 4) AS INTEGER)) AS TEXT)
+     FROM career_stints cs2
+     WHERE cs2.footballer_id = f.id AND cs2.stint_type = 'senior'
+       AND CAST(SUBSTR(cs2.years, 1, 4) AS INTEGER) BETWEEN 1900 AND 2099) AS career_start,
+  (SELECT CASE
+     WHEN SUM(CASE WHEN cs2.years LIKE '%present%' THEN 1 ELSE 0 END) > 0 THEN 'present'
+     ELSE CAST(MAX(CASE
+       WHEN CAST(SUBSTR(cs2.years, -4) AS INTEGER) BETWEEN 1900 AND 2099
+         THEN CAST(SUBSTR(cs2.years, -4) AS INTEGER)
+       ELSE CAST(SUBSTR(cs2.years, 1, 4) AS INTEGER)
+     END) AS TEXT) END
+     FROM career_stints cs2
+     WHERE cs2.footballer_id = f.id AND cs2.stint_type = 'senior') AS career_end`
+
+export function formatCareerYears(start: string | null, end: string | null): string | null {
+  return start ? (end && end !== start ? `${start}–${end}` : start) : null
+}

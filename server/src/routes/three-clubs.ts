@@ -5,6 +5,7 @@ import { eq, sql } from 'drizzle-orm'
 import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
 import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia, isRetired } from '../services/scraper.ts'
+import { CAREER_SPAN_SELECT, formatCareerYears } from '../services/football.ts'
 
 export const threeClubsRouter = new Hono()
 
@@ -248,6 +249,20 @@ threeClubsRouter.post(
     const { footballerName, footballerId, clubA, clubB, clubC } = c.req.valid('json')
     const playedAll = (clubs: string[]) => hasClub(clubs, clubA) && hasClub(clubs, clubB) && hasClub(clubs, clubC)
 
+    // Which of the target clubs did the player NOT play for — used to build a
+    // specific "didn't play for X" message.
+    const targetClubs = [clubA, clubB, clubC]
+    const missingClubsFor = (clubs: string[]) => targetClubs.filter(t => !hasClub(clubs, t))
+    const invalidJson = (name: string, clubs: string[]) => ({
+      valid: false as const,
+      footballer: null,
+      imported: false,
+      foundName: name,
+      missingClubs: missingClubsFor(clubs),
+      reason: 'wrong_club' as const,
+    })
+    let fallbackInvalid: ReturnType<typeof invalidJson> | null = null
+
     // Step 1: resolve footballer from DB
     let footballer: { id: number; name: string; wikipedia_url: string; photo_url: string | null } | undefined
 
@@ -287,10 +302,9 @@ threeClubsRouter.post(
 
     // Step 2: if footballer found, check stints
     if (footballer) {
-      const stints = await db.select({ club: career_stints.club })
+      let stintClubs = (await db.select({ club: career_stints.club })
         .from(career_stints)
-        .where(sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`)
-      const stintClubs = stints.map(s => s.club)
+        .where(sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`)).map(s => s.club)
 
       if (playedAll(stintClubs)) {
         return c.json({ valid: true, footballer: { id: footballer.id, name: footballer.name, photo_url: footballer.photo_url }, imported: false })
@@ -323,15 +337,23 @@ threeClubsRouter.post(
             }
           }
 
-          const refreshed = await db.select({ club: career_stints.club })
+          stintClubs = (await db.select({ club: career_stints.club })
             .from(career_stints)
-            .where(sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`)
-          if (playedAll(refreshed.map(s => s.club))) {
+            .where(sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`)).map(s => s.club)
+          if (playedAll(stintClubs)) {
             return c.json({ valid: true, footballer: { id: footballer.id, name: footballer.name, photo_url: footballer.photo_url }, imported: true })
           }
         } catch {
           // scrape failed — fall through to Wikipedia name search
         }
+      }
+
+      // A real player who's missing some of the clubs. If they played at least
+      // one of them it's almost certainly the right person — report exactly which
+      // clubs they're missing. Otherwise keep it as a fallback and try a namesake.
+      fallbackInvalid = invalidJson(footballer.name, stintClubs)
+      if (missingClubsFor(stintClubs).length < targetClubs.length) {
+        return c.json(fallbackInvalid)
       }
     }
 
@@ -360,7 +382,7 @@ threeClubsRouter.post(
         const r3 = await wikiSearch(footballerName)
         if (r3 && titleMatchesName(r3.title)) firstResult = r3
       }
-      if (!firstResult || !titleMatchesName(firstResult.title)) return c.json({ valid: false, footballer: null, imported: false })
+      if (!firstResult || !titleMatchesName(firstResult.title)) return c.json(fallbackInvalid ?? { valid: false, footballer: null, imported: false })
 
       const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(firstResult.title.replace(/ /g, '_'))}`
 
@@ -382,10 +404,10 @@ threeClubsRouter.post(
       const stintClubs = seniorStints.map(s => s.club)
 
       if (!playedAll(stintClubs)) {
-        return c.json({ valid: false, footballer: null, imported: false })
+        return c.json(fallbackInvalid ?? invalidJson(scraped.name, stintClubs))
       }
       if (!isRetired(scraped.stints)) {
-        return c.json({ valid: false, footballer: null, imported: false, reason: 'not_retired' as const })
+        return c.json({ valid: false, footballer: null, imported: false, foundName: scraped.name, reason: 'not_retired' as const })
       }
 
       const knownRecord = byUrl ?? footballer
@@ -445,7 +467,7 @@ threeClubsRouter.post(
 
       return c.json({ valid: true, footballer: { id: newFootballer.id, name: newFootballer.name, photo_url: newFootballer.photo_url ?? null }, imported: true })
     } catch {
-      return c.json({ valid: false, footballer: null, imported: false })
+      return c.json(fallbackInvalid ?? { valid: false, footballer: null, imported: false })
     }
   }
 )
@@ -473,7 +495,8 @@ threeClubsRouter.get('/answers', async (c) => {
     SELECT f.id, f.name, f.photo_url, f.nationality, f.position,
       (SELECT COALESCE(SUM(cs.apps), 0) FROM career_stints cs
          WHERE cs.footballer_id = f.id AND cs.stint_type = 'senior'
-         AND LOWER(cs.club) IN (${phAll})) AS apps
+         AND LOWER(cs.club) IN (${phAll})) AS apps,
+      ${CAREER_SPAN_SELECT}
     FROM footballers f
     JOIN career_stints csa ON csa.footballer_id = f.id
       AND csa.stint_type = 'senior'
@@ -486,7 +509,7 @@ threeClubsRouter.get('/answers', async (c) => {
       AND LOWER(csc.club) IN (${phC})
     GROUP BY f.id
     ORDER BY apps DESC, f.name ASC
-  `).all(...allVariants, ...variantsA, ...variantsB, ...variantsC) as { id: number; name: string; photo_url: string | null; nationality: string | null; position: string | null; apps: number }[]
+  `).all(...allVariants, ...variantsA, ...variantsB, ...variantsC) as { id: number; name: string; photo_url: string | null; nationality: string | null; position: string | null; apps: number; career_start: string | null; career_end: string | null }[]
 
-  return c.json(rows)
+  return c.json(rows.map(r => ({ ...r, careerYears: formatCareerYears(r.career_start, r.career_end) })))
 })
