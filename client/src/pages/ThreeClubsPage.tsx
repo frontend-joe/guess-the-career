@@ -265,7 +265,9 @@ export function ThreeClubsPage() {
           const msg = result.reason === 'not_retired'
             ? `Correct, but ${displayName} isn't retired yet!`
             : result.missingClubs && result.missingClubs.length > 0
-              ? `${displayName} didn't play for ${result.missingClubs.join(' or ')}`
+              ? result.missingClubs.length >= 3
+                ? `${displayName} didn't play for any`
+                : `${displayName} didn't play for ${result.missingClubs.join(' or ')}`
               : `${displayName} didn't play for all three clubs`
           setWrongGuess(msg)
           wrongTimer.current = setTimeout(() => setWrongGuess(null), 2500)
