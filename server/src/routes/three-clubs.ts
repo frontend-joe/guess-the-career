@@ -124,16 +124,7 @@ threeClubsRouter.get('/admin/trios', (c) => {
 
   const validTrios = findValidTrios(stints)
 
-  // Seed all trios as enabled on first visit (when table is empty)
-  const existingCount = (sqlite.prepare(`SELECT COUNT(*) as n FROM three_clubs_enabled_trios`).get() as { n: number }).n
-  if (existingCount === 0 && validTrios.length > 0) {
-    const insert = sqlite.prepare(`INSERT OR IGNORE INTO three_clubs_enabled_trios (club_a, club_b, club_c) VALUES (?, ?, ?)`)
-    const insertMany = sqlite.transaction((trios: [string, string, string][]) => {
-      for (const [a, b, cc] of trios) insert.run(a, b, cc)
-    })
-    insertMany(validTrios.map(([a, b, cc]) => [a, b, cc]))
-  }
-
+  // Trios start unchecked — the admin opts each combo in explicitly.
   const enabledRows = sqlite.prepare(
     `SELECT club_a, club_b, club_c FROM three_clubs_enabled_trios`
   ).all() as { club_a: string; club_b: string; club_c: string }[]
