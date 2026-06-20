@@ -32,6 +32,7 @@ import { AddXiMatchPage } from '@/pages/AddXiMatchPage'
 import { XiMatchDetailPage } from '@/pages/XiMatchDetailPage'
 import { XiSchedulePage } from '@/pages/XiSchedulePage'
 import { TwoClubsPage } from '@/pages/TwoClubsPage'
+import { ThreeClubsPage } from '@/pages/ThreeClubsPage'
 import { CompetitionsPage } from '@/pages/CompetitionsPage'
 import { AddCompetitionPage } from '@/pages/AddCompetitionPage'
 import { CompetitionDetailPage } from '@/pages/CompetitionDetailPage'
@@ -48,6 +49,9 @@ import { HonorGamePage } from '@/pages/HonorGamePage'
 import { TwoClubsAdminPage } from '@/pages/TwoClubsAdminPage'
 import { TwoClubsAdminDetailPage } from '@/pages/TwoClubsAdminDetailPage'
 import { TwoClubsSchedulePage } from '@/pages/TwoClubsSchedulePage'
+import { ThreeClubsAdminPage } from '@/pages/ThreeClubsAdminPage'
+import { ThreeClubsAdminDetailPage } from '@/pages/ThreeClubsAdminDetailPage'
+import { ThreeClubsSchedulePage } from '@/pages/ThreeClubsSchedulePage'
 import { BallonDorPage } from '@/pages/BallonDorPage'
 import { BallonDorSchedulePage } from '@/pages/BallonDorSchedulePage'
 import { BallonDorsAdminPage } from '@/pages/BallonDorsAdminPage'
@@ -93,6 +97,7 @@ const router = createBrowserRouter([
   { path: '/play/who-played-more', element: <WhoPlayedMorePage /> },
   { path: '/play/know-your-club', element: <KnowYourClubPage /> },
   { path: '/play/two-clubs', element: <TwoClubsPage /> },
+  { path: '/play/three-clubs', element: <ThreeClubsPage /> },
   { path: '/play/top-scorers', element: <TopScorersPage /> },
   { path: '/play/position-knowledge', element: <PositionKnowledgePage /> },
   { path: '/play/style-of-play', element: <StyleOfPlayPage /> },
@@ -144,6 +149,9 @@ const router = createBrowserRouter([
       { path: 'two-clubs', element: <TwoClubsAdminPage /> },
       { path: 'two-clubs/schedule', element: <TwoClubsSchedulePage /> },
       { path: 'two-clubs/:clubA/:clubB', element: <TwoClubsAdminDetailPage /> },
+      { path: 'three-clubs', element: <ThreeClubsAdminPage /> },
+      { path: 'three-clubs/schedule', element: <ThreeClubsSchedulePage /> },
+      { path: 'three-clubs/:clubA/:clubB/:clubC', element: <ThreeClubsAdminDetailPage /> },
       { path: 'ballon-dors', element: <BallonDorsAdminPage /> },
       { path: 'ballon-dors/schedule', element: <BallonDorSchedulePage /> },
       { path: 'world-cup', element: <WorldCupAdminPage /> },

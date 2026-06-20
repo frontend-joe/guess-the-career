@@ -304,6 +304,26 @@ export type SopLeaderboardEntry = typeof sop_leaderboard.$inferSelect
 export type TwoClubsEnabledPair = typeof two_clubs_enabled_pairs.$inferSelect
 export type TwoClubsScheduleEntry = typeof two_clubs_schedule.$inferSelect
 
+export const three_clubs_schedule = sqliteTable('three_clubs_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  club_a: text('club_a').notNull(),
+  club_b: text('club_b').notNull(),
+  club_c: text('club_c').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const three_clubs_enabled_trios = sqliteTable('three_clubs_enabled_trios', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  club_a: text('club_a').notNull(),
+  club_b: text('club_b').notNull(),
+  club_c: text('club_c').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type ThreeClubsEnabledTrio = typeof three_clubs_enabled_trios.$inferSelect
+export type ThreeClubsScheduleEntry = typeof three_clubs_schedule.$inferSelect
+
 export type Competition = typeof competitions.$inferSelect
 export type NewCompetition = typeof competitions.$inferInsert
 export type CompetitionTopScorer = typeof competition_top_scorers.$inferSelect

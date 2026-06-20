@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -24,6 +24,7 @@ export const FREE_GAME: Game = {
 export const GATED_GAMES: Game[] = [
   { name: 'Top Scorers', pitch: "Guess a competition's leading marksmen.", to: '/play/top-scorers', icon: Medal },
   { name: 'Two Clubs', pitch: 'Five players, two clubs — name who turned out for both.', to: '/play/two-clubs', icon: Link2 },
+  { name: 'Three Clubs', pitch: 'Three players, three clubs — name who turned out for all three.', to: '/play/three-clubs', icon: Waypoints },
   { name: 'Transfer History', pitch: "Name the season's biggest transfers from the fee and the badges.", to: '/play/transfer-history', icon: Banknote },
   { name: 'Nationality Players', pitch: 'A flag and a club — name the players who are both.', to: '/play/nationality-players', icon: Flag },
   { name: 'Overseas Players', pitch: 'Name the overseas players who lined up for an English club.', to: '/play/foreigners', icon: Plane },

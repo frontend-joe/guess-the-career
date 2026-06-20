@@ -2,19 +2,19 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 import { Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react'
 import { GameMenu } from "@/components/GameMenu";
-import { getTwoClubsScheduleRounds, type TwoClubsScheduleRound } from '@/api/two-clubs-schedule'
-import { verifyGuess } from '@/api/two-clubs'
+import { getThreeClubsScheduleRounds, type ThreeClubsScheduleRound } from '@/api/three-clubs-schedule'
+import { verifyGuess } from '@/api/three-clubs'
 import { OverallProgressScreen, type ProgressRound } from '@/components/OverallProgressScreen'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { PositionBadge } from '@/components/PositionBadge'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 
-const TARGET = 5
+const TARGET = 3
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
-const PROGRESS_KEY = 'tc_progress'
+const PROGRESS_KEY = 'thr_progress'
 
 interface RoundProgress {
   guessedIds: number[]
@@ -22,7 +22,7 @@ interface RoundProgress {
 }
 
 interface SavedProgress {
-  [pairKey: string]: RoundProgress
+  [trioKeyStr: string]: RoundProgress
 }
 
 function loadProgress(): SavedProgress {
@@ -44,8 +44,8 @@ function persistRound(key: string, guessedIds: Set<number>, wrongGuesses: Set<st
   saveProgress(saved)
 }
 
-function pairKey(clubA: string, clubB: string): string {
-  return `${clubA}|||${clubB}`
+function trioKey(clubA: string, clubB: string, clubC: string): string {
+  return [clubA, clubB, clubC].sort((a, b) => a.localeCompare(b)).join('|||')
 }
 
 // ─── Name matching ────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
 // ─── Round state ──────────────────────────────────────────────────────────────
 
 interface RoundState {
-  round: TwoClubsScheduleRound
+  round: ThreeClubsScheduleRound
   players: Player[] | null
   guessedIds: Set<number>
   wrongGuesses: Set<string>
@@ -148,9 +148,9 @@ interface RoundState {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-export function TwoClubsPage() {
+export function ThreeClubsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [rounds, setRounds] = useState<TwoClubsScheduleRound[]>([])
+  const [rounds, setRounds] = useState<ThreeClubsScheduleRound[]>([])
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({})
   const [roundIndex, setRoundIndex] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -166,13 +166,13 @@ export function TwoClubsPage() {
   // ── Load schedule ─────────────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true)
-    getTwoClubsScheduleRounds()
+    getThreeClubsScheduleRounds()
       .then(data => {
         setRounds(data)
         const saved = loadProgress()
         const states: Record<string, RoundState> = {}
         data.forEach(r => {
-          const key = pairKey(r.clubA, r.clubB)
+          const key = trioKey(r.clubA, r.clubB, r.clubC)
           const prog = saved[key]
           states[key] = {
             round: r,
@@ -203,14 +203,14 @@ export function TwoClubsPage() {
   }, [roundIndex, currentRound]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fetch players for current round ───────────────────────────────────────
-  const currentKey = currentRound ? pairKey(currentRound.clubA, currentRound.clubB) : null
+  const currentKey = currentRound ? trioKey(currentRound.clubA, currentRound.clubB, currentRound.clubC) : null
   const currentState = currentKey ? roundStates[currentKey] : null
 
   useEffect(() => {
     if (!currentRound || !currentKey) return
     if (roundStates[currentKey]?.players !== null) return
 
-    fetch(`/api/two-clubs/answers?clubA=${encodeURIComponent(currentRound.clubA)}&clubB=${encodeURIComponent(currentRound.clubB)}`)
+    fetch(`/api/three-clubs/answers?clubA=${encodeURIComponent(currentRound.clubA)}&clubB=${encodeURIComponent(currentRound.clubB)}&clubC=${encodeURIComponent(currentRound.clubC)}`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((players: Player[]) => {
         setRoundStates(prev => ({ ...prev, [currentKey]: { ...prev[currentKey], players } }))
@@ -245,7 +245,7 @@ export function TwoClubsPage() {
       // Not in local list — verify/scrape via server
       setVerifying(true)
       try {
-        const result = await verifyGuess(name, null, currentRound.clubA, currentRound.clubB)
+        const result = await verifyGuess(name, null, currentRound.clubA, currentRound.clubB, currentRound.clubC)
         if (result.valid && result.footballer) {
           const f = result.footballer
           const newGuessedIds = new Set([...currentState.guessedIds, f.id])
@@ -288,15 +288,16 @@ export function TwoClubsPage() {
 
   // ── Progress screen ───────────────────────────────────────────────────────
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
-    const key = pairKey(r.clubA, r.clubB)
+    const key = trioKey(r.clubA, r.clubB, r.clubC)
     const state = roundStates[key]
     const guessed = Math.min(state?.guessedIds.size ?? 0, TARGET)
     return {
-      name: <span className="text-xs font-medium"><span className="text-gray-400 mr-1">#{i + 1}</span>{r.clubA} × {r.clubB}</span>,
+      name: <span className="text-xs font-medium"><span className="text-gray-400 mr-1">#{i + 1}</span>{r.clubA} × {r.clubB} × {r.clubC}</span>,
       icon: (
         <div className="flex items-center gap-1">
           <MiniClubBadge club={r.clubA} wikipediaUrl={r.clubAWikiUrl} />
           <MiniClubBadge club={r.clubB} wikipediaUrl={r.clubBWikiUrl} />
+          <MiniClubBadge club={r.clubC} wikipediaUrl={r.clubCWikiUrl} />
         </div>
       ),
       guessed,
@@ -312,7 +313,7 @@ export function TwoClubsPage() {
     .filter(({ i }) => {
       if (!progressSearch.trim()) return true
       const term = progressSearch.toLowerCase()
-      return rounds[i].clubA.toLowerCase().includes(term) || rounds[i].clubB.toLowerCase().includes(term)
+      return rounds[i].clubA.toLowerCase().includes(term) || rounds[i].clubB.toLowerCase().includes(term) || rounds[i].clubC.toLowerCase().includes(term)
     })
   const filteredProgressRounds = filteredProgressData.map(d => d.r)
   const filteredOriginalIndices = filteredProgressData.map(d => d.i)
@@ -322,8 +323,8 @@ export function TwoClubsPage() {
   const players = currentState?.players ?? null
 
   // Slots: guessed players fill first, then empty slots show a flag + position
-  // hint for the top (by appearances) still-unguessed players, for all 5.
-  const MAX_HINTS = 5
+  // hint for the top (by appearances) still-unguessed players, capped at 3.
+  const MAX_HINTS = 3
   const guessedList = players ? players.filter(p => currentState!.guessedIds.has(p.id)) : []
   const unguessedList = players ? players.filter(p => !currentState!.guessedIds.has(p.id)) : []
   const slots: { player: Player | null; hint: Player | null }[] = Array.from({ length: TARGET }, (_, i) => {
@@ -352,9 +353,9 @@ export function TwoClubsPage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* ── Header ── */}
-      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
-        <span className="text-white font-display text-sm tracking-wide uppercase">Two Clubs</span>
+        <span className="text-white font-display text-sm tracking-wide uppercase absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">Three Clubs</span>
         <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
           {showProgress ? <X size={20} /> : <Trophy size={20} />}
         </button>
@@ -393,22 +394,22 @@ export function TwoClubsPage() {
               <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
                 {/* Club header — light theme */}
                 <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3">
-                  {currentRound.playerCount >= 10 && (
+                  {currentRound.playerCount >= 5 && (
                     <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
                       <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                         Easy
                       </div>
                     </div>
                   )}
-                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Who played for both?</span>
-                  <div className="flex items-center justify-center gap-6">
+                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Who played for all three?</span>
+                  <div className="flex items-center justify-center gap-2">
                     <ClubBadge name={currentRound.clubA} wikiUrl={currentRound.clubAWikiUrl} />
-                    <span className="text-gray-400 font-bold text-lg">&amp;</span>
                     <ClubBadge name={currentRound.clubB} wikiUrl={currentRound.clubBWikiUrl} />
+                    <ClubBadge name={currentRound.clubC} wikiUrl={currentRound.clubCWikiUrl} />
                   </div>
                 </div>
 
-                {/* 5 player slots */}
+                {/* player slots */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="animate-spin text-gray-300" size={22} />
@@ -426,7 +427,7 @@ export function TwoClubsPage() {
                   <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center animate-pulse">
                     {notRetiredGuess
                       ? `Correct, but ${wrongGuess} isn't retired yet!`
-                      : `"${wrongGuess}" didn't play for both clubs`}
+                      : `"${wrongGuess}" didn't play for all three clubs`}
                   </div>
                 )}
               </div>

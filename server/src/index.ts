@@ -21,6 +21,7 @@ import { xiLeaderboardRouter } from './routes/xi-leaderboard.ts'
 import { knowYourClubRouter } from './routes/know-your-club.ts'
 import { xiScheduleRouter } from './routes/xi-schedule.ts'
 import { twoClubsRouter } from './routes/two-clubs.ts'
+import { threeClubsRouter } from './routes/three-clubs.ts'
 import { competitionsRouter } from './routes/competitions.ts'
 import { topScorersScheduleRouter } from './routes/top-scorers-schedule.ts'
 import { topScorersLeaderboardRouter } from './routes/top-scorers-leaderboard.ts'
@@ -73,6 +74,7 @@ app.route('/api/xi-leaderboard', xiLeaderboardRouter)
 app.route('/api/know-your-club', knowYourClubRouter)
 app.route('/api/xi-schedule', xiScheduleRouter)
 app.route('/api/two-clubs', twoClubsRouter)
+app.route('/api/three-clubs', threeClubsRouter)
 app.route('/api/competitions', competitionsRouter)
 app.route('/api/top-scorers-schedule', topScorersScheduleRouter)
 app.route('/api/top-scorers-leaderboard', topScorersLeaderboardRouter)
