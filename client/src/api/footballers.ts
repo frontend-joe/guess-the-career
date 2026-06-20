@@ -29,6 +29,36 @@ export interface FootballerWithStints extends Footballer {
   stints: CareerStint[]
 }
 
+export interface CardStint {
+  years: string
+  club: string
+  club_wikipedia_url: string | null
+  apps: number | null
+  goals: number | null
+  stint_type: 'senior' | 'international'
+}
+
+export interface FootballerCard {
+  id: number
+  name: string
+  full_name: string | null
+  born: string | null
+  birthplace: string | null
+  height_cm: number | null
+  position: string | null
+  all_positions: string | null
+  photo_url: string | null
+  nationality: string | null
+  wikipedia_url: string
+  stints: CardStint[]
+}
+
+export async function getFootballerCard(id: number): Promise<FootballerCard> {
+  const res = await fetch(`/api/footballers/${id}/card`)
+  if (!res.ok) throw new Error('Failed to load player')
+  return res.json()
+}
+
 export interface ScrapeResult {
   name: string
   wikipedia_url: string

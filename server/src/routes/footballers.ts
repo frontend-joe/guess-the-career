@@ -250,7 +250,7 @@ footballersRouter.get('/rescrape-all', async (c) => {
         const photoUrl = existing[0]?.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(player.name)
 
         await db.update(footballers)
-          .set({ name: result.name, nationality: result.nationality, position: result.position, all_positions: result.all_positions ?? null, style_of_play: result.style_of_play ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
+          .set({ name: result.name, nationality: result.nationality, full_name: result.full_name ?? null, birthplace: result.birthplace ?? null, position: result.position, all_positions: result.all_positions ?? null, style_of_play: result.style_of_play ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
           .where(eq(footballers.id, player.id))
 
         await db.delete(career_stints).where(eq(career_stints.footballer_id, player.id))
@@ -304,6 +304,51 @@ footballersRouter.get('/:id', async (c) => {
     .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
 
   return c.json({ ...footballer, stints })
+})
+
+// GET /api/footballers/:id/card — player info modal (lazy-scrapes & caches the
+// full name + place of birth on first view).
+footballersRouter.get('/:id/card', async (c) => {
+  const id = parseInt(c.req.param('id'))
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+
+  let [footballer] = await db.select().from(footballers).where(eq(footballers.id, id)).limit(1)
+  if (!footballer) return c.json({ error: 'Not found' }, 404)
+
+  if ((!footballer.full_name || !footballer.birthplace) && footballer.wikipedia_url) {
+    try {
+      const scraped = await scrapeWikipedia(footballer.wikipedia_url)
+      const full_name = footballer.full_name ?? scraped.full_name ?? null
+      const birthplace = footballer.birthplace ?? scraped.birthplace ?? null
+      if (full_name !== footballer.full_name || birthplace !== footballer.birthplace) {
+        await db.update(footballers).set({ full_name, birthplace, updated_at: sql`(datetime('now'))` }).where(eq(footballers.id, id))
+        footballer = { ...footballer, full_name, birthplace }
+      }
+    } catch {
+      // scrape failed — return the stored data as-is
+    }
+  }
+
+  const stints = await db
+    .select()
+    .from(career_stints)
+    .where(eq(career_stints.footballer_id, id))
+    .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
+
+  return c.json({
+    id: footballer.id,
+    name: footballer.name,
+    full_name: footballer.full_name,
+    born: footballer.born,
+    birthplace: footballer.birthplace,
+    height_cm: footballer.height_cm,
+    position: footballer.position,
+    all_positions: footballer.all_positions,
+    photo_url: footballer.photo_url,
+    nationality: footballer.nationality,
+    wikipedia_url: footballer.wikipedia_url,
+    stints,
+  })
 })
 
 // PATCH /api/footballers/:id
@@ -371,6 +416,8 @@ footballersRouter.post('/:id/rescrape', async (c) => {
     .set({
       name: result.name,
       nationality: result.nationality,
+      full_name: result.full_name ?? null,
+      birthplace: result.birthplace ?? null,
       position: result.position,
       all_positions: result.all_positions ?? null,
       style_of_play: result.style_of_play ?? null,

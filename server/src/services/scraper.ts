@@ -194,6 +194,8 @@ const COUNTRY_NORMALIZE: Record<string, string> = {
 export interface ScrapeResult {
   name: string;
   wikipedia_url: string;
+  full_name: string | null;
+  birthplace: string | null;
   nationality: string | null;
   position: string | null;
   all_positions: string | null;
@@ -435,6 +437,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   let born: string | null = null;
   let height_cm: number | null = null;
   let birthplaceRaw: string | null = null;
+  let fullName: string | null = null;
 
   // Pattern 1: "Representing" header (th.adr) used on many modern footballer pages.
   // The country name lives in .country-name a (link text is just "Brazil", "France", etc.)
@@ -504,6 +507,9 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
           nationality = country;
         }
       }
+    } else if (label === "full name" || label === "full names") {
+      const raw = stripCitations(value.text().trim().replace(/\s+/g, " "));
+      if (raw) fullName = raw;
     } else if (label === "height") {
       const raw = value.text().trim();
       const mMatch = raw.match(/(\d+\.?\d*)\s*m\b/);
@@ -686,6 +692,10 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   return {
     name,
     wikipedia_url: url,
+    full_name: fullName,
+    birthplace: birthplaceRaw
+      ? (stripCitations(birthplaceRaw).replace(/\s+/g, " ").trim() || null)
+      : null,
     nationality,
     position,
     all_positions,

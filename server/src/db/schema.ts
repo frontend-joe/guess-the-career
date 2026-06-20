@@ -11,6 +11,8 @@ export const footballers = sqliteTable('footballers', {
   custom_position: text('custom_position'),
   style_of_play: text('style_of_play'),
   born: text('born'),
+  birthplace: text('birthplace'),
+  full_name: text('full_name'),
   height_cm: integer('height_cm'),
   photo_url: text('photo_url'),
   honors_champions_league: integer('honors_champions_league').notNull().default(0),

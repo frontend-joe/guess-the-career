@@ -9,6 +9,7 @@ import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { PositionBadge } from '@/components/PositionBadge'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
+import { useShowPlayer } from '@/contexts/PlayerModalContext'
 
 const TARGET = 5
 
@@ -114,6 +115,7 @@ interface Player {
 }
 
 function PlayerSlot({ index, player, hint }: { index: number; player: Player | null; hint?: Player | null }) {
+  const showPlayer = useShowPlayer()
   return (
     <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${player ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${player ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -123,7 +125,7 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {player.nationality && <NationalityFlag nationality={player.nationality} size={14} />}
           {player.position && <PositionBadge position={player.position} />}
-          <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
+          <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
           {player.careerYears && <span className="ml-auto text-[11px] font-medium text-gray-400 tabular-nums shrink-0">{player.careerYears}</span>}
         </div>
       ) : hint ? (

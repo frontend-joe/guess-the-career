@@ -9,6 +9,7 @@ import {
 import { OverallProgressScreen, type ProgressRound } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 
 // ─── localStorage ───────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 interface Player { id: number; name: string; photo_url: string | null; apps?: number; hintClub?: string | null; clubWikiUrl?: string | null }
 
 function PlayerSlot({ index, player }: { index: number; player: Player | null }) {
+  const showPlayer = useShowPlayer();
   return (
     <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${player ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${player ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}>{index + 1}</span>
@@ -61,7 +63,7 @@ function PlayerSlot({ index, player }: { index: number; player: Player | null })
           <span className="w-5 flex items-center justify-center shrink-0">
             <MiniClubBadge club={player.hintClub ?? ""} wikipediaUrl={player.clubWikiUrl ?? null} />
           </span>
-          <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
+          <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
           {player.apps != null && <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
         </div>
       ) : (

@@ -19,6 +19,7 @@ import {
 } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 
 function roundTarget(playerCount: number): number {
@@ -321,6 +322,7 @@ function PlayerSlot({
   player: Player | null;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const showPlayer = useShowPlayer();
 
   return (
     <div
@@ -345,9 +347,13 @@ function PlayerSlot({
               {player.name.charAt(0)}
             </div>
           )}
-          <span className="text-sm font-semibold text-gray-800 truncate">
+          <button
+            type="button"
+            onClick={() => showPlayer(player.id)}
+            className="text-sm font-semibold text-gray-800 truncate text-left hover:underline"
+          >
             {player.name}
-          </span>
+          </button>
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />

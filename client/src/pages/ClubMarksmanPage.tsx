@@ -21,6 +21,7 @@ import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 
 // Every Club Marksman round asks for exactly 5 of the club's marksmen.
 const ROUND_TARGET = 5;
@@ -205,6 +206,7 @@ function PlayerSlot({
   hint?: Player | null;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const showPlayer = useShowPlayer();
 
   return (
     <div
@@ -233,9 +235,13 @@ function PlayerSlot({
             <NationalityFlag nationality={player.nationality} size={14} />
           )}
           {player.position && <PositionBadge position={player.position} />}
-          <span className="text-sm font-semibold text-gray-800 truncate">
+          <button
+            type="button"
+            onClick={() => showPlayer(player.id)}
+            className="text-sm font-semibold text-gray-800 truncate text-left hover:underline"
+          >
             {player.name}
-          </span>
+          </button>
           {player.goals != null && (
             <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">
               {player.goals} goals

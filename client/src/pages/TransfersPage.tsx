@@ -22,6 +22,7 @@ import {
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
@@ -189,6 +190,7 @@ function PlayerSlot({
   revealed: boolean;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const showPlayer = useShowPlayer();
 
   return (
     <div
@@ -214,7 +216,7 @@ function PlayerSlot({
                 {player.name.charAt(0)}
               </div>
             )}
-            <span className="text-sm font-semibold text-gray-800 truncate">{player.name}</span>
+            <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
           </>
         ) : (
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
