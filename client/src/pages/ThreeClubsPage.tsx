@@ -266,7 +266,7 @@ export function ThreeClubsPage() {
             ? `Correct, but ${displayName} isn't retired yet!`
             : result.missingClubs && result.missingClubs.length > 0
               ? result.missingClubs.length >= 3
-                ? `${displayName} didn't play for any`
+                ? `${displayName} didn't play for any of these clubs`
                 : `${displayName} didn't play for ${result.missingClubs.join(' or ')}`
               : `${displayName} didn't play for all three clubs`
           setWrongGuess(msg)
