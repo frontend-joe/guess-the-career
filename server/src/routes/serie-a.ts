@@ -288,7 +288,8 @@ serieARouter.post(
 
     const success = (f: { id: number; name: string; photo_url: string | null }, imported: boolean) => {
       const hint = hintClubFor(f.id)
-      return c.json({ valid: true, footballer: { id: f.id, name: f.name, photo_url: f.photo_url }, hintClub: hint.club, clubWikiUrl: hint.clubWikiUrl, apps: hint.apps, imported })
+      const row = sqlite.prepare(`SELECT position FROM footballers WHERE id = ?`).get(f.id) as { position: string | null } | undefined
+      return c.json({ valid: true, footballer: { id: f.id, name: f.name, photo_url: f.photo_url }, position: row?.position ?? null, hintClub: hint.club, clubWikiUrl: hint.clubWikiUrl, apps: hint.apps, imported })
     }
 
     // Step 1: resolve footballer from DB

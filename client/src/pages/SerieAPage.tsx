@@ -64,6 +64,7 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
           <span className="w-5 flex items-center justify-center shrink-0">
             <MiniClubBadge club={player.hintClub ?? ""} wikipediaUrl={player.clubWikiUrl ?? null} />
           </span>
+          {player.position && <PositionBadge position={player.position} />}
           <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
           {player.apps != null && <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
         </div>
@@ -88,6 +89,7 @@ interface RoundState { round: SerieAScheduleRound; players: Player[] | null; gue
 interface VerifyResult {
   valid: boolean;
   footballer: { id: number; name: string; photo_url: string | null } | null;
+  position?: string | null;
   hintClub?: string | null;
   clubWikiUrl?: string | null;
   apps?: number;
@@ -188,7 +190,7 @@ export function SerieAPage() {
     try {
       const result = await verifyGuess(name, id, currentRound.nationality);
       if (result.valid && result.footballer) {
-        const f = { ...result.footballer, hintClub: result.hintClub, clubWikiUrl: result.clubWikiUrl, apps: result.apps };
+        const f = { ...result.footballer, position: result.position, hintClub: result.hintClub, clubWikiUrl: result.clubWikiUrl, apps: result.apps };
         const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
         setRoundStates((prev) => {
           const state = prev[currentKey]; if (!state) return prev;
