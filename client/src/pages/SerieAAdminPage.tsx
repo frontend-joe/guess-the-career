@@ -91,6 +91,10 @@ export function SerieAAdminPage() {
           {countries.map((c) => {
             const isOpen = expanded === c.nationality
             const list = players[c.nationality]
+            // Round-size options: standard tiers up to the player count, plus the
+            // player count itself as the max. The select shows the effective size.
+            const sizeOptions = [...[5, 10, 15].filter((t) => t < c.playerCount), c.playerCount]
+            const displaySize = Math.min(c.roundSize, c.playerCount)
             return (
               <div key={c.nationality}>
                 <div className="flex items-center gap-3 px-3 py-2.5">
@@ -112,12 +116,13 @@ export function SerieAAdminPage() {
                   <label className="flex items-center gap-1 text-xs text-muted-foreground">
                     Round
                     <select
-                      value={c.roundSize}
+                      value={displaySize}
                       onChange={(e) => changeSize(c, Number(e.target.value))}
                       className="border border-input rounded-md px-1.5 py-1 text-xs bg-background outline-none focus:ring-1 focus:ring-ring cursor-pointer"
                     >
-                      <option value={5}>5</option>
-                      <option value={10} disabled={c.playerCount < 10}>10</option>
+                      {sizeOptions.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
                     </select>
                   </label>
                 </div>

@@ -176,7 +176,7 @@ laLigaRouter.post(
   zValidator('json', z.object({ nationality: z.string().min(1), roundSize: z.number().int().optional() })),
   (c) => {
     const { nationality, roundSize } = c.req.valid('json')
-    const size = roundSize === 10 ? 10 : 5
+    const size = roundSize && roundSize > 0 ? Math.floor(roundSize) : 5
     sqlite
       .prepare(
         `INSERT INTO la_liga_enabled_countries (nationality, round_size) VALUES (?, ?)
