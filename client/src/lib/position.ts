@@ -21,7 +21,7 @@ export function abbrevPosition(
   }
   const groups: [PositionCode, string[]][] = [
     ["GK", ["goalkeeper", "goal keeper", "goalie", "goaltender"]],
-    ["DF", ["wing-back", "wing back", "wingback", "back", "defender", "sweeper", "libero"]],
+    ["DF", ["wing-back", "wing back", "wingback", "back", "defender", "sweeper", "libero", "centre-half", "center-half", "centre half", "center half"]],
     ["MF", ["midfielder", "midfield", "winger", "wing"]],
     ["FW", ["striker", "forward", "attacker"]],
   ];
