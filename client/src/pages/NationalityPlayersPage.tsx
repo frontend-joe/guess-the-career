@@ -339,6 +339,7 @@ function PlayerSlot({
       </span>
       {player ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
+          {player.position && <PositionBadge position={player.position} />}
           <button
             type="button"
             onClick={() => showPlayer(player.id)}
@@ -346,6 +347,11 @@ function PlayerSlot({
           >
             {player.name}
           </button>
+          {player.years && (
+            <span className="ml-auto text-xs text-gray-400 tabular-nums shrink-0">
+              {player.years}
+            </span>
+          )}
         </div>
       ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -377,7 +383,7 @@ interface RoundState {
 
 interface VerifyResult {
   valid: boolean;
-  footballer: { id: number; name: string; photo_url: string | null } | null;
+  footballer: Player | null;
   foundName?: string;
   foundNationality?: string | null;
   imported: boolean;

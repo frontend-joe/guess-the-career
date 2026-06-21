@@ -34,6 +34,42 @@ function yearsSpan(raw: string | null): string | null {
   return min === max ? String(min) : `${min}–${max}`;
 }
 
+// Full player payload for a verified guess so the revealed row keeps the same
+// position + club-years data the answers list has, without needing a refresh.
+function verifiedNational(
+  club: string,
+  id: number,
+  fallback: { name: string; photo_url: string | null },
+): {
+  id: number;
+  name: string;
+  photo_url: string | null;
+  position: string | null;
+  years: string | null;
+} {
+  const variants = getClubVariants(club).map((v) => v.toLowerCase());
+  const ph = variants.map(() => "?").join(", ");
+  const row = sqlite
+    .prepare(
+      `SELECT f.position, GROUP_CONCAT(cs.years, '|') as years_raw
+       FROM footballers f
+       JOIN career_stints cs ON cs.footballer_id = f.id
+         AND cs.stint_type = 'senior' AND LOWER(cs.club) IN (${ph})
+       WHERE f.id = ?
+       GROUP BY f.id`,
+    )
+    .get(...variants, id) as
+    | { position: string | null; years_raw: string | null }
+    | undefined;
+  return {
+    id,
+    name: fallback.name,
+    photo_url: fallback.photo_url,
+    position: row?.position ?? null,
+    years: row ? yearsSpan(row.years_raw) : null,
+  };
+}
+
 function hasClub(stintClubs: string[], targetClub: string): boolean {
   const variants = getClubVariants(targetClub);
   return stintClubs.some((c) => variants.includes(normalizeClubAlias(c)));
@@ -614,11 +650,7 @@ nationalsRouter.post(
       if (checkQualifies(stintClubs, footballer.nationality)) {
         return c.json({
           valid: true,
-          footballer: {
-            id: footballer.id,
-            name: footballer.name,
-            photo_url: footballer.photo_url,
-          },
+          footballer: verifiedNational(club, footballer.id, footballer),
           imported: false,
         });
       }
@@ -665,11 +697,7 @@ nationalsRouter.post(
           if (checkQualifies(refreshedClubs, scraperNat)) {
             return c.json({
               valid: true,
-              footballer: {
-                id: footballer.id,
-                name: footballer.name,
-                photo_url: footballer.photo_url,
-              },
+              footballer: verifiedNational(club, footballer.id, footballer),
               imported: true,
             });
           }
@@ -750,11 +778,7 @@ nationalsRouter.post(
           if (checkQualifies(stintClubs, byUrl.nationality)) {
             return c.json({
               valid: true,
-              footballer: {
-                id: byUrl.id,
-                name: byUrl.name,
-                photo_url: byUrl.photo_url,
-              },
+              footballer: verifiedNational(club, byUrl.id, byUrl),
               imported: false,
             });
           }
@@ -830,11 +854,10 @@ nationalsRouter.post(
           }
           return c.json({
             valid: true,
-            footballer: {
-              id: knownRecord.id,
+            footballer: verifiedNational(club, knownRecord.id, {
               name: knownRecord.name,
               photo_url: scraped.photo_url ?? knownRecord.photo_url,
-            },
+            }),
             imported: true,
           });
         }
@@ -870,11 +893,10 @@ nationalsRouter.post(
 
         return c.json({
           valid: true,
-          footballer: {
-            id: newFootballer.id,
+          footballer: verifiedNational(club, newFootballer.id, {
             name: newFootballer.name,
             photo_url: newFootballer.photo_url ?? null,
-          },
+          }),
           imported: true,
         });
       }
