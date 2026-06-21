@@ -39,6 +39,7 @@ import { worldCupScheduleRouter } from './routes/world-cup-schedule.ts'
 import { nationalsRouter } from './routes/nationals.ts'
 import { foreignersRouter } from './routes/foreigners.ts'
 import { serieARouter } from './routes/serie-a.ts'
+import { laLigaRouter } from './routes/la-liga.ts'
 import { clubLegendsRouter } from './routes/club-legends.ts'
 import { clubMarksmanRouter } from './routes/club-marksman.ts'
 import { transfersRouter } from './routes/transfers.ts'
@@ -93,6 +94,7 @@ app.route('/api/world-cup-schedule', worldCupScheduleRouter)
 app.route('/api/nationals', nationalsRouter)
 app.route('/api/foreigners', foreignersRouter)
 app.route('/api/serie-a', serieARouter)
+app.route('/api/la-liga', laLigaRouter)
 app.route('/api/club-legends', clubLegendsRouter)
 app.route('/api/club-marksman', clubMarksmanRouter)
 app.route('/api/transfers', transfersRouter)

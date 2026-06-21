@@ -196,6 +196,46 @@ export function isItaly(nat: string | null | undefined): boolean {
   return allNationalityIsos(nat).has('IT')
 }
 
+// ── Spanish clubs (curated) ─────────────────────────────────────────────────
+// Any Spanish club (La Liga + Segunda + notable lower/historic sides), using the
+// canonical name forms that appear in career_stints.club. Variant spellings in
+// the data are listed directly so membership is exact. Reserve/B teams are
+// intentionally excluded (they're filtered by reserveRe and won't match these
+// first-team names), as are foreign clubs that share a name (e.g. Barcelona S.C.
+// of Ecuador, Deportivo Quito, Racing Genk).
+export const SPANISH_CLUBS: string[] = [
+  // La Liga mainstays
+  'Real Madrid', 'Barcelona', 'Atlético Madrid', 'Valencia', 'Sevilla',
+  'Villarreal', 'Real Zaragoza', 'Mallorca', 'Espanyol', 'Deportivo La Coruña',
+  'Levante', 'Celta', 'Celta Vigo', 'Celta de Vigo', 'Real Betis', 'Betis',
+  'Málaga', 'Real Sociedad', 'Athletic Bilbao', 'Alavés', 'Valladolid',
+  'Real Valladolid', 'Rayo Vallecano', 'Tenerife', 'Racing Santander',
+  'Racing de Santander', 'Getafe', 'Cádiz', 'Osasuna', 'Recreativo',
+  'Recreativo de Huelva', 'Córdoba', 'Elche', 'Albacete', 'Sporting Gijón',
+  'Sporting de Gijón', 'Salamanca', 'Murcia', 'Real Murcia', 'Leganés', 'Eibar',
+  'Almería', 'Hércules', 'Granada', 'Numancia', 'Girona', 'Sabadell',
+  'Castellón', 'Huesca', 'Oviedo', 'Real Oviedo', 'Las Palmas', 'UD Las Palmas',
+  // Segunda / lower / historic
+  'Cartagena', 'Lugo', 'Ponferradina', 'Burgos', 'Fuenlabrada', 'Extremadura',
+  'Alcorcón', 'Logroñés', 'Racing Ferrol', 'Xerez', 'Gimnàstic', 'Badajoz',
+  'Compostela', 'Mérida', 'Toledo', 'Pontevedra', 'Mirandés', 'Cultural Leonesa',
+  'Real Unión', 'Amorebieta', 'Andorra', 'Eldense', 'Reus', 'Lorca',
+]
+
+const SPANISH_CLUB_SET = new Set(
+  SPANISH_CLUBS.map((c) => normalizeClubAlias(c).toLowerCase()),
+)
+
+export function isSpanishClub(club: string): boolean {
+  return SPANISH_CLUB_SET.has(normalizeClubAlias(club).toLowerCase())
+}
+
+// True when the nationality is Spanish (so it can be excluded from the La Liga
+// "foreigners-in-Spain" game).
+export function isSpain(nat: string | null | undefined): boolean {
+  return allNationalityIsos(nat).has('ES')
+}
+
 // SELECT fragment computing a footballer's senior career start/end years (same
 // logic as the Style of Play game). Requires the outer query to alias the
 // footballers row as `f`. Pair with formatCareerYears() to get "1985–2002".

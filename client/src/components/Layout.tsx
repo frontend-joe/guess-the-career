@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import { Users, UserCog, Building2, Database, Gamepad2, LayoutGrid, Trophy, Shuffle, Menu, X, Medal, Globe, Flag, Star, ArrowLeftRight, Banknote, Home, ShieldCheck, Plane, Target, Waypoints, MapPin, type LucideIcon } from "lucide-react";
+import { Users, UserCog, Building2, Database, Gamepad2, LayoutGrid, Trophy, Shuffle, Menu, X, Medal, Globe, Flag, Star, ArrowLeftRight, Banknote, Home, ShieldCheck, Plane, Target, Waypoints, MapPin, Sun, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
@@ -15,6 +15,7 @@ const nav: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/admin/nationals", label: "Nationals", icon: Flag },
   { to: "/admin/foreigners", label: "Foreigners", icon: Plane },
   { to: "/admin/serie-a", label: "Serie A", icon: MapPin },
+  { to: "/admin/la-liga", label: "La Liga", icon: Sun },
   { to: "/admin/club-legends", label: "Club Legends", icon: Star },
   { to: "/admin/club-marksman", label: "Club Marksman", icon: Target },
   { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight },

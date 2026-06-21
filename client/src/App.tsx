@@ -10,6 +10,9 @@ import { ForeignersSchedulePage } from '@/pages/ForeignersSchedulePage'
 import { SerieAPage } from '@/pages/SerieAPage'
 import { SerieAAdminPage } from '@/pages/SerieAAdminPage'
 import { SerieASchedulePage } from '@/pages/SerieASchedulePage'
+import { LaLigaPage } from '@/pages/LaLigaPage'
+import { LaLigaAdminPage } from '@/pages/LaLigaAdminPage'
+import { LaLigaSchedulePage } from '@/pages/LaLigaSchedulePage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
@@ -114,6 +117,7 @@ const router = createBrowserRouter([
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
   { path: '/play/foreigners', element: <ForeignersPage /> },
   { path: '/play/serie-a', element: <SerieAPage /> },
+  { path: '/play/la-liga', element: <LaLigaPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
   { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
@@ -166,6 +170,8 @@ const router = createBrowserRouter([
       { path: 'foreigners/schedule', element: <ForeignersSchedulePage /> },
       { path: 'serie-a', element: <SerieAAdminPage /> },
       { path: 'serie-a/schedule', element: <SerieASchedulePage /> },
+      { path: 'la-liga', element: <LaLigaAdminPage /> },
+      { path: 'la-liga/schedule', element: <LaLigaSchedulePage /> },
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
