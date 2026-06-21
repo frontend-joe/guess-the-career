@@ -82,6 +82,7 @@ interface SerieAPlayer {
   name: string
   photo_url: string | null
   apps: number
+  position: string | null
   hintClub: string | null
   clubWikiUrl: string | null
   years: string | null
@@ -103,20 +104,20 @@ function yearsSpan(raw: string[]): string | null {
 function getCountryPlayers(nationality: string): SerieAPlayer[] {
   const rows = sqlite
     .prepare(
-      `SELECT f.id, f.name, f.photo_url, cs.club, cs.apps, cs.years
+      `SELECT f.id, f.name, f.photo_url, f.position, cs.club, cs.apps, cs.years
        FROM footballers f
        JOIN career_stints cs ON cs.footballer_id = f.id AND cs.stint_type = 'senior'
        WHERE LOWER(f.nationality) = LOWER(?)`,
     )
     .all(nationality) as {
-    id: number; name: string; photo_url: string | null; club: string; apps: number | null; years: string | null
+    id: number; name: string; photo_url: string | null; position: string | null; club: string; apps: number | null; years: string | null
   }[]
 
   // group by player → italian apps + years per club
-  const players = new Map<number, { name: string; photo_url: string | null; byClub: Map<string, number>; yearsByClub: Map<string, string[]> }>()
+  const players = new Map<number, { name: string; photo_url: string | null; position: string | null; byClub: Map<string, number>; yearsByClub: Map<string, string[]> }>()
   for (const r of rows) {
     if (!isItalianClub(r.club)) continue
-    if (!players.has(r.id)) players.set(r.id, { name: r.name, photo_url: r.photo_url, byClub: new Map(), yearsByClub: new Map() })
+    if (!players.has(r.id)) players.set(r.id, { name: r.name, photo_url: r.photo_url, position: r.position, byClub: new Map(), yearsByClub: new Map() })
     const p = players.get(r.id)!
     const key = normalizeClubAlias(r.club)
     p.byClub.set(key, (p.byClub.get(key) ?? 0) + (r.apps ?? 0))
@@ -137,7 +138,7 @@ function getCountryPlayers(nationality: string): SerieAPlayer[] {
       if (apps > bestApps) { bestApps = apps; best = club }
     }
     out.push({
-      id, name: p.name, photo_url: p.photo_url, apps: total,
+      id, name: p.name, photo_url: p.photo_url, apps: total, position: p.position,
       hintClub: best, clubWikiUrl: best ? clubWikiUrl(best) : null,
       years: best ? yearsSpan(p.yearsByClub.get(best) ?? []) : null,
     })

@@ -8,6 +8,7 @@ import {
 } from "@/api/serie-a-schedule";
 import { OverallProgressScreen, type ProgressRound } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
@@ -51,7 +52,7 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   return false;
 }
 
-interface Player { id: number; name: string; photo_url: string | null; apps?: number; hintClub?: string | null; clubWikiUrl?: string | null; years?: string | null }
+interface Player { id: number; name: string; photo_url: string | null; apps?: number; position?: string | null; hintClub?: string | null; clubWikiUrl?: string | null; years?: string | null }
 
 function PlayerSlot({ index, player, hint }: { index: number; player: Player | null; hint?: Player | null }) {
   const showPlayer = useShowPlayer();
@@ -71,6 +72,7 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
           <span className="w-5 flex items-center justify-center shrink-0">
             <MiniClubBadge club={hint.hintClub ?? ""} wikipediaUrl={hint.clubWikiUrl ?? null} />
           </span>
+          {hint.position && <PositionBadge position={hint.position} />}
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
           {hint.years && <span className="text-xs text-gray-400 tabular-nums shrink-0">{hint.years}</span>}
         </div>
