@@ -160,6 +160,42 @@ export function isEnglishClub(club: string): boolean {
   return ENGLISH_CLUB_SET.has(normalizeClubAlias(club).toLowerCase())
 }
 
+// ── Italian clubs (curated) ─────────────────────────────────────────────────
+// Serie A + Serie B clubs (all-time top flight plus current/recent Serie B),
+// using the canonical name forms that appear in career_stints.club. Variant
+// spellings present in the data (Verona/Hellas Verona, Bari/A.S. Bari,
+// Vicenza/AC Vicenza 1902) are listed directly so membership is exact.
+export const ITALIAN_CLUBS: string[] = [
+  // Serie A mainstays
+  'AC Milan', 'Inter Milan', 'Juventus', 'Roma', 'Napoli', 'Lazio',
+  'Fiorentina', 'Torino', 'Genoa', 'Sampdoria', 'Atalanta', 'Bologna',
+  'Udinese', 'Parma', 'Cagliari', 'Sassuolo', 'Hellas Verona', 'Verona',
+  'Palermo', 'Empoli', 'Lecce', 'Brescia', 'Chievo', 'Siena', 'Catania',
+  'Bari', 'A.S. Bari', 'Pisa', 'Cremonese', 'Cesena', 'Frosinone', 'Spezia',
+  'Venezia', 'Monza', 'Salernitana', 'Crotone', 'Benevento', 'Reggina',
+  'Livorno', 'Piacenza', 'Ascoli', 'Perugia', 'Vicenza', 'AC Vicenza 1902',
+  'Foggia', 'Como', 'Modena', 'Ancona',
+  // Serie B / recent additions
+  'Pescara', 'Novara', 'Carpi', 'SPAL', 'Ternana', 'Cosenza', 'Cittadella',
+  'Padova', 'Reggiana', 'Avellino', 'Catanzaro', 'Lecco', 'Mantova',
+  'Messina', 'Treviso', 'Triestina', 'Alessandria', 'Trapani', 'Pistoiese',
+  'Pordenone', 'Südtirol', 'Juve Stabia',
+]
+
+const ITALIAN_CLUB_SET = new Set(
+  ITALIAN_CLUBS.map((c) => normalizeClubAlias(c).toLowerCase()),
+)
+
+export function isItalianClub(club: string): boolean {
+  return ITALIAN_CLUB_SET.has(normalizeClubAlias(club).toLowerCase())
+}
+
+// True when the nationality is Italian (so it can be excluded from the Serie A
+// "foreigners-in-Italy" game).
+export function isItaly(nat: string | null | undefined): boolean {
+  return allNationalityIsos(nat).has('IT')
+}
+
 // SELECT fragment computing a footballer's senior career start/end years (same
 // logic as the Style of Play game). Requires the outer query to alias the
 // footballers row as `f`. Pair with formatCareerYears() to get "1985–2002".

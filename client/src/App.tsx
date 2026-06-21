@@ -7,6 +7,9 @@ import { UsersPage } from '@/pages/UsersPage'
 import { ForeignersPage } from '@/pages/ForeignersPage'
 import { ForeignersAdminPage } from '@/pages/ForeignersAdminPage'
 import { ForeignersSchedulePage } from '@/pages/ForeignersSchedulePage'
+import { SerieAPage } from '@/pages/SerieAPage'
+import { SerieAAdminPage } from '@/pages/SerieAAdminPage'
+import { SerieASchedulePage } from '@/pages/SerieASchedulePage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
@@ -110,6 +113,7 @@ const router = createBrowserRouter([
   { path: '/play/world-cup', element: <WorldCupPage /> },
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
   { path: '/play/foreigners', element: <ForeignersPage /> },
+  { path: '/play/serie-a', element: <SerieAPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
   { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
@@ -160,6 +164,8 @@ const router = createBrowserRouter([
       { path: 'nationals/schedule', element: <NationalsSchedulePage /> },
       { path: 'foreigners', element: <ForeignersAdminPage /> },
       { path: 'foreigners/schedule', element: <ForeignersSchedulePage /> },
+      { path: 'serie-a', element: <SerieAAdminPage /> },
+      { path: 'serie-a/schedule', element: <SerieASchedulePage /> },
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
