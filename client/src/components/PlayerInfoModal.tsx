@@ -30,7 +30,7 @@ function CareerTable({ title, stints, international }: { title: string; stints: 
   if (stints.length === 0) return null
   return (
     <div>
-      <div className="bg-gray-100 text-gray-700 text-left px-3 text-xs font-bold uppercase tracking-wider py-1.5 border-y border-gray-200">
+      <div className="bg-gray-100 text-gray-700 text-left px-3 font-display text-sm tracking-tight py-1.5 border-y border-gray-200">
         {title}
       </div>
       <table className="w-full text-xs">
