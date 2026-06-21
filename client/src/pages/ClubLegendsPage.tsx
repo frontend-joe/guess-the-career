@@ -230,11 +230,18 @@ function PlayerSlot({
           >
             {player.name}
           </button>
-          {player.apps != null && (
-            <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">
-              {player.apps} apps
-            </span>
-          )}
+          <span className="ml-auto flex items-center gap-2 shrink-0">
+            {player.years && (
+              <span className="text-xs text-gray-400 tabular-nums">
+                {player.years}
+              </span>
+            )}
+            {player.apps != null && (
+              <span className="text-xs font-semibold text-gray-500 tabular-nums">
+                {player.apps} apps
+              </span>
+            )}
+          </span>
         </div>
       ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
