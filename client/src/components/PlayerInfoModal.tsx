@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { X, Loader2 } from 'lucide-react'
 import { getFootballerCard, type FootballerCard, type CardStint } from '@/api/footballers'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
-import { NationalityFlag } from '@/components/NationalityFlag'
 
 function formatDob(born: string | null): string | null {
   if (!born) return null
@@ -16,7 +15,10 @@ function formatDob(born: string | null): string | null {
 
 function formatHeight(cm: number | null): string | null {
   if (!cm) return null
-  return `${(cm / 100).toFixed(2)} m`
+  const totalInches = Math.round(cm / 2.54)
+  const ft = Math.floor(totalInches / 12)
+  const inches = totalInches % 12
+  return `${(cm / 100).toFixed(2)} m (${ft} ft ${inches} in)`
 }
 
 function appsGoals(s: CardStint): string {
@@ -24,7 +26,7 @@ function appsGoals(s: CardStint): string {
   return s.goals != null ? `${apps} (${s.goals})` : `${apps}`
 }
 
-function CareerTable({ title, stints }: { title: string; stints: CardStint[] }) {
+function CareerTable({ title, stints, international }: { title: string; stints: CardStint[]; international?: boolean }) {
   if (stints.length === 0) return null
   return (
     <div>
@@ -36,16 +38,16 @@ function CareerTable({ title, stints }: { title: string; stints: CardStint[] }) 
           <tr className="text-gray-400">
             <th className="text-left font-medium px-3 py-1 w-16">Years</th>
             <th className="text-left font-medium px-1 py-1">Team</th>
-            <th className="text-right font-medium px-3 py-1 whitespace-nowrap">Apps (Gls)</th>
+            <th className="text-right font-medium px-3 py-1 whitespace-nowrap">{international ? 'Caps (Gls)' : 'Apps (Gls)'}</th>
           </tr>
         </thead>
         <tbody>
           {stints.map((s, i) => (
             <tr key={i} className="border-t border-gray-100">
-              <td className="px-3 py-1.5 text-gray-500 tabular-nums align-top">{s.years}</td>
+              <td className="px-3 py-1.5 text-gray-500 tabular-nums align-top whitespace-nowrap">{s.years}</td>
               <td className="px-1 py-1.5">
                 <span className="flex items-center gap-1.5">
-                  <MiniClubBadge club={s.club} wikipediaUrl={s.club_wikipedia_url} size={16} />
+                  {!international && <MiniClubBadge club={s.club} wikipediaUrl={s.club_wikipedia_url} size={16} />}
                   <span className="text-gray-800">{s.club.replace(/^→\s*/, '')}</span>
                 </span>
               </td>
@@ -106,48 +108,47 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
   const intl = card?.stints.filter(s => s.stint_type === 'international') ?? []
 
   return createPortal(
-    <div className="fixed inset-0 z-80 flex items-center justify-center p-4 font-ui">
+    <div className="fixed inset-0 z-80 flex items-stretch justify-center p-6 font-sans">
       <div
         className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
         onClick={close}
       />
       <div
-        className={`relative z-10 w-full max-w-sm max-h-[85dvh] overflow-y-auto bg-white rounded-2xl shadow-2xl transition-all duration-200 ease-out ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+        className={`relative z-10 w-full max-w-sm overflow-hidden flex flex-col bg-white rounded-2xl shadow-2xl transition-all duration-200 ease-out ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
       >
         <button
           onClick={close}
           aria-label="Close"
-          className="absolute top-2 right-2 z-10 text-white/80 hover:text-white bg-black/20 hover:bg-black/40 rounded-full p-1 transition-colors"
+          className="absolute top-2 right-2 z-20 text-white hover:text-white bg-black/50 hover:bg-black/70 rounded-full p-1 transition-colors"
         >
           <X size={18} />
         </button>
 
+        <div className="flex-1 min-h-0 overflow-y-auto">
         {loading || !card ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="animate-spin text-gray-300" size={28} />
           </div>
         ) : (
           <>
-            {/* Header */}
-            <div className="bg-[#0b0c1a] text-white px-4 pt-5 pb-4 flex flex-col items-center gap-3">
+            {/* Header — photo fills the background with a gradient fade to the name */}
+            <div className="relative h-52 bg-[#0b0c1a] overflow-hidden">
               {card.photo_url && !imgFailed ? (
                 <img
                   src={card.photo_url}
                   alt={card.name}
-                  className="w-24 h-24 rounded-full object-cover border-2 border-white/15"
+                  className="absolute inset-0 w-full h-full object-cover object-top"
                   onError={() => setImgFailed(true)}
                 />
               ) : (
-                <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center text-3xl font-bold text-white/60">
+                <div className="absolute inset-0 flex items-center justify-center text-7xl font-bold text-white/15">
                   {card.name.charAt(0)}
                 </div>
               )}
-              <div className="text-center">
-                <h2 className="font-display text-lg leading-tight tracking-tight flex items-center justify-center gap-2">
-                  {card.name}
-                  {card.nationality && <NationalityFlag nationality={card.nationality} size={16} />}
-                </h2>
-              </div>
+              <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black via-black/55 to-transparent" />
+              <h2 className="absolute inset-x-0 bottom-0 px-4 pb-3 font-display text-xl text-white leading-tight tracking-tight">
+                {card.name}
+              </h2>
             </div>
 
             {/* Bio */}
@@ -155,7 +156,7 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
               <tbody>
                 <BioRow label="Full name" value={card.full_name} />
                 <BioRow label="Date of birth" value={formatDob(card.born)} />
-                <BioRow label="Place of birth" value={card.birthplace} />
+                <BioRow label="Birth place" value={card.birthplace} />
                 <BioRow label="Height" value={formatHeight(card.height_cm)} />
                 <BioRow label="Position" value={card.all_positions ?? card.position} />
               </tbody>
@@ -163,10 +164,11 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
 
             <div className="pb-2">
               <CareerTable title="Senior career" stints={senior} />
-              <CareerTable title="International career" stints={intl} />
+              <CareerTable title="International career" stints={intl} international />
             </div>
           </>
         )}
+        </div>
       </div>
     </div>,
     document.body,
