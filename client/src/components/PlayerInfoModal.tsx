@@ -75,13 +75,11 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
   const [visible, setVisible] = useState(false)
   const [card, setCard] = useState<FootballerCard | null>(null)
   const [loading, setLoading] = useState(false)
-  const [imgFailed, setImgFailed] = useState(false)
 
   useEffect(() => {
     if (footballerId == null) return
     setMounted(true)
     setCard(null)
-    setImgFailed(false)
     setLoading(true)
     requestAnimationFrame(() => setVisible(true))
     getFootballerCard(footballerId)
@@ -119,37 +117,22 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
         <button
           onClick={close}
           aria-label="Close"
-          className="absolute top-2 right-2 z-20 text-white hover:text-white bg-black/50 hover:bg-black/70 rounded-full p-1 transition-colors"
+          className="absolute top-3 right-3 z-20 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full p-1 transition-colors"
         >
           <X size={18} />
         </button>
 
         <div className="flex-1 min-h-0 overflow-y-auto">
         {loading || !card ? (
-          <div className="flex items-center justify-center py-20">
+          <div className="flex items-center justify-center h-full">
             <Loader2 className="animate-spin text-gray-300" size={28} />
           </div>
         ) : (
           <>
-            {/* Header — photo fills the background with a gradient fade to the name */}
-            <div className="relative h-52 bg-[#0b0c1a] overflow-hidden">
-              {card.photo_url && !imgFailed ? (
-                <img
-                  src={card.photo_url}
-                  alt={card.name}
-                  className="absolute inset-0 w-full h-full object-cover object-top"
-                  onError={() => setImgFailed(true)}
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-7xl font-bold text-white/15">
-                  {card.name.charAt(0)}
-                </div>
-              )}
-              <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black via-black/55 to-transparent" />
-              <h2 className="absolute inset-x-0 bottom-0 px-4 pb-3 font-display text-xl text-white leading-tight tracking-tight">
-                {card.name}
-              </h2>
-            </div>
+            {/* Name */}
+            <h2 className="px-4 pt-4 pb-3 pr-12 font-display text-xl text-gray-900 leading-tight tracking-tight">
+              {card.name}
+            </h2>
 
             {/* Bio */}
             <table className="w-full text-sm">
