@@ -97,6 +97,19 @@ interface LegendPlayer {
   apps: number;
   nationality: string | null;
   position: string | null;
+  years: string | null;
+}
+
+// Combine a player's stint "years" strings for one club into a single span,
+// e.g. "2004–2009|2011" -> "2004–2011".
+function yearsSpan(raw: string | null): string | null {
+  if (!raw) return null;
+  const nums = raw.match(/\d{4}/g);
+  if (!nums || nums.length === 0) return null;
+  const years = nums.map(Number);
+  const min = Math.min(...years);
+  const max = Math.max(...years);
+  return min === max ? String(min) : `${min}–${max}`;
 }
 
 // All players with >= MIN_APPS summed senior appearances for the club.
@@ -107,7 +120,8 @@ function getClubLegends(club: string): LegendPlayer[] {
     .prepare(
       `
     SELECT f.id, f.name, f.photo_url, f.nationality, f.position,
-           SUM(COALESCE(cs.apps, 0)) as total_apps
+           SUM(COALESCE(cs.apps, 0)) as total_apps,
+           GROUP_CONCAT(cs.years, '|') as years_raw
     FROM footballers f
     JOIN career_stints cs ON cs.footballer_id = f.id
       AND cs.stint_type = 'senior'
@@ -124,6 +138,7 @@ function getClubLegends(club: string): LegendPlayer[] {
     nationality: string | null;
     position: string | null;
     total_apps: number;
+    years_raw: string | null;
   }[];
 
   return rows.map((r) => ({
@@ -133,6 +148,7 @@ function getClubLegends(club: string): LegendPlayer[] {
     apps: r.total_apps,
     nationality: r.nationality,
     position: r.position,
+    years: yearsSpan(r.years_raw),
   }));
 }
 

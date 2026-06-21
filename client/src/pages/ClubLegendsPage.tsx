@@ -194,6 +194,7 @@ interface Player {
   apps?: number;
   nationality?: string | null;
   position?: string | null;
+  years?: string | null;
 }
 
 function PlayerSlot({
@@ -255,6 +256,11 @@ function PlayerSlot({
           )}
           {hint.position && <PositionBadge position={hint.position} />}
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
+          {hint.years && (
+            <span className="text-xs text-gray-400 tabular-nums shrink-0">
+              {hint.years}
+            </span>
+          )}
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />

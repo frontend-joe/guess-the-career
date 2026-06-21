@@ -98,6 +98,19 @@ interface MarksmanPlayer {
   goals: number;
   nationality: string | null;
   position: string | null;
+  years: string | null;
+}
+
+// Combine a player's stint "years" strings for one club into a single span,
+// e.g. "2004–2009|2011" -> "2004–2011".
+function yearsSpan(raw: string | null): string | null {
+  if (!raw) return null;
+  const nums = raw.match(/\d{4}/g);
+  if (!nums || nums.length === 0) return null;
+  const years = nums.map(Number);
+  const min = Math.min(...years);
+  const max = Math.max(...years);
+  return min === max ? String(min) : `${min}–${max}`;
 }
 
 // All players with >= MIN_GOALS summed senior goals for the club.
@@ -108,7 +121,8 @@ function getClubMarksmen(club: string): MarksmanPlayer[] {
     .prepare(
       `
     SELECT f.id, f.name, f.photo_url, f.nationality, f.position,
-           SUM(COALESCE(cs.goals, 0)) as total_goals
+           SUM(COALESCE(cs.goals, 0)) as total_goals,
+           GROUP_CONCAT(cs.years, '|') as years_raw
     FROM footballers f
     JOIN career_stints cs ON cs.footballer_id = f.id
       AND cs.stint_type = 'senior'
@@ -125,6 +139,7 @@ function getClubMarksmen(club: string): MarksmanPlayer[] {
     nationality: string | null;
     position: string | null;
     total_goals: number;
+    years_raw: string | null;
   }[];
 
   return rows.map((r) => ({
@@ -134,6 +149,7 @@ function getClubMarksmen(club: string): MarksmanPlayer[] {
     goals: r.total_goals,
     nationality: r.nationality,
     position: r.position,
+    years: yearsSpan(r.years_raw),
   }));
 }
 
