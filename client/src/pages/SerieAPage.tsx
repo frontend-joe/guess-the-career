@@ -202,9 +202,11 @@ export function SerieAPage() {
       } else {
         if (wrongTimer.current) clearTimeout(wrongTimer.current);
         const displayName = result.foundName ?? `"${name}"`;
+        const natWrong = result.reason === "wrong_nationality" || result.reason === "wrong_both";
         const msg = result.reason === "not_retired" ? `Correct, but ${displayName} isn't retired yet!`
+          : natWrong && result.foundNationality ? `${displayName} is actually ${result.foundNationality}`
           : result.reason === "wrong_club" ? `${displayName} didn't play in Serie A`
-          : result.reason === "wrong_nationality" ? (result.foundNationality ? `${displayName} is actually ${result.foundNationality}` : `${displayName} isn't ${currentRound.nationality}`)
+          : result.reason === "wrong_nationality" ? `${displayName} isn't ${currentRound.nationality}`
           : `${displayName} is not a valid answer`;
         setWrongGuessMsg(msg);
         wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);

@@ -283,7 +283,7 @@ serieARouter.post(
       const natOk = nationalitiesMatch(nat, nationality)
       const clubOk = stintClubs.some(isItalianClub)
       const reason: FailReason = !natOk && !clubOk ? 'wrong_both' : !natOk ? 'wrong_nationality' : 'wrong_club'
-      return { valid: false as const, foundName: name, foundNationality: reason === 'wrong_nationality' ? (nat ?? null) : null, imported: false, reason }
+      return { valid: false as const, foundName: name, foundNationality: !natOk ? (nat ?? null) : null, imported: false, reason }
     }
 
     const success = (f: { id: number; name: string; photo_url: string | null }, imported: boolean) => {
