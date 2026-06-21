@@ -18,6 +18,7 @@ import {
   type ProgressRound,
 } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
@@ -312,16 +313,19 @@ interface Player {
   id: number;
   name: string;
   photo_url: string | null;
+  position?: string | null;
+  years?: string | null;
 }
 
 function PlayerSlot({
   index,
   player,
+  hint,
 }: {
   index: number;
   player: Player | null;
+  hint?: Player | null;
 }) {
-  const [imgFailed, setImgFailed] = useState(false);
   const showPlayer = useShowPlayer();
 
   return (
@@ -334,19 +338,7 @@ function PlayerSlot({
         {index + 1}
       </span>
       {player ? (
-        <div className="flex items-center gap-2 min-w-0">
-          {player.photo_url && !imgFailed ? (
-            <img
-              src={player.photo_url}
-              alt={player.name}
-              className="w-7 h-7 rounded-full object-cover shrink-0"
-              onError={() => setImgFailed(true)}
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">
-              {player.name.charAt(0)}
-            </div>
-          )}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <button
             type="button"
             onClick={() => showPlayer(player.id)}
@@ -354,6 +346,16 @@ function PlayerSlot({
           >
             {player.name}
           </button>
+        </div>
+      ) : hint ? (
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {hint.position && <PositionBadge position={hint.position} />}
+          <div className="h-px bg-gray-200 flex-1 rounded-full" />
+          {hint.years && (
+            <span className="text-xs text-gray-400 tabular-nums shrink-0">
+              {hint.years}
+            </span>
+          )}
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
@@ -680,13 +682,20 @@ export function NationalityPlayersPage() {
   const guessedCount = validGuessedIds.size;
   const isDone = guessedCount >= target;
 
-  const foundPlayers: (Player | null)[] = Array.from(
+  // Guessed players fill slots first; remaining slots show a position + years
+  // hint drawn from the top still-unguessed players.
+  const guessedList = players
+    ? players.filter((p) => validGuessedIds.has(p.id))
+    : [];
+  const unguessedList = players
+    ? players.filter((p) => !validGuessedIds.has(p.id))
+    : [];
+  const slots: { player: Player | null; hint: Player | null }[] = Array.from(
     { length: target },
-    (_, i) => {
-      if (!players) return null;
-      const found = players.filter((p) => validGuessedIds.has(p.id));
-      return found[i] ?? null;
-    },
+    (_, i) =>
+      i < guessedList.length
+        ? { player: guessedList[i], hint: null }
+        : { player: null, hint: unguessedList[i - guessedList.length] ?? null },
   );
 
   if (loading) {
@@ -801,8 +810,8 @@ export function NationalityPlayersPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {foundPlayers.map((player, i) => (
-                      <PlayerSlot key={i} index={i} player={player} />
+                    {slots.map((s, i) => (
+                      <PlayerSlot key={i} index={i} player={s.player} hint={s.hint} />
                     ))}
                   </div>
                 )}

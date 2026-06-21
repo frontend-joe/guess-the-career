@@ -22,6 +22,18 @@ function getClubVariants(clubName: string): string[] {
   return [...base, ...base.map((v) => `→ ${v}`)];
 }
 
+// Combine a player's stint "years" strings for one club into a single span,
+// e.g. "2004–2009|2011" -> "2004–2011".
+function yearsSpan(raw: string | null): string | null {
+  if (!raw) return null;
+  const nums = raw.match(/\d{4}/g);
+  if (!nums || nums.length === 0) return null;
+  const years = nums.map(Number);
+  const min = Math.min(...years);
+  const max = Math.max(...years);
+  return min === max ? String(min) : `${min}–${max}`;
+}
+
 function hasClub(stintClubs: string[], targetClub: string): boolean {
   const variants = getClubVariants(targetClub);
   return stintClubs.some((c) => variants.includes(normalizeClubAlias(c)));
@@ -449,22 +461,36 @@ nationalsRouter.get("/answers", (c) => {
   const rows = sqlite
     .prepare(
       `
-    SELECT DISTINCT f.id, f.name, f.photo_url
+    SELECT f.id, f.name, f.photo_url, f.position,
+           GROUP_CONCAT(cs.years, '|') as years_raw,
+           SUM(COALESCE(cs.apps, 0)) as club_apps
     FROM footballers f
     JOIN career_stints cs ON cs.footballer_id = f.id
       AND cs.stint_type = 'senior'
       AND LOWER(cs.club) IN (${ph})
     WHERE LOWER(f.nationality) = LOWER(?)
-    ORDER BY f.name ASC
+    GROUP BY f.id
+    ORDER BY club_apps DESC, f.name ASC
   `,
     )
     .all(...variants, nationality) as {
     id: number;
     name: string;
     photo_url: string | null;
+    position: string | null;
+    years_raw: string | null;
+    club_apps: number;
   }[];
 
-  return c.json(rows);
+  return c.json(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      photo_url: r.photo_url,
+      position: r.position,
+      years: yearsSpan(r.years_raw),
+    })),
+  );
 });
 
 // POST /api/nationals/verify
