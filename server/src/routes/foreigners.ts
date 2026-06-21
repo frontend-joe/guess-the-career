@@ -84,6 +84,18 @@ interface ForeignPlayer {
   apps: number
   hintClub: string | null
   clubWikiUrl: string | null
+  years: string | null
+}
+
+// Combine a player's stint "years" strings for one club into a single span,
+// e.g. "2004–2009|2011" -> "2004–2011".
+function yearsSpan(raw: string[]): string | null {
+  const nums = raw.join('|').match(/\d{4}/g)
+  if (!nums || nums.length === 0) return null
+  const years = nums.map(Number)
+  const min = Math.min(...years)
+  const max = Math.max(...years)
+  return min === max ? String(min) : `${min}–${max}`
 }
 
 // All foreign players of a nationality who played for an English club, with the
@@ -91,23 +103,28 @@ interface ForeignPlayer {
 function getCountryPlayers(nationality: string): ForeignPlayer[] {
   const rows = sqlite
     .prepare(
-      `SELECT f.id, f.name, f.photo_url, cs.club, cs.apps
+      `SELECT f.id, f.name, f.photo_url, cs.club, cs.apps, cs.years
        FROM footballers f
        JOIN career_stints cs ON cs.footballer_id = f.id AND cs.stint_type = 'senior'
        WHERE LOWER(f.nationality) = LOWER(?)`,
     )
     .all(nationality) as {
-    id: number; name: string; photo_url: string | null; club: string; apps: number | null
+    id: number; name: string; photo_url: string | null; club: string; apps: number | null; years: string | null
   }[]
 
-  // group by player → english apps per club
-  const players = new Map<number, { name: string; photo_url: string | null; byClub: Map<string, number> }>()
+  // group by player → english apps + years per club
+  const players = new Map<number, { name: string; photo_url: string | null; byClub: Map<string, number>; yearsByClub: Map<string, string[]> }>()
   for (const r of rows) {
     if (!isEnglishClub(r.club)) continue
-    if (!players.has(r.id)) players.set(r.id, { name: r.name, photo_url: r.photo_url, byClub: new Map() })
+    if (!players.has(r.id)) players.set(r.id, { name: r.name, photo_url: r.photo_url, byClub: new Map(), yearsByClub: new Map() })
     const p = players.get(r.id)!
     const key = normalizeClubAlias(r.club)
     p.byClub.set(key, (p.byClub.get(key) ?? 0) + (r.apps ?? 0))
+    if (r.years) {
+      const arr = p.yearsByClub.get(key) ?? []
+      arr.push(r.years)
+      p.yearsByClub.set(key, arr)
+    }
   }
 
   const out: ForeignPlayer[] = []
@@ -122,6 +139,7 @@ function getCountryPlayers(nationality: string): ForeignPlayer[] {
     out.push({
       id, name: p.name, photo_url: p.photo_url, apps: total,
       hintClub: best, clubWikiUrl: best ? clubWikiUrl(best) : null,
+      years: best ? yearsSpan(p.yearsByClub.get(best) ?? []) : null,
     })
   }
   out.sort((a, b) => b.apps - a.apps || a.name.localeCompare(b.name))

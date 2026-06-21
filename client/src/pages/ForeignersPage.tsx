@@ -51,9 +51,9 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   return false;
 }
 
-interface Player { id: number; name: string; photo_url: string | null; apps?: number; hintClub?: string | null; clubWikiUrl?: string | null }
+interface Player { id: number; name: string; photo_url: string | null; apps?: number; hintClub?: string | null; clubWikiUrl?: string | null; years?: string | null }
 
-function PlayerSlot({ index, player }: { index: number; player: Player | null }) {
+function PlayerSlot({ index, player, hint }: { index: number; player: Player | null; hint?: Player | null }) {
   const showPlayer = useShowPlayer();
   return (
     <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${player ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
@@ -65,6 +65,14 @@ function PlayerSlot({ index, player }: { index: number; player: Player | null })
           </span>
           <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
           {player.apps != null && <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
+        </div>
+      ) : hint ? (
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="w-5 flex items-center justify-center shrink-0">
+            <MiniClubBadge club={hint.hintClub ?? ""} wikipediaUrl={hint.clubWikiUrl ?? null} />
+          </span>
+          <div className="h-px bg-gray-200 flex-1 rounded-full" />
+          {hint.years && <span className="text-xs text-gray-400 tabular-nums shrink-0">{hint.years}</span>}
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
@@ -235,10 +243,17 @@ export function ForeignersPage() {
   const validGuessedIds = players ? new Set(players.filter((p) => currentState!.guessedIds.has(p.id)).map((p) => p.id)) : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
   const isDone = guessedCount >= target;
-  const foundPlayers: (Player | null)[] = Array.from({ length: target }, (_, i) => {
-    if (!players) return null;
-    return players.filter((p) => validGuessedIds.has(p.id))[i] ?? null;
-  });
+  // Guessed players fill slots first; remaining slots show a club-logo hint
+  // drawn from the top still-unguessed players.
+  const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
+  const unguessedList = players ? players.filter((p) => !validGuessedIds.has(p.id)) : [];
+  const slots: { player: Player | null; hint: Player | null }[] = Array.from(
+    { length: target },
+    (_, i) =>
+      i < guessedList.length
+        ? { player: guessedList[i], hint: null }
+        : { player: null, hint: unguessedList[i - guessedList.length] ?? null },
+  );
 
   const flagUrl = currentRound ? nationalityToFlagUrl(currentRound.nationality) : null;
 
@@ -290,7 +305,7 @@ export function ForeignersPage() {
                   <div className="flex items-center justify-center py-8"><Loader2 className="animate-spin text-gray-300" size={22} /></div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {foundPlayers.map((player, i) => <PlayerSlot key={i} index={i} player={player} />)}
+                    {slots.map((s, i) => <PlayerSlot key={i} index={i} player={s.player} hint={s.hint} />)}
                   </div>
                 )}
               </div>
