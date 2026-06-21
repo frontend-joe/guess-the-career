@@ -90,6 +90,7 @@ interface VerifyResult {
   clubWikiUrl?: string | null;
   apps?: number;
   foundName?: string;
+  foundNationality?: string | null;
   imported: boolean;
   reason?: "not_retired" | "wrong_nationality" | "wrong_club" | "wrong_both";
 }
@@ -199,7 +200,7 @@ export function ForeignersPage() {
         const displayName = result.foundName ?? `"${name}"`;
         const msg = result.reason === "not_retired" ? `Correct, but ${displayName} isn't retired yet!`
           : result.reason === "wrong_club" ? `${displayName} didn't play for an English club`
-          : result.reason === "wrong_nationality" ? `${displayName} isn't ${currentRound.nationality}`
+          : result.reason === "wrong_nationality" ? (result.foundNationality ? `${displayName} is actually ${result.foundNationality}` : `${displayName} isn't ${currentRound.nationality}`)
           : `${displayName} is not a valid answer`;
         setWrongGuessMsg(msg);
         wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
