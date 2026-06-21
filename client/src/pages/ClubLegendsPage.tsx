@@ -624,7 +624,7 @@ export function ClubLegendsPage() {
             {currentRound && (
               <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
                 {/* Club header */}
-                <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3 overflow-hidden">
+                <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-6 pb-5 flex flex-col items-center gap-3 overflow-hidden">
                   {currentRound.legendCount < 15 ? (
                     <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-red-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                       Solid
@@ -638,9 +638,6 @@ export function ClubLegendsPage() {
                       Easy
                     </div>
                   )}
-                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">
-                    {currentRound.club} Legends
-                  </span>
                   <ClubBadge
                     name={currentRound.club}
                     wikiUrl={currentRound.clubWikiUrl}
