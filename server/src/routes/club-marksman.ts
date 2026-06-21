@@ -153,6 +153,27 @@ function getClubMarksmen(club: string): MarksmanPlayer[] {
   }));
 }
 
+// Full player payload for a verified guess so the revealed row has the same
+// flag/position/years data the answers list would, without needing a refresh.
+function verifiedMarksman(
+  club: string,
+  id: number,
+  fallback: { name: string; photo_url: string | null },
+): MarksmanPlayer {
+  const found = getClubMarksmen(club).find((p) => p.id === id);
+  return (
+    found ?? {
+      id,
+      name: fallback.name,
+      photo_url: fallback.photo_url,
+      goals: 0,
+      nationality: null,
+      position: null,
+      years: null,
+    }
+  );
+}
+
 // GET /api/club-marksman/admin/clubs
 clubMarksmanRouter.get("/admin/clubs", (c) => {
   const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
@@ -420,11 +441,7 @@ clubMarksmanRouter.post(
       if (checkQualifies(stints)) {
         return c.json({
           valid: true,
-          footballer: {
-            id: footballer.id,
-            name: footballer.name,
-            photo_url: footballer.photo_url,
-          },
+          footballer: verifiedMarksman(club, footballer.id, footballer),
           imported: false,
         });
       }
@@ -469,11 +486,7 @@ clubMarksmanRouter.post(
           if (checkQualifies(stints)) {
             return c.json({
               valid: true,
-              footballer: {
-                id: footballer.id,
-                name: footballer.name,
-                photo_url: footballer.photo_url,
-              },
+              footballer: verifiedMarksman(club, footballer.id, footballer),
               imported: true,
             });
           }
@@ -556,11 +569,7 @@ clubMarksmanRouter.post(
           if (checkQualifies(stints)) {
             return c.json({
               valid: true,
-              footballer: {
-                id: byUrl.id,
-                name: byUrl.name,
-                photo_url: byUrl.photo_url,
-              },
+              footballer: verifiedMarksman(club, byUrl.id, byUrl),
               imported: false,
             });
           }
@@ -627,11 +636,10 @@ clubMarksmanRouter.post(
           }
           return c.json({
             valid: true,
-            footballer: {
-              id: knownRecord.id,
+            footballer: verifiedMarksman(club, knownRecord.id, {
               name: knownRecord.name,
               photo_url: scraped.photo_url ?? knownRecord.photo_url,
-            },
+            }),
             imported: true,
           });
         }
@@ -667,11 +675,10 @@ clubMarksmanRouter.post(
 
         return c.json({
           valid: true,
-          footballer: {
-            id: newFootballer.id,
+          footballer: verifiedMarksman(club, newFootballer.id, {
             name: newFootballer.name,
             photo_url: newFootballer.photo_url ?? null,
-          },
+          }),
           imported: true,
         });
       }

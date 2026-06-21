@@ -269,7 +269,7 @@ interface RoundState {
 
 interface VerifyResult {
   valid: boolean;
-  footballer: { id: number; name: string; photo_url: string | null } | null;
+  footballer: Player | null;
   foundName?: string;
   appsAtClub?: number;
   imported: boolean;

@@ -152,6 +152,27 @@ function getClubLegends(club: string): LegendPlayer[] {
   }));
 }
 
+// Full player payload for a verified guess so the revealed row has the same
+// flag/position/years data the answers list would, without needing a refresh.
+function verifiedLegend(
+  club: string,
+  id: number,
+  fallback: { name: string; photo_url: string | null },
+): LegendPlayer {
+  const found = getClubLegends(club).find((p) => p.id === id);
+  return (
+    found ?? {
+      id,
+      name: fallback.name,
+      photo_url: fallback.photo_url,
+      apps: 0,
+      nationality: null,
+      position: null,
+      years: null,
+    }
+  );
+}
+
 // GET /api/club-legends/admin/clubs
 clubLegendsRouter.get("/admin/clubs", (c) => {
   const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
@@ -419,11 +440,7 @@ clubLegendsRouter.post(
       if (checkQualifies(stints)) {
         return c.json({
           valid: true,
-          footballer: {
-            id: footballer.id,
-            name: footballer.name,
-            photo_url: footballer.photo_url,
-          },
+          footballer: verifiedLegend(club, footballer.id, footballer),
           imported: false,
         });
       }
@@ -468,11 +485,7 @@ clubLegendsRouter.post(
           if (checkQualifies(stints)) {
             return c.json({
               valid: true,
-              footballer: {
-                id: footballer.id,
-                name: footballer.name,
-                photo_url: footballer.photo_url,
-              },
+              footballer: verifiedLegend(club, footballer.id, footballer),
               imported: true,
             });
           }
@@ -555,11 +568,7 @@ clubLegendsRouter.post(
           if (checkQualifies(stints)) {
             return c.json({
               valid: true,
-              footballer: {
-                id: byUrl.id,
-                name: byUrl.name,
-                photo_url: byUrl.photo_url,
-              },
+              footballer: verifiedLegend(club, byUrl.id, byUrl),
               imported: false,
             });
           }
@@ -626,11 +635,10 @@ clubLegendsRouter.post(
           }
           return c.json({
             valid: true,
-            footballer: {
-              id: knownRecord.id,
+            footballer: verifiedLegend(club, knownRecord.id, {
               name: knownRecord.name,
               photo_url: scraped.photo_url ?? knownRecord.photo_url,
-            },
+            }),
             imported: true,
           });
         }
@@ -666,11 +674,10 @@ clubLegendsRouter.post(
 
         return c.json({
           valid: true,
-          footballer: {
-            id: newFootballer.id,
+          footballer: verifiedLegend(club, newFootballer.id, {
             name: newFootballer.name,
             photo_url: newFootballer.photo_url ?? null,
-          },
+          }),
           imported: true,
         });
       }
