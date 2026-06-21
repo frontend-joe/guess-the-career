@@ -206,7 +206,6 @@ function PlayerSlot({
   player: Player | null;
   hint?: Player | null;
 }) {
-  const [imgFailed, setImgFailed] = useState(false);
   const showPlayer = useShowPlayer();
 
   return (
@@ -220,18 +219,6 @@ function PlayerSlot({
       </span>
       {player ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {player.photo_url && !imgFailed ? (
-            <img
-              src={player.photo_url}
-              alt={player.name}
-              className="w-7 h-7 rounded-full object-cover shrink-0"
-              onError={() => setImgFailed(true)}
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-xs font-bold text-gray-400">
-              {player.name.charAt(0)}
-            </div>
-          )}
           {player.nationality && (
             <NationalityFlag nationality={player.nationality} size={14} />
           )}
