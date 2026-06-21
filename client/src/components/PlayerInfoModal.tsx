@@ -30,7 +30,7 @@ function CareerTable({ title, stints, international }: { title: string; stints: 
   if (stints.length === 0) return null
   return (
     <div>
-      <div className="bg-gray-100 text-gray-700 text-center text-xs font-bold uppercase tracking-wider py-1.5 border-y border-gray-200">
+      <div className="bg-gray-100 text-gray-700 text-left px-3 text-xs font-bold uppercase tracking-wider py-1.5 border-y border-gray-200">
         {title}
       </div>
       <table className="w-full text-xs">
@@ -141,7 +141,7 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
                 <BioRow label="Date of birth" value={formatDob(card.born)} />
                 <BioRow label="Birth place" value={card.birthplace} />
                 <BioRow label="Height" value={formatHeight(card.height_cm)} />
-                <BioRow label="Position" value={card.all_positions ?? card.position} />
+                <BioRow label="Position" value={card.position ?? card.all_positions} />
               </tbody>
             </table>
 
