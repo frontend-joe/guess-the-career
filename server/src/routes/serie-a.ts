@@ -14,7 +14,7 @@ import {
 
 export const serieARouter = new Hono()
 
-const MIN_PLAYERS = 5
+const MIN_PLAYERS = 3
 
 function clubWikiUrl(club: string): string | null {
   const row = sqlite

@@ -52,6 +52,12 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   return false;
 }
 
+// Small countries can have fewer players than the configured round size, so the
+// number to guess is capped at how many players actually qualify.
+function roundTarget(r: { roundSize: number; playerCount: number }): number {
+  return r.playerCount > 0 ? Math.min(r.roundSize, r.playerCount) : r.roundSize;
+}
+
 interface Player { id: number; name: string; photo_url: string | null; apps?: number; position?: string | null; hintClub?: string | null; clubWikiUrl?: string | null; years?: string | null }
 
 function PlayerSlot({ index, player, hint }: { index: number; player: Player | null; hint?: Player | null }) {
@@ -173,7 +179,7 @@ export function LaLigaPage() {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
-    const target = currentRound.roundSize;
+    const target = roundTarget(currentRound);
     const activeGuesses = players.filter((p) => currentState.guessedIds.has(p.id)).length;
     if (activeGuesses >= target) return;
     if (players.filter((p) => currentState.guessedIds.has(p.id)).some((p) => matchesPlayer(name, p.name))) return;
@@ -229,7 +235,7 @@ export function LaLigaPage() {
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
     const state = roundStates[r.nationality];
     const validIds = state?.players ? state.players.filter((p) => state.guessedIds.has(p.id)).length : (state?.guessedIds.size ?? 0);
-    const target = r.roundSize;
+    const target = roundTarget(r);
     return {
       name: (<span className="text-xs font-medium"><span className="text-gray-400 mr-1">#{i + 1}</span>{r.nationality}</span>),
       icon: <span className="w-5 h-4 inline-flex items-center justify-center">{nationalityToFlagUrl(r.nationality) ? <img src={nationalityToFlagUrl(r.nationality)!} alt={r.nationality} className="w-5 h-3.5 object-cover border border-[#ebebeb]" /> : null}</span>,
@@ -238,7 +244,7 @@ export function LaLigaPage() {
     };
   });
 
-  const totalGuessed = rounds.filter((r) => (roundStates[r.nationality]?.guessedIds.size ?? 0) >= r.roundSize).length;
+  const totalGuessed = rounds.filter((r) => (roundStates[r.nationality]?.guessedIds.size ?? 0) >= roundTarget(r)).length;
   const totalPlayers = rounds.length;
 
   const filteredProgress = progressRounds.map((r, i) => ({ r, i })).filter(({ i }) => !progressSearch.trim() || rounds[i].nationality.toLowerCase().includes(progressSearch.toLowerCase()));
@@ -246,7 +252,7 @@ export function LaLigaPage() {
   const filteredOriginalIndices = filteredProgress.map((d) => d.i);
 
   const players = currentState?.players ?? null;
-  const target = currentRound?.roundSize ?? 5;
+  const target = currentRound ? roundTarget(currentRound) : 5;
   const validGuessedIds = players ? new Set(players.filter((p) => currentState!.guessedIds.has(p.id)).map((p) => p.id)) : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
   const isDone = guessedCount >= target;
