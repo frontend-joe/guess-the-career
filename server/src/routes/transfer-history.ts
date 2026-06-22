@@ -617,7 +617,9 @@ transferHistoryRouter.get('/schedule/rounds', (c) => {
     .all() as { date: string; window_id: number; league: string; season_label: string }[]
 
   const rounds = rows.map((row) => {
-    const transfers = windowTransfers(row.window_id)
+    // Only the top 10 transfers (by fee) need to be guessed in the game; the
+    // admin view still shows the full window via windowTransfers().
+    const transfers = windowTransfers(row.window_id).slice(0, 10)
     return {
       date: row.date,
       windowId: row.window_id,

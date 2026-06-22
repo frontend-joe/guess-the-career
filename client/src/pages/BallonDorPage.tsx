@@ -121,7 +121,9 @@ function buildRounds(data: BallonDorRound[], saved: SavedProgress): RoundResult[
       year: r.year,
       players: r.players,
       playerNames: r.playerNames,
-      guessedIndices: prog ? new Set(prog.guessedIndices) : new Set<number>(),
+      // Clamp any saved indices to the current player list (now top 10) so old
+      // progress from when full rankings were shown doesn't inflate counts.
+      guessedIndices: prog ? new Set(prog.guessedIndices.filter((i) => i < r.players.length)) : new Set<number>(),
       wrongGuesses: new Set(prog?.wrongGuesses ?? []),
       state: prog?.state ?? 'playing',
     }

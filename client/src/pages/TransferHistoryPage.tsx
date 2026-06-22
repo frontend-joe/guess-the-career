@@ -107,7 +107,9 @@ function buildRounds(data: TransferScheduleRound[], saved: SavedProgress): Round
       seasonLabel: r.seasonLabel,
       transfers: r.transfers,
       playerNames: r.playerNames,
-      guessedIndices: prog ? new Set(prog.guessedIndices) : new Set<number>(),
+      // Clamp saved indices to the current transfer list (now top 10) so old
+      // progress from when full windows were shown doesn't inflate counts.
+      guessedIndices: prog ? new Set(prog.guessedIndices.filter((i) => i < r.transfers.length)) : new Set<number>(),
       wrongGuesses: new Set(prog?.wrongGuesses ?? []),
       state: prog?.state ?? "playing",
     };

@@ -79,6 +79,7 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
       LEFT JOIN footballers f2 ON bdp.footballer_id IS NULL AND LOWER(f2.name) = LOWER(bdp.name)
       WHERE bdp.ballon_dor_id = ?
       ORDER BY bdp.rank ASC
+      LIMIT 10
     `).all(row.ballon_dor_id) as {
       id: number
       name: string
