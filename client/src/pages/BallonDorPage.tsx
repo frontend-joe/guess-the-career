@@ -352,7 +352,7 @@ export function BallonDorPage() {
                         className="border-b border-gray-100 last:border-0 h-9"
                       >
                         <td className="text-xs text-gray-400 tabular-nums text-center px-3">
-                          {player.rank}
+                          {i + 1}
                         </td>
                         <td className="px-2">
                           <div className="flex items-center gap-1.5 min-w-0">
