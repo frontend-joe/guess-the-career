@@ -43,6 +43,15 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   return false;
 }
 
+// Display certain relationships as a symmetric family label.
+function relationshipLabel(rel: string | null): string {
+  if (!rel) return "Related";
+  const r = rel.toLowerCase();
+  if (r === "uncle" || r === "nephew") return "Uncle/nephew";
+  if (r === "son" || r === "father" || r === "dad") return "Father/son";
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
+
 // ─── Member row ───────────────────────────────────────────────────────────────
 function MemberRow({ m, guessed }: { m: FamilyMember; guessed: boolean }) {
   const showPlayer = useShowPlayer();
@@ -140,7 +149,7 @@ export function FootballFamiliesPage() {
             {families.map((f, i) => (
               <div key={i} className="relative mt-1">
                 <span className="absolute -top-2 left-3 z-10 px-1.5 bg-gray-50 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                  {f.relationship ? f.relationship.charAt(0).toUpperCase() + f.relationship.slice(1) : "Related"}
+                  {relationshipLabel(f.relationship)}
                 </span>
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
                   {f.members.map((m) => (

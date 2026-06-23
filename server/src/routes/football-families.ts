@@ -250,33 +250,31 @@ interface FamilyMember {
   years: string | null
 }
 
-// The club a player made the most senior appearances for.
-function topClub(footballerId: number): { name: string; wikiUrl: string | null } | null {
-  const stints = sqlite
-    .prepare(`SELECT club, apps, club_wikipedia_url FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
-    .all(footballerId) as { club: string; apps: number | null; club_wikipedia_url: string | null }[]
-  const byClub = new Map<string, { apps: number; name: string; wikiUrl: string | null }>()
-  for (const s of stints) {
-    const key = normalizeClubAlias(s.club)
-    const name = s.club.replace(/^→\s*/, '').replace(/\s*\((loan|trial)\)\s*$/i, '')
-    const cur = byClub.get(key) ?? { apps: 0, name, wikiUrl: s.club_wikipedia_url }
-    cur.apps += s.apps ?? 0
-    if (s.club_wikipedia_url && !cur.wikiUrl) cur.wikiUrl = s.club_wikipedia_url
-    byClub.set(key, cur)
-  }
-  let best: { apps: number; name: string; wikiUrl: string | null } | null = null
-  for (const v of byClub.values()) if (!best || v.apps > best.apps) best = v
-  return best ? { name: best.name, wikiUrl: best.wikiUrl } : null
-}
-
-function careerYears(footballerId: number): string | null {
-  const rows = sqlite
-    .prepare(`SELECT years FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
-    .all(footballerId) as { years: string | null }[]
-  const nums = rows.flatMap((r) => (r.years?.match(/\d{4}/g) ?? []).map(Number))
+function yearsSpan(nums: number[]): string | null {
   if (nums.length === 0) return null
   const min = Math.min(...nums), max = Math.max(...nums)
   return min === max ? String(min) : `${min}–${max}`
+}
+
+// The club a player made the most senior appearances for, plus the years they
+// were at that club.
+function topClub(footballerId: number): { name: string; wikiUrl: string | null; years: string | null } | null {
+  const stints = sqlite
+    .prepare(`SELECT club, apps, years, club_wikipedia_url FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
+    .all(footballerId) as { club: string; apps: number | null; years: string | null; club_wikipedia_url: string | null }[]
+  const byClub = new Map<string, { apps: number; name: string; wikiUrl: string | null; years: number[] }>()
+  for (const s of stints) {
+    const key = normalizeClubAlias(s.club)
+    const name = s.club.replace(/^→\s*/, '').replace(/\s*\((loan|trial)\)\s*$/i, '')
+    const cur = byClub.get(key) ?? { apps: 0, name, wikiUrl: s.club_wikipedia_url, years: [] }
+    cur.apps += s.apps ?? 0
+    if (s.club_wikipedia_url && !cur.wikiUrl) cur.wikiUrl = s.club_wikipedia_url
+    cur.years.push(...(s.years?.match(/\d{4}/g) ?? []).map(Number))
+    byClub.set(key, cur)
+  }
+  let best: { apps: number; name: string; wikiUrl: string | null; years: number[] } | null = null
+  for (const v of byClub.values()) if (!best || v.apps > best.apps) best = v
+  return best ? { name: best.name, wikiUrl: best.wikiUrl, years: yearsSpan(best.years) } : null
 }
 
 function buildMember(id: number): FamilyMember {
@@ -290,7 +288,7 @@ function buildMember(id: number): FamilyMember {
     position: f.position,
     clubName: tc?.name ?? null,
     clubWikiUrl: tc?.wikiUrl ?? null,
-    years: careerYears(id),
+    years: tc?.years ?? null,
   }
 }
 
