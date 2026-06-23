@@ -15,6 +15,8 @@ interface DualPlayer {
   footballerId: number
   name: string
   photo_url: string | null
+  position: string | null
+  years: string | null
   nations: Nation[]
 }
 
@@ -30,7 +32,7 @@ function yearsSpan(years: number[]): string | null {
 function computeCandidates(): DualPlayer[] {
   const rows = sqlite
     .prepare(
-      `SELECT cs.footballer_id, f.name, f.photo_url, cs.club, cs.years
+      `SELECT cs.footballer_id, f.name, f.photo_url, f.position, cs.club, cs.years
        FROM career_stints cs
        JOIN footballers f ON f.id = cs.footballer_id
        WHERE cs.stint_type = 'international'`,
@@ -39,6 +41,7 @@ function computeCandidates(): DualPlayer[] {
     footballer_id: number
     name: string
     photo_url: string | null
+    position: string | null
     club: string
     years: string | null
   }[]
@@ -46,17 +49,18 @@ function computeCandidates(): DualPlayer[] {
   type Group = { name: string; latestYear: number; years: number[] }
   const players = new Map<
     number,
-    { name: string; photo_url: string | null; byIso: Map<string, Group> }
+    { name: string; photo_url: string | null; position: string | null; allYears: number[]; byIso: Map<string, Group> }
   >()
 
   for (const r of rows) {
     const iso = nationIso(r.club)
     if (!iso) continue
     if (!players.has(r.footballer_id)) {
-      players.set(r.footballer_id, { name: r.name, photo_url: r.photo_url, byIso: new Map() })
+      players.set(r.footballer_id, { name: r.name, photo_url: r.photo_url, position: r.position, allYears: [], byIso: new Map() })
     }
     const p = players.get(r.footballer_id)!
     const nums = (r.years?.match(/\d{4}/g) ?? []).map(Number)
+    p.allYears.push(...nums)
     const maxYear = nums.length ? Math.max(...nums) : 0
     const display = baseNation(r.club)
     const g = p.byIso.get(iso)
@@ -89,6 +93,8 @@ function computeCandidates(): DualPlayer[] {
       footballerId,
       name: p.name,
       photo_url: p.photo_url,
+      position: p.position,
+      years: yearsSpan(p.allYears),
       nations: nations.map(({ name, years }) => ({ name, years })),
     })
   }

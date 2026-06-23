@@ -7,6 +7,8 @@ export interface DualNationalityPlayer {
   footballerId: number
   name: string
   photo_url: string | null
+  position: string | null
+  years: string | null
   nations: DualNation[]
 }
 

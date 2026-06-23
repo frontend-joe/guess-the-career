@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { GameMenu } from "@/components/GameMenu";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
+import { PositionBadge } from "@/components/PositionBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { getAnswers, type DualNationalityPlayer } from "@/api/dual-nationality";
 
@@ -59,25 +60,15 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 }
 
 // ─── Player row ───────────────────────────────────────────────────────────────
-function NationsHint({ nations }: { nations: DualNationalityPlayer["nations"] }) {
-  return (
-    <span className="flex items-center gap-2 shrink-0">
-      {nations.map((n, i) => (
-        <span key={i} className="flex items-center gap-1">
-          <NationalityFlag nationality={n.name} size={14} />
-          {n.years && <span className="text-xs text-gray-400 tabular-nums">{n.years}</span>}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-function PlayerRow({ index, player, guessed }: { index: number; player: DualNationalityPlayer; guessed: boolean }) {
+function PlayerRow({ player, guessed }: { player: DualNationalityPlayer; guessed: boolean }) {
   const showPlayer = useShowPlayer();
   return (
-    <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${guessed ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
-      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${guessed ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}>
-        {index + 1}
+    <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border transition-colors ${guessed ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
+      <span className="flex items-center gap-1.5 shrink-0">
+        {player.nations.map((n, i) => (
+          <NationalityFlag key={i} nationality={n.name} size={16} />
+        ))}
+        {player.position && <PositionBadge position={player.position} />}
       </span>
       {guessed ? (
         <button
@@ -90,7 +81,7 @@ function PlayerRow({ index, player, guessed }: { index: number; player: DualNati
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
       )}
-      <NationsHint nations={player.nations} />
+      {player.years && <span className="text-xs text-gray-400 tabular-nums shrink-0">{player.years}</span>}
     </div>
   );
 }
@@ -173,12 +164,8 @@ export function DualNationalityPage() {
           </div>
         ) : (
           <div className="px-3 pt-4 pb-2 flex flex-col gap-2">
-            <div className="bg-white rounded-2xl border border-gray-200 px-4 py-4 flex flex-col items-center gap-1 mb-1">
-              <span className="text-gray-800 font-bold text-lg">Dual Nationality</span>
-              <span className="text-gray-400 text-[11px] text-center">Players who represented two different nations</span>
-            </div>
-            {players.map((p, i) => (
-              <PlayerRow key={p.footballerId} index={i} player={p} guessed={guessedIds.has(p.footballerId)} />
+            {players.map((p) => (
+              <PlayerRow key={p.footballerId} player={p} guessed={guessedIds.has(p.footballerId)} />
             ))}
           </div>
         )}
