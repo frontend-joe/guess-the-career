@@ -1,2 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "yarn", "python3"]
+# gcc + gnumake give node-gyp a C/C++ toolchain so native modules
+# (better-sqlite3) can compile from source when prebuilt binaries are
+# unavailable / the prebuild download times out.
+nixPkgs = ["nodejs_20", "yarn", "python3", "gcc", "gnumake"]
+
+# Point node-gyp/make at the gcc package's compilers explicitly (the nix env
+# doesn't always expose a bare `cc`).
+[variables]
+CC = "gcc"
+CXX = "g++"
