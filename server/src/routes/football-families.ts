@@ -319,6 +319,42 @@ footballFamiliesRouter.get('/game', (c) => {
   return c.json(families)
 })
 
+// POST /api/football-families/manual { footballerName, relativeName, relationship }
+// Manually add a relationship the scan missed. Both players must be in the DB.
+// Resolved by name so the same call works across environments. Marked included.
+footballFamiliesRouter.post(
+  '/manual',
+  zValidator('json', z.object({
+    footballerName: z.string().min(1),
+    relativeName: z.string().min(1),
+    relationship: z.string().min(1),
+  })),
+  (c) => {
+    const { footballerName, relativeName, relationship } = c.req.valid('json')
+    const find = (n: string) =>
+      sqlite
+        .prepare(`SELECT id, name, wikipedia_url FROM footballers WHERE LOWER(normalize(name)) = LOWER(normalize(?)) LIMIT 1`)
+        .get(n) as { id: number; name: string; wikipedia_url: string | null } | undefined
+    const a = find(footballerName)
+    const b = find(relativeName)
+    const unresolved: string[] = []
+    if (!a) unresolved.push(footballerName)
+    if (!b) unresolved.push(relativeName)
+    if (!a || !b) return c.json({ error: 'not_found', unresolved }, 404)
+    if (a.id === b.id) return c.json({ error: 'same_player' }, 400)
+    sqlite
+      .prepare(
+        `INSERT INTO football_family_links
+         (footballer_id, relative_name, relative_wikipedia_url, relationship, relative_footballer_id, included)
+         VALUES (?, ?, ?, ?, ?, 1)
+         ON CONFLICT(footballer_id, relative_wikipedia_url)
+         DO UPDATE SET relationship = excluded.relationship, relative_footballer_id = excluded.relative_footballer_id, included = 1`,
+      )
+      .run(a.id, b.name, b.wikipedia_url, relationship, b.id)
+    return c.json({ ok: true })
+  },
+)
+
 // DELETE /api/football-families — clear all detected links
 footballFamiliesRouter.delete('/', (c) => {
   sqlite.prepare(`DELETE FROM football_family_links`).run()

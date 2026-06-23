@@ -8,6 +8,7 @@ import {
   scanFamilyBatch,
   setFamilyIncluded,
   scrapeRelative,
+  addManualFamily,
   type FamilyLink,
 } from '@/api/football-families'
 
@@ -145,6 +146,23 @@ export function FootballFamiliesAdminPage() {
     load()
   }
 
+  const [mA, setMA] = useState('')
+  const [mB, setMB] = useState('')
+  const [mRel, setMRel] = useState('')
+  const [mMsg, setMMsg] = useState<string | null>(null)
+
+  async function addManual(e: React.FormEvent) {
+    e.preventDefault()
+    if (!mA.trim() || !mB.trim() || !mRel.trim()) return
+    const res = await addManualFamily(mA.trim(), mB.trim(), mRel.trim())
+    if (res.ok) {
+      setMMsg(null); setMA(''); setMB(''); setMRel('')
+      load()
+    } else {
+      setMMsg(res.unresolved?.length ? `Not found: ${res.unresolved.join(', ')}` : (res.error ?? 'Failed'))
+    }
+  }
+
   const includedCount = rows.filter((r) => r.included).length
   const missingChecked = rows.filter((r) => r.included && !r.inDb).length
 
@@ -181,6 +199,14 @@ export function FootballFamiliesAdminPage() {
           )}
         </div>
       </div>
+
+      <form onSubmit={addManual} className="mb-6 flex flex-wrap items-center gap-2">
+        <input value={mA} onChange={(e) => setMA(e.target.value)} placeholder="Player" className="text-sm border border-input rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring w-40" />
+        <input value={mB} onChange={(e) => setMB(e.target.value)} placeholder="Relative" className="text-sm border border-input rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring w-40" />
+        <input value={mRel} onChange={(e) => setMRel(e.target.value)} placeholder="Relationship (e.g. uncle)" className="text-sm border border-input rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring w-44" />
+        <Button type="submit" size="sm" variant="outline">Add manually</Button>
+        {mMsg && <span className="text-xs text-destructive">{mMsg}</span>}
+      </form>
 
       {scanning && (
         <div className="mb-6 rounded-lg border p-4">

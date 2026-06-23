@@ -35,6 +35,15 @@ export async function setFamilyIncluded(id: number, included: boolean): Promise<
   if (!res.ok) throw new Error('Failed to update')
 }
 
+export async function addManualFamily(footballerName: string, relativeName: string, relationship: string): Promise<{ ok?: boolean; error?: string; unresolved?: string[] }> {
+  const res = await fetch('/api/football-families/manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ footballerName, relativeName, relationship }),
+  })
+  return res.json()
+}
+
 export async function getFamilyPlayers(): Promise<{ id: number; name: string }[]> {
   const res = await fetch('/api/football-families/players')
   if (!res.ok) throw new Error('Failed to load players')
