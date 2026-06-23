@@ -138,13 +138,15 @@ export function FootballFamiliesPage() {
         ) : (
           <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
             {families.map((f, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
-                <div className="bg-gray-50 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500 py-1.5">
+              <div key={i} className="relative mt-1">
+                <span className="absolute -top-2 left-3 z-10 px-1.5 bg-gray-50 text-[10px] font-bold uppercase tracking-widest text-gray-500">
                   {f.relationship ? f.relationship.charAt(0).toUpperCase() + f.relationship.slice(1) : "Related"}
+                </span>
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
+                  {f.members.map((m) => (
+                    <MemberRow key={m.footballerId} m={m} guessed={guessedIds.has(m.footballerId)} />
+                  ))}
                 </div>
-                {f.members.map((m) => (
-                  <MemberRow key={m.footballerId} m={m} guessed={guessedIds.has(m.footballerId)} />
-                ))}
               </div>
             ))}
           </div>
