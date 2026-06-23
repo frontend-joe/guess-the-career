@@ -4,6 +4,7 @@ import { GameMenu } from "@/components/GameMenu";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { PositionBadge } from "@/components/PositionBadge";
+import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { getAnswers, type DualNationalityPlayer } from "@/api/dual-nationality";
 
@@ -81,7 +82,12 @@ function PlayerRow({ player, guessed }: { player: DualNationalityPlayer; guessed
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
       )}
-      {player.years && <span className="text-xs text-gray-400 tabular-nums shrink-0">{player.years}</span>}
+      {(player.clubName || player.clubYears) && (
+        <span className="flex items-center gap-1.5 shrink-0">
+          {player.clubName && <MiniClubBadge club={player.clubName} wikipediaUrl={player.clubWikiUrl} />}
+          {player.clubYears && <span className="text-xs text-gray-400 tabular-nums">{player.clubYears}</span>}
+        </span>
+      )}
     </div>
   );
 }

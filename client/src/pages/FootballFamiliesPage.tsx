@@ -49,6 +49,9 @@ function relationshipLabel(rel: string | null): string {
   const r = rel.toLowerCase();
   if (r === "uncle" || r === "nephew") return "Uncle/nephew";
   if (r === "son" || r === "father" || r === "dad") return "Father/son";
+  if (r === "brother") return "Brothers";
+  if (r === "half-brother") return "Half-brothers";
+  if (r === "cousin") return "Cousins";
   return r.charAt(0).toUpperCase() + r.slice(1);
 }
 

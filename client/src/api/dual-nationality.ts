@@ -9,6 +9,9 @@ export interface DualNationalityPlayer {
   photo_url: string | null
   position: string | null
   years: string | null
+  clubName: string | null
+  clubWikiUrl: string | null
+  clubYears: string | null
   nations: DualNation[]
 }
 
