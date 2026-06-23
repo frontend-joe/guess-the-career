@@ -16,6 +16,7 @@ const nav: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/admin/foreigners", label: "Foreigners", icon: Plane },
   { to: "/admin/serie-a", label: "Serie A", icon: MapPin },
   { to: "/admin/la-liga", label: "La Liga", icon: Sun },
+  { to: "/admin/dual-nationality", label: "Dual Nationality", icon: Globe },
   { to: "/admin/club-legends", label: "Club Legends", icon: Star },
   { to: "/admin/club-marksman", label: "Club Marksman", icon: Target },
   { to: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight },

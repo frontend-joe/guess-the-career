@@ -236,6 +236,31 @@ export function isSpain(nat: string | null | undefined): boolean {
   return allNationalityIsos(nat).has('ES')
 }
 
+// ── International team → nation (for the Dual Nationality game) ──────────────
+// Reduce an international team name to its base nation by dropping age-group /
+// reserve / Olympic suffixes, then map to an ISO so predecessor/variant names
+// collapse (West Germany & Germany → DE). Regional sides (Catalonia, Basque
+// Country, Great Britain) aren't in NATIONALITY_ISO and resolve to null.
+const NATION_SUFFIX_RE = /\s*(\(O\.P\.\)|Olympic|Amateur|Youth|League XI|Team\s*\d+|U-?\d+|B|C|II)\s*$/i
+
+export function baseNation(team: string): string {
+  let t = team.split('/')[0].trim()
+  let prev = ''
+  while (prev !== t) {
+    prev = t
+    t = t.replace(NATION_SUFFIX_RE, '').trim()
+  }
+  return t
+}
+
+const NATIONALITY_ISO_LC: Record<string, string> = Object.fromEntries(
+  Object.entries(NATIONALITY_ISO).map(([k, v]) => [k.toLowerCase(), v]),
+)
+
+export function nationIso(team: string): string | null {
+  return NATIONALITY_ISO_LC[baseNation(team).toLowerCase()] ?? null
+}
+
 // SELECT fragment computing a footballer's senior career start/end years (same
 // logic as the Style of Play game). Requires the outer query to alias the
 // footballers row as `f`. Pair with formatCareerYears() to get "1985–2002".
