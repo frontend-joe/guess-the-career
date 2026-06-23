@@ -15,6 +15,7 @@ import { LaLigaAdminPage } from '@/pages/LaLigaAdminPage'
 import { LaLigaSchedulePage } from '@/pages/LaLigaSchedulePage'
 import { DualNationalityPage } from '@/pages/DualNationalityPage'
 import { DualNationalityAdminPage } from '@/pages/DualNationalityAdminPage'
+import { FootballFamiliesAdminPage } from '@/pages/FootballFamiliesAdminPage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
@@ -176,6 +177,7 @@ const router = createBrowserRouter([
       { path: 'la-liga', element: <LaLigaAdminPage /> },
       { path: 'la-liga/schedule', element: <LaLigaSchedulePage /> },
       { path: 'dual-nationality', element: <DualNationalityAdminPage /> },
+      { path: 'football-families', element: <FootballFamiliesAdminPage /> },
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },

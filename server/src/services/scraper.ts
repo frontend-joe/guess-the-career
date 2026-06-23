@@ -390,6 +390,81 @@ function scrapeHonours($: CheerioAPI): HonoursData {
   return data
 }
 
+// ── Footballing-families detection ──────────────────────────────────────────
+// Scan a player's Wikipedia bio for relatives who are footballers. The reliable
+// signal is prose: a relationship word near a linked person, with football
+// context and no other-sport words in the surrounding clause.
+export interface FamilyLink {
+  name: string;
+  wikipedia_url: string;
+  relationship: string;
+}
+
+const RELATION_RE =
+  /\b(half-brothers?|step-?brothers?|step-?sisters?|brothers?|sisters?|fathers?|mothers?|sons?|daughters?|cousins?|uncles?|aunts?|nephews?|nieces?|twins?|siblings?|grandfathers?|grandmothers?|grandsons?|granddaughters?|grandad|dad)\b/i;
+const FOOTBALL_CTX_RE =
+  /\b(footballer|footballing|football|midfielder|defender|striker|forward|goalkeeper|winger|caps?|players?|plays? for|played for|signed for|plays? as|professional football)\b/i;
+const OTHER_SPORT_RE =
+  /\b(netball|cricket|cricketer|rugby|basketball|baseball|ice hockey|field hockey|hockey|tennis|golf|golfer|boxing|boxer|athletics|sprinter|swimmer|swimming|volleyball|handball|gaelic|darts|snooker|nfl|american football)\b/i;
+// Reject links that are clubs / competitions / positions / teams rather than people.
+const NON_PERSON_TITLE_RE =
+  /^(Category|File|Template|Help|Portal|Wikipedia|List_of|FC_)|F\.?C\.?$|A\.?F\.?C\.?$|national_football_team|national_team|Football_(League|Association|Club)|_F\.?C\.?|_Cup|_League|_Division|Premier_League|UEFA|FIFA|Olympic|Championship|Stadium|Trophy|Serie_|La_Liga|Bundesliga|Ligue_|_Youth|Academy|midfielder|defender|striker|forward|goalkeeper|winger/i;
+const NON_PERSON_TEXT_RE =
+  /\b(division|league|team|club|academy|sector|midfielder|defender|striker|forward|goalkeeper|winger|national|women|youth|cup|reserves?|under-?\d+|u\d+|fc|cf|sc|afc)\b/i;
+
+export async function scrapeFamilyLinks(url: string): Promise<FamilyLink[]> {
+  if (!url.includes("wikipedia.org/wiki/")) {
+    throw new Error("URL must be a Wikipedia article URL");
+  }
+  const res = await fetch(url, {
+    headers: { "User-Agent": "GuessTheCareer-Admin/1.0" },
+  });
+  if (!res.ok) throw new Error(`Wikipedia returned ${res.status}`);
+  const $ = cheerio.load(await res.text());
+  const selfTitle = decodeURIComponent((url.split("/wiki/")[1] ?? "").split("#")[0]);
+  const found = new Map<string, FamilyLink>();
+
+  $("div.mw-parser-output > p, div.mw-parser-output li").each((_, el) => {
+    const block = $(el);
+    if (block.closest(".reflist, .references, table, .navbox").length) return;
+    const blockText = stripCitations(block.text().replace(/\s+/g, " "));
+    if (!RELATION_RE.test(blockText)) return;
+
+    block.find('a[href^="/wiki/"]').each((__, a) => {
+      const href = $(a).attr("href") ?? "";
+      const title = href.slice("/wiki/".length).split("#")[0].split("?")[0];
+      if (!title || title.includes(":")) return;
+      if (NON_PERSON_TITLE_RE.test(title)) return;
+      if (title === selfTitle) return;
+      const linkText = $(a).text().trim();
+      // Require a person-like name (two words), not a club/position/competition.
+      if (!linkText.includes(" ") || linkText.length < 4) return;
+      if (NON_PERSON_TEXT_RE.test(linkText)) return;
+
+      const idx = blockText.indexOf(linkText);
+      if (idx < 0) return;
+      // The relationship word must sit just before the name (e.g. "brother of
+      // [[Name]]", "son of former footballer [[Name]]"), to tie the relation to
+      // this person and avoid distant matches (teammates, etc.).
+      const before = blockText.slice(Math.max(0, idx - 80), idx);
+      const relMatches = [...before.matchAll(new RegExp(RELATION_RE.source, "gi"))];
+      if (relMatches.length === 0) return;
+      // Football context + no other sport in the wider clause.
+      const win = blockText.slice(Math.max(0, idx - 130), idx + linkText.length + 80);
+      if (!FOOTBALL_CTX_RE.test(win)) return;
+      if (OTHER_SPORT_RE.test(win)) return;
+
+      const relationship = relMatches.at(-1)![1].toLowerCase().replace(/s$/, "");
+      const wikipedia_url = `https://en.wikipedia.org/wiki/${title}`;
+      if (!found.has(wikipedia_url)) {
+        found.set(wikipedia_url, { name: stripCitations(linkText), wikipedia_url, relationship });
+      }
+    });
+  });
+
+  return [...found.values()];
+}
+
 export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   if (!url.includes("wikipedia.org/wiki/")) {
     throw new Error("URL must be a Wikipedia article URL");
