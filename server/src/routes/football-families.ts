@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { sqlite } from '../db/client.ts'
-import { scrapeFamilyLinks, scrapeWikipedia } from '../services/scraper.ts'
+import { scrapeFamilyLinks, scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 
 export const footballFamiliesRouter = new Hono()
 
@@ -238,6 +238,86 @@ footballFamiliesRouter.post(
     }
   },
 )
+
+// ── Game ────────────────────────────────────────────────────────────────────
+interface FamilyMember {
+  footballerId: number
+  name: string
+  nationality: string | null
+  position: string | null
+  clubName: string | null
+  clubWikiUrl: string | null
+  years: string | null
+}
+
+// The club a player made the most senior appearances for.
+function topClub(footballerId: number): { name: string; wikiUrl: string | null } | null {
+  const stints = sqlite
+    .prepare(`SELECT club, apps, club_wikipedia_url FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
+    .all(footballerId) as { club: string; apps: number | null; club_wikipedia_url: string | null }[]
+  const byClub = new Map<string, { apps: number; name: string; wikiUrl: string | null }>()
+  for (const s of stints) {
+    const key = normalizeClubAlias(s.club)
+    const name = s.club.replace(/^→\s*/, '').replace(/\s*\((loan|trial)\)\s*$/i, '')
+    const cur = byClub.get(key) ?? { apps: 0, name, wikiUrl: s.club_wikipedia_url }
+    cur.apps += s.apps ?? 0
+    if (s.club_wikipedia_url && !cur.wikiUrl) cur.wikiUrl = s.club_wikipedia_url
+    byClub.set(key, cur)
+  }
+  let best: { apps: number; name: string; wikiUrl: string | null } | null = null
+  for (const v of byClub.values()) if (!best || v.apps > best.apps) best = v
+  return best ? { name: best.name, wikiUrl: best.wikiUrl } : null
+}
+
+function careerYears(footballerId: number): string | null {
+  const rows = sqlite
+    .prepare(`SELECT years FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
+    .all(footballerId) as { years: string | null }[]
+  const nums = rows.flatMap((r) => (r.years?.match(/\d{4}/g) ?? []).map(Number))
+  if (nums.length === 0) return null
+  const min = Math.min(...nums), max = Math.max(...nums)
+  return min === max ? String(min) : `${min}–${max}`
+}
+
+function buildMember(id: number): FamilyMember {
+  const f = sqlite.prepare(`SELECT id, name, nationality, position FROM footballers WHERE id = ?`).get(id) as
+    { id: number; name: string; nationality: string | null; position: string | null }
+  const tc = topClub(id)
+  return {
+    footballerId: id,
+    name: f.name,
+    nationality: f.nationality,
+    position: f.position,
+    clubName: tc?.name ?? null,
+    clubWikiUrl: tc?.wikiUrl ?? null,
+    years: careerYears(id),
+  }
+}
+
+// GET /api/football-families/game — deduped families (both members in the DB,
+// included) for the playable list.
+footballFamiliesRouter.get('/game', (c) => {
+  const rows = sqlite
+    .prepare(
+      `SELECT footballer_id AS a, relative_footballer_id AS b, relationship
+       FROM football_family_links
+       WHERE included = 1 AND relative_footballer_id IS NOT NULL`,
+    )
+    .all() as { a: number; b: number; relationship: string | null }[]
+
+  const seen = new Set<string>()
+  const families = rows
+    .filter((r) => {
+      const key = [Math.min(r.a, r.b), Math.max(r.a, r.b)].join('-')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .map((r) => ({ relationship: r.relationship, members: [buildMember(r.a), buildMember(r.b)] }))
+
+  families.sort((x, y) => x.members[0].name.localeCompare(y.members[0].name))
+  return c.json(families)
+})
 
 // DELETE /api/football-families — clear all detected links
 footballFamiliesRouter.delete('/', (c) => {

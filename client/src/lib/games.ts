@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -31,6 +31,7 @@ export const GATED_GAMES: Game[] = [
   { name: 'Serie A Players', pitch: 'Name the players of a country who turned out in Serie A.', to: '/play/serie-a', icon: MapPin },
   { name: 'La Liga Players', pitch: 'Name the players of a country who turned out in Spain.', to: '/play/la-liga', icon: Sun },
   { name: 'Dual Nationality', pitch: 'Name the players who represented two different nations.', to: '/play/dual-nationality', icon: Users },
+  { name: 'Football Families', pitch: 'Name the related footballers from each family.', to: '/play/football-families', icon: Network },
   { name: "Ballon d'Or", pitch: 'Name every player in the running for football’s biggest prize.', to: '/play/ballon-dors', icon: Globe },
   { name: 'World Cup', pitch: 'Recall the squads that went to the World Cup.', to: '/play/world-cup', icon: Trophy },
   { name: 'Club Legends', pitch: 'Name the cult heroes with 100+ appearances.', to: '/play/club-legends', icon: Star },

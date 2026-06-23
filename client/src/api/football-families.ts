@@ -67,6 +67,27 @@ export async function scanFamilyBatch(ids: number[]): Promise<ScanBatchPlayer[]>
   return (await res.json()).results
 }
 
+export interface FamilyMember {
+  footballerId: number
+  name: string
+  nationality: string | null
+  position: string | null
+  clubName: string | null
+  clubWikiUrl: string | null
+  years: string | null
+}
+
+export interface Family {
+  relationship: string | null
+  members: FamilyMember[]
+}
+
+export async function getFamilyGame(): Promise<Family[]> {
+  const res = await fetch('/api/football-families/game')
+  if (!res.ok) throw new Error('Failed to load game')
+  return res.json()
+}
+
 export async function scrapeRelative(url: string): Promise<{ ok: boolean; name?: string; error?: string }> {
   const res = await fetch('/api/football-families/scrape-relative', {
     method: 'POST',
