@@ -1,22 +1,18 @@
-export interface FamilyInDbPair {
-  aId: number
-  aName: string
-  bId: number
-  bName: string
-  relationship: string | null
-}
-
-export interface FamilyToScrape {
+export interface FamilyLink {
+  id: number
+  footballerName: string
   relativeName: string
   relativeUrl: string
-  relatedTo: { id: number; name: string; relationship: string | null }[]
+  relationship: string | null
+  inDb: boolean
+  included: boolean
 }
 
 export interface FamiliesSummary {
-  inDb: FamilyInDbPair[]
-  toScrape: FamilyToScrape[]
+  links: FamilyLink[]
   inDbCount: number
   toScrapeCount: number
+  includedCount: number
 }
 
 export async function getFamiliesSummary(): Promise<FamiliesSummary> {
@@ -30,15 +26,38 @@ export async function clearFamilies(): Promise<void> {
   if (!res.ok) throw new Error('Failed to clear')
 }
 
+export async function setFamilyIncluded(id: number, included: boolean): Promise<void> {
+  const res = await fetch('/api/football-families/include', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, included }),
+  })
+  if (!res.ok) throw new Error('Failed to update')
+}
+
 export async function getFamilyPlayers(): Promise<{ id: number; name: string }[]> {
   const res = await fetch('/api/football-families/players')
   if (!res.ok) throw new Error('Failed to load players')
   return res.json()
 }
 
-export interface ScanBatchResult { id: number; relativesFound?: number; error?: string }
+export interface ScanRelative {
+  linkId: number
+  relativeName: string
+  relativeUrl: string
+  relationship: string | null
+  relativeFootballerId: number | null
+  included: boolean
+}
 
-export async function scanFamilyBatch(ids: number[]): Promise<ScanBatchResult[]> {
+export interface ScanBatchPlayer {
+  id: number
+  name: string
+  error?: string
+  relatives?: ScanRelative[]
+}
+
+export async function scanFamilyBatch(ids: number[]): Promise<ScanBatchPlayer[]> {
   const res = await fetch('/api/football-families/scan-batch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,4 +65,13 @@ export async function scanFamilyBatch(ids: number[]): Promise<ScanBatchResult[]>
   })
   if (!res.ok) throw new Error('Batch failed')
   return (await res.json()).results
+}
+
+export async function scrapeRelative(url: string): Promise<{ ok: boolean; name?: string; error?: string }> {
+  const res = await fetch('/api/football-families/scrape-relative', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  return res.json()
 }

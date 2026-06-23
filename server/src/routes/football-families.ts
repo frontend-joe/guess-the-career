@@ -1,9 +1,8 @@
 import { Hono } from 'hono'
-import { streamSSE } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { sqlite } from '../db/client.ts'
-import { scrapeFamilyLinks } from '../services/scraper.ts'
+import { scrapeFamilyLinks, scrapeWikipedia } from '../services/scraper.ts'
 
 export const footballFamiliesRouter = new Hono()
 
@@ -31,50 +30,6 @@ function footballerByTitle(): Map<string, { id: number; name: string }> {
   return map
 }
 
-// GET /api/football-families/scan — SSE: scan every footballer's bio for relatives
-footballFamiliesRouter.get('/scan', async (c) => {
-  const abortSignal = c.req.raw.signal
-  return streamSSE(c, async (stream) => {
-    const all = sqlite
-      .prepare(`SELECT id, name, wikipedia_url FROM footballers WHERE wikipedia_url IS NOT NULL ORDER BY name`)
-      .all() as { id: number; name: string; wikipedia_url: string }[]
-    const byTitle = footballerByTitle()
-
-    await stream.writeSSE({
-      data: JSON.stringify({ type: 'init', total: all.length, players: all.map((p) => ({ id: p.id, name: p.name })) }),
-    })
-
-    const clearStmt = sqlite.prepare(`DELETE FROM football_family_links WHERE footballer_id = ?`)
-    const insertStmt = sqlite.prepare(
-      `INSERT OR IGNORE INTO football_family_links
-       (footballer_id, relative_name, relative_wikipedia_url, relationship, relative_footballer_id)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-
-    for (const player of all) {
-      if (abortSignal.aborted) break
-      await stream.writeSSE({ data: JSON.stringify({ type: 'start', id: player.id }) })
-      try {
-        const links = await scrapeFamilyLinks(player.wikipedia_url)
-        clearStmt.run(player.id)
-        for (const l of links) {
-          const match = byTitle.get(normalizeWikiTitle(l.wikipedia_url))
-          if (match && match.id === player.id) continue // self
-          insertStmt.run(player.id, l.name, l.wikipedia_url, l.relationship, match?.id ?? null)
-        }
-        await stream.writeSSE({ data: JSON.stringify({ type: 'done', id: player.id, relativesFound: links.length }) })
-      } catch (e) {
-        await stream.writeSSE({
-          data: JSON.stringify({ type: 'failed', id: player.id, error: e instanceof Error ? e.message : 'Unknown error' }),
-        })
-      }
-      await new Promise<void>((r) => setTimeout(r, 1000))
-    }
-
-    await stream.writeSSE({ data: JSON.stringify({ type: 'complete' }) })
-  })
-})
-
 // GET /api/football-families/players — work list for client-driven batch scan
 footballFamiliesRouter.get('/players', (c) => {
   const all = sqlite
@@ -85,36 +40,66 @@ footballFamiliesRouter.get('/players', (c) => {
 
 // POST /api/football-families/scan-batch { ids } — scan a small batch of players.
 // Client-driven batching keeps each request short so prod proxies don't cut off a
-// long-lived stream (the SSE /scan only completes locally).
+// long-lived stream. Returns the relatives found so the UI can list them live.
 footballFamiliesRouter.post(
   '/scan-batch',
   zValidator('json', z.object({ ids: z.array(z.number().int()).min(1).max(20) })),
   async (c) => {
     const { ids } = c.req.valid('json')
     const byTitle = footballerByTitle()
+    const prevStmt = sqlite.prepare(
+      `SELECT relative_wikipedia_url AS url, included FROM football_family_links WHERE footballer_id = ?`,
+    )
     const clearStmt = sqlite.prepare(`DELETE FROM football_family_links WHERE footballer_id = ?`)
     const insertStmt = sqlite.prepare(
-      `INSERT OR IGNORE INTO football_family_links
-       (footballer_id, relative_name, relative_wikipedia_url, relationship, relative_footballer_id)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO football_family_links
+       (footballer_id, relative_name, relative_wikipedia_url, relationship, relative_footballer_id, included)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    const results: { id: number; relativesFound?: number; error?: string }[] = []
+
+    const results: {
+      id: number
+      name: string
+      error?: string
+      relatives?: {
+        linkId: number
+        relativeName: string
+        relativeUrl: string
+        relationship: string | null
+        relativeFootballerId: number | null
+        included: boolean
+      }[]
+    }[] = []
+
     for (const id of ids) {
-      const row = sqlite.prepare(`SELECT id, wikipedia_url FROM footballers WHERE id = ?`).get(id) as
-        | { id: number; wikipedia_url: string | null }
+      const row = sqlite.prepare(`SELECT id, name, wikipedia_url FROM footballers WHERE id = ?`).get(id) as
+        | { id: number; name: string; wikipedia_url: string | null }
         | undefined
-      if (!row?.wikipedia_url) { results.push({ id, relativesFound: 0 }); continue }
+      if (!row?.wikipedia_url) { results.push({ id, name: row?.name ?? '', relatives: [] }); continue }
       try {
         const links = await scrapeFamilyLinks(row.wikipedia_url)
+        // Preserve prior validation across re-scans.
+        const prev = prevStmt.all(id) as { url: string; included: number }[]
+        const prevInc = new Map(prev.map((p) => [p.url, p.included]))
         clearStmt.run(id)
+        const relatives: NonNullable<(typeof results)[number]['relatives']> = []
         for (const l of links) {
           const match = byTitle.get(normalizeWikiTitle(l.wikipedia_url))
           if (match && match.id === id) continue
-          insertStmt.run(id, l.name, l.wikipedia_url, l.relationship, match?.id ?? null)
+          const inc = prevInc.get(l.wikipedia_url) ?? 0
+          const info = insertStmt.run(id, l.name, l.wikipedia_url, l.relationship, match?.id ?? null, inc)
+          relatives.push({
+            linkId: Number(info.lastInsertRowid),
+            relativeName: l.name,
+            relativeUrl: l.wikipedia_url,
+            relationship: l.relationship,
+            relativeFootballerId: match?.id ?? null,
+            included: !!inc,
+          })
         }
-        results.push({ id, relativesFound: links.length })
+        results.push({ id, name: row.name, relatives })
       } catch (e) {
-        results.push({ id, error: e instanceof Error ? e.message : 'Unknown error' })
+        results.push({ id, name: row.name, error: e instanceof Error ? e.message : 'Unknown error' })
       }
       await new Promise<void>((r) => setTimeout(r, 250))
     }
@@ -122,58 +107,137 @@ footballFamiliesRouter.post(
   },
 )
 
-// GET /api/football-families/summary — two lists: related pairs in the DB, and
-// relatives that would need scraping.
+// POST /api/football-families/include { id, included } — validate a relationship
+footballFamiliesRouter.post(
+  '/include',
+  zValidator('json', z.object({ id: z.number().int(), included: z.boolean() })),
+  (c) => {
+    const { id, included } = c.req.valid('json')
+    sqlite.prepare(`UPDATE football_family_links SET included = ? WHERE id = ?`).run(included ? 1 : 0, id)
+    return c.json({ ok: true })
+  },
+)
+
+// GET /api/football-families/summary — flat, deduped list of relationships with
+// their validation state, plus counts.
 footballFamiliesRouter.get('/summary', (c) => {
-  // Pairs where the relative is already a footballer in our DB.
-  const inDbRows = sqlite
+  const rows = sqlite
     .prepare(
-      `SELECT fl.footballer_id AS aId, fa.name AS aName,
-              fl.relative_footballer_id AS bId, fb.name AS bName,
-              fl.relationship
+      `SELECT fl.id, fl.footballer_id AS footballerId, fa.name AS footballerName,
+              fl.relative_name AS relativeName, fl.relative_wikipedia_url AS relativeUrl,
+              fl.relationship, fl.relative_footballer_id AS relativeFootballerId, fl.included
        FROM football_family_links fl
        JOIN footballers fa ON fa.id = fl.footballer_id
-       JOIN footballers fb ON fb.id = fl.relative_footballer_id
-       WHERE fl.relative_footballer_id IS NOT NULL`,
+       ORDER BY fa.name`,
     )
-    .all() as { aId: number; aName: string; bId: number; bName: string; relationship: string | null }[]
+    .all() as {
+    id: number
+    footballerId: number
+    footballerName: string
+    relativeName: string
+    relativeUrl: string
+    relationship: string | null
+    relativeFootballerId: number | null
+    included: number
+  }[]
 
-  const seen = new Set<string>()
-  const inDb: { aId: number; aName: string; bId: number; bName: string; relationship: string | null }[] = []
-  for (const r of inDbRows) {
-    const key = [Math.min(r.aId, r.bId), Math.max(r.aId, r.bId)].join('-')
-    if (seen.has(key)) continue
-    seen.add(key)
-    inDb.push(r)
-  }
-  inDb.sort((a, b) => a.aName.localeCompare(b.aName))
+  const seen = new Map<string, number>() // pair key -> index in links
+  const links: {
+    id: number
+    footballerName: string
+    relativeName: string
+    relativeUrl: string
+    relationship: string | null
+    inDb: boolean
+    included: boolean
+  }[] = []
 
-  // Relatives not in our DB, grouped by their Wikipedia page.
-  const toScrapeRows = sqlite
-    .prepare(
-      `SELECT fl.relative_name AS relativeName, fl.relative_wikipedia_url AS relativeUrl,
-              fl.relationship, fa.id AS relatedId, fa.name AS relatedName
-       FROM football_family_links fl
-       JOIN footballers fa ON fa.id = fl.footballer_id
-       WHERE fl.relative_footballer_id IS NULL
-       ORDER BY fl.relative_name`,
-    )
-    .all() as { relativeName: string; relativeUrl: string; relationship: string | null; relatedId: number; relatedName: string }[]
-
-  const grouped = new Map<
-    string,
-    { relativeName: string; relativeUrl: string; relatedTo: { id: number; name: string; relationship: string | null }[] }
-  >()
-  for (const r of toScrapeRows) {
-    if (!grouped.has(r.relativeUrl)) {
-      grouped.set(r.relativeUrl, { relativeName: r.relativeName, relativeUrl: r.relativeUrl, relatedTo: [] })
+  for (const r of rows) {
+    const inDb = r.relativeFootballerId != null
+    if (inDb) {
+      const key = [Math.min(r.footballerId, r.relativeFootballerId!), Math.max(r.footballerId, r.relativeFootballerId!)].join('-')
+      const existingIdx = seen.get(key)
+      if (existingIdx != null) {
+        if (r.included) links[existingIdx].included = true
+        continue
+      }
+      seen.set(key, links.length)
     }
-    grouped.get(r.relativeUrl)!.relatedTo.push({ id: r.relatedId, name: r.relatedName, relationship: r.relationship })
+    links.push({
+      id: r.id,
+      footballerName: r.footballerName,
+      relativeName: r.relativeName,
+      relativeUrl: r.relativeUrl,
+      relationship: r.relationship,
+      inDb,
+      included: !!r.included,
+    })
   }
-  const toScrape = [...grouped.values()].sort((a, b) => a.relativeName.localeCompare(b.relativeName))
 
-  return c.json({ inDb, toScrape, inDbCount: inDb.length, toScrapeCount: toScrape.length })
+  return c.json({
+    links,
+    inDbCount: links.filter((l) => l.inDb).length,
+    toScrapeCount: links.filter((l) => !l.inDb).length,
+    includedCount: links.filter((l) => l.included).length,
+  })
 })
+
+// POST /api/football-families/scrape-relative { url } — import a missing relative
+// into the footballers DB and resolve the family links that point at them.
+footballFamiliesRouter.post(
+  '/scrape-relative',
+  zValidator('json', z.object({ url: z.string().url() })),
+  async (c) => {
+    const { url } = c.req.valid('json')
+    try {
+      const result = await scrapeWikipedia(url)
+      let footballerId: number
+      const existing = sqlite
+        .prepare(`SELECT id FROM footballers WHERE wikipedia_url = ?`)
+        .get(result.wikipedia_url) as { id: number } | undefined
+      if (existing) {
+        footballerId = existing.id
+      } else {
+        const info = sqlite
+          .prepare(
+            `INSERT INTO footballers
+             (name, wikipedia_url, nationality, position, all_positions, full_name, birthplace, born, height_cm, photo_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            result.name, result.wikipedia_url, result.nationality, result.position,
+            result.all_positions ?? null, result.full_name ?? null, result.birthplace ?? null,
+            result.born, result.height_cm, result.photo_url ?? null,
+          )
+        footballerId = Number(info.lastInsertRowid)
+        if (result.stints.length > 0) {
+          const insStint = sqlite.prepare(
+            `INSERT INTO career_stints (footballer_id, sort_order, years, club, club_wikipedia_url, apps, goals, stint_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          result.stints.forEach((s, i) =>
+            insStint.run(footballerId, i, s.years, s.club, s.club_wikipedia_url ?? null, s.apps ?? null, s.goals ?? null, s.stint_type),
+          )
+        }
+      }
+
+      // Resolve every family link pointing at this relative (by normalized title).
+      const norm = normalizeWikiTitle(result.wikipedia_url)
+      const unresolved = sqlite
+        .prepare(`SELECT id, relative_wikipedia_url AS url FROM football_family_links WHERE relative_footballer_id IS NULL`)
+        .all() as { id: number; url: string }[]
+      const upd = sqlite.prepare(`UPDATE football_family_links SET relative_footballer_id = ? WHERE id = ?`)
+      let resolved = 0
+      for (const l of unresolved) {
+        if (normalizeWikiTitle(l.url) === norm) { upd.run(footballerId, l.id); resolved++ }
+      }
+
+      return c.json({ ok: true, footballerId, name: result.name, resolved })
+    } catch (e) {
+      return c.json({ ok: false, error: e instanceof Error ? e.message : 'Scrape failed' }, 400)
+    }
+  },
+)
 
 // DELETE /api/football-families — clear all detected links
 footballFamiliesRouter.delete('/', (c) => {
