@@ -2,6 +2,7 @@ import { getExcludeParam, recordPlayed } from '@/lib/recentPlayers'
 
 export interface XiRoundPlayer {
   id: number
+  footballerId?: number | null
   position: 'GK' | 'DF' | 'MF' | 'FW'
   squadNumber: number | null
   nationality: string | null

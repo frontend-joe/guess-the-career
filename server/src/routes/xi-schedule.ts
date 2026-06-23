@@ -155,6 +155,7 @@ xiScheduleRouter.get('/rounds', (c) => {
           const clubWikiUrl = (sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(p.club_at_time) as { wikipedia_url: string | null } | undefined)?.wikipedia_url ?? null
           return {
             id: p.id,
+            footballerId: p.footballer_id,
             position: p.position,
             squadNumber: p.squad_number,
             nationality: p.nationality ?? null,
@@ -167,6 +168,7 @@ xiScheduleRouter.get('/rounds', (c) => {
           : null
         return {
           id: p.id,
+          footballerId: p.footballer_id,
           position: p.position,
           squadNumber: p.squad_number,
           nationality: p.nationality ?? null,

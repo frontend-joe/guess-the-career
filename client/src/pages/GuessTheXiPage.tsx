@@ -85,6 +85,7 @@ import { nationalityToFlagUrl } from "@/lib/flags";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { PositionBadge } from "@/components/PositionBadge";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 
 const TRANSLITERATE: Record<string, string> = {
   ı: "i", ł: "l", ø: "o", đ: "d", ð: "d",
@@ -155,6 +156,7 @@ function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult
 }
 
 export function GuessTheXiPage() {
+  const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -444,7 +446,17 @@ export function GuessTheXiPage() {
                       </>
                     )}
                     {guessed ? (
-                      <span className="text-green-600 font-semibold text-sm flex-1">{name}</span>
+                      player.footballerId != null ? (
+                        <button
+                          type="button"
+                          onClick={() => showPlayer(player.footballerId!)}
+                          className="text-green-600 font-semibold text-sm flex-1 text-left hover:underline truncate"
+                        >
+                          {name}
+                        </button>
+                      ) : (
+                        <span className="text-green-600 font-semibold text-sm flex-1">{name}</span>
+                      )
                     ) : (
                       <div className="flex-1 h-px bg-gray-300 rounded-full" />
                     )}
