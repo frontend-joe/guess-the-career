@@ -410,7 +410,7 @@ const OTHER_SPORT_RE =
 const NON_PERSON_TITLE_RE =
   /^(Category|File|Template|Help|Portal|Wikipedia|List_of|FC_)|F\.?C\.?$|A\.?F\.?C\.?$|national_football_team|national_team|Football_(League|Association|Club)|_F\.?C\.?|_Cup|_League|_Division|Premier_League|UEFA|FIFA|Olympic|Championship|Stadium|Trophy|Serie_|La_Liga|Bundesliga|Ligue_|_Youth|Academy|midfielder|defender|striker|forward|goalkeeper|winger/i;
 const NON_PERSON_TEXT_RE =
-  /\b(division|league|team|club|academy|sector|midfielder|defender|striker|forward|goalkeeper|winger|national|women|youth|cup|reserves?|under-?\d+|u\d+|fc|cf|sc|afc)\b/i;
+  /\b(division|league|team|club|academy|sector|midfielder|defender|striker|forward|goalkeeper|winger|national|women|youth|cup|reserves?|under-?\d+|u\d+|fc|cf|sc|afc|driver|worker|businessman|coach|manager|i{2,3})\b/i;
 
 export async function scrapeFamilyLinks(url: string): Promise<FamilyLink[]> {
   if (!url.includes("wikipedia.org/wiki/")) {

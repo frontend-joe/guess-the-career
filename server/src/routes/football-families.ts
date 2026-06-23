@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
 import { sqlite } from '../db/client.ts'
 import { scrapeFamilyLinks } from '../services/scraper.ts'
 
@@ -72,6 +74,53 @@ footballFamiliesRouter.get('/scan', async (c) => {
     await stream.writeSSE({ data: JSON.stringify({ type: 'complete' }) })
   })
 })
+
+// GET /api/football-families/players — work list for client-driven batch scan
+footballFamiliesRouter.get('/players', (c) => {
+  const all = sqlite
+    .prepare(`SELECT id, name FROM footballers WHERE wikipedia_url IS NOT NULL ORDER BY name`)
+    .all()
+  return c.json(all)
+})
+
+// POST /api/football-families/scan-batch { ids } — scan a small batch of players.
+// Client-driven batching keeps each request short so prod proxies don't cut off a
+// long-lived stream (the SSE /scan only completes locally).
+footballFamiliesRouter.post(
+  '/scan-batch',
+  zValidator('json', z.object({ ids: z.array(z.number().int()).min(1).max(20) })),
+  async (c) => {
+    const { ids } = c.req.valid('json')
+    const byTitle = footballerByTitle()
+    const clearStmt = sqlite.prepare(`DELETE FROM football_family_links WHERE footballer_id = ?`)
+    const insertStmt = sqlite.prepare(
+      `INSERT OR IGNORE INTO football_family_links
+       (footballer_id, relative_name, relative_wikipedia_url, relationship, relative_footballer_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    const results: { id: number; relativesFound?: number; error?: string }[] = []
+    for (const id of ids) {
+      const row = sqlite.prepare(`SELECT id, wikipedia_url FROM footballers WHERE id = ?`).get(id) as
+        | { id: number; wikipedia_url: string | null }
+        | undefined
+      if (!row?.wikipedia_url) { results.push({ id, relativesFound: 0 }); continue }
+      try {
+        const links = await scrapeFamilyLinks(row.wikipedia_url)
+        clearStmt.run(id)
+        for (const l of links) {
+          const match = byTitle.get(normalizeWikiTitle(l.wikipedia_url))
+          if (match && match.id === id) continue
+          insertStmt.run(id, l.name, l.wikipedia_url, l.relationship, match?.id ?? null)
+        }
+        results.push({ id, relativesFound: links.length })
+      } catch (e) {
+        results.push({ id, error: e instanceof Error ? e.message : 'Unknown error' })
+      }
+      await new Promise<void>((r) => setTimeout(r, 250))
+    }
+    return c.json({ results })
+  },
+)
 
 // GET /api/football-families/summary — two lists: related pairs in the DB, and
 // relatives that would need scraping.

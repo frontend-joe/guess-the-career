@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import {
   getFamiliesSummary,
   clearFamilies,
-  FAMILIES_SCAN_URL,
+  getFamilyPlayers,
+  scanFamilyBatch,
   type FamiliesSummary,
 } from '@/api/football-families'
 
@@ -20,8 +21,7 @@ export function FootballFamiliesAdminPage() {
   const [found, setFound] = useState(0)
   const [failed, setFailed] = useState(0)
   const [current, setCurrent] = useState<string | null>(null)
-  const esRef = useRef<EventSource | null>(null)
-  const namesRef = useRef<Map<number, string>>(new Map())
+  const stopRef = useRef(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -31,39 +31,43 @@ export function FootballFamiliesAdminPage() {
       .finally(() => setLoading(false))
   }, [])
   useEffect(() => { load() }, [load])
-  useEffect(() => () => esRef.current?.close(), [])
+  useEffect(() => () => { stopRef.current = true }, [])
 
-  function startScan() {
+  // Client-driven batch scan: many short requests instead of one long stream,
+  // so production proxies don't cut it off mid-way.
+  async function startScan() {
     setScanning(true)
     setProcessed(0); setFound(0); setFailed(0); setCurrent(null); setTotal(0)
-    const es = new EventSource(FAMILIES_SCAN_URL)
-    esRef.current = es
-    es.onmessage = (e) => {
-      const d = JSON.parse(e.data)
-      if (d.type === 'init') {
-        setTotal(d.total)
-        namesRef.current = new Map(d.players.map((p: { id: number; name: string }) => [p.id, p.name]))
-      } else if (d.type === 'start') {
-        setCurrent(namesRef.current.get(d.id) ?? null)
-      } else if (d.type === 'done') {
-        setProcessed((n) => n + 1)
-        setFound((n) => n + (d.relativesFound ?? 0))
-      } else if (d.type === 'failed') {
-        setProcessed((n) => n + 1)
-        setFailed((n) => n + 1)
-      } else if (d.type === 'complete') {
-        es.close(); esRef.current = null
-        setScanning(false); setCurrent(null)
-        load()
+    stopRef.current = false
+    try {
+      const players = await getFamilyPlayers()
+      setTotal(players.length)
+      const BATCH = 4
+      for (let i = 0; i < players.length; i += BATCH) {
+        if (stopRef.current) break
+        const batch = players.slice(i, i + BATCH)
+        setCurrent(batch[0]?.name ?? null)
+        try {
+          const results = await scanFamilyBatch(batch.map((p) => p.id))
+          let f = 0, fl = 0
+          for (const r of results) { if (r.error) fl++; else f += r.relativesFound ?? 0 }
+          setFound((n) => n + f); setFailed((n) => n + fl)
+        } catch {
+          setFailed((n) => n + batch.length)
+        }
+        setProcessed((n) => n + batch.length)
       }
+    } catch {
+      setError('Scan failed to start')
+    } finally {
+      setScanning(false); setCurrent(null)
+      load()
     }
-    es.onerror = () => { es.close(); esRef.current = null; setScanning(false) }
   }
 
   function stopScan() {
-    esRef.current?.close(); esRef.current = null
+    stopRef.current = true
     setScanning(false); setCurrent(null)
-    load()
   }
 
   async function handleClear() {

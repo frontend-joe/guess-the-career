@@ -30,4 +30,20 @@ export async function clearFamilies(): Promise<void> {
   if (!res.ok) throw new Error('Failed to clear')
 }
 
-export const FAMILIES_SCAN_URL = '/api/football-families/scan'
+export async function getFamilyPlayers(): Promise<{ id: number; name: string }[]> {
+  const res = await fetch('/api/football-families/players')
+  if (!res.ok) throw new Error('Failed to load players')
+  return res.json()
+}
+
+export interface ScanBatchResult { id: number; relativesFound?: number; error?: string }
+
+export async function scanFamilyBatch(ids: number[]): Promise<ScanBatchResult[]> {
+  const res = await fetch('/api/football-families/scan-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+  if (!res.ok) throw new Error('Batch failed')
+  return (await res.json()).results
+}
