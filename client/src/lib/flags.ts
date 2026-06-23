@@ -91,6 +91,7 @@ const NATIONALITY_ISO: Record<string, string> = {
   "Guinea-Bissau": "GW",
   "Equatorial Guinea": "GQ",
   "DR Congo": "CD",
+  Zaire: "CD",
   Congo: "CG",
   "Republic of the Congo": "CG",
   Zambia: "ZM",
@@ -366,7 +367,9 @@ const LOCAL_FLAGS: Record<string, string> = {
 };
 
 function isoToUrl(iso: string): string {
-  return LOCAL_FLAGS[iso] ?? `https://flagcdn.com/${iso.toLowerCase()}.svg`;
+  // Self-hosted from /public/flags (downloaded from flagcdn) so flags don't
+  // depend on the external CDN, which intermittently throttled in production.
+  return LOCAL_FLAGS[iso] ?? `/flags/${iso.toLowerCase()}.svg`;
 }
 
 export function nationalityToFlagUrl(

@@ -50,8 +50,8 @@ function MemberRow({ m, guessed }: { m: FamilyMember; guessed: boolean }) {
     <div className={`flex items-center gap-2 px-3 py-2.5 transition-colors ${guessed ? "bg-green-50" : ""}`}>
       <span className="flex items-center gap-1.5 shrink-0">
         {m.nationality && <NationalityFlag nationality={m.nationality} size={16} />}
-        {m.position && <PositionBadge position={m.position} />}
         {m.clubName && <MiniClubBadge club={m.clubName} wikipediaUrl={m.clubWikiUrl} />}
+        {m.position && <PositionBadge position={m.position} />}
       </span>
       {guessed ? (
         <button type="button" onClick={() => showPlayer(m.footballerId)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline flex-1">
