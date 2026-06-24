@@ -7,6 +7,7 @@ import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { PositionBadge } from "@/components/PositionBadge";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import {
   getTransferHistoryRounds,
   type TransferScheduleRound,
@@ -117,6 +118,7 @@ function buildRounds(data: TransferScheduleRound[], saved: SavedProgress): Round
 }
 
 export function TransferHistoryPage() {
+  const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -296,7 +298,17 @@ export function TransferHistoryPage() {
 
                     <div className="flex-1 min-w-0">
                       {guessed ? (
-                        <span className="text-gray-900 font-semibold text-sm truncate block">{name}</span>
+                        t.footballerId != null ? (
+                          <button
+                            type="button"
+                            onClick={() => showPlayer(t.footballerId!)}
+                            className="text-gray-900 font-semibold text-sm truncate block text-left hover:underline w-full"
+                          >
+                            {name}
+                          </button>
+                        ) : (
+                          <span className="text-gray-900 font-semibold text-sm truncate block">{name}</span>
+                        )
                       ) : (
                         <div className="h-px bg-gray-300 rounded-full" />
                       )}
