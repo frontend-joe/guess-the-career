@@ -45,7 +45,7 @@ topScorersScheduleRouter.get('/rounds', (c) => {
 
   const rounds = scheduleRows.map(row => {
     const players = sqlite.prepare(`
-      SELECT cts.id, cts.name, cts.club, cts.goals, cts.rank,
+      SELECT cts.id, cts.name, cts.club, cts.goals, cts.rank, cts.footballer_id,
              f.name AS footballer_name, f.nationality,
              c.wikipedia_url AS club_wikipedia_url
       FROM competition_top_scorers cts
@@ -56,6 +56,7 @@ topScorersScheduleRouter.get('/rounds', (c) => {
     `).all(row.competition_id) as {
       id: number
       name: string
+      footballer_id: number | null
       footballer_name: string | null
       club: string
       goals: number
@@ -81,6 +82,7 @@ topScorersScheduleRouter.get('/rounds', (c) => {
       competitionImageUrl: row.competition_image_url,
       players: players.map(p => ({
         id: p.id,
+        footballerId: p.footballer_id,
         name: p.name,
         club: p.club,
         clubs: resolveClubs(p.club),

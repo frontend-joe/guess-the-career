@@ -15,6 +15,7 @@ import {
 } from "@/api/top-scorers-leaderboard";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 
 type RoundState = "playing" | "cleared";
 
@@ -138,6 +139,7 @@ function buildRounds(
 }
 
 export function TopScorersPage() {
+  const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -391,9 +393,19 @@ export function TopScorersPage() {
                         <td className="px-2">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {guessed ? (
-                              <span className="flex-1 text-gray-900 font-semibold text-sm truncate">
-                                {name}
-                              </span>
+                              player.footballerId != null ? (
+                                <button
+                                  type="button"
+                                  onClick={() => showPlayer(player.footballerId!)}
+                                  className="flex-1 text-gray-900 font-semibold text-sm truncate text-left hover:underline"
+                                >
+                                  {name}
+                                </button>
+                              ) : (
+                                <span className="flex-1 text-gray-900 font-semibold text-sm truncate">
+                                  {name}
+                                </span>
+                              )
                             ) : (
                               <div className="flex-1 h-px bg-gray-300 rounded-full" />
                             )}
