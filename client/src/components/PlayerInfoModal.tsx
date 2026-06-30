@@ -21,6 +21,15 @@ function formatHeight(cm: number | null): string | null {
   return `${(cm / 100).toFixed(2)} m (${ft} ft ${inches} in)`
 }
 
+// Wikipedia marks loan spells with a "→" arrow and/or a "(loan)" suffix, and
+// trials with "(trial)". Split the raw club into a clean name + that tag.
+function clubParts(club: string): { name: string; tag: "loan" | "trial" | null } {
+  const isLoan = club.startsWith("→") || /\(loan\)/i.test(club)
+  const isTrial = /\(trial\)/i.test(club)
+  const name = club.replace(/^→\s*/, "").replace(/\s*\((loan|trial)\)/gi, "").trim()
+  return { name, tag: isLoan ? "loan" : isTrial ? "trial" : null }
+}
+
 function appsGoals(s: CardStint): string {
   const apps = s.apps ?? 0
   return s.goals != null ? `${apps} (${s.goals})` : `${apps}`
@@ -47,8 +56,11 @@ function CareerTable({ title, stints, international }: { title: string; stints: 
               <td className="px-3 py-1.5 text-gray-500 tabular-nums align-top whitespace-nowrap">{s.years}</td>
               <td className="px-1 py-1.5">
                 <span className="flex items-center gap-1.5">
-                  {!international && <MiniClubBadge club={s.club} wikipediaUrl={s.club_wikipedia_url} size={16} />}
-                  <span className="text-gray-800">{s.club.replace(/^→\s*/, '')}</span>
+                  {!international && <MiniClubBadge club={clubParts(s.club).name} wikipediaUrl={s.club_wikipedia_url} size={16} />}
+                  <span className="text-gray-800">
+                    {clubParts(s.club).name}
+                    {clubParts(s.club).tag && <span className="text-gray-400 italic"> ({clubParts(s.club).tag})</span>}
+                  </span>
                 </span>
               </td>
               <td className="px-3 py-1.5 text-right text-gray-600 tabular-nums align-top">{appsGoals(s)}</td>
