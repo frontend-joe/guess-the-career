@@ -62,6 +62,8 @@ const ROLE_GROUPS: { code: string; category: PositionCode; kws: string[] }[] = [
   { code: "DM", category: "MF", kws: ["defensive midfield", "holding midfield", "anchor"] },
   { code: "AM", category: "MF", kws: ["attacking midfield", "playmaker"] },
   { code: "CM", category: "MF", kws: ["central midfield", "centre midfield", "center midfield", "box-to-box", "box to box"] },
+  { code: "RW", category: "MF", kws: ["right winger", "right wing"] },
+  { code: "LW", category: "MF", kws: ["left winger", "left wing"] },
   { code: "WG", category: "MF", kws: ["winger", "wide midfield", "wide player"] },
   { code: "MF", category: "MF", kws: ["midfielder", "midfield"] },
   // Attackers (orange)
