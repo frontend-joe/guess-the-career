@@ -7,6 +7,7 @@ export interface TopScorerPlayer {
   goals: number
   rank: number
   nationality: string | null
+  position: string | null
   clubWikipediaUrl: string | null
 }
 

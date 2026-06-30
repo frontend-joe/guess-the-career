@@ -15,6 +15,7 @@ import {
 } from "@/api/top-scorers-leaderboard";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { PositionBadge } from "@/components/PositionBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 
 type RoundState = "playing" | "cleared";
@@ -392,6 +393,7 @@ export function TopScorersPage() {
                         </td>
                         <td className="px-2">
                           <div className="flex items-center gap-1.5 min-w-0">
+                            {player.position && <PositionBadge position={player.position} />}
                             {guessed ? (
                               player.footballerId != null ? (
                                 <button
