@@ -55,7 +55,9 @@ const ROLE_GROUPS: { code: string; category: PositionCode; kws: string[] }[] = [
   { code: "LB", category: "DF", kws: ["left wing-back", "left wing back", "left wingback", "left-back", "left back", "left full-back", "left fullback"] },
   { code: "CB", category: "DF", kws: ["centre-back", "center-back", "centre back", "center back", "central defender", "centre-half", "center-half", "centre half", "center half"] },
   { code: "SW", category: "DF", kws: ["sweeper", "libero"] },
-  { code: "DF", category: "DF", kws: ["wing-back", "wing back", "wingback", "full-back", "fullback", "full back", "back", "defender"] },
+  { code: "WB", category: "DF", kws: ["wing-back", "wing back", "wingback"] },
+  { code: "FB", category: "DF", kws: ["full-back", "fullback", "full back"] },
+  { code: "DF", category: "DF", kws: ["back", "defender"] },
   // Midfielders (green)
   { code: "DM", category: "MF", kws: ["defensive midfield", "holding midfield", "anchor"] },
   { code: "AM", category: "MF", kws: ["attacking midfield", "playmaker"] },
