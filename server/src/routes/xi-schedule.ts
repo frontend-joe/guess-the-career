@@ -11,6 +11,7 @@ interface PlayerRow {
   id: number
   name: string
   position: string
+  footballer_position: string | null
   squad_number: number | null
   nationality: string | null
   footballer_id: number | null
@@ -100,7 +101,8 @@ xiScheduleRouter.get('/rounds', (c) => {
 
   const rounds = rows.map(row => {
     const players = sqlite.prepare(`
-      SELECT xp.id, xp.name, xp.position, xp.squad_number, xp.footballer_id, xp.club_at_time, f.nationality
+      SELECT xp.id, xp.name, xp.position, f.position AS footballer_position,
+             xp.squad_number, xp.footballer_id, xp.club_at_time, f.nationality
       FROM xi_players xp
       LEFT JOIN footballers f ON xp.footballer_id = f.id
       WHERE xp.match_id = ? AND xp.team = ?
@@ -156,7 +158,7 @@ xiScheduleRouter.get('/rounds', (c) => {
           return {
             id: p.id,
             footballerId: p.footballer_id,
-            position: p.position,
+            position: p.footballer_position ?? p.position,
             squadNumber: p.squad_number,
             nationality: p.nationality ?? null,
             clubAtTime: p.club_at_time,
@@ -169,7 +171,7 @@ xiScheduleRouter.get('/rounds', (c) => {
         return {
           id: p.id,
           footballerId: p.footballer_id,
-          position: p.position,
+          position: p.footballer_position ?? p.position,
           squadNumber: p.squad_number,
           nationality: p.nationality ?? null,
           clubAtTime: clubAtTime?.club ?? null,
