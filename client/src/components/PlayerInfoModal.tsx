@@ -56,10 +56,11 @@ function CareerTable({ title, stints, international }: { title: string; stints: 
               <td className="px-3 py-1.5 text-gray-500 tabular-nums align-top whitespace-nowrap">{s.years}</td>
               <td className="px-1 py-1.5">
                 <span className="flex items-center gap-1.5">
+                  {clubParts(s.club).tag === 'loan' && <span className="text-gray-500 shrink-0">→</span>}
                   {!international && <MiniClubBadge club={clubParts(s.club).name} wikipediaUrl={s.club_wikipedia_url} size={16} />}
                   <span className="text-gray-800">
                     {clubParts(s.club).name}
-                    {clubParts(s.club).tag && <span className="text-gray-400 italic"> ({clubParts(s.club).tag})</span>}
+                    {clubParts(s.club).tag && ` (${clubParts(s.club).tag})`}
                   </span>
                 </span>
               </td>
