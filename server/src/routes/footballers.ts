@@ -3,9 +3,29 @@ import { streamSSE } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { and, eq, sql, notInArray, isNotNull } from 'drizzle-orm'
-import { db, normalizeName } from '../db/client.ts'
+import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
-import { scrapeWikipedia } from '../services/scraper.ts'
+import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
+import { reserveRe } from '../services/football.ts'
+
+// Reserve/B/youth teams should show the parent club's crest. Resolve the parent
+// club's Wikipedia URL from the clubs table when the stint is a reserve side.
+function parentClubBadgeUrl(club: string): string | null {
+  const clean = club
+    .replace(/^→\s*/, '')
+    .replace(/\s*\((loan|trial|co-ownership)\)\s*$/i, '')
+    .trim()
+  if (!reserveRe.test(clean)) return null
+  const parent = clean.replace(reserveRe, '').trim()
+  if (!parent || parent === clean) return null
+  for (const name of [parent, normalizeClubAlias(parent)]) {
+    const row = sqlite
+      .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) AND wikipedia_url IS NOT NULL LIMIT 1`)
+      .get(name) as { wikipedia_url: string | null } | undefined
+    if (row?.wikipedia_url) return row.wikipedia_url
+  }
+  return null
+}
 
 async function fetchSportsDbPhoto(name: string): Promise<string | null> {
   try {
@@ -329,11 +349,17 @@ footballersRouter.get('/:id/card', async (c) => {
     }
   }
 
-  const stints = await db
+  const rawStints = await db
     .select()
     .from(career_stints)
     .where(eq(career_stints.footballer_id, id))
     .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
+
+  // Reserve/B teams borrow the parent club's crest for the badge.
+  const stints = rawStints.map((s) => ({
+    ...s,
+    club_wikipedia_url: parentClubBadgeUrl(s.club) ?? s.club_wikipedia_url,
+  }))
 
   return c.json({
     id: footballer.id,
