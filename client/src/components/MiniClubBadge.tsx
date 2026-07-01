@@ -57,7 +57,9 @@ export function MiniClubBadge({ club, wikipediaUrl, size = 20 }: Props) {
       {logoUrl === null
         ? <div className="w-full h-full bg-gray-100 animate-pulse rounded" />
         : logoUrl === false
-          ? <span className="text-[9px] text-gray-400 font-bold leading-none">{club.charAt(0)}</span>
+          ? <svg viewBox="0 0 24 24" className="w-full h-full text-gray-300" fill="currentColor" role="img" aria-label={club}>
+              <path d="M12 2 4 4.6v6.2c0 5 3.4 8.9 8 10.4 4.6-1.5 8-5.4 8-10.4V4.6L12 2z" />
+            </svg>
           : <img src={logoUrl} alt={club} className="max-h-full max-w-full object-contain" />
       }
       {open && coords && createPortal(
