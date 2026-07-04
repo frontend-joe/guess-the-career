@@ -184,11 +184,7 @@ export function BookendsPage() {
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               {/* Photo + name header */}
               <div className="relative h-44 bg-[#0b0c1a] overflow-hidden flex items-center justify-center">
-                {revealed && card.photo_url ? (
-                  <img src={card.photo_url} alt="" className="absolute inset-0 w-full h-full object-cover object-top" />
-                ) : (
-                  <HelpCircle className="text-white/20" size={64} />
-                )}
+                <HelpCircle className="text-white/20" size={64} />
                 <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black via-black/55 to-transparent" />
                 <h2 className="absolute inset-x-0 bottom-0 px-4 pb-3 font-display text-xl text-white leading-tight tracking-tight">
                   {revealed ? card.name : "Mystery player"}
