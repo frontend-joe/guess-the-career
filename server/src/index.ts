@@ -42,6 +42,7 @@ import { serieARouter } from './routes/serie-a.ts'
 import { laLigaRouter } from './routes/la-liga.ts'
 import { dualNationalityRouter } from './routes/dual-nationality.ts'
 import { footballFamiliesRouter } from './routes/football-families.ts'
+import { bookendsRouter } from './routes/bookends.ts'
 import { clubLegendsRouter } from './routes/club-legends.ts'
 import { clubMarksmanRouter } from './routes/club-marksman.ts'
 import { transfersRouter } from './routes/transfers.ts'
@@ -99,6 +100,7 @@ app.route('/api/serie-a', serieARouter)
 app.route('/api/la-liga', laLigaRouter)
 app.route('/api/dual-nationality', dualNationalityRouter)
 app.route('/api/football-families', footballFamiliesRouter)
+app.route('/api/bookends', bookendsRouter)
 app.route('/api/club-legends', clubLegendsRouter)
 app.route('/api/club-marksman', clubMarksmanRouter)
 app.route('/api/transfers', transfersRouter)

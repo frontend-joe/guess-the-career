@@ -17,6 +17,9 @@ import { DualNationalityPage } from '@/pages/DualNationalityPage'
 import { DualNationalityAdminPage } from '@/pages/DualNationalityAdminPage'
 import { FootballFamiliesAdminPage } from '@/pages/FootballFamiliesAdminPage'
 import { FootballFamiliesPage } from '@/pages/FootballFamiliesPage'
+import { BookendsPage } from '@/pages/BookendsPage'
+import { BookendsAdminPage } from '@/pages/BookendsAdminPage'
+import { BookendsSchedulePage } from '@/pages/BookendsSchedulePage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
@@ -124,6 +127,7 @@ const router = createBrowserRouter([
   { path: '/play/la-liga', element: <LaLigaPage /> },
   { path: '/play/dual-nationality', element: <DualNationalityPage /> },
   { path: '/play/football-families', element: <FootballFamiliesPage /> },
+  { path: '/play/bookends', element: <BookendsPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
   { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
@@ -180,6 +184,8 @@ const router = createBrowserRouter([
       { path: 'la-liga/schedule', element: <LaLigaSchedulePage /> },
       { path: 'dual-nationality', element: <DualNationalityAdminPage /> },
       { path: 'football-families', element: <FootballFamiliesAdminPage /> },
+      { path: 'bookends', element: <BookendsAdminPage /> },
+      { path: 'bookends/schedule', element: <BookendsSchedulePage /> },
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
