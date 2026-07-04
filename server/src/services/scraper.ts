@@ -598,7 +598,10 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
           );
         }
       }
-    } else if (label.includes("position")) {
+    } else if (label.includes("position") && position === null) {
+      // Take the FIRST "Position" row only. Some articles embed a second sport's
+      // infobox (e.g. Clive Allen also has an American-football "Placekicker"
+      // row) — the football position comes first, so keep it.
       // Position uses a Wikipedia hlist — collect <li> items and join them
       const items: string[] = [];
       value.find("li").each((_, li) => {
