@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
-import { Loader2, ChevronLeft, ChevronRight, Shuffle, Check, HelpCircle } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Shuffle, Check } from "lucide-react";
 import { GameMenu } from "@/components/GameMenu";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
@@ -183,10 +183,8 @@ export function BookendsPage() {
           <div className="px-3 pt-3 pb-2">
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               {/* Photo + name header */}
-              <div className="relative h-44 bg-[#0b0c1a] overflow-hidden flex items-center justify-center">
-                <HelpCircle className="text-white/20" size={64} />
-                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black via-black/55 to-transparent" />
-                <h2 className="absolute inset-x-0 bottom-0 px-4 pb-3 font-display text-xl text-white leading-tight tracking-tight">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h2 className="font-display text-xl text-gray-900 leading-tight tracking-tight">
                   {revealed ? card.name : "Mystery player"}
                 </h2>
               </div>
