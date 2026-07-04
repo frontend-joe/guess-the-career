@@ -5,7 +5,6 @@ import { GameMenu } from "@/components/GameMenu";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
-import { PositionBadge } from "@/components/PositionBadge";
 import { getFootballerCard, type FootballerCard, type CardStint } from "@/api/footballers";
 import { getBookendsScheduleRounds, type BookendsScheduleRound } from "@/api/bookends-schedule";
 
@@ -140,8 +139,6 @@ export function BookendsPage() {
     if (!loading && status === "playing") setTimeout(() => inputRef.current?.focus(), 50);
   }, [index, loading, status]);
 
-  const revealed = status !== "playing";
-
   function submitGuess(name: string, id: number | null) {
     if (!card || status !== "playing") return;
     const correct = (id != null && id === card.id) || name.trim().toLowerCase() === card.name.toLowerCase();
@@ -182,11 +179,9 @@ export function BookendsPage() {
         ) : (
           <div className="px-3 pt-3 pb-2">
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              {/* Photo + name header */}
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h2 className="font-display text-xl text-gray-900 leading-tight tracking-tight">
-                  {revealed ? card.name : "Mystery player"}
-                </h2>
+              {/* Personal information (name is revealed in the bottom bar) */}
+              <div className="bg-gray-100 text-gray-700 text-left px-3 font-display text-sm tracking-tight py-1.5 border-b border-gray-200">
+                Personal information
               </div>
 
               {/* Bio (no full name — it'd give it away) */}
@@ -196,7 +191,7 @@ export function BookendsPage() {
                   <BioRow label="Date of birth" value={formatDob(card.born)} />
                   <BioRow label="Birth place" value={card.birthplace} />
                   <BioRow label="Height" value={formatHeight(card.height_cm)} />
-                  <BioRow label="Position" value={card.position ? <span className="flex items-center gap-1.5"><PositionBadge position={card.position} />{card.position}</span> : null} />
+                  <BioRow label="Position" value={card.position} />
                 </tbody>
               </table>
 
