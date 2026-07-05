@@ -37,6 +37,38 @@ function cappedSet(): Set<number> {
   return s
 }
 
+// Rank a non-senior international side by level. Higher score = higher honour.
+// (These players are uncapped, so senior sides never reach here.)
+function intlLevel(club: string): { score: number; label: string } | null {
+  const t = club.trim()
+  if (/\bB$/.test(t)) return { score: 95, label: 'B' }
+  if (/\bOlympic\b/i.test(t)) return { score: 90, label: 'Olympic' }
+  if (/\bAmateur\b/i.test(t)) return { score: 85, label: 'Amateur' }
+  const m = t.match(/U-?(\d{1,2})/i)
+  if (m) return { score: Number(m[1]), label: `U${m[1]}` }
+  return null
+}
+
+// The highest international level a player reached, as a display string, e.g.
+// "12 U21 caps" / "Olympic caps" — or "No caps" when they never featured at any
+// recognised youth/B/Olympic level.
+function topIntlCaps(footballerId: number): string {
+  const stints = sqlite
+    .prepare(`SELECT club, apps FROM career_stints WHERE footballer_id = ? AND stint_type = 'international'`)
+    .all(footballerId) as { club: string; apps: number | null }[]
+  let best: { score: number; label: string; apps: number } | null = null
+  for (const s of stints) {
+    const lvl = intlLevel(s.club)
+    if (!lvl) continue
+    const apps = s.apps ?? 0
+    if (!best || lvl.score > best.score) best = { ...lvl, apps }
+  }
+  if (!best) return 'No caps'
+  return best.apps > 0
+    ? `${best.apps} ${best.label} cap${best.apps === 1 ? '' : 's'}`
+    : `${best.label} caps`
+}
+
 // Combine a player's stint "years" strings for one club into a single span.
 function yearsSpan(raw: string[]): string | null {
   const nums = raw.join('|').match(/\d{4}/g)
@@ -108,6 +140,7 @@ interface UncappedPlayer {
   name: string
   photo_url: string | null
   apps: number
+  caps: string
   position: string | null
   hintClub: string | null
   clubWikiUrl: string | null
@@ -164,7 +197,7 @@ function getCountryPlayers(nationality: string): UncappedPlayer[] {
     for (const v of p.byClub.values()) { total += v.apps; if (!best || v.apps > best.apps) best = v }
     if (!best) continue
     out.push({
-      id, name: p.name, photo_url: p.photo_url, apps: total, position: p.position,
+      id, name: p.name, photo_url: p.photo_url, apps: total, caps: topIntlCaps(id), position: p.position,
       hintClub: best.name, clubWikiUrl: best.wiki ?? clubWikiUrl(best.name), years: yearsSpan(best.years),
     })
   }
@@ -304,16 +337,18 @@ uncappedRouter.post(
       nationalitiesMatch(nat, nationality) && !hasSeniorCap(intlStints)
 
     type FailReason = 'wrong_nationality' | 'capped'
-    function invalidJson(name: string, nat: string | null | undefined) {
+    const seniorCapCount = (intl: { club: string; apps: number | null }[]) =>
+      intl.filter((s) => isSeniorNationalTeam(s.club)).reduce((n, s) => n + (s.apps ?? 0), 0)
+    function invalidJson(name: string, nat: string | null | undefined, intl: { club: string; apps: number | null }[] = []) {
       const natOk = nationalitiesMatch(nat, nationality)
       const reason: FailReason = !natOk ? 'wrong_nationality' : 'capped'
-      return { valid: false as const, foundName: name, foundNationality: !natOk ? (nat ?? null) : null, imported: false, reason }
+      return { valid: false as const, foundName: name, foundNationality: !natOk ? (nat ?? null) : null, capCount: reason === 'capped' ? seniorCapCount(intl) : null, imported: false, reason }
     }
 
     const success = (f: { id: number; name: string; photo_url: string | null }, imported: boolean) => {
       const hint = hintClubFor(f.id)
       const row = sqlite.prepare(`SELECT position FROM footballers WHERE id = ?`).get(f.id) as { position: string | null } | undefined
-      return c.json({ valid: true, footballer: { id: f.id, name: f.name, photo_url: f.photo_url }, position: row?.position ?? null, hintClub: hint.club, clubWikiUrl: hint.clubWikiUrl, apps: hint.apps, years: hint.years, imported })
+      return c.json({ valid: true, footballer: { id: f.id, name: f.name, photo_url: f.photo_url }, position: row?.position ?? null, hintClub: hint.club, clubWikiUrl: hint.clubWikiUrl, apps: hint.apps, caps: topIntlCaps(f.id), years: hint.years, imported })
     }
 
     const intlOf = (id: number) =>
@@ -346,13 +381,23 @@ uncappedRouter.post(
     }
 
     if (footballer) {
-      if (qualifies(intlOf(footballer.id), footballer.nationality)) return success(footballer, false)
-      // Stints may be stale — rescrape and re-check
+      const intl = intlOf(footballer.id)
+      if (qualifies(intl, footballer.nationality)) return success(footballer, false)
+      // Known capped (right nationality) — report immediately with the cap count.
+      if (nationalitiesMatch(footballer.nationality, nationality) && hasSeniorCap(intl)) {
+        return c.json(invalidJson(footballer.name, footballer.nationality, intl))
+      }
+      // Stints may be stale (missing caps) — rescrape and re-check.
       if (footballer.wikipedia_url) {
         try {
           const scraped = await scrapeWikipedia(footballer.wikipedia_url)
           await importStints(footballer.id, scraped)
-          if (qualifies(intlOf(footballer.id), scraped.nationality ?? footballer.nationality)) return success(footballer, true)
+          const intl2 = intlOf(footballer.id)
+          const nat2 = scraped.nationality ?? footballer.nationality
+          if (qualifies(intl2, nat2)) return success(footballer, true)
+          if (nationalitiesMatch(nat2, nationality) && hasSeniorCap(intl2)) {
+            return c.json(invalidJson(footballer.name, nat2, intl2))
+          }
         } catch { /* fall through */ }
       }
     }
@@ -390,7 +435,7 @@ uncappedRouter.post(
         try { scraped = await scrapeWikipedia(wikiUrl) } catch { continue }
         const intlStints = scraped.stints.filter((s) => s.stint_type === 'international').map((s) => ({ club: s.club, apps: s.apps ?? null }))
         if (!qualifies(intlStints, scraped.nationality)) {
-          fallbackInvalid ??= invalidJson(scraped.name, scraped.nationality)
+          fallbackInvalid ??= invalidJson(scraped.name, scraped.nationality, intlStints)
           continue
         }
 

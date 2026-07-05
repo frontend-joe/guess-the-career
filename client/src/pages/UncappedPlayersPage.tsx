@@ -58,7 +58,7 @@ function roundTarget(r: { roundSize: number; playerCount: number }): number {
   return r.playerCount > 0 ? Math.min(r.roundSize, r.playerCount) : r.roundSize;
 }
 
-interface Player { id: number; name: string; photo_url: string | null; apps?: number; position?: string | null; hintClub?: string | null; clubWikiUrl?: string | null; years?: string | null }
+interface Player { id: number; name: string; photo_url: string | null; apps?: number; caps?: string; position?: string | null; hintClub?: string | null; clubWikiUrl?: string | null; years?: string | null }
 
 function PlayerSlot({ index, player, hint }: { index: number; player: Player | null; hint?: Player | null }) {
   const showPlayer = useShowPlayer();
@@ -72,7 +72,7 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
           </span>
           {player.position && <PositionBadge position={player.position} />}
           <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
-          {player.apps != null && <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
+          {player.caps != null && <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">{player.caps}</span>}
         </div>
       ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -100,8 +100,10 @@ interface VerifyResult {
   clubWikiUrl?: string | null;
   years?: string | null;
   apps?: number;
+  caps?: string;
   foundName?: string;
   foundNationality?: string | null;
+  capCount?: number | null;
   imported: boolean;
   reason?: "wrong_nationality" | "capped";
 }
@@ -197,7 +199,7 @@ export function UncappedPlayersPage() {
     try {
       const result = await verifyGuess(name, id, currentRound.nationality);
       if (result.valid && result.footballer) {
-        const f = { ...result.footballer, position: result.position, hintClub: result.hintClub, clubWikiUrl: result.clubWikiUrl, years: result.years, apps: result.apps };
+        const f = { ...result.footballer, position: result.position, hintClub: result.hintClub, clubWikiUrl: result.clubWikiUrl, years: result.years, apps: result.apps, caps: result.caps };
         const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
         setRoundStates((prev) => {
           const state = prev[currentKey]; if (!state) return prev;
@@ -209,7 +211,8 @@ export function UncappedPlayersPage() {
       } else {
         if (wrongTimer.current) clearTimeout(wrongTimer.current);
         const displayName = result.foundName ?? `"${name}"`;
-        const msg = result.reason === "capped" ? `${displayName} won a senior cap`
+        const msg = result.reason === "capped"
+            ? (result.capCount ? `${displayName} won ${result.capCount} cap${result.capCount === 1 ? "" : "s"}` : `${displayName} won a senior cap`)
           : result.reason === "wrong_nationality" && result.foundNationality ? `${displayName} is actually ${result.foundNationality}`
           : result.reason === "wrong_nationality" ? `${displayName} isn't ${currentRound.nationality}`
           : `${displayName} is not a valid answer`;
