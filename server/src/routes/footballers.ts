@@ -18,29 +18,55 @@ const INVERSE_REL: Record<string, string> = {
   grandfather: 'grandson', grandson: 'grandfather', grandad: 'grandson',
   grandmother: 'granddaughter', granddaughter: 'grandmother',
 }
-function getRelations(id: number): { footballerId: number; name: string; relationship: string | null }[] {
+// Generational pairs: the older player takes the first (senior) role. When both
+// birth years are known we use age rather than the stored word's direction.
+const GEN_GROUPS: { words: string[]; older: string; younger: string }[] = [
+  { words: ['father', 'son', 'dad'], older: 'father', younger: 'son' },
+  { words: ['mother', 'daughter'], older: 'mother', younger: 'daughter' },
+  { words: ['uncle', 'nephew'], older: 'uncle', younger: 'nephew' },
+  { words: ['aunt', 'niece'], older: 'aunt', younger: 'niece' },
+  { words: ['grandfather', 'grandson', 'grandad'], older: 'grandfather', younger: 'grandson' },
+  { words: ['grandmother', 'granddaughter'], older: 'grandmother', younger: 'granddaughter' },
+]
+const yearOf = (born: string | null): number | null => {
+  const m = born?.match(/\d{4}/)
+  return m ? Number(m[0]) : null
+}
+
+function getRelations(id: number, viewedBorn: string | null): { footballerId: number; name: string; relationship: string | null }[] {
   const rows = sqlite
     .prepare(
-      `SELECT fl.relative_footballer_id AS rid, f.name AS name, fl.relationship AS rel, 0 AS reverse
+      `SELECT fl.relative_footballer_id AS rid, f.name AS name, f.born AS born, fl.relationship AS rel, 0 AS reverse
        FROM football_family_links fl JOIN footballers f ON f.id = fl.relative_footballer_id
        WHERE fl.footballer_id = ? AND fl.included = 1 AND fl.relative_footballer_id IS NOT NULL
        UNION ALL
-       SELECT fl.footballer_id AS rid, f.name AS name, fl.relationship AS rel, 1 AS reverse
+       SELECT fl.footballer_id AS rid, f.name AS name, f.born AS born, fl.relationship AS rel, 1 AS reverse
        FROM football_family_links fl JOIN footballers f ON f.id = fl.footballer_id
        WHERE fl.relative_footballer_id = ? AND fl.included = 1`,
     )
-    .all(id, id) as { rid: number; name: string; rel: string | null; reverse: number }[]
+    .all(id, id) as { rid: number; name: string; born: string | null; rel: string | null; reverse: number }[]
+  const vy = yearOf(viewedBorn)
   const seen = new Set<number>()
   const out: { footballerId: number; name: string; relationship: string | null }[] = []
   for (const r of rows) {
     if (r.rid === id || seen.has(r.rid)) continue
     seen.add(r.rid)
-    // Stored relationship R means "footballer_id is the R of relative". So on the
-    // footballer_id's own card (reverse=0) the relative is the INVERSE of R; on the
-    // relative's card (reverse=1) the footballer_id is R itself.
-    const relationship = r.rel
-      ? (r.reverse ? r.rel : (INVERSE_REL[r.rel.toLowerCase()] ?? r.rel))
-      : r.rel
+    const relLower = r.rel?.toLowerCase()
+    const group = relLower ? GEN_GROUPS.find((g) => g.words.includes(relLower)) : undefined
+    let relationship: string | null
+    if (group) {
+      const ry = yearOf(r.born)
+      if (vy != null && ry != null && vy !== ry) {
+        // Label = what the relation is to the viewed player: older relation = senior role.
+        relationship = ry < vy ? group.older : group.younger
+      } else {
+        // No ages: fall back to the stored word (reverse = as stored, forward = inverse).
+        relationship = r.reverse ? r.rel : (INVERSE_REL[relLower!] ?? r.rel)
+      }
+    } else {
+      // Symmetric (brother/cousin/…) — same label both ways.
+      relationship = r.rel
+    }
     out.push({ footballerId: r.rid, name: r.name, relationship })
   }
   return out
@@ -412,7 +438,7 @@ footballersRouter.get('/:id/card', async (c) => {
     nationality: footballer.nationality,
     wikipedia_url: footballer.wikipedia_url,
     stints,
-    relations: getRelations(id),
+    relations: getRelations(id, footballer.born),
   })
 })
 
