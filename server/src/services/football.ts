@@ -285,7 +285,9 @@ const NATION_TEAM_SUFFIX_RE = /\s+(\(O\.P\.\)|Olympic|Amateur|Youth|League XI|Te
 // Tolerates slash-joined senior sides that span a country change, e.g.
 // "West Germany/Germany" or "Czechoslovakia/Czech Republic".
 export function isSeniorNationalTeam(team: string): boolean {
-  const t = team.trim()
+  // Normalise slash spacing so "West Germany / Germany" and "West Germany/Germany"
+  // are treated identically.
+  const t = team.trim().replace(/\s*\/\s*/g, '/')
   const stripped = t
     .split('/')
     .map((part) => {
