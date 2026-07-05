@@ -5,7 +5,7 @@ import { eq, sql } from 'drizzle-orm'
 import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
-import { nationalitiesMatch, isSeniorNationalTeam } from '../services/football.ts'
+import { nationalitiesMatch, isSeniorNationalTeam, canonicalNationality } from '../services/football.ts'
 
 export const uncappedRouter = new Hono()
 
@@ -90,7 +90,9 @@ function findValidCountries(): [string, number][] {
   const natPlayers = new Map<string, Set<number>>()
   for (const { id, nationality } of rows) {
     if (capped.has(id)) continue
-    const nat = nationality.trim()
+    // Group historical variants (West/East Germany → Germany) under one country.
+    const nat = canonicalNationality(nationality)
+    if (!nat) continue
     if (!natPlayers.has(nat)) natPlayers.set(nat, new Set())
     natPlayers.get(nat)!.add(id)
   }
@@ -114,14 +116,25 @@ interface UncappedPlayer {
 
 // All uncapped players of a nationality with their most-played club + years hint.
 function getCountryPlayers(nationality: string): UncappedPlayer[] {
+  // Match every raw nationality that canonicalises to the requested country so a
+  // grouped country (e.g. Germany) includes its variants (West/East Germany).
+  const target = canonicalNationality(nationality).toLowerCase()
+  const natRows = sqlite
+    .prepare(`SELECT DISTINCT nationality FROM footballers WHERE nationality IS NOT NULL AND nationality != ''`)
+    .all() as { nationality: string }[]
+  const matching = natRows
+    .map((r) => r.nationality)
+    .filter((n) => canonicalNationality(n).toLowerCase() === target)
+  if (matching.length === 0) return []
+  const placeholders = matching.map(() => '?').join(',')
   const rows = sqlite
     .prepare(
       `SELECT f.id, f.name, f.photo_url, f.position, cs.club, cs.apps, cs.years, cs.club_wikipedia_url
        FROM footballers f
        JOIN career_stints cs ON cs.footballer_id = f.id AND cs.stint_type = 'senior'
-       WHERE LOWER(f.nationality) = LOWER(?)`,
+       WHERE f.nationality IN (${placeholders})`,
     )
-    .all(nationality) as {
+    .all(...matching) as {
     id: number; name: string; photo_url: string | null; position: string | null
     club: string; apps: number | null; years: string | null; club_wikipedia_url: string | null
   }[]

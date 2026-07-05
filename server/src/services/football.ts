@@ -120,6 +120,21 @@ export function nationalitiesMatch(
   return allNationalityIsos(playerNat).has(targetIso)
 }
 
+// Historical / split-state nationalities collapsed onto the modern country used
+// for grouping players (e.g. West & East Germany → Germany). Keyed lowercase.
+const CANONICAL_NATIONALITY: Record<string, string> = {
+  'west germany': 'Germany',
+  'east germany': 'Germany',
+  german: 'Germany',
+}
+
+// Canonical display nationality for grouping. Falls back to the trimmed input.
+export function canonicalNationality(nat: string | null | undefined): string {
+  if (!nat) return ''
+  const t = nat.trim()
+  return CANONICAL_NATIONALITY[t.toLowerCase()] ?? t
+}
+
 // True when the nationality is English (so it can be excluded from "foreigners").
 export function isEngland(nat: string | null | undefined): boolean {
   return allNationalityIsos(nat).has('GB-ENG')
@@ -261,10 +276,29 @@ export function nationIso(team: string): string | null {
   return NATIONALITY_ISO_LC[baseNation(team).toLowerCase()] ?? null
 }
 
+// Age-group / reserve / Olympic markers as a trailing token. Requires whitespace
+// before the marker so real trailing letters ("Czech Republi[c]") aren't stripped.
+const NATION_TEAM_SUFFIX_RE = /\s+(\(O\.P\.\)|Olympic|Amateur|Youth|League XI|Team\s*\d+|U-?\d+|B|C|II|III|IV)\s*$/i
+
 // True when an international team name is a full senior national team (no
 // age-group / B / Olympic suffix) — used to tell a senior cap from a youth one.
+// Tolerates slash-joined senior sides that span a country change, e.g.
+// "West Germany/Germany" or "Czechoslovakia/Czech Republic".
 export function isSeniorNationalTeam(team: string): boolean {
-  return baseNation(team) === team.trim()
+  const t = team.trim()
+  const stripped = t
+    .split('/')
+    .map((part) => {
+      let p = part.trim()
+      let prev = ''
+      while (prev !== p) {
+        prev = p
+        p = p.replace(NATION_TEAM_SUFFIX_RE, '').trim()
+      }
+      return p
+    })
+    .join('/')
+  return stripped === t
 }
 
 // SELECT fragment computing a footballer's senior career start/end years (same
