@@ -1,0 +1,605 @@
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { eq, sql } from "drizzle-orm";
+import { db, sqlite, normalizeName } from "../db/client.ts";
+import { footballers, career_stints } from "../db/schema.ts";
+import { scrapeWikipedia, isRetired } from "../services/scraper.ts";
+import {
+  isSeniorNationalTeam,
+  canonicalNationality,
+  baseNation,
+} from "../services/football.ts";
+
+export const internationalLegendsRouter = new Hono();
+
+const MIN_APPS = 50;
+const MIN_LEGENDS = 5;
+
+// The modern country a senior international side belongs to, or null if the team
+// isn't a full senior national team (youth/B/Olympic/non-FIFA are excluded).
+function stintCountry(club: string): string | null {
+  return isSeniorNationalTeam(club) ? canonicalNationality(baseNation(club)) : null;
+}
+
+// Sum a player's senior international appearances for one country across all its
+// (possibly historical) team names.
+function sumIntlApps(
+  stints: { club: string; apps: number | null }[],
+  country: string,
+): number {
+  const target = canonicalNationality(country).toLowerCase();
+  let total = 0;
+  for (const s of stints) {
+    const c = stintCountry(s.club);
+    if (c && c.toLowerCase() === target) total += s.apps ?? 0;
+  }
+  return total;
+}
+
+function playedForCountry(
+  stints: { club: string }[],
+  country: string,
+): boolean {
+  const target = canonicalNationality(country).toLowerCase();
+  return stints.some((s) => {
+    const c = stintCountry(s.club);
+    return c != null && c.toLowerCase() === target;
+  });
+}
+
+interface StintRow {
+  footballer_id: number;
+  club: string;
+  apps: number | null;
+}
+
+// Returns [country, legendCount] for every country with >= MIN_LEGENDS players
+// who have >= MIN_APPS senior international appearances for that country.
+function findValidCountries(): [string, number][] {
+  const rows = sqlite
+    .prepare(
+      `SELECT footballer_id, club, apps FROM career_stints WHERE stint_type = 'international'`,
+    )
+    .all() as StintRow[];
+
+  // country -> (footballer_id -> summed senior international apps)
+  const countryMap = new Map<string, Map<number, number>>();
+  for (const { footballer_id, club, apps } of rows) {
+    const country = stintCountry(club);
+    if (!country) continue;
+    if (!countryMap.has(country)) countryMap.set(country, new Map());
+    const players = countryMap.get(country)!;
+    players.set(footballer_id, (players.get(footballer_id) ?? 0) + (apps ?? 0));
+  }
+
+  const valid: [string, number][] = [];
+  for (const [country, players] of countryMap) {
+    let legends = 0;
+    for (const total of players.values()) if (total >= MIN_APPS) legends++;
+    if (legends >= MIN_LEGENDS) valid.push([country, legends]);
+  }
+  return valid;
+}
+
+// The exact international team names stored in the DB that canonicalise to the
+// requested country (so a grouped country includes its historical sides).
+function teamsForCountry(country: string): string[] {
+  const target = canonicalNationality(country).toLowerCase();
+  const rows = sqlite
+    .prepare(
+      `SELECT DISTINCT club FROM career_stints WHERE stint_type = 'international'`,
+    )
+    .all() as { club: string }[];
+  return rows
+    .map((r) => r.club)
+    .filter((club) => {
+      const c = stintCountry(club);
+      return c != null && c.toLowerCase() === target;
+    });
+}
+
+interface LegendPlayer {
+  id: number;
+  name: string;
+  photo_url: string | null;
+  apps: number;
+  position: string | null;
+  years: string | null;
+}
+
+// Combine a player's international "years" strings for one country into a single
+// span, e.g. "2004–2009|2011" -> "2004–2011".
+function yearsSpan(raw: string | null): string | null {
+  if (!raw) return null;
+  const nums = raw.match(/\d{4}/g);
+  if (!nums || nums.length === 0) return null;
+  const years = nums.map(Number);
+  const min = Math.min(...years);
+  const max = Math.max(...years);
+  return min === max ? String(min) : `${min}–${max}`;
+}
+
+// All players with >= MIN_APPS senior international appearances for the country.
+function getCountryLegends(country: string): LegendPlayer[] {
+  const teams = teamsForCountry(country);
+  if (teams.length === 0) return [];
+  const ph = teams.map(() => "?").join(", ");
+  const rows = sqlite
+    .prepare(
+      `
+    SELECT f.id, f.name, f.photo_url, f.position,
+           SUM(COALESCE(cs.apps, 0)) as total_apps,
+           GROUP_CONCAT(cs.years, '|') as years_raw
+    FROM footballers f
+    JOIN career_stints cs ON cs.footballer_id = f.id
+      AND cs.stint_type = 'international'
+      AND cs.club IN (${ph})
+    GROUP BY f.id
+    HAVING total_apps >= ${MIN_APPS}
+    ORDER BY total_apps DESC, f.name ASC
+  `,
+    )
+    .all(...teams) as {
+    id: number;
+    name: string;
+    photo_url: string | null;
+    position: string | null;
+    total_apps: number;
+    years_raw: string | null;
+  }[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    photo_url: r.photo_url,
+    apps: r.total_apps,
+    position: r.position,
+    years: yearsSpan(r.years_raw),
+  }));
+}
+
+// Full player payload for a verified guess so the revealed row matches the
+// answers list without a refresh.
+function verifiedLegend(
+  country: string,
+  id: number,
+  fallback: { name: string; photo_url: string | null },
+): LegendPlayer {
+  const found = getCountryLegends(country).find((p) => p.id === id);
+  return (
+    found ?? {
+      id,
+      name: fallback.name,
+      photo_url: fallback.photo_url,
+      apps: 0,
+      position: null,
+      years: null,
+    }
+  );
+}
+
+// GET /api/international-legends/admin/countries
+internationalLegendsRouter.get("/admin/countries", (c) => {
+  const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
+  const pageSize = Math.min(
+    50,
+    Math.max(1, parseInt(c.req.query("pageSize") ?? "25", 10)),
+  );
+
+  const validCountries = findValidCountries();
+
+  // Seed all countries as enabled on first visit (when the table is empty).
+  const existingCount = (
+    sqlite
+      .prepare(`SELECT COUNT(*) as n FROM international_legends_enabled_countries`)
+      .get() as { n: number }
+  ).n;
+  if (existingCount === 0 && validCountries.length > 0) {
+    const insert = sqlite.prepare(
+      `INSERT OR IGNORE INTO international_legends_enabled_countries (country) VALUES (?)`,
+    );
+    const insertMany = sqlite.transaction((countries: string[]) => {
+      for (const country of countries) insert.run(country);
+    });
+    insertMany(validCountries.map(([country]) => country));
+  }
+
+  const enabledRows = sqlite
+    .prepare(`SELECT country FROM international_legends_enabled_countries`)
+    .all() as { country: string }[];
+  const enabledSet = new Set(enabledRows.map((r) => r.country));
+
+  const sorted = validCountries.sort((a, b) => b[1] - a[1]);
+  const total = sorted.length;
+  const enabledCount = sorted.filter(([country]) => enabledSet.has(country)).length;
+  const page_data = sorted.slice((page - 1) * pageSize, page * pageSize);
+
+  const data = page_data.map(([country, legendCount]) => ({
+    country,
+    legendCount,
+    enabled: enabledSet.has(country),
+  }));
+
+  return c.json({ data, total, enabledCount, page, pageSize });
+});
+
+// GET /api/international-legends/admin/countries/:country/players
+internationalLegendsRouter.get("/admin/countries/:country/players", (c) => {
+  return c.json(getCountryLegends(c.req.param("country")));
+});
+
+// POST /api/international-legends/admin/countries/enable
+internationalLegendsRouter.post(
+  "/admin/countries/enable",
+  zValidator("json", z.object({ country: z.string().min(1) })),
+  (c) => {
+    const { country } = c.req.valid("json");
+    sqlite
+      .prepare(
+        `INSERT OR IGNORE INTO international_legends_enabled_countries (country) VALUES (?)`,
+      )
+      .run(canonicalNationality(country));
+    return c.json({ ok: true });
+  },
+);
+
+// DELETE /api/international-legends/admin/countries/enable
+internationalLegendsRouter.delete(
+  "/admin/countries/enable",
+  zValidator("json", z.object({ country: z.string().min(1) })),
+  (c) => {
+    const { country } = c.req.valid("json");
+    sqlite
+      .prepare(
+        `DELETE FROM international_legends_enabled_countries WHERE LOWER(country) = LOWER(?)`,
+      )
+      .run(canonicalNationality(country));
+    return c.json({ ok: true });
+  },
+);
+
+// GET /api/international-legends/schedule
+internationalLegendsRouter.get("/schedule", (c) => {
+  const rows = sqlite
+    .prepare(
+      `SELECT id, date, country, created_at FROM international_legends_schedule ORDER BY date ASC`,
+    )
+    .all();
+  return c.json(rows);
+});
+
+// GET /api/international-legends/schedule/rounds
+internationalLegendsRouter.get("/schedule/rounds", (c) => {
+  const scheduled = sqlite
+    .prepare(
+      `SELECT date, country FROM international_legends_schedule ORDER BY date ASC`,
+    )
+    .all() as { date: string; country: string }[];
+  if (scheduled.length === 0) return c.json([]);
+
+  const countMap = new Map<string, number>();
+  for (const [country, count] of findValidCountries()) countMap.set(country, count);
+
+  return c.json(
+    scheduled.map((row) => ({
+      date: row.date,
+      country: row.country,
+      legendCount: countMap.get(canonicalNationality(row.country)) ?? 0,
+    })),
+  );
+});
+
+// PUT /api/international-legends/schedule/:date
+internationalLegendsRouter.put(
+  "/schedule/:date",
+  zValidator("json", z.object({ country: z.string().min(1) })),
+  (c) => {
+    const date = c.req.param("date");
+    const { country } = c.req.valid("json");
+    const existing = sqlite
+      .prepare(`SELECT id FROM international_legends_schedule WHERE date = ?`)
+      .get(date);
+    if (existing) {
+      sqlite
+        .prepare(`UPDATE international_legends_schedule SET country = ? WHERE date = ?`)
+        .run(country, date);
+    } else {
+      sqlite
+        .prepare(
+          `INSERT INTO international_legends_schedule (date, country) VALUES (?, ?)`,
+        )
+        .run(date, country);
+    }
+    return c.json({ ok: true });
+  },
+);
+
+// DELETE /api/international-legends/schedule/:date
+internationalLegendsRouter.delete("/schedule/:date", (c) => {
+  sqlite
+    .prepare(`DELETE FROM international_legends_schedule WHERE date = ?`)
+    .run(c.req.param("date"));
+  return c.json({ ok: true });
+});
+
+// DELETE /api/international-legends/schedule
+internationalLegendsRouter.delete("/schedule", (c) => {
+  sqlite.prepare(`DELETE FROM international_legends_schedule`).run();
+  return c.json({ ok: true });
+});
+
+// GET /api/international-legends/answers?country=Y
+internationalLegendsRouter.get("/answers", (c) => {
+  const country = c.req.query("country") ?? "";
+  if (!country) return c.json({ error: "country required" }, 400);
+  return c.json(getCountryLegends(country));
+});
+
+// POST /api/international-legends/verify
+internationalLegendsRouter.post(
+  "/verify",
+  zValidator(
+    "json",
+    z.object({
+      footballerName: z.string().min(1),
+      footballerId: z.number().int().nullish(),
+      country: z.string().min(1),
+    }),
+  ),
+  async (c) => {
+    const { footballerName, footballerId, country } = c.req.valid("json");
+
+    const checkQualifies = (stints: { club: string; apps: number | null }[]) =>
+      sumIntlApps(stints, country) >= MIN_APPS;
+
+    type FailReason = "wrong_nation" | "not_enough_caps";
+    function invalidJson(
+      name: string,
+      stints: { club: string; apps: number | null }[],
+    ) {
+      const reason: FailReason = playedForCountry(stints, country)
+        ? "not_enough_caps"
+        : "wrong_nation";
+      return {
+        valid: false as const,
+        foundName: name,
+        capsForCountry: sumIntlApps(stints, country),
+        imported: false,
+        reason,
+      };
+    }
+
+    const intlOf = (id: number) =>
+      sqlite
+        .prepare(
+          `SELECT club, apps FROM career_stints WHERE footballer_id = ? AND stint_type = 'international'`,
+        )
+        .all(id) as { club: string; apps: number | null }[];
+
+    async function importIntlStints(
+      id: number,
+      scraped: Awaited<ReturnType<typeof scrapeWikipedia>>,
+    ) {
+      const stints = scraped.stints.filter((s) => s.stint_type === "international");
+      for (const s of stints) {
+        const exists = sqlite
+          .prepare(
+            `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'international' LIMIT 1`,
+          )
+          .get(id, s.years, s.club);
+        if (!exists) {
+          const maxOrder = sqlite
+            .prepare(
+              `SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`,
+            )
+            .get(id) as { next: number };
+          await db.insert(career_stints).values({
+            footballer_id: id,
+            sort_order: maxOrder.next,
+            years: s.years,
+            club: s.club,
+            club_wikipedia_url: s.club_wikipedia_url ?? null,
+            apps: s.apps ?? null,
+            goals: s.goals ?? null,
+            stint_type: "international",
+          });
+        }
+      }
+    }
+
+    // Step 1: resolve footballer from DB
+    let footballer:
+      | { id: number; name: string; wikipedia_url: string; photo_url: string | null }
+      | undefined;
+    if (footballerId != null) {
+      footballer = await db
+        .select({
+          id: footballers.id,
+          name: footballers.name,
+          wikipedia_url: footballers.wikipedia_url,
+          photo_url: footballers.photo_url,
+        })
+        .from(footballers)
+        .where(eq(footballers.id, footballerId))
+        .limit(1)
+        .then((r) => r[0]);
+    }
+    if (!footballer) {
+      footballer = await db
+        .select({
+          id: footballers.id,
+          name: footballers.name,
+          wikipedia_url: footballers.wikipedia_url,
+          photo_url: footballers.photo_url,
+        })
+        .from(footballers)
+        .where(
+          sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${footballerName}))`,
+        )
+        .limit(1)
+        .then((r) => r[0]);
+    }
+
+    let fallbackInvalid: ReturnType<typeof invalidJson> | null = null;
+
+    // Step 2: found — check stints, rescrape if stale
+    if (footballer) {
+      let stints = intlOf(footballer.id);
+      if (checkQualifies(stints)) {
+        return c.json({
+          valid: true,
+          footballer: verifiedLegend(country, footballer.id, footballer),
+          imported: false,
+        });
+      }
+      if (footballer.wikipedia_url) {
+        try {
+          const scraped = await scrapeWikipedia(footballer.wikipedia_url);
+          await importIntlStints(footballer.id, scraped);
+          stints = intlOf(footballer.id);
+          if (checkQualifies(stints)) {
+            return c.json({
+              valid: true,
+              footballer: verifiedLegend(country, footballer.id, footballer),
+              imported: true,
+            });
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+      if (playedForCountry(stints, country)) {
+        return c.json(invalidJson(footballer.name, stints));
+      }
+      fallbackInvalid = invalidJson(footballer.name, stints);
+    }
+
+    // Step 3: Wikipedia name search → import
+    try {
+      const wikiHeaders = { "User-Agent": "GuessTheCareer-Admin/1.0" };
+      const strip = normalizeName;
+      const nameParts = strip(footballerName)
+        .split(/\s+/)
+        .filter((p) => p.length > 2);
+      const titleMatches = (title: string) =>
+        nameParts.length > 0 && nameParts.every((p) => strip(title).includes(p));
+      async function wikiSearch(query: string): Promise<string[]> {
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=5`;
+        const res = await fetch(url, { headers: wikiHeaders });
+        if (!res.ok) return [];
+        const data = (await res.json()) as {
+          query?: { search?: { title: string }[] };
+        };
+        return (data.query?.search ?? []).map((s) => s.title);
+      }
+
+      const titles: string[] = [];
+      for (const q of [
+        `${footballerName} footballer`,
+        `${footballerName} ${country}`,
+        footballerName,
+      ]) {
+        for (const title of await wikiSearch(q)) {
+          if (titleMatches(title) && !titles.includes(title)) titles.push(title);
+        }
+      }
+      if (titles.length === 0) {
+        return c.json(
+          fallbackInvalid ?? { valid: false, footballer: null, imported: false },
+        );
+      }
+
+      for (const title of titles.slice(0, 6)) {
+        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+        const byUrl = await db
+          .select({
+            id: footballers.id,
+            name: footballers.name,
+            photo_url: footballers.photo_url,
+          })
+          .from(footballers)
+          .where(eq(footballers.wikipedia_url, wikiUrl))
+          .limit(1)
+          .then((r) => r[0]);
+        if (byUrl && checkQualifies(intlOf(byUrl.id))) {
+          return c.json({
+            valid: true,
+            footballer: verifiedLegend(country, byUrl.id, byUrl),
+            imported: false,
+          });
+        }
+
+        await new Promise((r) => setTimeout(r, 300));
+        let scraped;
+        try {
+          scraped = await scrapeWikipedia(wikiUrl);
+        } catch {
+          continue;
+        }
+        const intlStints = scraped.stints
+          .filter((s) => s.stint_type === "international")
+          .map((s) => ({ club: s.club, apps: s.apps ?? null }));
+
+        if (!checkQualifies(intlStints)) {
+          fallbackInvalid ??= invalidJson(scraped.name, intlStints);
+          continue;
+        }
+        if (!isRetired(scraped.stints)) {
+          return c.json({
+            valid: false,
+            foundName: scraped.name,
+            imported: false,
+            reason: "not_retired" as const,
+          });
+        }
+
+        const knownRecord = byUrl ?? footballer;
+        if (knownRecord) {
+          sqlite
+            .prepare(
+              `UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?) WHERE id = ?`,
+            )
+            .run(wikiUrl, scraped.photo_url ?? null, knownRecord.id);
+          await importIntlStints(knownRecord.id, scraped);
+          return c.json({
+            valid: true,
+            footballer: verifiedLegend(country, knownRecord.id, {
+              name: knownRecord.name,
+              photo_url: scraped.photo_url ?? knownRecord.photo_url,
+            }),
+            imported: true,
+          });
+        }
+
+        const [created] = await db
+          .insert(footballers)
+          .values({
+            name: scraped.name,
+            wikipedia_url: scraped.wikipedia_url,
+            nationality: scraped.nationality,
+            position: scraped.position,
+            all_positions: scraped.all_positions ?? null,
+            born: scraped.born,
+            photo_url: scraped.photo_url ?? null,
+          })
+          .returning();
+        await importIntlStints(created.id, scraped);
+        return c.json({
+          valid: true,
+          footballer: verifiedLegend(country, created.id, {
+            name: created.name,
+            photo_url: created.photo_url ?? null,
+          }),
+          imported: true,
+        });
+      }
+
+      return c.json(
+        fallbackInvalid ?? { valid: false, footballer: null, imported: false },
+      );
+    } catch {
+      return c.json({ valid: false, footballer: null, imported: false });
+    }
+  },
+);

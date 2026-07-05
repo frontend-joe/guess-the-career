@@ -84,6 +84,12 @@ import { ClubLegendsSchedulePage } from '@/pages/ClubLegendsSchedulePage'
 import { ClubMarksmanPage } from '@/pages/ClubMarksmanPage'
 import { ClubMarksmanAdminPage } from '@/pages/ClubMarksmanAdminPage'
 import { ClubMarksmanSchedulePage } from '@/pages/ClubMarksmanSchedulePage'
+import { InternationalLegendsPage } from '@/pages/InternationalLegendsPage'
+import { InternationalLegendsAdminPage } from '@/pages/InternationalLegendsAdminPage'
+import { InternationalLegendsSchedulePage } from '@/pages/InternationalLegendsSchedulePage'
+import { InternationalMarksmanPage } from '@/pages/InternationalMarksmanPage'
+import { InternationalMarksmanAdminPage } from '@/pages/InternationalMarksmanAdminPage'
+import { InternationalMarksmanSchedulePage } from '@/pages/InternationalMarksmanSchedulePage'
 import { TransfersPage } from '@/pages/TransfersPage'
 import { TransfersAdminPage } from '@/pages/TransfersAdminPage'
 import { TransfersSchedulePage } from '@/pages/TransfersSchedulePage'
@@ -134,6 +140,8 @@ const router = createBrowserRouter([
   { path: '/play/uncapped-players', element: <UncappedPlayersPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
   { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
+  { path: '/play/international-legends', element: <InternationalLegendsPage /> },
+  { path: '/play/international-marksman', element: <InternationalMarksmanPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
   { path: '/play/transfer-history', element: <TransferHistoryPage /> },
 
@@ -197,6 +205,10 @@ const router = createBrowserRouter([
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
       { path: 'club-marksman', element: <ClubMarksmanAdminPage /> },
       { path: 'club-marksman/schedule', element: <ClubMarksmanSchedulePage /> },
+      { path: 'international-legends', element: <InternationalLegendsAdminPage /> },
+      { path: 'international-legends/schedule', element: <InternationalLegendsSchedulePage /> },
+      { path: 'international-marksman', element: <InternationalMarksmanAdminPage /> },
+      { path: 'international-marksman/schedule', element: <InternationalMarksmanSchedulePage /> },
       { path: 'transfers', element: <TransfersAdminPage /> },
       { path: 'transfers/schedule', element: <TransfersSchedulePage /> },
       { path: 'transfer-history', element: <TransferHistoryAdminPage /> },
