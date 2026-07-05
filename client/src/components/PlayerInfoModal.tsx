@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 import { X, Loader2 } from 'lucide-react'
 import { getFootballerCard, type FootballerCard, type CardStint } from '@/api/footballers'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
+import { useShowPlayer } from '@/contexts/PlayerModalContext'
+
+const cap = (s: string | null) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Relative')
 
 function formatDob(born: string | null): string | null {
   if (!born) return null
@@ -87,6 +90,7 @@ function BioRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function PlayerInfoModal({ footballerId, onClose }: { footballerId: number | null; onClose: () => void }) {
+  const showPlayer = useShowPlayer()
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
   const [card, setCard] = useState<FootballerCard | null>(null)
@@ -165,6 +169,32 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
               <CareerTable title="Senior career" stints={senior} />
               <CareerTable title="International career" stints={intl} international />
             </div>
+
+            {card.relations && card.relations.length > 0 && (
+              <div className="pb-2">
+                <div className="bg-gray-100 text-gray-700 text-left px-3 font-display text-sm tracking-tight py-1.5 border-y border-gray-200">
+                  Relations
+                </div>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {card.relations.map((r) => (
+                      <tr key={r.footballerId} className="border-t border-gray-100">
+                        <td className="px-3 py-1.5 text-gray-500 w-28 align-top">{cap(r.relationship)}</td>
+                        <td className="px-3 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => showPlayer(r.footballerId)}
+                            className="text-gray-800 font-semibold text-left hover:underline"
+                          >
+                            {r.name}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
         )}
         </div>

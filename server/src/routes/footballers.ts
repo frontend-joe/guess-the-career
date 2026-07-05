@@ -8,6 +8,44 @@ import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
 
+// Family relations that are footballers, from the curated (included) football
+// family links — in either direction, with the relationship flipped for the
+// reverse direction so it reads from the viewed player's perspective.
+const INVERSE_REL: Record<string, string> = {
+  father: 'son', son: 'father', dad: 'son',
+  mother: 'daughter', daughter: 'mother',
+  uncle: 'nephew', nephew: 'uncle', aunt: 'niece', niece: 'aunt',
+  grandfather: 'grandson', grandson: 'grandfather', grandad: 'grandson',
+  grandmother: 'granddaughter', granddaughter: 'grandmother',
+}
+function getRelations(id: number): { footballerId: number; name: string; relationship: string | null }[] {
+  const rows = sqlite
+    .prepare(
+      `SELECT fl.relative_footballer_id AS rid, f.name AS name, fl.relationship AS rel, 0 AS reverse
+       FROM football_family_links fl JOIN footballers f ON f.id = fl.relative_footballer_id
+       WHERE fl.footballer_id = ? AND fl.included = 1 AND fl.relative_footballer_id IS NOT NULL
+       UNION ALL
+       SELECT fl.footballer_id AS rid, f.name AS name, fl.relationship AS rel, 1 AS reverse
+       FROM football_family_links fl JOIN footballers f ON f.id = fl.footballer_id
+       WHERE fl.relative_footballer_id = ? AND fl.included = 1`,
+    )
+    .all(id, id) as { rid: number; name: string; rel: string | null; reverse: number }[]
+  const seen = new Set<number>()
+  const out: { footballerId: number; name: string; relationship: string | null }[] = []
+  for (const r of rows) {
+    if (r.rid === id || seen.has(r.rid)) continue
+    seen.add(r.rid)
+    // Stored relationship R means "footballer_id is the R of relative". So on the
+    // footballer_id's own card (reverse=0) the relative is the INVERSE of R; on the
+    // relative's card (reverse=1) the footballer_id is R itself.
+    const relationship = r.rel
+      ? (r.reverse ? r.rel : (INVERSE_REL[r.rel.toLowerCase()] ?? r.rel))
+      : r.rel
+    out.push({ footballerId: r.rid, name: r.name, relationship })
+  }
+  return out
+}
+
 // Reserve/B/youth teams should show the parent club's crest. Resolve the parent
 // club's Wikipedia URL from the clubs table when the stint is a reserve side.
 function parentClubBadgeUrl(club: string): string | null {
@@ -374,6 +412,7 @@ footballersRouter.get('/:id/card', async (c) => {
     nationality: footballer.nationality,
     wikipedia_url: footballer.wikipedia_url,
     stints,
+    relations: getRelations(id),
   })
 })
 

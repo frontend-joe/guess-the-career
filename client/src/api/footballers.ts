@@ -51,6 +51,7 @@ export interface FootballerCard {
   nationality: string | null
   wikipedia_url: string
   stints: CardStint[]
+  relations?: { footballerId: number; name: string; relationship: string | null }[]
 }
 
 export async function getFootballerCard(id: number): Promise<FootballerCard> {
