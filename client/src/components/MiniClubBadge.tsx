@@ -22,10 +22,27 @@ export function MiniClubBadge({ club, wikipediaUrl, size = 20 }: Props) {
       : encodeURIComponent(club)
     if (!title) { setLogoUrl(false); return }
     const controller = new AbortController()
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, { signal: controller.signal })
-      .then(r => r.json())
-      .then(data => setLogoUrl(data?.thumbnail?.source ?? false))
-      .catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
+    const summary = (t: string) =>
+      fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${t}`, { signal: controller.signal }).then(r => r.json())
+
+    async function resolve() {
+      const data = await summary(title)
+      const desc: string = (data?.description ?? '').toLowerCase()
+      const isClub = /football|soccer|\bf\.?c\.?\b|\bclub\b|sporting/.test(desc)
+      const isPlace = /\b(city|town|village|municipality|county|district|borough|region|commune|comune|prefecture|province|settlement|suburb|capital)\b/.test(desc)
+      // Resolved to a place, not a club (e.g. "Portsmouth" the city rather than
+      // Portsmouth F.C.) — retry with an F.C. suffix.
+      const decoded = decodeURIComponent(title)
+      if (isPlace && !isClub && !/f\.?c\.?$/i.test(decoded)) {
+        try {
+          const fc = await summary(encodeURIComponent(`${decoded.replace(/ /g, '_')}_F.C.`))
+          if (fc?.thumbnail?.source && fc?.type === 'standard') { setLogoUrl(fc.thumbnail.source); return }
+        } catch { /* fall through to original */ }
+      }
+      setLogoUrl(data?.thumbnail?.source ?? false)
+    }
+
+    resolve().catch(err => { if (err.name !== 'AbortError') setLogoUrl(false) })
     return () => controller.abort()
   }, [wikipediaUrl, club])
 
