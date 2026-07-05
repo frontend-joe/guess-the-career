@@ -261,6 +261,12 @@ export function nationIso(team: string): string | null {
   return NATIONALITY_ISO_LC[baseNation(team).toLowerCase()] ?? null
 }
 
+// True when an international team name is a full senior national team (no
+// age-group / B / Olympic suffix) — used to tell a senior cap from a youth one.
+export function isSeniorNationalTeam(team: string): boolean {
+  return baseNation(team) === team.trim()
+}
+
 // SELECT fragment computing a footballer's senior career start/end years (same
 // logic as the Style of Play game). Requires the outer query to alias the
 // footballers row as `f`. Pair with formatCareerYears() to get "1985–2002".

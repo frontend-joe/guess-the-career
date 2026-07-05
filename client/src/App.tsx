@@ -20,6 +20,9 @@ import { FootballFamiliesPage } from '@/pages/FootballFamiliesPage'
 import { BookendsPage } from '@/pages/BookendsPage'
 import { BookendsAdminPage } from '@/pages/BookendsAdminPage'
 import { BookendsSchedulePage } from '@/pages/BookendsSchedulePage'
+import { UncappedPlayersPage } from '@/pages/UncappedPlayersPage'
+import { UncappedPlayersAdminPage } from '@/pages/UncappedPlayersAdminPage'
+import { UncappedPlayersSchedulePage } from '@/pages/UncappedPlayersSchedulePage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
@@ -128,6 +131,7 @@ const router = createBrowserRouter([
   { path: '/play/dual-nationality', element: <DualNationalityPage /> },
   { path: '/play/football-families', element: <FootballFamiliesPage /> },
   { path: '/play/bookends', element: <BookendsPage /> },
+  { path: '/play/uncapped-players', element: <UncappedPlayersPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
   { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
@@ -186,6 +190,8 @@ const router = createBrowserRouter([
       { path: 'football-families', element: <FootballFamiliesAdminPage /> },
       { path: 'bookends', element: <BookendsAdminPage /> },
       { path: 'bookends/schedule', element: <BookendsSchedulePage /> },
+      { path: 'uncapped-players', element: <UncappedPlayersAdminPage /> },
+      { path: 'uncapped-players/schedule', element: <UncappedPlayersSchedulePage /> },
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
