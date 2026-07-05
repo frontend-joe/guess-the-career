@@ -91,10 +91,6 @@ export function UncappedPlayersAdminPage() {
           {countries.map((c) => {
             const isOpen = expanded === c.nationality
             const list = players[c.nationality]
-            // Round-size options: standard tiers up to the player count, plus the
-            // player count itself as the max. The select shows the effective size.
-            const sizeOptions = [...[5, 10, 15].filter((t) => t < c.playerCount), c.playerCount]
-            const displaySize = Math.min(c.roundSize, c.playerCount)
             return (
               <div key={c.nationality}>
                 <div className="flex items-center gap-3 px-3 py-2.5">
@@ -113,17 +109,28 @@ export function UncappedPlayersAdminPage() {
                   <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
                     {c.playerCount}
                   </span>
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     Round
-                    <select
-                      value={displaySize}
-                      onChange={(e) => changeSize(c, Number(e.target.value))}
-                      className="border border-input rounded-md px-1.5 py-1 text-xs bg-background outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                    >
-                      {sizeOptions.map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center border border-input rounded-md overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => changeSize(c, Math.max(1, c.roundSize - 1))}
+                        className="px-2 py-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                        disabled={c.roundSize <= 1}
+                      >−</button>
+                      <input
+                        type="number"
+                        min={1}
+                        value={c.roundSize}
+                        onChange={(e) => changeSize(c, Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                        className="w-10 text-center text-xs bg-background outline-none border-x border-input py-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => changeSize(c, c.roundSize + 1)}
+                        className="px-2 py-1 text-muted-foreground hover:bg-muted"
+                      >+</button>
+                    </div>
                   </label>
                 </div>
 

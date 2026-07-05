@@ -162,6 +162,15 @@ function getCountryPlayers(nationality: string): UncappedPlayer[] {
 // ── Admin ───────────────────────────────────────────────────────────────────
 uncappedRouter.get('/admin/countries', (c) => {
   const valid = findValidCountries().sort((a, b) => b[1] - a[1])
+
+  // Seed every detected country as enabled on the first visit (when the table is
+  // empty) so all are checked by default.
+  const seeded = sqlite.prepare(`SELECT COUNT(*) as n FROM uncapped_enabled_countries`).get() as { n: number }
+  if (seeded.n === 0 && valid.length > 0) {
+    const insert = sqlite.prepare(`INSERT OR IGNORE INTO uncapped_enabled_countries (nationality, round_size) VALUES (?, 5)`)
+    sqlite.transaction((nats: string[]) => { for (const nat of nats) insert.run(nat) })(valid.map(([nat]) => nat))
+  }
+
   const enabled = sqlite
     .prepare(`SELECT nationality, round_size FROM uncapped_enabled_countries`)
     .all() as { nationality: string; round_size: number }[]
