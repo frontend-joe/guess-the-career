@@ -18,6 +18,7 @@ import {
   type ProgressRound,
 } from "@/components/OverallProgressScreen";
 import { NationalityFlag } from "@/components/NationalityFlag";
+import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
@@ -151,6 +152,8 @@ interface Player {
   photo_url: string | null;
   goals?: number;
   position?: string | null;
+  hintClub?: string | null;
+  clubWikiUrl?: string | null;
   years?: string | null;
 }
 
@@ -176,6 +179,9 @@ function PlayerSlot({
       </span>
       {player ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="w-5 flex items-center justify-center shrink-0">
+            <MiniClubBadge club={player.hintClub ?? ""} wikipediaUrl={player.clubWikiUrl ?? null} />
+          </span>
           {player.position && <PositionBadge position={player.position} />}
           <button
             type="button"
@@ -192,11 +198,14 @@ function PlayerSlot({
         </div>
       ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="w-5 flex items-center justify-center shrink-0">
+            <MiniClubBadge club={hint.hintClub ?? ""} wikipediaUrl={hint.clubWikiUrl ?? null} />
+          </span>
           {hint.position && <PositionBadge position={hint.position} />}
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
-          {hint.years && (
+          {hint.goals != null && (
             <span className="text-xs text-gray-400 tabular-nums shrink-0">
-              {hint.years}
+              {hint.goals} goals
             </span>
           )}
         </div>

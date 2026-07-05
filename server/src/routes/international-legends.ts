@@ -4,7 +4,7 @@ import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { db, sqlite, normalizeName } from "../db/client.ts";
 import { footballers, career_stints } from "../db/schema.ts";
-import { scrapeWikipedia, isRetired } from "../services/scraper.ts";
+import { scrapeWikipedia, isRetired, normalizeClubAlias } from "../services/scraper.ts";
 import {
   isSeniorNationalTeam,
   canonicalNationality,
@@ -105,7 +105,52 @@ interface LegendPlayer {
   photo_url: string | null;
   apps: number;
   position: string | null;
+  hintClub: string | null;
+  clubWikiUrl: string | null;
   years: string | null;
+}
+
+function clubWikiUrl(club: string): string | null {
+  const row = sqlite
+    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
+    .get(club) as { wikipedia_url: string | null } | undefined;
+  return row?.wikipedia_url ?? null;
+}
+
+// The club a player made the most senior appearances for + the years there — the
+// hint shown per slot (mirrors the Uncapped game).
+function hintClubFor(footballerId: number): {
+  club: string | null;
+  clubWikiUrl: string | null;
+  years: string | null;
+} {
+  const stints = sqlite
+    .prepare(
+      `SELECT club, apps, years, club_wikipedia_url FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`,
+    )
+    .all(footballerId) as {
+    club: string;
+    apps: number | null;
+    years: string | null;
+    club_wikipedia_url: string | null;
+  }[];
+  const byClub = new Map<string, { apps: number; name: string; wiki: string | null; years: string[] }>();
+  for (const s of stints) {
+    const key = normalizeClubAlias(s.club);
+    const name = s.club.replace(/^→\s*/, "").replace(/\s*\((loan|trial)\)\s*$/i, "");
+    const cur = byClub.get(key) ?? { apps: 0, name, wiki: s.club_wikipedia_url, years: [] };
+    cur.apps += s.apps ?? 0;
+    if (s.club_wikipedia_url && !cur.wiki) cur.wiki = s.club_wikipedia_url;
+    if (s.years) cur.years.push(s.years);
+    byClub.set(key, cur);
+  }
+  let best: { apps: number; name: string; wiki: string | null; years: string[] } | null = null;
+  for (const v of byClub.values()) if (!best || v.apps > best.apps) best = v;
+  return {
+    club: best?.name ?? null,
+    clubWikiUrl: best ? best.wiki ?? clubWikiUrl(best.name) : null,
+    years: best ? yearsSpan(best.years.join("|")) : null,
+  };
 }
 
 // Combine a player's international "years" strings for one country into a single
@@ -129,8 +174,7 @@ function getCountryLegends(country: string): LegendPlayer[] {
     .prepare(
       `
     SELECT f.id, f.name, f.photo_url, f.position,
-           SUM(COALESCE(cs.apps, 0)) as total_apps,
-           GROUP_CONCAT(cs.years, '|') as years_raw
+           SUM(COALESCE(cs.apps, 0)) as total_apps
     FROM footballers f
     JOIN career_stints cs ON cs.footballer_id = f.id
       AND cs.stint_type = 'international'
@@ -146,17 +190,21 @@ function getCountryLegends(country: string): LegendPlayer[] {
     photo_url: string | null;
     position: string | null;
     total_apps: number;
-    years_raw: string | null;
   }[];
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    photo_url: r.photo_url,
-    apps: r.total_apps,
-    position: r.position,
-    years: yearsSpan(r.years_raw),
-  }));
+  return rows.map((r) => {
+    const hint = hintClubFor(r.id);
+    return {
+      id: r.id,
+      name: r.name,
+      photo_url: r.photo_url,
+      apps: r.total_apps,
+      position: r.position,
+      hintClub: hint.club,
+      clubWikiUrl: hint.clubWikiUrl,
+      years: hint.years,
+    };
+  });
 }
 
 // Full player payload for a verified guess so the revealed row matches the
@@ -174,6 +222,8 @@ function verifiedLegend(
       photo_url: fallback.photo_url,
       apps: 0,
       position: null,
+      hintClub: null,
+      clubWikiUrl: null,
       years: null,
     }
   );
