@@ -1,4 +1,4 @@
-import { CLUB_ALIASES, normalizeClubAlias } from './scraper.ts'
+import { CLUB_ALIASES, normalizeClubAlias, FOOTBALLING_NATIONS } from './scraper.ts'
 
 // Shared football helpers used by the nationals + foreigners games:
 // nationality matching (demonym/noun forms), club-name variants, reserve-team
@@ -281,26 +281,27 @@ export function nationIso(team: string): string | null {
 const NATION_TEAM_SUFFIX_RE = /\s+(\(O\.P\.\)|Olympic|Amateur|Youth|League XI|Team\s*\d+|U-?\d+|B|C|II|III|IV)\s*$/i
 
 // True when an international team name is a full senior national team (no
-// age-group / B / Olympic suffix) — used to tell a senior cap from a youth one.
+// age-group / B / Olympic suffix) AND a recognised FIFA nation — used to tell a
+// senior cap from a youth one or a non-FIFA regional side (Padania, Catalonia).
 // Tolerates slash-joined senior sides that span a country change, e.g.
 // "West Germany/Germany" or "Czechoslovakia/Czech Republic".
 export function isSeniorNationalTeam(team: string): boolean {
   // Normalise slash spacing so "West Germany / Germany" and "West Germany/Germany"
   // are treated identically.
   const t = team.trim().replace(/\s*\/\s*/g, '/')
-  const stripped = t
-    .split('/')
-    .map((part) => {
-      let p = part.trim()
-      let prev = ''
-      while (prev !== p) {
-        prev = p
-        p = p.replace(NATION_TEAM_SUFFIX_RE, '').trim()
-      }
-      return p
-    })
-    .join('/')
-  return stripped === t
+  const parts = t.split('/').map((part) => {
+    let p = part.trim()
+    let prev = ''
+    while (prev !== p) {
+      prev = p
+      p = p.replace(NATION_TEAM_SUFFIX_RE, '').trim()
+    }
+    return p
+  })
+  // An age/reserve suffix was present if stripping changed the string.
+  if (parts.join('/') !== t) return false
+  // Every side must be a recognised footballing nation (excludes Padania etc.).
+  return parts.every((p) => FOOTBALLING_NATIONS.has(p))
 }
 
 // SELECT fragment computing a footballer's senior career start/end years (same

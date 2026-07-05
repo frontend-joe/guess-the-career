@@ -38,7 +38,7 @@ export const CLUB_ALIASES: Record<string, string> = {
   "Hamburger SV Hamburg": "Hamburger SV",
 };
 
-const FOOTBALLING_NATIONS = new Set([
+export const FOOTBALLING_NATIONS = new Set([
   "Brazil",
   "Argentina",
   "France",
@@ -154,6 +154,10 @@ const FOOTBALLING_NATIONS = new Set([
   "SFR Yugoslavia",
   "FR Yugoslavia",
   "Serbia and Montenegro",
+  "Czechoslovakia",
+  "Soviet Union",
+  "USSR",
+  "CIS",
   // Smaller FIFA member nations (so international caps for them aren't ignored,
   // which previously left players defaulting to their birthplace country).
   // Europe
