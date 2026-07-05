@@ -128,6 +128,7 @@ footballersRouter.get('/', async (c) => {
   const missingNationality = c.req.query('missingNationality') === 'true'
   const missingPhoto = c.req.query('missingPhoto') === 'true'
   const nonRetired = c.req.query('nonRetired') === 'true'
+  const missingCaps = c.req.query('missingCaps') === 'true'
 
   const conditions = []
 
@@ -156,6 +157,16 @@ footballersRouter.get('/', async (c) => {
           OR TRIM(cs.years) LIKE '%–'
           OR TRIM(cs.years) LIKE '%-'
         )
+    )`)
+  }
+
+  // Missing caps = no international stint recorded at all (surfaces both genuinely
+  // uncapped players and those whose international data was never/incompletely scraped).
+  if (missingCaps) {
+    conditions.push(sql`NOT EXISTS (
+      SELECT 1 FROM career_stints cs
+      WHERE cs.footballer_id = ${footballers.id}
+        AND cs.stint_type = 'international'
     )`)
   }
 
