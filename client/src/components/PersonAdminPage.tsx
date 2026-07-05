@@ -28,20 +28,46 @@ type RPlayer = {
   error?: string
 }
 
-function RescrapeModal({ open, onClose, onComplete, rescrapeUrl }: {
+function RescrapeModal({ open, onClose, onComplete, rescrapeUrl, rescrapePerson }: {
   open: boolean
   onClose: () => void
   onComplete: () => void
   rescrapeUrl: string
+  rescrapePerson?: (id: number) => Promise<{ stints?: unknown[] } | unknown>
 }) {
   const [players, setPlayers] = useState<RPlayer[]>([])
   const [total, setTotal] = useState(0)
   const [done, setDone] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const scrapingRef = useRef<HTMLDivElement>(null)
 
   const doneCount = players.filter(p => p.status === 'done').length
   const failedCount = players.filter(p => p.status === 'failed').length
   const scrapingId = players.find(p => p.status === 'scraping')?.id
+
+  // Retry just the failed players, one at a time with a short pause between each
+  // (failures are usually Wikipedia rate limiting, so we don't hammer it).
+  async function retryFailed() {
+    if (!rescrapePerson || retrying) return
+    const failed = players.filter(p => p.status === 'failed')
+    if (failed.length === 0) return
+    setRetrying(true)
+    setDone(false)
+    setPlayers(prev => prev.map(p => p.status === 'failed' ? { ...p, status: 'pending', error: undefined } : p))
+    for (const p of failed) {
+      setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, status: 'scraping' } : x))
+      try {
+        const res = await rescrapePerson(p.id) as { stints?: unknown[] }
+        const stints = Array.isArray(res?.stints) ? res.stints.length : undefined
+        setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, status: 'done', stints } : x))
+      } catch (e) {
+        setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, status: 'failed', error: e instanceof Error ? e.message : 'Failed' } : x))
+      }
+      await new Promise<void>(r => setTimeout(r, 800))
+    }
+    setRetrying(false)
+    setDone(true)
+  }
 
   useEffect(() => {
     scrapingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
@@ -53,6 +79,7 @@ function RescrapeModal({ open, onClose, onComplete, rescrapeUrl }: {
     setPlayers([])
     setTotal(0)
     setDone(false)
+    setRetrying(false)
 
     const es = new EventSource(rescrapeUrl)
 
@@ -146,9 +173,17 @@ function RescrapeModal({ open, onClose, onComplete, rescrapeUrl }: {
           )}
         </div>
 
-        <div className="px-5 py-3 shrink-0 flex justify-end">
+        <div className="px-5 py-3 shrink-0 flex justify-end gap-2">
+          {rescrapePerson && failedCount > 0 && (
+            <Button variant="outline" onClick={retryFailed} disabled={retrying}>
+              {retrying
+                ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Rescraping…</>
+                : `Rescrape failed (${failedCount})`}
+            </Button>
+          )}
           <Button
-            variant={done ? 'default' : 'outline'}
+            variant={done && failedCount === 0 ? 'default' : 'outline'}
+            disabled={retrying}
             onClick={() => { onClose(); if (done) onComplete() }}
           >
             {done ? 'Done' : 'Cancel'}
@@ -844,6 +879,7 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
         onClose={() => setRescrapeOpen(false)}
         onComplete={() => load()}
         rescrapeUrl={config.rescrapeUrl}
+        rescrapePerson={config.rescrapePerson}
       />
       {config.rescrapePerson && (
         <RescrapeSelectedModal
