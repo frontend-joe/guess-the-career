@@ -134,15 +134,6 @@ export function PlayerInfoModal({ footballerId, onClose, onBack }: { footballerI
       <div
         className={`relative z-10 w-full max-w-sm overflow-hidden flex flex-col bg-white rounded-2xl shadow-2xl transition-all duration-200 ease-out ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
       >
-        {onBack && (
-          <button
-            onClick={onBack}
-            aria-label="Back"
-            className="absolute top-3 left-3 z-20 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full p-1 transition-colors"
-          >
-            <ArrowLeft size={18} />
-          </button>
-        )}
         <button
           onClick={close}
           aria-label="Close"
@@ -159,9 +150,16 @@ export function PlayerInfoModal({ footballerId, onClose, onBack }: { footballerI
         ) : (
           <>
             {/* Name */}
-            <h2 className="px-4 pt-4 pb-3 pr-12 font-display text-xl text-gray-900 leading-tight tracking-tight">
-              {card.name}
-            </h2>
+            <div className="flex items-center gap-1.5 px-4 pt-4 pb-3 pr-12">
+              {onBack && (
+                <button onClick={onBack} aria-label="Back" className="-ml-1 shrink-0 text-gray-400 hover:text-gray-700 transition-colors">
+                  <ArrowLeft size={18} />
+                </button>
+              )}
+              <h2 className="font-display text-xl text-gray-900 leading-tight tracking-tight truncate">
+                {card.name}
+              </h2>
+            </div>
 
             {/* Bio */}
             <table className="w-full text-sm">
