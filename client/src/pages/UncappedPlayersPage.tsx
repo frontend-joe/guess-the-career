@@ -105,7 +105,7 @@ interface VerifyResult {
   foundNationality?: string | null;
   capCount?: number | null;
   imported: boolean;
-  reason?: "wrong_nationality" | "capped";
+  reason?: "wrong_nationality" | "capped" | "not_retired" | "no_nationality";
 }
 
 async function verifyGuess(footballerName: string, footballerId: number | null, nationality: string): Promise<VerifyResult> {
@@ -213,6 +213,8 @@ export function UncappedPlayersPage() {
         const displayName = result.foundName ?? `"${name}"`;
         const msg = result.reason === "capped"
             ? (result.capCount ? `${displayName} won ${result.capCount} cap${result.capCount === 1 ? "" : "s"}` : `${displayName} won a senior cap`)
+          : result.reason === "not_retired" ? `Correct, but ${displayName} isn't retired yet!`
+          : result.reason === "no_nationality" ? `${displayName} has no nationality listed`
           : result.reason === "wrong_nationality" && result.foundNationality ? `${displayName} is actually ${result.foundNationality}`
           : result.reason === "wrong_nationality" ? `${displayName} isn't ${currentRound.nationality}`
           : `${displayName} is not a valid answer`;

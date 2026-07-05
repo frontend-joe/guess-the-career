@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
-import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
+import { scrapeWikipedia, normalizeClubAlias, isRetired } from '../services/scraper.ts'
 import { nationalitiesMatch, isSeniorNationalTeam, canonicalNationality } from '../services/football.ts'
 
 export const uncappedRouter = new Hono()
@@ -336,13 +336,14 @@ uncappedRouter.post(
     const qualifies = (intlStints: { club: string; apps: number | null }[], nat: string | null | undefined) =>
       nationalitiesMatch(nat, nationality) && !hasSeniorCap(intlStints)
 
-    type FailReason = 'wrong_nationality' | 'capped'
+    type FailReason = 'wrong_nationality' | 'capped' | 'no_nationality'
     const seniorCapCount = (intl: { club: string; apps: number | null }[]) =>
       intl.filter((s) => isSeniorNationalTeam(s.club)).reduce((n, s) => n + (s.apps ?? 0), 0)
     function invalidJson(name: string, nat: string | null | undefined, intl: { club: string; apps: number | null }[] = []) {
+      const hasNat = !!(nat && nat.trim())
       const natOk = nationalitiesMatch(nat, nationality)
-      const reason: FailReason = !natOk ? 'wrong_nationality' : 'capped'
-      return { valid: false as const, foundName: name, foundNationality: !natOk ? (nat ?? null) : null, capCount: reason === 'capped' ? seniorCapCount(intl) : null, imported: false, reason }
+      const reason: FailReason = !hasNat ? 'no_nationality' : !natOk ? 'wrong_nationality' : 'capped'
+      return { valid: false as const, foundName: name, foundNationality: hasNat && !natOk ? nat : null, capCount: reason === 'capped' ? seniorCapCount(intl) : null, imported: false, reason }
     }
 
     const success = (f: { id: number; name: string; photo_url: string | null }, imported: boolean) => {
@@ -433,10 +434,18 @@ uncappedRouter.post(
         await new Promise((r) => setTimeout(r, 300))
         let scraped
         try { scraped = await scrapeWikipedia(wikiUrl) } catch { continue }
+        // Must actually be a footballer with a senior club career — skips pages
+        // like monarchs/politicians (e.g. Juan Carlos I) that have no stints.
+        if (!scraped.stints.some((s) => s.stint_type === 'senior')) continue
+
         const intlStints = scraped.stints.filter((s) => s.stint_type === 'international').map((s) => ({ club: s.club, apps: s.apps ?? null }))
         if (!qualifies(intlStints, scraped.nationality)) {
           fallbackInvalid ??= invalidJson(scraped.name, scraped.nationality, intlStints)
           continue
+        }
+        // Only auto-scrape retired players (like every other list game).
+        if (!isRetired(scraped.stints)) {
+          return c.json({ valid: false, foundName: scraped.name, foundNationality: null, capCount: null, imported: false, reason: 'not_retired' as const })
         }
 
         const knownRecord = byUrl ?? footballer
