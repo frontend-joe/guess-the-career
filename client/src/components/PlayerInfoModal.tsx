@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, ArrowLeft } from 'lucide-react'
 import { getFootballerCard, type FootballerCard, type CardStint } from '@/api/footballers'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
@@ -89,7 +89,7 @@ function BioRow({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export function PlayerInfoModal({ footballerId, onClose }: { footballerId: number | null; onClose: () => void }) {
+export function PlayerInfoModal({ footballerId, onClose, onBack }: { footballerId: number | null; onClose: () => void; onBack?: () => void }) {
   const showPlayer = useShowPlayer()
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -134,6 +134,15 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
       <div
         className={`relative z-10 w-full max-w-sm overflow-hidden flex flex-col bg-white rounded-2xl shadow-2xl transition-all duration-200 ease-out ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
       >
+        {onBack && (
+          <button
+            onClick={onBack}
+            aria-label="Back"
+            className="absolute top-3 left-3 z-20 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full p-1 transition-colors"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        )}
         <button
           onClick={close}
           aria-label="Close"
@@ -165,13 +174,8 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
               </tbody>
             </table>
 
-            <div className="pb-2">
-              <CareerTable title="Senior career" stints={senior} />
-              <CareerTable title="International career" stints={intl} international />
-            </div>
-
             {card.relations && card.relations.length > 0 && (
-              <div className="pb-2">
+              <div>
                 <div className="bg-gray-100 text-gray-700 text-left px-3 font-display text-sm tracking-tight py-1.5 border-y border-gray-200">
                   Relations
                 </div>
@@ -195,6 +199,11 @@ export function PlayerInfoModal({ footballerId, onClose }: { footballerId: numbe
                 </table>
               </div>
             )}
+
+            <div className="pb-2">
+              <CareerTable title="Senior career" stints={senior} />
+              <CareerTable title="International career" stints={intl} international />
+            </div>
           </>
         )}
         </div>
