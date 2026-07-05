@@ -31,13 +31,18 @@ export function MiniClubBadge({ club, wikipediaUrl, size = 20 }: Props) {
       const isClub = /football|soccer|\bf\.?c\.?\b|\bclub\b|sporting/.test(desc)
       const isPlace = /\b(city|town|village|municipality|county|district|borough|region|commune|comune|prefecture|province|settlement|suburb|capital)\b/.test(desc)
       // Resolved to a place, not a club (e.g. "Portsmouth" the city rather than
-      // Portsmouth F.C.) — retry with an F.C. suffix.
+      // Portsmouth F.C.) — retry with an F.C. suffix. Never show the town image:
+      // if the club crest can't be found, fall back to the grey placeholder.
       const decoded = decodeURIComponent(title)
-      if (isPlace && !isClub && !/f\.?c\.?$/i.test(decoded)) {
-        try {
-          const fc = await summary(encodeURIComponent(`${decoded.replace(/ /g, '_')}_F.C.`))
-          if (fc?.thumbnail?.source && fc?.type === 'standard') { setLogoUrl(fc.thumbnail.source); return }
-        } catch { /* fall through to original */ }
+      if (isPlace && !isClub) {
+        if (!/f\.?c\.?$/i.test(decoded)) {
+          try {
+            const fc = await summary(encodeURIComponent(`${decoded.replace(/ /g, '_')}_F.C.`))
+            if (fc?.thumbnail?.source && fc?.type === 'standard') { setLogoUrl(fc.thumbnail.source); return }
+          } catch { /* fall through to placeholder */ }
+        }
+        setLogoUrl(false)
+        return
       }
       setLogoUrl(data?.thumbnail?.source ?? false)
     }
