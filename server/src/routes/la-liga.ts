@@ -11,17 +11,12 @@ import {
   isSpain,
   reserveRe,
 } from '../services/football.ts'
+import { clubWikiUrl } from "../services/clubs.ts";
 
 export const laLigaRouter = new Hono()
 
 const MIN_PLAYERS = 3
 
-function clubWikiUrl(club: string): string | null {
-  const row = sqlite
-    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
-    .get(club) as { wikipedia_url: string | null } | undefined
-  return row?.wikipedia_url ?? null
-}
 
 // The Spanish club a player made the most senior appearances for (the hint),
 // plus their total appearances across Spanish clubs.

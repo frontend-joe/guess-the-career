@@ -10,6 +10,7 @@ import {
   canonicalNationality,
   baseNation,
 } from "../services/football.ts";
+import { clubWikiUrl } from "../services/clubs.ts";
 
 export const internationalLegendsRouter = new Hono();
 
@@ -112,12 +113,6 @@ interface LegendPlayer {
   years: string | null;
 }
 
-function clubWikiUrl(club: string): string | null {
-  const row = sqlite
-    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
-    .get(club) as { wikipedia_url: string | null } | undefined;
-  return row?.wikipedia_url ?? null;
-}
 
 // The club a player made the most senior appearances for + the years there — the
 // hint shown per slot (mirrors the Uncapped game).

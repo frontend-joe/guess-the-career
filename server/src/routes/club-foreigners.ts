@@ -11,6 +11,7 @@ import {
   reserveRe,
   canonicalNationality,
 } from "../services/football.ts";
+import { clubWikiUrl } from "../services/clubs.ts";
 
 export const clubForeignersRouter = new Hono();
 
@@ -18,12 +19,6 @@ const MIN_NATIONALITIES = 10;
 // The game (client) asks for 10 of the club's overseas players; the pool returned
 // here is every foreign player, and the client caps the round at 10.
 
-function clubWikiUrl(club: string): string | null {
-  const row = sqlite
-    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
-    .get(club) as { wikipedia_url: string | null } | undefined;
-  return row?.wikipedia_url ?? null;
-}
 
 // Manual home-country overrides, keyed by canonical club name.
 function homeOverrides(): Map<string, string> {

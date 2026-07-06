@@ -9,6 +9,7 @@ import {
   scrapeWikipedia,
   isRetired,
 } from "../services/scraper.ts";
+import { clubWikiUrl } from "../services/clubs.ts";
 
 export const transfersRouter = new Hono();
 
@@ -124,14 +125,6 @@ function findValidTransfers(): [string, string, number][] {
   return out;
 }
 
-function clubWikiUrl(club: string): string | null {
-  const row = sqlite
-    .prepare(
-      `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`,
-    )
-    .get(club) as { wikipedia_url: string | null } | undefined;
-  return row?.wikipedia_url ?? null;
-}
 
 interface TransferPlayer {
   id: number;

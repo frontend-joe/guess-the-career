@@ -15,6 +15,7 @@ import {
   scrapeWikipedia,
   normalizeClubAlias,
 } from '../services/scraper.ts'
+import { clubWikiUrl } from "../services/clubs.ts";
 
 export const transferHistoryRouter = new Hono()
 
@@ -24,13 +25,6 @@ function stripDiacritics(s: string): string {
   return normalizeName(s)
 }
 
-// Look up a club's Wikipedia URL from the clubs table (canonicalised name).
-function clubWikiUrl(club: string): string | null {
-  const row = sqlite
-    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
-    .get(normalizeClubAlias(club)) as { wikipedia_url: string | null } | undefined
-  return row?.wikipedia_url ?? null
-}
 
 // ── Club-name matching ──────────────────────────────────────────────────────
 // Transfermarkt uses long club names ("FC Barcelona", "Atlético de Madrid",

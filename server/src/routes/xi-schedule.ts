@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db, sqlite } from '../db/client.ts'
 import { xi_schedule, xi_matches } from '../db/schema.ts'
+import { clubWikiUrl } from '../services/clubs.ts'
 
 export const xiScheduleRouter = new Hono()
 
@@ -154,7 +155,6 @@ xiScheduleRouter.get('/rounds', (c) => {
         // For regular rounds: always use the career-stints lookup.
         const isToty = row.competition_wikipedia_url !== null
         if (isToty && p.club_at_time) {
-          const clubWikiUrl = (sqlite.prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`).get(p.club_at_time) as { wikipedia_url: string | null } | undefined)?.wikipedia_url ?? null
           return {
             id: p.id,
             footballerId: p.footballer_id,
@@ -162,7 +162,7 @@ xiScheduleRouter.get('/rounds', (c) => {
             squadNumber: p.squad_number,
             nationality: p.nationality ?? null,
             clubAtTime: p.club_at_time,
-            clubAtTimeWikipediaUrl: clubWikiUrl,
+            clubAtTimeWikipediaUrl: clubWikiUrl(p.club_at_time),
           }
         }
         const clubAtTime = p.footballer_id !== null

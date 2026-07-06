@@ -7,6 +7,7 @@ import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
+import { clubWikiUrl } from "../services/clubs.ts";
 
 // Family relations that are footballers, from the curated (included) football
 // family links — in either direction, with the relationship flipped for the
@@ -91,22 +92,6 @@ function parentClubBadgeUrl(club: string): string | null {
   return null
 }
 
-// Best-effort club Wikipedia URL from the curated clubs table — used when a stint
-// didn't store its own club link (e.g. "Dortmund", whose article is "Borussia
-// Dortmund", so the name alone can't be resolved by the badge).
-function clubTableWikiUrl(club: string): string | null {
-  const clean = club
-    .replace(/^→\s*/, '')
-    .replace(/\s*\((loan|trial|co-ownership)\)\s*$/i, '')
-    .trim()
-  for (const name of [clean, normalizeClubAlias(clean)]) {
-    const row = sqlite
-      .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) AND wikipedia_url IS NOT NULL LIMIT 1`)
-      .get(name) as { wikipedia_url: string | null } | undefined
-    if (row?.wikipedia_url) return row.wikipedia_url
-  }
-  return null
-}
 
 async function fetchSportsDbPhoto(name: string): Promise<string | null> {
   try {
@@ -451,7 +436,7 @@ footballersRouter.get('/:id/card', async (c) => {
   // when a stint has no stored club link of its own.
   const stints = rawStints.map((s) => ({
     ...s,
-    club_wikipedia_url: parentClubBadgeUrl(s.club) ?? s.club_wikipedia_url ?? clubTableWikiUrl(s.club),
+    club_wikipedia_url: parentClubBadgeUrl(s.club) ?? s.club_wikipedia_url ?? clubWikiUrl(s.club),
   }))
 
   return c.json({

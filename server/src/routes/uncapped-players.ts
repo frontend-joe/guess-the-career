@@ -6,17 +6,12 @@ import { db, sqlite } from '../db/client.ts'
 import { footballers } from '../db/schema.ts'
 import { normalizeClubAlias } from '../services/scraper.ts'
 import { nationalitiesMatch, isSeniorNationalTeam, canonicalNationality } from '../services/football.ts'
+import { clubWikiUrl } from "../services/clubs.ts";
 
 export const uncappedRouter = new Hono()
 
 const MIN_PLAYERS = 3
 
-function clubWikiUrl(club: string): string | null {
-  const row = sqlite
-    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
-    .get(club) as { wikipedia_url: string | null } | undefined
-  return row?.wikipedia_url ?? null
-}
 
 // A senior cap = an international stint for a full national team (no age-group /
 // B / Olympic suffix) with at least one appearance.
