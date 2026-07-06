@@ -91,6 +91,23 @@ function parentClubBadgeUrl(club: string): string | null {
   return null
 }
 
+// Best-effort club Wikipedia URL from the curated clubs table — used when a stint
+// didn't store its own club link (e.g. "Dortmund", whose article is "Borussia
+// Dortmund", so the name alone can't be resolved by the badge).
+function clubTableWikiUrl(club: string): string | null {
+  const clean = club
+    .replace(/^→\s*/, '')
+    .replace(/\s*\((loan|trial|co-ownership)\)\s*$/i, '')
+    .trim()
+  for (const name of [clean, normalizeClubAlias(clean)]) {
+    const row = sqlite
+      .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) AND wikipedia_url IS NOT NULL LIMIT 1`)
+      .get(name) as { wikipedia_url: string | null } | undefined
+    if (row?.wikipedia_url) return row.wikipedia_url
+  }
+  return null
+}
+
 async function fetchSportsDbPhoto(name: string): Promise<string | null> {
   try {
     const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(name)}`, {
@@ -430,10 +447,11 @@ footballersRouter.get('/:id/card', async (c) => {
     .where(eq(career_stints.footballer_id, id))
     .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
 
-  // Reserve/B teams borrow the parent club's crest for the badge.
+  // Reserve/B teams borrow the parent club's crest; fall back to the clubs table
+  // when a stint has no stored club link of its own.
   const stints = rawStints.map((s) => ({
     ...s,
-    club_wikipedia_url: parentClubBadgeUrl(s.club) ?? s.club_wikipedia_url,
+    club_wikipedia_url: parentClubBadgeUrl(s.club) ?? s.club_wikipedia_url ?? clubTableWikiUrl(s.club),
   }))
 
   return c.json({
