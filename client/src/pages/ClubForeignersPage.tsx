@@ -154,8 +154,9 @@ interface Player {
 }
 
 // A slot is either a guessed player (filled) or an empty slot hinting one of the
-// club's foreign nationalities still to be named.
-function CountrySlot({ index, player, country }: { index: number; player: Player | null; country: string | null }) {
+// club's foreign nationalities still to be named (with a representative player's
+// position as an extra clue on the right).
+function CountrySlot({ index, player, hint }: { index: number; player: Player | null; hint: Player | null }) {
   const showPlayer = useShowPlayer();
   return (
     <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${player ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
@@ -177,11 +178,12 @@ function CountrySlot({ index, player, country }: { index: number; player: Player
             <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>
           )}
         </div>
-      ) : country ? (
+      ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <NationalityFlag nationality={country} size={16} />
-          <span className="text-sm text-gray-500 truncate">{country}</span>
+          <NationalityFlag nationality={hint.country ?? hint.nationality} size={16} />
+          <span className="text-sm text-gray-500 truncate">{hint.country ?? hint.nationality}</span>
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
+          {hint.position && <PositionBadge position={hint.position} />}
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
@@ -427,19 +429,21 @@ export function ClubForeignersPage() {
   const countryOf = (p: Player) => p.country ?? p.nationality ?? "";
   const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
   const usedCountries = new Set(guessedList.map(countryOf));
-  // Distinct foreign nationalities at the club, biggest first (pool is pre-sorted
-  // by country foreigner-count desc), excluding ones already named.
-  const unusedCountries: string[] = [];
+  // One representative player per still-unused nationality (the club's top scorer
+  // of apps for that country — the pool is pre-sorted by country size then apps),
+  // biggest nationalities first. Its position is shown as the slot's hint.
+  const unusedReps: Player[] = [];
   if (players) {
+    const seen = new Set(usedCountries);
     for (const p of players) {
       const c = countryOf(p);
-      if (c && !usedCountries.has(c) && !unusedCountries.includes(c)) unusedCountries.push(c);
+      if (c && !seen.has(c)) { seen.add(c); unusedReps.push(p); }
     }
   }
-  const slots: { player: Player | null; country: string | null }[] = Array.from({ length: target }, (_, i) =>
+  const slots: { player: Player | null; hint: Player | null }[] = Array.from({ length: target }, (_, i) =>
     i < guessedList.length
-      ? { player: guessedList[i], country: null }
-      : { player: null, country: unusedCountries[i - guessedList.length] ?? null },
+      ? { player: guessedList[i], hint: null }
+      : { player: null, hint: unusedReps[i - guessedList.length] ?? null },
   );
 
   if (loading) {
@@ -520,7 +524,7 @@ export function ClubForeignersPage() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {slots.map((s, i) => (
-                      <CountrySlot key={i} index={i} player={s.player} country={s.country} />
+                      <CountrySlot key={i} index={i} player={s.player} hint={s.hint} />
                     ))}
                   </div>
                 )}
