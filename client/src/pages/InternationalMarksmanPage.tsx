@@ -233,7 +233,7 @@ interface VerifyResult {
   foundName?: string;
   goalsForCountry?: number;
   imported: boolean;
-  reason?: "not_retired" | "wrong_nation" | "not_enough_goals";
+  reason?: "not_top" | "wrong_nation";
 }
 
 async function verifyGuess(
@@ -403,13 +403,11 @@ export function InternationalMarksmanPage() {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
           const msg =
-            result.reason === "not_retired"
-              ? `Correct, but ${displayName} isn't retired yet!`
-              : result.reason === "not_enough_goals"
-                ? `${displayName} has only ${result.goalsForCountry ?? 0} goals for ${currentRound.country}`
-                : result.reason === "wrong_nation"
-                  ? `${displayName} never played for ${currentRound.country}`
-                  : `${displayName} is not a valid answer`;
+            result.reason === "not_top"
+              ? `${displayName} isn't in ${currentRound.country}'s top 5 (${result.goalsForCountry ?? 0} goals)`
+              : result.reason === "wrong_nation"
+                ? `${displayName} never played for ${currentRound.country}`
+                : `${displayName} is not a valid answer`;
           setWrongGuessMsg(msg);
           wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
 

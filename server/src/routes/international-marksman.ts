@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { db, sqlite, normalizeName } from "../db/client.ts";
-import { footballers, career_stints } from "../db/schema.ts";
-import { scrapeWikipedia, isRetired, normalizeClubAlias } from "../services/scraper.ts";
+import { db, sqlite } from "../db/client.ts";
+import { footballers } from "../db/schema.ts";
+import { normalizeClubAlias } from "../services/scraper.ts";
 import {
   isSeniorNationalTeam,
   canonicalNationality,
@@ -15,6 +15,8 @@ export const internationalMarksmanRouter = new Hono();
 
 const MIN_GOALS = 25;
 const MIN_MARKSMEN = 5;
+// A round is the country's top-N highest scorers (the answers to guess).
+const ROUND_TARGET = 5;
 
 // The modern country a senior international side belongs to, or null if the team
 // isn't a full senior national team (youth/B/Olympic/non-FIFA are excluded).
@@ -207,28 +209,6 @@ function getCountryMarksmen(country: string): MarksmanPlayer[] {
   });
 }
 
-// Full player payload for a verified guess so the revealed row matches the
-// answers list without a refresh.
-function verifiedMarksman(
-  country: string,
-  id: number,
-  fallback: { name: string; photo_url: string | null },
-): MarksmanPlayer {
-  const found = getCountryMarksmen(country).find((p) => p.id === id);
-  return (
-    found ?? {
-      id,
-      name: fallback.name,
-      photo_url: fallback.photo_url,
-      goals: 0,
-      position: null,
-      hintClub: null,
-      clubWikiUrl: null,
-      years: null,
-    }
-  );
-}
-
 // GET /api/international-marksman/admin/countries
 internationalMarksmanRouter.get("/admin/countries", (c) => {
   const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
@@ -379,11 +359,11 @@ internationalMarksmanRouter.delete("/schedule", (c) => {
   return c.json({ ok: true });
 });
 
-// GET /api/international-marksman/answers?country=Y
+// GET /api/international-marksman/answers?country=Y — the round's top-N scorers.
 internationalMarksmanRouter.get("/answers", (c) => {
   const country = c.req.query("country") ?? "";
   if (!country) return c.json({ error: "country required" }, 400);
-  return c.json(getCountryMarksmen(country));
+  return c.json(getCountryMarksmen(country).slice(0, ROUND_TARGET));
 });
 
 // POST /api/international-marksman/verify
@@ -400,25 +380,11 @@ internationalMarksmanRouter.post(
   async (c) => {
     const { footballerName, footballerId, country } = c.req.valid("json");
 
-    const checkQualifies = (stints: { club: string; goals: number | null }[]) =>
-      sumIntlGoals(stints, country) >= MIN_GOALS;
-
-    type FailReason = "wrong_nation" | "not_enough_goals";
-    function invalidJson(
-      name: string,
-      stints: { club: string; goals: number | null }[],
-    ) {
-      const reason: FailReason = playedForCountry(stints, country)
-        ? "not_enough_goals"
-        : "wrong_nation";
-      return {
-        valid: false as const,
-        foundName: name,
-        goalsForCountry: sumIntlGoals(stints, country),
-        imported: false,
-        reason,
-      };
-    }
+    // The round's answers are the country's top-N highest scorers. A guess is only
+    // valid if it resolves to one of them (validated against the DB — no
+    // auto-scrape, since the top scorers are always already stored).
+    const top = getCountryMarksmen(country).slice(0, ROUND_TARGET);
+    const topById = new Map(top.map((p) => [p.id, p]));
 
     const intlOf = (id: number) =>
       sqlite
@@ -427,49 +393,11 @@ internationalMarksmanRouter.post(
         )
         .all(id) as { club: string; goals: number | null }[];
 
-    async function importIntlStints(
-      id: number,
-      scraped: Awaited<ReturnType<typeof scrapeWikipedia>>,
-    ) {
-      const stints = scraped.stints.filter((s) => s.stint_type === "international");
-      for (const s of stints) {
-        const exists = sqlite
-          .prepare(
-            `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'international' LIMIT 1`,
-          )
-          .get(id, s.years, s.club);
-        if (!exists) {
-          const maxOrder = sqlite
-            .prepare(
-              `SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`,
-            )
-            .get(id) as { next: number };
-          await db.insert(career_stints).values({
-            footballer_id: id,
-            sort_order: maxOrder.next,
-            years: s.years,
-            club: s.club,
-            club_wikipedia_url: s.club_wikipedia_url ?? null,
-            apps: s.apps ?? null,
-            goals: s.goals ?? null,
-            stint_type: "international",
-          });
-        }
-      }
-    }
-
-    // Step 1: resolve footballer from DB
-    let footballer:
-      | { id: number; name: string; wikipedia_url: string; photo_url: string | null }
-      | undefined;
+    // Resolve the guessed footballer from the DB (by id, then by name).
+    let footballer: { id: number; name: string } | undefined;
     if (footballerId != null) {
       footballer = await db
-        .select({
-          id: footballers.id,
-          name: footballers.name,
-          wikipedia_url: footballers.wikipedia_url,
-          photo_url: footballers.photo_url,
-        })
+        .select({ id: footballers.id, name: footballers.name })
         .from(footballers)
         .where(eq(footballers.id, footballerId))
         .limit(1)
@@ -477,12 +405,7 @@ internationalMarksmanRouter.post(
     }
     if (!footballer) {
       footballer = await db
-        .select({
-          id: footballers.id,
-          name: footballers.name,
-          wikipedia_url: footballers.wikipedia_url,
-          photo_url: footballers.photo_url,
-        })
+        .select({ id: footballers.id, name: footballers.name })
         .from(footballers)
         .where(
           sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${footballerName}))`,
@@ -491,165 +414,21 @@ internationalMarksmanRouter.post(
         .then((r) => r[0]);
     }
 
-    let fallbackInvalid: ReturnType<typeof invalidJson> | null = null;
-
-    // Step 2: found — check stints, rescrape if stale
     if (footballer) {
-      let stints = intlOf(footballer.id);
-      if (checkQualifies(stints)) {
-        return c.json({
-          valid: true,
-          footballer: verifiedMarksman(country, footballer.id, footballer),
-          imported: false,
-        });
-      }
-      if (footballer.wikipedia_url) {
-        try {
-          const scraped = await scrapeWikipedia(footballer.wikipedia_url);
-          await importIntlStints(footballer.id, scraped);
-          stints = intlOf(footballer.id);
-          if (checkQualifies(stints)) {
-            return c.json({
-              valid: true,
-              footballer: verifiedMarksman(country, footballer.id, footballer),
-              imported: true,
-            });
-          }
-        } catch {
-          /* fall through */
-        }
-      }
-      if (playedForCountry(stints, country)) {
-        return c.json(invalidJson(footballer.name, stints));
-      }
-      fallbackInvalid = invalidJson(footballer.name, stints);
+      const hit = topById.get(footballer.id);
+      if (hit) return c.json({ valid: true, footballer: hit, imported: false });
+      // A real player, but not one of the top N.
+      const intl = intlOf(footballer.id);
+      const reason = playedForCountry(intl, country) ? "not_top" : "wrong_nation";
+      return c.json({
+        valid: false,
+        foundName: footballer.name,
+        goalsForCountry: sumIntlGoals(intl, country),
+        imported: false,
+        reason,
+      });
     }
 
-    // Step 3: Wikipedia name search → import
-    try {
-      const wikiHeaders = { "User-Agent": "GuessTheCareer-Admin/1.0" };
-      const strip = normalizeName;
-      const nameParts = strip(footballerName)
-        .split(/\s+/)
-        .filter((p) => p.length > 2);
-      const titleMatches = (title: string) =>
-        nameParts.length > 0 && nameParts.every((p) => strip(title).includes(p));
-      async function wikiSearch(query: string): Promise<string[]> {
-        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=5`;
-        const res = await fetch(url, { headers: wikiHeaders });
-        if (!res.ok) return [];
-        const data = (await res.json()) as {
-          query?: { search?: { title: string }[] };
-        };
-        return (data.query?.search ?? []).map((s) => s.title);
-      }
-
-      const titles: string[] = [];
-      for (const q of [
-        `${footballerName} footballer`,
-        `${footballerName} ${country}`,
-        footballerName,
-      ]) {
-        for (const title of await wikiSearch(q)) {
-          if (titleMatches(title) && !titles.includes(title)) titles.push(title);
-        }
-      }
-      if (titles.length === 0) {
-        return c.json(
-          fallbackInvalid ?? { valid: false, footballer: null, imported: false },
-        );
-      }
-
-      for (const title of titles.slice(0, 6)) {
-        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
-        const byUrl = await db
-          .select({
-            id: footballers.id,
-            name: footballers.name,
-            photo_url: footballers.photo_url,
-          })
-          .from(footballers)
-          .where(eq(footballers.wikipedia_url, wikiUrl))
-          .limit(1)
-          .then((r) => r[0]);
-        if (byUrl && checkQualifies(intlOf(byUrl.id))) {
-          return c.json({
-            valid: true,
-            footballer: verifiedMarksman(country, byUrl.id, byUrl),
-            imported: false,
-          });
-        }
-
-        await new Promise((r) => setTimeout(r, 300));
-        let scraped;
-        try {
-          scraped = await scrapeWikipedia(wikiUrl);
-        } catch {
-          continue;
-        }
-        const intlStints = scraped.stints
-          .filter((s) => s.stint_type === "international")
-          .map((s) => ({ club: s.club, goals: s.goals ?? null }));
-
-        if (!checkQualifies(intlStints)) {
-          fallbackInvalid ??= invalidJson(scraped.name, intlStints);
-          continue;
-        }
-        if (!isRetired(scraped.stints)) {
-          return c.json({
-            valid: false,
-            foundName: scraped.name,
-            imported: false,
-            reason: "not_retired" as const,
-          });
-        }
-
-        const knownRecord = byUrl ?? footballer;
-        if (knownRecord) {
-          sqlite
-            .prepare(
-              `UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?) WHERE id = ?`,
-            )
-            .run(wikiUrl, scraped.photo_url ?? null, knownRecord.id);
-          await importIntlStints(knownRecord.id, scraped);
-          return c.json({
-            valid: true,
-            footballer: verifiedMarksman(country, knownRecord.id, {
-              name: knownRecord.name,
-              photo_url: scraped.photo_url ?? knownRecord.photo_url,
-            }),
-            imported: true,
-          });
-        }
-
-        const [created] = await db
-          .insert(footballers)
-          .values({
-            name: scraped.name,
-            wikipedia_url: scraped.wikipedia_url,
-            nationality: scraped.nationality,
-            position: scraped.position,
-            all_positions: scraped.all_positions ?? null,
-            born: scraped.born,
-            photo_url: scraped.photo_url ?? null,
-          })
-          .returning();
-        await importIntlStints(created.id, scraped);
-        return c.json({
-          valid: true,
-          footballer: verifiedMarksman(country, created.id, {
-            name: created.name,
-            photo_url: created.photo_url ?? null,
-          }),
-          imported: true,
-        });
-      }
-
-      return c.json(
-        fallbackInvalid ?? { valid: false, footballer: null, imported: false },
-      );
-    } catch {
-      return c.json({ valid: false, footballer: null, imported: false });
-    }
+    return c.json({ valid: false, footballer: null, imported: false });
   },
 );
