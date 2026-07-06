@@ -223,17 +223,6 @@ async function verifyGuess(footballerName: string, footballerId: number | null, 
   }
 }
 
-// Top foreign countries at this club (for the flag clue strip).
-function topCountries(players: Player[] | null, limit = 6): string[] {
-  if (!players) return [];
-  const counts = new Map<string, number>();
-  for (const p of players) {
-    if (!p.nationality) continue;
-    counts.set(p.nationality, (counts.get(p.nationality) ?? 0) + 1);
-  }
-  return [...counts].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([c]) => c);
-}
-
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function ClubForeignersPage() {
@@ -422,8 +411,6 @@ export function ClubForeignersPage() {
       : { player: null, hint: unguessedList[i - guessedList.length] ?? null },
   );
 
-  const clue = topCountries(players);
-
   if (loading) {
     return (
       <div className="h-dvh flex items-center justify-center bg-gray-50">
@@ -493,13 +480,6 @@ export function ClubForeignersPage() {
                   )}
                   <ClubBadge name={currentRound.club} wikiUrl={currentRound.clubWikiUrl} />
                   <span className="text-gray-400 text-[11px] text-center">Overseas players at {currentRound.club}</span>
-                  {clue.length > 0 && (
-                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                      {clue.map((country) => (
-                        <NationalityFlag key={country} nationality={country} size={18} />
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 {players === null ? (
