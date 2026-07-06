@@ -185,13 +185,13 @@ clubForeignersRouter.get("/admin/clubs", (c) => {
   }
 
   const enabledRows = sqlite
-    .prepare(`SELECT club FROM club_foreigners_enabled_clubs`)
-    .all() as { club: string }[];
-  const enabledSet = new Set(enabledRows.map((r) => r.club));
+    .prepare(`SELECT club, round_size FROM club_foreigners_enabled_clubs`)
+    .all() as { club: string; round_size: number }[];
+  const enabledMap = new Map(enabledRows.map((r) => [r.club, r.round_size]));
 
   const sorted = validClubs.sort((a, b) => b.foreignerCount - a.foreignerCount);
   const total = sorted.length;
-  const enabledCount = sorted.filter((v) => enabledSet.has(v.club)).length;
+  const enabledCount = sorted.filter((v) => enabledMap.has(v.club)).length;
   const page_data = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   const data = page_data.map((v) => ({
@@ -200,7 +200,8 @@ clubForeignersRouter.get("/admin/clubs", (c) => {
     homeCountry: v.homeCountry,
     nationalityCount: v.nationalityCount,
     foreignerCount: v.foreignerCount,
-    enabled: enabledSet.has(v.club),
+    enabled: enabledMap.has(v.club),
+    roundSize: enabledMap.get(v.club) ?? 5,
   }));
 
   return c.json({ data, total, enabledCount, page, pageSize });
@@ -224,12 +225,16 @@ clubForeignersRouter.get("/admin/clubs/:club/players", (c) => {
 // POST /api/club-foreigners/admin/clubs/enable
 clubForeignersRouter.post(
   "/admin/clubs/enable",
-  zValidator("json", z.object({ club: z.string().min(1) })),
+  zValidator("json", z.object({ club: z.string().min(1), roundSize: z.number().int().optional() })),
   (c) => {
-    const { club } = c.req.valid("json");
+    const { club, roundSize } = c.req.valid("json");
+    const size = roundSize && roundSize > 0 ? Math.floor(roundSize) : 5;
     sqlite
-      .prepare(`INSERT OR IGNORE INTO club_foreigners_enabled_clubs (club) VALUES (?)`)
-      .run(normalizeClubAlias(club));
+      .prepare(
+        `INSERT INTO club_foreigners_enabled_clubs (club, round_size) VALUES (?, ?)
+         ON CONFLICT(club) DO UPDATE SET round_size = excluded.round_size`,
+      )
+      .run(normalizeClubAlias(club), size);
     return c.json({ ok: true });
   },
 );
@@ -266,6 +271,10 @@ clubForeignersRouter.get("/schedule/rounds", (c) => {
 
   const countMap = new Map<string, number>();
   for (const v of findValidClubs()) countMap.set(v.club, v.foreignerCount);
+  const sizeRows = sqlite
+    .prepare(`SELECT club, round_size FROM club_foreigners_enabled_clubs`)
+    .all() as { club: string; round_size: number }[];
+  const sizeMap = new Map(sizeRows.map((r) => [r.club, r.round_size]));
 
   return c.json(
     scheduled.map((row) => ({
@@ -273,6 +282,7 @@ clubForeignersRouter.get("/schedule/rounds", (c) => {
       club: row.club,
       clubWikiUrl: clubWikiUrl(row.club),
       foreignerCount: countMap.get(normalizeClubAlias(row.club)) ?? 0,
+      roundSize: sizeMap.get(normalizeClubAlias(row.club)) ?? 5,
     })),
   );
 });

@@ -10,6 +10,7 @@ export interface ClubForeignersScheduleRound {
   club: string
   clubWikiUrl: string | null
   foreignerCount: number
+  roundSize: number
 }
 
 export async function getClubForeignersSchedule(): Promise<ClubForeignersScheduleAdminEntry[]> {

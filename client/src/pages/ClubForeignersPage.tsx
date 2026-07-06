@@ -23,8 +23,8 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 
-// Every Club Foreigners round asks for 10 of the club's overseas players.
-const ROUND_TARGET = 10;
+// Each round asks for a per-club number of overseas players (admin-set, default 5).
+const DEFAULT_ROUND_TARGET = 5;
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
@@ -310,8 +310,9 @@ export function ClubForeignersPage() {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
+    const roundTarget = currentRound.roundSize ?? DEFAULT_ROUND_TARGET;
     const activeGuesses = players.filter((p) => currentState.guessedIds.has(p.id)).length;
-    if (activeGuesses >= ROUND_TARGET) return;
+    if (activeGuesses >= roundTarget) return;
 
     const alreadyFound = players.filter((p) => currentState.guessedIds.has(p.id)).some((p) => matchesPlayer(name, p.name));
     if (alreadyFound) return;
@@ -373,8 +374,9 @@ export function ClubForeignersPage() {
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
     const state = roundStates[r.club];
     const statePlayers = state?.players;
+    const roundTarget = r.roundSize ?? DEFAULT_ROUND_TARGET;
     const validIds = statePlayers ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length : (state?.guessedIds.size ?? 0);
-    const guessed = Math.min(validIds, ROUND_TARGET);
+    const guessed = Math.min(validIds, roundTarget);
     return {
       name: (
         <span className="text-xs font-medium">
@@ -384,13 +386,13 @@ export function ClubForeignersPage() {
       ),
       icon: <MiniClubBadge club={r.club} wikipediaUrl={r.clubWikiUrl} />,
       guessed,
-      total: ROUND_TARGET,
+      total: roundTarget,
     };
   });
 
   const totalGuessed = rounds.filter((r) => {
     const state = roundStates[r.club];
-    return (state?.guessedIds.size ?? 0) >= ROUND_TARGET;
+    return (state?.guessedIds.size ?? 0) >= (r.roundSize ?? DEFAULT_ROUND_TARGET);
   }).length;
   const totalPlayers = rounds.length;
 
@@ -404,7 +406,7 @@ export function ClubForeignersPage() {
   const filteredOriginalIndices = filteredProgressData.map((d) => d.i);
 
   const players = currentState?.players ?? null;
-  const target = ROUND_TARGET;
+  const target = currentRound?.roundSize ?? DEFAULT_ROUND_TARGET;
 
   const validGuessedIds = players
     ? new Set(players.filter((p) => currentState!.guessedIds.has(p.id)).map((p) => p.id))

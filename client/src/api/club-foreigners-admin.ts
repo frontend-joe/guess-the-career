@@ -5,6 +5,7 @@ export interface AdminClub {
   nationalityCount: number
   foreignerCount: number
   enabled: boolean
+  roundSize: number
 }
 
 export interface AdminClubsResult {
@@ -47,11 +48,11 @@ export async function getClubPlayers(club: string): Promise<ClubPlayersResult> {
   return res.json()
 }
 
-export async function setClubEnabled(club: string, enabled: boolean): Promise<void> {
+export async function setClubEnabled(club: string, enabled: boolean, roundSize = 5): Promise<void> {
   const res = await fetch('/api/club-foreigners/admin/clubs/enable', {
     method: enabled ? 'POST' : 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ club }),
+    body: JSON.stringify(enabled ? { club, roundSize } : { club }),
   })
   if (!res.ok) throw new Error('Failed to update club')
 }

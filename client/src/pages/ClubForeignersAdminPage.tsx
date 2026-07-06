@@ -63,10 +63,21 @@ export function ClubForeignersAdminPage() {
     setClubs(prev => prev.map(c => (c.club === club.club ? { ...c, enabled } : c)))
     setEnabledCount(prev => prev + (enabled ? 1 : -1))
     try {
-      await setClubEnabled(club.club, enabled)
+      await setClubEnabled(club.club, enabled, club.roundSize)
     } catch {
       setClubs(prev => prev.map(c => (c.club === club.club ? { ...c, enabled: !enabled } : c)))
       setEnabledCount(prev => prev + (enabled ? -1 : 1))
+    }
+  }
+
+  async function changeSize(club: AdminClub, roundSize: number) {
+    const size = Math.max(1, Math.floor(roundSize))
+    setClubs(prev => prev.map(c => (c.club === club.club ? { ...c, roundSize: size, enabled: true } : c)))
+    if (!club.enabled) setEnabledCount(prev => prev + 1)
+    try {
+      await setClubEnabled(club.club, true, size)
+    } catch {
+      load(page)
     }
   }
 
@@ -100,6 +111,7 @@ export function ClubForeignersAdminPage() {
                 <TableHead className="w-10">On</TableHead>
                 <TableHead>Club</TableHead>
                 <TableHead className="w-40 text-right">Nationalities (10+)</TableHead>
+                <TableHead className="w-32 text-right">Round</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -135,10 +147,32 @@ export function ClubForeignersAdminPage() {
                       </span>
                       <span className="text-xs text-muted-foreground ml-2">{club.foreignerCount} foreign</span>
                     </TableCell>
+                    <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                      <div className="inline-flex items-center border border-input rounded-md overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => changeSize(club, club.roundSize - 1)}
+                          className="px-2 py-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                          disabled={club.roundSize <= 1}
+                        >−</button>
+                        <input
+                          type="number"
+                          min={1}
+                          value={club.roundSize}
+                          onChange={e => changeSize(club, Number(e.target.value) || 1)}
+                          className="w-10 text-center text-xs bg-background outline-none border-x border-input py-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => changeSize(club, club.roundSize + 1)}
+                          className="px-2 py-1 text-muted-foreground hover:bg-muted"
+                        >+</button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                   {expanded === club.club && (
                     <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={3} className="bg-muted/30 p-0">
+                      <TableCell colSpan={4} className="bg-muted/30 p-0">
                         {playersLoading === club.club ? (
                           <div className="flex items-center gap-2 text-muted-foreground text-sm py-6 justify-center">
                             <Loader2 className="h-4 w-4 animate-spin" />
