@@ -2,11 +2,9 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useNavigate } from 'react-router'
 import { Loader2, CalendarDays, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { PositionBadge } from '@/components/PositionBadge'
 import { Button } from '@/components/ui/button'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { NationalityFlag } from '@/components/NationalityFlag'
-import { PlayerAvatar } from '@/components/PlayerAvatar'
 import {
   getAdminClubs,
   getClubPlayers,
@@ -147,29 +145,16 @@ export function ClubForeignersAdminPage() {
                             Loading players…
                           </div>
                         ) : (
-                          <div className="divide-y">
+                          <ul className="divide-y">
                             {(playersByClub[club.club]?.groups ?? []).map(group => (
-                              <div key={group.country} className="py-1">
-                                <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/40">
-                                  <NationalityFlag nationality={group.country} size={14} />
-                                  <span className="text-xs font-semibold">{group.country}</span>
-                                  <span className="text-xs text-muted-foreground">· {group.players.length}</span>
-                                </div>
-                                <ul>
-                                  {group.players.map(p => (
-                                    <li key={p.id} className="flex items-center gap-3 px-4 py-1.5">
-                                      <PlayerAvatar id={p.id} name={p.name} wikipediaUrl="" storedPhotoUrl={p.photo_url} size="sm" variant="admin" />
-                                      <span className="text-sm">{p.name}</span>
-                                      {p.position && <PositionBadge position={p.position} />}
-                                      {p.years && <span className="text-xs text-muted-foreground">{p.years}</span>}
-                                      <span className="ml-auto text-sm font-semibold tabular-nums">{p.apps}</span>
-                                      <span className="text-xs text-muted-foreground">apps</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
+                              <li key={group.country} className="flex items-center gap-2 px-4 py-2">
+                                <NationalityFlag nationality={group.country} size={16} />
+                                <span className="text-sm font-medium">{group.country}</span>
+                                <span className="ml-auto text-sm font-semibold tabular-nums">{group.players.length}</span>
+                                <span className="text-xs text-muted-foreground">players</span>
+                              </li>
                             ))}
-                          </div>
+                          </ul>
                         )}
                       </TableCell>
                     </TableRow>
