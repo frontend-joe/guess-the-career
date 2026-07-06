@@ -10,7 +10,8 @@
     "dev": "concurrently \"yarn workspace server dev\" \"wait-on http://localhost:3001/api/health && yarn workspace client dev\"",
     "dev:client": "yarn workspace client dev",
     "dev:server": "yarn workspace server dev",
-    "build": "yarn workspace server build && yarn workspace client build"
+    "build": "yarn workspace server build && yarn workspace client build",
+    "verify": "bash scripts/verify.sh"
   },
   "engines": {
     "node": ">=20"

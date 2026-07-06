@@ -2,6 +2,11 @@
   command = "yarn workspace client build"
   publish = "client/dist"
 
+# Pin the build environment to Node 20 (matches Railway's nixpacks nodejs_20) so
+# the Netlify build can't drift onto a different Node version than we test with.
+[build.environment]
+  NODE_VERSION = "20"
+
 # Proxy API calls to Railway — update the `to` URL after Railway deployment
 [[redirects]]
   from   = "/api/*"
