@@ -36,6 +36,11 @@ export const CLUB_ALIASES: Record<string, string> = {
   Hamburg: "Hamburger SV",
   "HSV": "Hamburger SV",
   "Hamburger SV Hamburg": "Hamburger SV",
+  // Celta Vigo
+  Celta: "Celta Vigo",
+  "Celta de Vigo": "Celta Vigo",
+  "RC Celta": "Celta Vigo",
+  "RC Celta de Vigo": "Celta Vigo",
 };
 
 export const FOOTBALLING_NATIONS = new Set([
