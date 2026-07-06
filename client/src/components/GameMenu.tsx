@@ -65,7 +65,6 @@ export function GameMenu() {
           <Icon size={18} />
         </span>
         <span className="text-[11px] font-semibold text-white leading-tight line-clamp-2">{game.name}</span>
-        <span className="text-[9px] text-white/45 leading-snug line-clamp-2">{game.pitch}</span>
       </button>
     )
   }
