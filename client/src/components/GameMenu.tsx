@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { Menu, X, Home, Settings, type LucideIcon } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { LIST_GAMES, BANTER_GAMES } from '@/lib/games'
+import { LIST_GAMES, BANTER_GAMES, type Game } from '@/lib/games'
 
 // In-game burger menu: a frosted drawer that slides in from the left with
 // global navigation (Admin / Home) plus a full game switcher. Sits in the left
@@ -36,21 +36,36 @@ export function GameMenu() {
     navigate(to)
   }
 
-  // Shared row styling for both nav links (Admin/Home) and game entries.
-  function Row({ icon: Icon, label, desc, to }: { icon: LucideIcon; label: string; desc?: string; to: string }) {
+  // Row styling for the global nav links (Admin / Home).
+  function Row({ icon: Icon, label, to }: { icon: LucideIcon; label: string; to: string }) {
     const active = pathname === to
     return (
       <button
         onClick={() => go(to)}
-        className={`w-full text-left flex ${desc ? 'items-start' : 'items-center'} gap-3 px-4 py-2.5 transition-colors ${active ? 'bg-green-400/10' : 'hover:bg-white/5'}`}
+        className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition-colors ${active ? 'bg-green-400/10' : 'hover:bg-white/5'}`}
       >
-        <span className={`shrink-0 ${desc ? 'mt-0.5' : ''} w-8 h-8 rounded-lg flex items-center justify-center ${active ? 'bg-green-400/20 text-green-400' : 'bg-white/5 text-green-400'}`}>
+        <span className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${active ? 'bg-green-400/20 text-green-400' : 'bg-white/5 text-green-400'}`}>
           <Icon size={16} />
         </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold text-white truncate">{label}</span>
-          {desc && <span className="block text-xs text-white/45 leading-snug">{desc}</span>}
+        <span className="block text-sm font-semibold text-white truncate">{label}</span>
+      </button>
+    )
+  }
+
+  // Compact game card for the 3-per-row grid: icon tile + name + pitch.
+  function GameCard({ game }: { game: Game }) {
+    const Icon = game.icon
+    const active = pathname === game.to
+    return (
+      <button
+        onClick={() => go(game.to)}
+        className={`group flex flex-col items-center text-center gap-1.5 rounded-xl p-2.5 border transition active:scale-95 ${active ? 'border-green-400/40 bg-green-400/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}
+      >
+        <span className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${active ? 'bg-green-400/20 text-green-400' : 'bg-green-400/10 text-green-400 group-hover:bg-green-400/20'}`}>
+          <Icon size={18} />
         </span>
+        <span className="text-[11px] font-semibold text-white leading-tight line-clamp-2">{game.name}</span>
+        <span className="text-[9px] text-white/45 leading-snug line-clamp-2">{game.pitch}</span>
       </button>
     )
   }
@@ -68,15 +83,15 @@ export function GameMenu() {
       </button>
 
       {mounted && (
-        <div className="fixed inset-0 z-60 font-ui">
+        <div className="fixed inset-0 z-60 font-ui flex justify-center items-stretch sm:items-center">
           {/* Backdrop */}
           <div
-            className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 bg-black/60 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
             onClick={closeMenu}
           />
-          {/* Panel */}
-          <div className={`absolute inset-y-0 left-0 z-70 w-80 max-w-[85vw] bg-[#0b0c1a]/70 backdrop-blur-xl shadow-2xl overflow-y-auto flex flex-col transition-transform duration-200 ease-out ${visible ? 'translate-x-0' : '-translate-x-full'}`}>
-            <div className="sticky top-0 bg-[#0b0c1a]/80 backdrop-blur-md divide-soft-b flex items-center justify-between px-4 py-3">
+          {/* Panel — full-screen on mobile, centered modal on sm+ */}
+          <div className={`relative z-70 w-full h-full sm:h-auto sm:max-w-3xl sm:max-h-[85vh] sm:rounded-2xl bg-[#0b0c1a]/90 backdrop-blur-xl shadow-2xl overflow-y-auto flex flex-col transition-all duration-200 ease-out ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+            <div className="sticky top-0 z-10 bg-[#0b0c1a]/80 backdrop-blur-md divide-soft-b flex items-center justify-between px-4 py-3">
               <span className="font-display text-sm tracking-wide uppercase text-white">Menu</span>
               <button
                 onClick={closeMenu}
@@ -95,12 +110,16 @@ export function GameMenu() {
             <div className="px-4 pt-3 pb-1">
               <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">List Games</span>
             </div>
-            {LIST_GAMES.map((g) => <Row key={g.to} icon={g.icon} label={g.name} desc={g.pitch} to={g.to} />)}
+            <div className="grid grid-cols-3 gap-2 px-3">
+              {LIST_GAMES.map((g) => <GameCard key={g.to} game={g} />)}
+            </div>
 
             <div className="px-4 pt-4 pb-1">
               <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">Banter Games</span>
             </div>
-            {BANTER_GAMES.map((g) => <Row key={g.to} icon={g.icon} label={g.name} desc={g.pitch} to={g.to} />)}
+            <div className="grid grid-cols-3 gap-2 px-3">
+              {BANTER_GAMES.map((g) => <GameCard key={g.to} game={g} />)}
+            </div>
 
             <div className="h-3" />
           </div>
