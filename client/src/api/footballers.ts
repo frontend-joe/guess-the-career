@@ -55,7 +55,8 @@ export interface FootballerCard {
 }
 
 export async function getFootballerCard(id: number): Promise<FootballerCard> {
-  const res = await fetch(`/api/footballers/${id}/card`)
+  // Bypass the browser HTTP cache so club badge / stint fixes show immediately.
+  const res = await fetch(`/api/footballers/${id}/card`, { cache: 'no-store' })
   if (!res.ok) throw new Error('Failed to load player')
   return res.json()
 }
