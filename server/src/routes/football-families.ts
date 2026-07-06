@@ -256,6 +256,18 @@ function yearsSpan(nums: number[]): string | null {
   return min === max ? String(min) : `${min}–${max}`
 }
 
+// Best-effort club Wikipedia URL from the curated clubs table — used when a stint
+// didn't store its own club link (e.g. "Dortmund" → "Borussia Dortmund").
+function clubTableWikiUrl(club: string): string | null {
+  for (const name of [club, normalizeClubAlias(club)]) {
+    const row = sqlite
+      .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) AND wikipedia_url IS NOT NULL LIMIT 1`)
+      .get(name) as { wikipedia_url: string | null } | undefined
+    if (row?.wikipedia_url) return row.wikipedia_url
+  }
+  return null
+}
+
 // The club a player made the most senior appearances for, plus the years they
 // were at that club.
 function topClub(footballerId: number): { name: string; wikiUrl: string | null; years: string | null } | null {
@@ -274,7 +286,7 @@ function topClub(footballerId: number): { name: string; wikiUrl: string | null; 
   }
   let best: { apps: number; name: string; wikiUrl: string | null; years: number[] } | null = null
   for (const v of byClub.values()) if (!best || v.apps > best.apps) best = v
-  return best ? { name: best.name, wikiUrl: best.wikiUrl, years: yearsSpan(best.years) } : null
+  return best ? { name: best.name, wikiUrl: best.wikiUrl ?? clubTableWikiUrl(best.name), years: yearsSpan(best.years) } : null
 }
 
 function buildMember(id: number): FamilyMember {
