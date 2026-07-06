@@ -56,3 +56,13 @@ export async function setClubEnabled(club: string, enabled: boolean, roundSize =
   })
   if (!res.ok) throw new Error('Failed to update club')
 }
+
+// Override (or clear, when homeCountry is null) the club's excluded home country.
+export async function setClubHome(club: string, homeCountry: string | null): Promise<void> {
+  const res = await fetch('/api/club-foreigners/admin/clubs/home', {
+    method: homeCountry ? 'POST' : 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(homeCountry ? { club, homeCountry } : { club }),
+  })
+  if (!res.ok) throw new Error('Failed to update home country')
+}

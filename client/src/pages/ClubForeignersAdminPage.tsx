@@ -9,6 +9,7 @@ import {
   getAdminClubs,
   getClubPlayers,
   setClubEnabled,
+  setClubHome,
   type AdminClub,
   type ClubPlayersResult,
 } from '@/api/club-foreigners-admin'
@@ -68,6 +69,16 @@ export function ClubForeignersAdminPage() {
       setClubs(prev => prev.map(c => (c.club === club.club ? { ...c, enabled: !enabled } : c)))
       setEnabledCount(prev => prev + (enabled ? -1 : 1))
     }
+  }
+
+  async function changeHome(clubName: string, homeCountry: string) {
+    try {
+      await setClubHome(clubName, homeCountry)
+      const res = await getClubPlayers(clubName)
+      setPlayersByClub(prev => ({ ...prev, [clubName]: res }))
+      const foreignerCount = res.groups.reduce((n, g) => n + g.players.length, 0)
+      setClubs(prev => prev.map(c => (c.club === clubName ? { ...c, homeCountry: res.homeCountry, foreignerCount } : c)))
+    } catch { /* ignore */ }
   }
 
   async function changeSize(club: AdminClub, roundSize: number) {
@@ -179,16 +190,38 @@ export function ClubForeignersAdminPage() {
                             Loading players…
                           </div>
                         ) : (
-                          <ul className="divide-y">
-                            {(playersByClub[club.club]?.groups ?? []).map(group => (
-                              <li key={group.country} className="flex items-center gap-2 px-4 py-2">
-                                <NationalityFlag nationality={group.country} size={16} />
-                                <span className="text-sm font-medium">{group.country}</span>
-                                <span className="ml-auto text-sm font-semibold tabular-nums">{group.players.length}</span>
-                                <span className="text-xs text-muted-foreground">players</span>
-                              </li>
-                            ))}
-                          </ul>
+                          <>
+                            {(() => {
+                              const res = playersByClub[club.club]
+                              if (!res) return null
+                              const options = [res.homeCountry, ...res.groups.map(g => g.country)]
+                                .filter((v): v is string => !!v)
+                                .filter((v, i, a) => a.indexOf(v) === i)
+                                .sort((a, b) => a.localeCompare(b))
+                              return (
+                                <div className="flex items-center gap-2 px-4 py-2 border-b bg-background/60">
+                                  <span className="text-xs text-muted-foreground">Home country (excluded):</span>
+                                  <select
+                                    value={res.homeCountry ?? ''}
+                                    onChange={e => changeHome(club.club, e.target.value)}
+                                    className="border border-input rounded-md px-1.5 py-1 text-xs bg-background outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                                  >
+                                    {options.map(c => (<option key={c} value={c}>{c}</option>))}
+                                  </select>
+                                </div>
+                              )
+                            })()}
+                            <ul className="divide-y">
+                              {(playersByClub[club.club]?.groups ?? []).map(group => (
+                                <li key={group.country} className="flex items-center gap-2 px-4 py-2">
+                                  <NationalityFlag nationality={group.country} size={16} />
+                                  <span className="text-sm font-medium">{group.country}</span>
+                                  <span className="ml-auto text-sm font-semibold tabular-nums">{group.players.length}</span>
+                                  <span className="text-xs text-muted-foreground">players</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
                         )}
                       </TableCell>
                     </TableRow>

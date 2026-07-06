@@ -25,6 +25,21 @@ function clubWikiUrl(club: string): string | null {
   return row?.wikipedia_url ?? null;
 }
 
+// Manual home-country overrides, keyed by canonical club name.
+function homeOverrides(): Map<string, string> {
+  const rows = sqlite
+    .prepare(`SELECT club, home_country FROM club_foreigners_home_override`)
+    .all() as { club: string; home_country: string }[];
+  return new Map(rows.map((r) => [r.club, r.home_country]));
+}
+
+function homeOverrideFor(club: string): string | null {
+  const row = sqlite
+    .prepare(`SELECT home_country FROM club_foreigners_home_override WHERE club = ?`)
+    .get(normalizeClubAlias(club)) as { home_country: string } | undefined;
+  return row?.home_country ?? null;
+}
+
 function yearsSpan(raw: string | null): string | null {
   if (!raw) return null;
   const nums = raw.match(/\d{4}/g);
@@ -68,15 +83,18 @@ function findValidClubs(): ValidClub[] {
     byCountry.get(country)!.add(footballer_id);
   }
 
+  const overrides = homeOverrides();
   const valid: ValidClub[] = [];
   for (const [club, byCountry] of clubMap) {
     if (byCountry.size < MIN_NATIONALITIES) continue;
-    let homeCountry: string | null = null;
-    let homeCount = -1;
-    for (const [country, ids] of byCountry) {
-      if (ids.size > homeCount || (ids.size === homeCount && homeCountry && country.localeCompare(homeCountry) < 0)) {
-        homeCount = ids.size;
-        homeCountry = country;
+    let homeCountry: string | null = overrides.get(club) ?? null;
+    if (!homeCountry) {
+      let homeCount = -1;
+      for (const [country, ids] of byCountry) {
+        if (ids.size > homeCount || (ids.size === homeCount && homeCountry && country.localeCompare(homeCountry) < 0)) {
+          homeCount = ids.size;
+          homeCountry = country;
+        }
       }
     }
     let foreignerCount = 0;
@@ -128,18 +146,20 @@ function clubForeigners(club: string): { homeCountry: string | null; players: Fo
     years_raw: string | null;
   }[];
 
-  // Home country = the most-common nationality among the club's players.
-  const counts = new Map<string, number>();
-  for (const r of rows) {
-    const c = canonicalNationality(r.nationality);
-    if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
-  }
-  let homeCountry: string | null = null;
-  let homeCount = -1;
-  for (const [country, n] of counts) {
-    if (n > homeCount || (n === homeCount && homeCountry && country.localeCompare(homeCountry) < 0)) {
-      homeCount = n;
-      homeCountry = country;
+  // Home country = manual override, else the most-common nationality.
+  let homeCountry: string | null = homeOverrideFor(club);
+  if (!homeCountry) {
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const c = canonicalNationality(r.nationality);
+      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    let homeCount = -1;
+    for (const [country, n] of counts) {
+      if (n > homeCount || (n === homeCount && homeCountry && country.localeCompare(homeCountry) < 0)) {
+        homeCount = n;
+        homeCountry = country;
+      }
     }
   }
 
@@ -266,6 +286,34 @@ clubForeignersRouter.delete(
     sqlite
       .prepare(`DELETE FROM club_foreigners_enabled_clubs WHERE LOWER(club) = LOWER(?)`)
       .run(normalizeClubAlias(club));
+    return c.json({ ok: true });
+  },
+);
+
+// POST /api/club-foreigners/admin/clubs/home — override the excluded home country
+clubForeignersRouter.post(
+  "/admin/clubs/home",
+  zValidator("json", z.object({ club: z.string().min(1), homeCountry: z.string().min(1) })),
+  (c) => {
+    const { club, homeCountry } = c.req.valid("json");
+    sqlite
+      .prepare(
+        `INSERT INTO club_foreigners_home_override (club, home_country) VALUES (?, ?)
+         ON CONFLICT(club) DO UPDATE SET home_country = excluded.home_country`,
+      )
+      .run(normalizeClubAlias(club), homeCountry);
+    return c.json({ ok: true });
+  },
+);
+
+// DELETE /api/club-foreigners/admin/clubs/home — revert to auto-detection
+clubForeignersRouter.delete(
+  "/admin/clubs/home",
+  zValidator("json", z.object({ club: z.string().min(1) })),
+  (c) => {
+    sqlite
+      .prepare(`DELETE FROM club_foreigners_home_override WHERE club = ?`)
+      .run(normalizeClubAlias(c.req.valid("json").club));
     return c.json({ ok: true });
   },
 );
