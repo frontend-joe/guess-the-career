@@ -1,6 +1,10 @@
 [build]
   builder      = "NIXPACKS"
-  buildCommand = "yarn workspace server build"
+  # The server runs directly from TypeScript source via tsx at runtime, so there
+  # is no compile step. (A tsc build here would need `typescript`, a devDependency
+  # that Railway's production install omits — hence "tsc: not found".) Type-checks
+  # run locally via `yarn verify`.
+  buildCommand = "echo 'no build step — server runs from source via tsx'"
 
 [deploy]
   startCommand  = "yarn workspace server start"
