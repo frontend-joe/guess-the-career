@@ -206,7 +206,7 @@ interface VerifyResult {
   footballer: Player | null;
   foundName?: string;
   imported: boolean;
-  reason?: "wrong_club" | "home_nation";
+  reason?: "wrong_club" | "home_nation" | "not_retired";
 }
 
 async function verifyGuess(footballerName: string, footballerId: number | null, club: string): Promise<VerifyResult> {
@@ -357,9 +357,11 @@ export function ClubForeignersPage() {
         const msg =
           result.reason === "home_nation"
             ? `${displayName} isn't a foreigner at ${currentRound.club}`
-            : result.reason === "wrong_club"
-              ? `${displayName} never played for ${currentRound.club}`
-              : `${displayName} is not a valid answer`;
+            : result.reason === "not_retired"
+              ? `Correct, but ${displayName} isn't retired yet!`
+              : result.reason === "wrong_club"
+                ? `${displayName} never played for ${currentRound.club}`
+                : `${displayName} is not a valid answer`;
         flashMessage(msg, true, name);
       }
     } finally {

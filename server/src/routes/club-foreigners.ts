@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { db, sqlite } from "../db/client.ts";
-import { footballers } from "../db/schema.ts";
-import { normalizeClubAlias } from "../services/scraper.ts";
+import { db, sqlite, normalizeName } from "../db/client.ts";
+import { footballers, career_stints } from "../db/schema.ts";
+import { normalizeClubAlias, scrapeWikipedia, isRetired } from "../services/scraper.ts";
 import {
   getClubVariants,
   hasClub,
@@ -397,8 +397,9 @@ clubForeignersRouter.get("/answers", (c) => {
   return c.json(clubForeigners(club).players);
 });
 
-// POST /api/club-foreigners/verify — DB-only: a guess is valid when the footballer
-// made a senior stint at the club AND their nationality isn't the club's country.
+// POST /api/club-foreigners/verify — a guess is valid when the footballer made a
+// senior stint at the club AND their nationality isn't the club's own country.
+// Unknown players are scraped from Wikipedia and imported if they qualify.
 clubForeignersRouter.post(
   "/verify",
   zValidator(
@@ -411,45 +412,145 @@ clubForeignersRouter.post(
   ),
   async (c) => {
     const { footballerName, footballerId, club } = c.req.valid("json");
+    const { homeCountry } = clubForeigners(club);
 
-    const { players } = clubForeigners(club);
-    const byId = new Map(players.map((p) => [p.id, p]));
+    const inPool = (id: number) => clubForeigners(club).players.find((p) => p.id === id);
+    const isForeign = (nat: string | null | undefined) => {
+      const cn = canonicalNationality(nat ?? "");
+      return !!cn && cn !== homeCountry;
+    };
+    const seniorClubsOf = (id: number) =>
+      (
+        sqlite
+          .prepare(`SELECT club FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
+          .all(id) as { club: string }[]
+      ).map((r) => r.club);
 
-    let footballer: { id: number; name: string } | undefined;
+    async function importSeniorStints(id: number, scraped: Awaited<ReturnType<typeof scrapeWikipedia>>) {
+      for (const s of scraped.stints.filter((x) => x.stint_type === "senior")) {
+        const exists = sqlite
+          .prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`)
+          .get(id, s.years, s.club);
+        if (!exists) {
+          const maxOrder = sqlite
+            .prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`)
+            .get(id) as { next: number };
+          await db.insert(career_stints).values({
+            footballer_id: id, sort_order: maxOrder.next, years: s.years, club: s.club,
+            club_wikipedia_url: s.club_wikipedia_url ?? null, apps: s.apps ?? null, goals: s.goals ?? null, stint_type: "senior",
+          });
+        }
+      }
+    }
+
+    const success = (id: number, imported: boolean) => {
+      const p = inPool(id);
+      if (p) return c.json({ valid: true, footballer: p, imported });
+      const row = sqlite.prepare(`SELECT name, photo_url, nationality, position FROM footballers WHERE id = ?`).get(id) as
+        | { name: string; photo_url: string | null; nationality: string | null; position: string | null }
+        | undefined;
+      return c.json({
+        valid: true,
+        footballer: { id, name: row?.name ?? footballerName, photo_url: row?.photo_url ?? null, nationality: row?.nationality ?? null, country: canonicalNationality(row?.nationality ?? ""), position: row?.position ?? null, apps: 0, years: null },
+        imported,
+      });
+    };
+
+    // Step 1: resolve from DB (by id, then name)
+    let footballer:
+      | { id: number; name: string; wikipedia_url: string; photo_url: string | null; nationality: string | null }
+      | undefined;
     if (footballerId != null) {
       footballer = await db
-        .select({ id: footballers.id, name: footballers.name })
-        .from(footballers)
-        .where(eq(footballers.id, footballerId))
-        .limit(1)
-        .then((r) => r[0]);
+        .select({ id: footballers.id, name: footballers.name, wikipedia_url: footballers.wikipedia_url, photo_url: footballers.photo_url, nationality: footballers.nationality })
+        .from(footballers).where(eq(footballers.id, footballerId)).limit(1).then((r) => r[0]);
     }
     if (!footballer) {
       footballer = await db
-        .select({ id: footballers.id, name: footballers.name })
+        .select({ id: footballers.id, name: footballers.name, wikipedia_url: footballers.wikipedia_url, photo_url: footballers.photo_url, nationality: footballers.nationality })
         .from(footballers)
-        .where(
-          sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${footballerName}))`,
-        )
-        .limit(1)
-        .then((r) => r[0]);
+        .where(sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${footballerName}))`)
+        .limit(1).then((r) => r[0]);
     }
 
     if (footballer) {
-      const hit = byId.get(footballer.id);
-      if (hit) return c.json({ valid: true, footballer: hit, imported: false });
-      // Played for the club but is a home-nation player, or never played there.
-      const stintClubs = (
-        sqlite
-          .prepare(
-            `SELECT club FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`,
-          )
-          .all(footballer.id) as { club: string }[]
-      ).map((r) => r.club);
-      const reason = hasClub(stintClubs, club) ? "home_nation" : "wrong_club";
+      if (inPool(footballer.id)) return success(footballer.id, false);
+      // Stints may be stale (missing the club) — rescrape and re-check.
+      if (footballer.wikipedia_url) {
+        try {
+          const scraped = await scrapeWikipedia(footballer.wikipedia_url);
+          await importSeniorStints(footballer.id, scraped);
+          if (footballer.nationality == null && scraped.nationality) {
+            sqlite.prepare(`UPDATE footballers SET nationality = ? WHERE id = ?`).run(scraped.nationality, footballer.id);
+          }
+          if (inPool(footballer.id)) return success(footballer.id, true);
+        } catch { /* fall through */ }
+      }
+      const clubs = seniorClubsOf(footballer.id);
+      const reason = hasClub(clubs, club) ? "home_nation" : "wrong_club";
       return c.json({ valid: false, foundName: footballer.name, imported: false, reason });
     }
 
-    return c.json({ valid: false, footballer: null, imported: false });
+    // Step 2: not in DB — Wikipedia name search → import
+    try {
+      const wikiHeaders = { "User-Agent": "GuessTheCareer-Admin/1.0" };
+      const strip = normalizeName;
+      const nameParts = strip(footballerName).split(/\s+/).filter((p) => p.length > 2);
+      const titleMatches = (title: string) => nameParts.length > 0 && nameParts.every((p) => strip(title).includes(p));
+      async function wikiSearch(query: string): Promise<string[]> {
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=5`;
+        const res = await fetch(url, { headers: wikiHeaders });
+        if (!res.ok) return [];
+        const data = (await res.json()) as { query?: { search?: { title: string }[] } };
+        return (data.query?.search ?? []).map((s) => s.title);
+      }
+
+      const titles: string[] = [];
+      for (const q of [`${footballerName} footballer`, `${footballerName} ${club}`, footballerName]) {
+        for (const title of await wikiSearch(q)) if (titleMatches(title) && !titles.includes(title)) titles.push(title);
+      }
+      if (titles.length === 0) return c.json({ valid: false, footballer: null, imported: false });
+
+      let fallback: { valid: false; foundName: string; imported: false; reason: string } | null = null;
+      for (const title of titles.slice(0, 6)) {
+        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+        const byUrl = await db
+          .select({ id: footballers.id })
+          .from(footballers).where(eq(footballers.wikipedia_url, wikiUrl)).limit(1).then((r) => r[0]);
+        if (byUrl && inPool(byUrl.id)) return success(byUrl.id, false);
+
+        await new Promise((r) => setTimeout(r, 300));
+        let scraped;
+        try { scraped = await scrapeWikipedia(wikiUrl); } catch { continue; }
+        const seniors = scraped.stints.filter((s) => s.stint_type === "senior");
+        if (!hasClub(seniors.map((s) => s.club), club)) {
+          fallback ??= { valid: false, foundName: scraped.name, imported: false, reason: "wrong_club" };
+          continue;
+        }
+        if (!isForeign(scraped.nationality)) {
+          fallback ??= { valid: false, foundName: scraped.name, imported: false, reason: "home_nation" };
+          continue;
+        }
+        if (!isRetired(scraped.stints)) {
+          return c.json({ valid: false, foundName: scraped.name, imported: false, reason: "not_retired" });
+        }
+
+        if (byUrl) {
+          sqlite.prepare(`UPDATE footballers SET photo_url = COALESCE(photo_url, ?), nationality = COALESCE(nationality, ?) WHERE id = ?`)
+            .run(scraped.photo_url ?? null, scraped.nationality ?? null, byUrl.id);
+          await importSeniorStints(byUrl.id, scraped);
+          return success(byUrl.id, true);
+        }
+        const [created] = await db.insert(footballers).values({
+          name: scraped.name, wikipedia_url: scraped.wikipedia_url, nationality: scraped.nationality,
+          position: scraped.position, all_positions: scraped.all_positions ?? null, born: scraped.born, photo_url: scraped.photo_url ?? null,
+        }).returning();
+        await importSeniorStints(created.id, scraped);
+        return success(created.id, true);
+      }
+      return c.json(fallback ?? { valid: false, footballer: null, imported: false });
+    } catch {
+      return c.json({ valid: false, footballer: null, imported: false });
+    }
   },
 );
