@@ -59,7 +59,7 @@ export function GameMenu() {
     return (
       <button
         onClick={() => go(game.to)}
-        className={`group flex flex-col items-center text-center gap-1.5 rounded-xl p-2.5 border transition active:scale-95 ${active ? 'border-green-400/40 bg-green-400/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}
+        className={`group flex flex-col items-start text-left gap-1.5 rounded-xl p-2.5 transition active:scale-95 ${active ? 'bg-green-400/10' : 'bg-white/5 hover:bg-white/10'}`}
       >
         <span className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${active ? 'bg-green-400/20 text-green-400' : 'bg-green-400/10 text-green-400 group-hover:bg-green-400/20'}`}>
           <Icon size={18} />
