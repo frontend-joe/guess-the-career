@@ -93,6 +93,7 @@ interface ForeignerPlayer {
   name: string;
   photo_url: string | null;
   nationality: string | null;
+  country: string;
   position: string | null;
   apps: number;
   years: string | null;
@@ -149,6 +150,7 @@ function clubForeigners(club: string): { homeCountry: string | null; players: Fo
       name: r.name,
       photo_url: r.photo_url,
       nationality: r.nationality,
+      country: canonicalNationality(r.nationality),
       position: r.position,
       apps: r.total_apps,
       years: yearsSpan(r.years_raw),

@@ -147,12 +147,15 @@ interface Player {
   name: string;
   photo_url: string | null;
   nationality?: string | null;
+  country?: string | null;
   position?: string | null;
   apps?: number;
   years?: string | null;
 }
 
-function PlayerSlot({ index, player, hint }: { index: number; player: Player | null; hint?: Player | null }) {
+// A slot is either a guessed player (filled) or an empty slot hinting one of the
+// club's foreign nationalities still to be named.
+function CountrySlot({ index, player, country }: { index: number; player: Player | null; country: string | null }) {
   const showPlayer = useShowPlayer();
   return (
     <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${player ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
@@ -161,7 +164,7 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
       </span>
       {player ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {player.nationality && <NationalityFlag nationality={player.nationality} size={16} />}
+          <NationalityFlag nationality={player.country ?? player.nationality} size={16} />
           {player.position && <PositionBadge position={player.position} />}
           <button
             type="button"
@@ -174,12 +177,11 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
             <span className="ml-auto text-xs font-semibold text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>
           )}
         </div>
-      ) : hint ? (
+      ) : country ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {hint.nationality && <NationalityFlag nationality={hint.nationality} size={16} />}
-          {hint.position && <PositionBadge position={hint.position} />}
+          <NationalityFlag nationality={country} size={16} />
+          <span className="text-sm text-gray-500 truncate">{country}</span>
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
-          {hint.years && <span className="text-xs text-gray-400 tabular-nums shrink-0">{hint.years}</span>}
         </div>
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
@@ -295,56 +297,73 @@ export function ClubForeignersPage() {
     }
   }, [roundIndex, loading, error, rounds.length, showProgress]);
 
+  // Flash a transient message; optionally record it as a wrong guess.
+  function flashMessage(msg: string, addWrong: boolean, name?: string) {
+    if (wrongTimer.current) clearTimeout(wrongTimer.current);
+    setWrongGuessMsg(msg);
+    wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
+    if (addWrong && currentKey && currentState && name) {
+      const newWrong = new Set(currentState.wrongGuesses);
+      newWrong.add(normalizeGuess(name));
+      setRoundStates((prev) => ({ ...prev, [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong } }));
+      persistRound(currentKey, currentState.guessedIds, newWrong);
+    }
+  }
+
   async function submitGuess(name: string, id: number | null = null) {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
     const roundTarget = currentRound.roundSize ?? DEFAULT_ROUND_TARGET;
-    const activeGuesses = players.filter((p) => currentState.guessedIds.has(p.id)).length;
-    if (activeGuesses >= roundTarget) return;
+    const guessedPlayers = players.filter((p) => currentState.guessedIds.has(p.id));
+    if (guessedPlayers.length >= roundTarget) return;
+    const countryOf = (p: Player) => p.country ?? p.nationality ?? "";
+    const usedCountries = new Set(guessedPlayers.map(countryOf));
 
-    const alreadyFound = players.filter((p) => currentState.guessedIds.has(p.id)).some((p) => matchesPlayer(name, p.name));
-    if (alreadyFound) return;
-
-    const matched = players.filter((p) => !currentState.guessedIds.has(p.id) && matchesPlayer(name, p.name));
-    if (matched.length > 0) {
-      const newGuessedIds = new Set([...currentState.guessedIds, ...matched.map((p) => p.id)]);
-      setRoundStates((prev) => ({ ...prev, [currentKey]: { ...prev[currentKey], guessedIds: newGuessedIds } }));
-      persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
-    } else {
-      setVerifying(true);
-      try {
-        const result = await verifyGuess(name, id, currentRound.club);
-        if (result.valid && result.footballer) {
-          const f = result.footballer;
-          const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
-          setRoundStates((prev) => {
-            const state = prev[currentKey];
-            if (!state) return prev;
-            const alreadyInList = state.players?.some((p) => p.id === f.id);
-            const newPlayers = alreadyInList ? state.players! : [...(state.players ?? []), f];
-            return { ...prev, [currentKey]: { ...state, players: newPlayers, guessedIds: new Set([...state.guessedIds, f.id]) } };
-          });
-          persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
-        } else {
-          if (wrongTimer.current) clearTimeout(wrongTimer.current);
-          const displayName = result.foundName ?? `"${name}"`;
-          const msg =
-            result.reason === "home_nation"
-              ? `${displayName} isn't a foreigner at ${currentRound.club}`
-              : result.reason === "wrong_club"
-                ? `${displayName} never played for ${currentRound.club}`
-                : `${displayName} is not a valid answer`;
-          setWrongGuessMsg(msg);
-          wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
-          const newWrong = new Set(currentState.wrongGuesses);
-          newWrong.add(normalizeGuess(name));
-          setRoundStates((prev) => ({ ...prev, [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong } }));
-          persistRound(currentKey, currentState.guessedIds, newWrong);
-        }
-      } finally {
-        setVerifying(false);
+    // Accept a validated foreign player, enforcing one player per nationality.
+    const accept = (p: Player) => {
+      const c = countryOf(p);
+      if (c && usedCountries.has(c)) {
+        flashMessage(`You've already named a ${c} player`, false);
+        return;
       }
+      const newGuessedIds = new Set([...currentState.guessedIds, p.id]);
+      setRoundStates((prev) => {
+        const state = prev[currentKey];
+        if (!state) return prev;
+        const inList = state.players?.some((x) => x.id === p.id);
+        const newPlayers = inList ? state.players! : [...(state.players ?? []), p];
+        return { ...prev, [currentKey]: { ...state, players: newPlayers, guessedIds: newGuessedIds } };
+      });
+      persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
+    };
+
+    // Already-guessed player typed again → ignore.
+    if (guessedPlayers.some((p) => matchesPlayer(name, p.name))) return;
+
+    const matched = players.find((p) => !currentState.guessedIds.has(p.id) && matchesPlayer(name, p.name));
+    if (matched) {
+      accept(matched);
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      const result = await verifyGuess(name, id, currentRound.club);
+      if (result.valid && result.footballer) {
+        accept(result.footballer);
+      } else {
+        const displayName = result.foundName ?? `"${name}"`;
+        const msg =
+          result.reason === "home_nation"
+            ? `${displayName} isn't a foreigner at ${currentRound.club}`
+            : result.reason === "wrong_club"
+              ? `${displayName} never played for ${currentRound.club}`
+              : `${displayName} is not a valid answer`;
+        flashMessage(msg, true, name);
+      }
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -403,12 +422,22 @@ export function ClubForeignersPage() {
   const guessedCount = validGuessedIds.size;
   const isDone = guessedCount >= target;
 
+  const countryOf = (p: Player) => p.country ?? p.nationality ?? "";
   const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
-  const unguessedList = players ? players.filter((p) => !validGuessedIds.has(p.id)) : [];
-  const slots: { player: Player | null; hint: Player | null }[] = Array.from({ length: target }, (_, i) =>
+  const usedCountries = new Set(guessedList.map(countryOf));
+  // Distinct foreign nationalities at the club, biggest first (pool is pre-sorted
+  // by country foreigner-count desc), excluding ones already named.
+  const unusedCountries: string[] = [];
+  if (players) {
+    for (const p of players) {
+      const c = countryOf(p);
+      if (c && !usedCountries.has(c) && !unusedCountries.includes(c)) unusedCountries.push(c);
+    }
+  }
+  const slots: { player: Player | null; country: string | null }[] = Array.from({ length: target }, (_, i) =>
     i < guessedList.length
-      ? { player: guessedList[i], hint: null }
-      : { player: null, hint: unguessedList[i - guessedList.length] ?? null },
+      ? { player: guessedList[i], country: null }
+      : { player: null, country: unusedCountries[i - guessedList.length] ?? null },
   );
 
   if (loading) {
@@ -479,7 +508,7 @@ export function ClubForeignersPage() {
                     <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">Easy</div>
                   )}
                   <ClubBadge name={currentRound.club} wikiUrl={currentRound.clubWikiUrl} />
-                  <span className="text-gray-400 text-[11px] text-center">Overseas players at {currentRound.club}</span>
+                  <span className="text-gray-400 text-[11px] text-center">A player from {target} different nationalities</span>
                 </div>
 
                 {players === null ? (
@@ -489,7 +518,7 @@ export function ClubForeignersPage() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {slots.map((s, i) => (
-                      <PlayerSlot key={i} index={i} player={s.player} hint={s.hint} />
+                      <CountrySlot key={i} index={i} player={s.player} country={s.country} />
                     ))}
                   </div>
                 )}
