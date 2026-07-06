@@ -152,8 +152,24 @@ function clubForeigners(club: string): { homeCountry: string | null; players: Fo
       position: r.position,
       apps: r.total_apps,
       years: yearsSpan(r.years_raw),
-    }))
-    .sort((a, b) => b.apps - a.apps || a.name.localeCompare(b.name));
+    }));
+
+  // Order by the country's foreigner count (desc) so hint slots surface the
+  // most-represented foreign nations first; within a country, most apps first.
+  const countryCounts = new Map<string, number>();
+  for (const p of players) {
+    const c = canonicalNationality(p.nationality);
+    countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1);
+  }
+  players.sort((a, b) => {
+    const na = canonicalNationality(a.nationality);
+    const nb = canonicalNationality(b.nationality);
+    const ca = countryCounts.get(na) ?? 0;
+    const cb = countryCounts.get(nb) ?? 0;
+    if (cb !== ca) return cb - ca;
+    if (na !== nb) return na.localeCompare(nb);
+    return b.apps - a.apps || a.name.localeCompare(b.name);
+  });
 
   return { homeCountry, players };
 }
