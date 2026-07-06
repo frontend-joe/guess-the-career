@@ -181,9 +181,8 @@ function CountrySlot({ index, player, hint }: { index: number; player: Player | 
       ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <NationalityFlag nationality={hint.country ?? hint.nationality} size={16} />
-          <span className="text-sm text-gray-500 truncate">{hint.country ?? hint.nationality}</span>
-          <div className="h-px bg-gray-200 flex-1 rounded-full" />
           {hint.position && <PositionBadge position={hint.position} />}
+          <div className="h-px bg-gray-200 flex-1 rounded-full" />
           {hint.years && <span className="text-xs text-gray-400 tabular-nums shrink-0">{hint.years}</span>}
         </div>
       ) : (
