@@ -48,6 +48,7 @@ import { clubLegendsRouter } from './routes/club-legends.ts'
 import { clubMarksmanRouter } from './routes/club-marksman.ts'
 import { internationalLegendsRouter } from './routes/international-legends.ts'
 import { internationalMarksmanRouter } from './routes/international-marksman.ts'
+import { clubForeignersRouter } from './routes/club-foreigners.ts'
 import { transfersRouter } from './routes/transfers.ts'
 import { transferHistoryRouter } from './routes/transfer-history.ts'
 import { authRouter } from './routes/auth.ts'
@@ -109,6 +110,7 @@ app.route('/api/club-legends', clubLegendsRouter)
 app.route('/api/club-marksman', clubMarksmanRouter)
 app.route('/api/international-legends', internationalLegendsRouter)
 app.route('/api/international-marksman', internationalMarksmanRouter)
+app.route('/api/club-foreigners', clubForeignersRouter)
 app.route('/api/transfers', transfersRouter)
 app.route('/api/transfer-history', transferHistoryRouter)
 app.route('/api/auth', authRouter)

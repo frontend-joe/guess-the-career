@@ -90,6 +90,9 @@ import { InternationalLegendsSchedulePage } from '@/pages/InternationalLegendsSc
 import { InternationalMarksmanPage } from '@/pages/InternationalMarksmanPage'
 import { InternationalMarksmanAdminPage } from '@/pages/InternationalMarksmanAdminPage'
 import { InternationalMarksmanSchedulePage } from '@/pages/InternationalMarksmanSchedulePage'
+import { ClubForeignersPage } from '@/pages/ClubForeignersPage'
+import { ClubForeignersAdminPage } from '@/pages/ClubForeignersAdminPage'
+import { ClubForeignersSchedulePage } from '@/pages/ClubForeignersSchedulePage'
 import { TransfersPage } from '@/pages/TransfersPage'
 import { TransfersAdminPage } from '@/pages/TransfersAdminPage'
 import { TransfersSchedulePage } from '@/pages/TransfersSchedulePage'
@@ -142,6 +145,7 @@ const router = createBrowserRouter([
   { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
   { path: '/play/international-legends', element: <InternationalLegendsPage /> },
   { path: '/play/international-marksman', element: <InternationalMarksmanPage /> },
+  { path: '/play/club-foreigners', element: <ClubForeignersPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
   { path: '/play/transfer-history', element: <TransferHistoryPage /> },
 
@@ -209,6 +213,8 @@ const router = createBrowserRouter([
       { path: 'international-legends/schedule', element: <InternationalLegendsSchedulePage /> },
       { path: 'international-marksman', element: <InternationalMarksmanAdminPage /> },
       { path: 'international-marksman/schedule', element: <InternationalMarksmanSchedulePage /> },
+      { path: 'club-foreigners', element: <ClubForeignersAdminPage /> },
+      { path: 'club-foreigners/schedule', element: <ClubForeignersSchedulePage /> },
       { path: 'transfers', element: <TransfersAdminPage /> },
       { path: 'transfers/schedule', element: <TransfersSchedulePage /> },
       { path: 'transfer-history', element: <TransferHistoryAdminPage /> },

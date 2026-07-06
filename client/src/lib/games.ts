@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, Languages, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -40,6 +40,7 @@ export const GATED_GAMES: Game[] = [
   { name: 'Club Marksman', pitch: 'Name the deadly strikers with 50+ goals for a club.', to: '/play/club-marksman', icon: Target },
   { name: 'International Legends', pitch: 'Name the players with 50+ caps for a country.', to: '/play/international-legends', icon: Award },
   { name: 'International Marksman', pitch: 'Name the players with 25+ international goals.', to: '/play/international-marksman', icon: Goal },
+  { name: 'Club Foreigners', pitch: 'Name the overseas players who turned out for a club.', to: '/play/club-foreigners', icon: Languages },
   { name: 'Know Your Transfers', pitch: 'Which players made that move from one club to another?', to: '/play/transfers', icon: ArrowLeftRight },
   { name: 'Style of Play', pitch: 'Guess the player from their style of play.', to: '/play/style-of-play', icon: BookOpen },
 ]
