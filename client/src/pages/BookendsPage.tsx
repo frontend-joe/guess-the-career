@@ -227,20 +227,21 @@ export function BookendsPage() {
           )}
 
           {status === "playing" && (
-            <div className="mb-2">
+            <div className="relative mb-3">
               <GuessSearchInput autoScrape={false}
                 inputRef={inputRef}
                 getKey={(f) => f.id}
                 getLabel={(f) => f.name}
                 getStatus={() => null}
                 onSelect={(name, item) => submitGuess(name, item?.id ?? null)}
+                inputClassName="w-full bg-white text-gray-900 rounded-lg pl-3 pr-16 py-2 outline-none disabled:opacity-60"
               />
-            </div>
-          )}
-
-          {status === "playing" && (
-            <div className="flex justify-end mb-3">
-              <button onClick={quit} className="text-white/60 hover:text-white text-xs font-bold uppercase tracking-wide">Quit</button>
+              <button
+                onClick={quit}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wide"
+              >
+                Quit
+              </button>
             </div>
           )}
 
