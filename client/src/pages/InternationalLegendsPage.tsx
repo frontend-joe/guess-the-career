@@ -204,8 +204,9 @@ function PlayerSlot({
           {hint.position && <PositionBadge position={hint.position} />}
           <div className="h-px bg-gray-200 flex-1 rounded-full" />
           {hint.apps != null && (
-            <span className="text-xs text-gray-400 tabular-nums shrink-0">
-              {hint.apps} caps
+            <span className="text-xs tabular-nums shrink-0">
+              <span className="font-semibold text-gray-700">{hint.apps} caps</span>
+              {hint.years && <span className="text-gray-400"> ({hint.years})</span>}
             </span>
           )}
         </div>
