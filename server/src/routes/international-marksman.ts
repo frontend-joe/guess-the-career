@@ -3,7 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { db, sqlite, normalizeName } from "../db/client.ts";
-import { footballers } from "../db/schema.ts";
+import { footballers, career_stints } from "../db/schema.ts";
 import { normalizeClubAlias, scrapeWikipedia } from "../services/scraper.ts";
 import {
   isSeniorNationalTeam,
@@ -16,8 +16,6 @@ export const internationalMarksmanRouter = new Hono();
 
 const MIN_GOALS = 25;
 const MIN_MARKSMEN = 5;
-// A round is the country's top-N highest scorers (the answers to guess).
-const ROUND_TARGET = 5;
 
 // The modern country a senior international side belongs to, or null if the team
 // isn't a full senior national team (youth/B/Olympic/non-FIFA are excluded).
@@ -358,7 +356,7 @@ internationalMarksmanRouter.delete("/schedule", (c) => {
 internationalMarksmanRouter.get("/answers", (c) => {
   const country = c.req.query("country") ?? "";
   if (!country) return c.json({ error: "country required" }, 400);
-  return c.json(getCountryMarksmen(country).slice(0, ROUND_TARGET));
+  return c.json(getCountryMarksmen(country));
 });
 
 // POST /api/international-marksman/verify
@@ -375,58 +373,67 @@ internationalMarksmanRouter.post(
   async (c) => {
     const { footballerName, footballerId, country } = c.req.valid("json");
 
-    // The round's answers are the country's top-N highest scorers. A guess is only
-    // valid if it resolves to one of them (validated against the DB — no
-    // auto-scrape, since the top scorers are always already stored).
-    const top = getCountryMarksmen(country).slice(0, ROUND_TARGET);
-    const topById = new Map(top.map((p) => [p.id, p]));
+    // A guess is valid when the player scored >= MIN_GOALS international goals for
+    // this country. Players not in our DB are scraped from Wikipedia (and imported
+    // when they qualify) so ANY qualifying scorer counts, not just the top few.
+    const qualifies = (stints: { club: string; goals: number | null }[]) =>
+      sumIntlGoals(stints, country) >= MIN_GOALS;
 
     const intlOf = (id: number) =>
       sqlite
-        .prepare(
-          `SELECT club, goals FROM career_stints WHERE footballer_id = ? AND stint_type = 'international'`,
-        )
+        .prepare(`SELECT club, goals FROM career_stints WHERE footballer_id = ? AND stint_type = 'international'`)
         .all(id) as { club: string; goals: number | null }[];
 
-    // Resolve the guessed footballer from the DB (by id, then by name).
-    let footballer: { id: number; name: string } | undefined;
+    // The answer-shaped player (hint club / position / years) for a valid guess.
+    const verified = (id: number, fb: { name: string; photo_url: string | null }): MarksmanPlayer =>
+      getCountryMarksmen(country).find((p) => p.id === id) ?? {
+        id, name: fb.name, photo_url: fb.photo_url, goals: 0, position: null,
+        hintClub: null, clubWikiUrl: null, years: null,
+      };
+
+    const invalidJson = (name: string, stints: { club: string; goals: number | null }[]) => {
+      const reason = playedForCountry(stints, country) ? "not_top" : "wrong_nation";
+      return { valid: false as const, foundName: name, goalsForCountry: sumIntlGoals(stints, country), imported: false, reason };
+    };
+
+    async function importStints(id: number, scraped: Awaited<ReturnType<typeof scrapeWikipedia>>) {
+      for (const s of scraped.stints.filter((st) => st.stint_type === "senior" || st.stint_type === "international")) {
+        const exists = sqlite.prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = ? LIMIT 1`).get(id, s.years, s.club, s.stint_type);
+        if (!exists) {
+          const maxOrder = sqlite.prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`).get(id) as { next: number };
+          await db.insert(career_stints).values({ footballer_id: id, sort_order: maxOrder.next, years: s.years, club: s.club, club_wikipedia_url: s.club_wikipedia_url ?? null, apps: s.apps ?? null, goals: s.goals ?? null, stint_type: s.stint_type });
+        }
+      }
+    }
+
+    // Step 1: resolve from DB (by id, then by name).
+    let footballer: { id: number; name: string; wikipedia_url: string; photo_url: string | null } | undefined;
     if (footballerId != null) {
-      footballer = await db
-        .select({ id: footballers.id, name: footballers.name })
-        .from(footballers)
-        .where(eq(footballers.id, footballerId))
-        .limit(1)
-        .then((r) => r[0]);
+      footballer = await db.select({ id: footballers.id, name: footballers.name, wikipedia_url: footballers.wikipedia_url, photo_url: footballers.photo_url }).from(footballers).where(eq(footballers.id, footballerId)).limit(1).then((r) => r[0]);
     }
     if (!footballer) {
-      footballer = await db
-        .select({ id: footballers.id, name: footballers.name })
-        .from(footballers)
-        .where(
-          sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${footballerName}))`,
-        )
-        .limit(1)
-        .then((r) => r[0]);
+      footballer = await db.select({ id: footballers.id, name: footballers.name, wikipedia_url: footballers.wikipedia_url, photo_url: footballers.photo_url }).from(footballers).where(sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${footballerName}))`).limit(1).then((r) => r[0]);
     }
+
+    let fallbackInvalid: ReturnType<typeof invalidJson> | null = null;
 
     if (footballer) {
-      const hit = topById.get(footballer.id);
-      if (hit) return c.json({ valid: true, footballer: hit, imported: false });
-      // A real player, but not one of the top N.
-      const intl = intlOf(footballer.id);
-      const reason = playedForCountry(intl, country) ? "not_top" : "wrong_nation";
-      return c.json({
-        valid: false,
-        foundName: footballer.name,
-        goalsForCountry: sumIntlGoals(intl, country),
-        imported: false,
-        reason,
-      });
+      let intl = intlOf(footballer.id);
+      if (qualifies(intl)) return c.json({ valid: true, footballer: verified(footballer.id, footballer), imported: false });
+      // Stints may be stale — rescrape and re-check.
+      if (footballer.wikipedia_url) {
+        try {
+          const scraped = await scrapeWikipedia(footballer.wikipedia_url);
+          await importStints(footballer.id, scraped);
+          intl = intlOf(footballer.id);
+          if (qualifies(intl)) return c.json({ valid: true, footballer: verified(footballer.id, footballer), imported: true });
+        } catch { /* fall through */ }
+      }
+      if (playedForCountry(intl, country)) return c.json(invalidJson(footballer.name, intl));
+      fallbackInvalid = invalidJson(footballer.name, intl);
     }
 
-    // Not in our DB — scrape Wikipedia so we can still tell the player their
-    // actual tally for this country (the round is the DB's top scorers, so we
-    // don't import; this is just to give an informative message).
+    // Step 2: Wikipedia name search → scrape (import qualifiers).
     try {
       const strip = normalizeName;
       const nameParts = strip(footballerName).split(/\s+/).filter((p) => p.length > 2);
@@ -442,29 +449,31 @@ internationalMarksmanRouter.post(
       for (const q of [`${footballerName} footballer`, `${footballerName} ${country}`, footballerName]) {
         for (const t of await wikiSearch(q)) if (titleMatches(t) && !titles.includes(t)) titles.push(t);
       }
-      let fallback: { foundName: string } | null = null;
-      for (const title of titles.slice(0, 4)) {
+      for (const title of titles.slice(0, 6)) {
         const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+        const byUrl = await db.select({ id: footballers.id, name: footballers.name, photo_url: footballers.photo_url }).from(footballers).where(eq(footballers.wikipedia_url, wikiUrl)).limit(1).then((r) => r[0]);
+        if (byUrl && qualifies(intlOf(byUrl.id))) return c.json({ valid: true, footballer: verified(byUrl.id, byUrl), imported: false });
+
+        await new Promise((r) => setTimeout(r, 300));
         let scraped;
         try { scraped = await scrapeWikipedia(wikiUrl); } catch { continue; }
-        if (!scraped.stints.some((s) => s.stint_type === "senior")) continue; // must be a footballer
-        const intlStints = scraped.stints
-          .filter((s) => s.stint_type === "international")
-          .map((s) => ({ club: s.club, goals: s.goals ?? null }));
-        if (playedForCountry(intlStints, country)) {
-          return c.json({
-            valid: false,
-            foundName: scraped.name,
-            goalsForCountry: sumIntlGoals(intlStints, country),
-            imported: false,
-            reason: "not_top",
-          });
-        }
-        fallback ??= { foundName: scraped.name };
-      }
-      if (fallback) return c.json({ valid: false, foundName: fallback.foundName, imported: false, reason: "wrong_nation" });
-    } catch { /* fall through */ }
+        if (!scraped.stints.some((s) => s.stint_type === "senior")) continue;
+        const intlStints = scraped.stints.filter((s) => s.stint_type === "international").map((s) => ({ club: s.club, goals: s.goals ?? null }));
+        if (!qualifies(intlStints)) { fallbackInvalid ??= invalidJson(scraped.name, intlStints); continue; }
 
-    return c.json({ valid: false, footballer: null, imported: false });
+        const known = byUrl ?? footballer;
+        if (known) {
+          sqlite.prepare(`UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?) WHERE id = ?`).run(wikiUrl, scraped.photo_url ?? null, known.id);
+          await importStints(known.id, scraped);
+          return c.json({ valid: true, footballer: verified(known.id, { name: known.name, photo_url: scraped.photo_url ?? known.photo_url }), imported: true });
+        }
+        const [created] = await db.insert(footballers).values({ name: scraped.name, wikipedia_url: scraped.wikipedia_url, nationality: scraped.nationality, position: scraped.position, all_positions: scraped.all_positions ?? null, born: scraped.born, photo_url: scraped.photo_url ?? null }).returning();
+        await importStints(created.id, scraped);
+        return c.json({ valid: true, footballer: verified(created.id, { name: created.name, photo_url: created.photo_url ?? null }), imported: true });
+      }
+      return c.json(fallbackInvalid ?? { valid: false, footballer: null, imported: false });
+    } catch {
+      return c.json(fallbackInvalid ?? { valid: false, footballer: null, imported: false });
+    }
   },
 );
