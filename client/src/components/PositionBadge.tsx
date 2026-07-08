@@ -54,7 +54,7 @@ export function PositionBadge({ footballer, position, className }: Props) {
       ref={ref}
       onClick={toggle}
       className={cn(
-        "text-[9px] font-bold px-1 py-0.5 rounded shrink-0 cursor-default",
+        "inline-flex items-center justify-center w-6 py-0.5 text-[9px] font-bold rounded shrink-0 cursor-default",
         POSITION_COLOURS[detail.category],
         className,
       )}
