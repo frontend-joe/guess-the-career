@@ -12,6 +12,7 @@ const defaultSearch = (q: string) => getFootballers({ search: q })
 // a popover above it. Portaled to <body> so the footer can't clip it.
 function InfoBubble({ text }: { text: string }) {
   const ref = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
   const open = coords !== null
 
@@ -24,7 +25,11 @@ function InfoBubble({ text }: { text: string }) {
   useEffect(() => {
     if (!open) return
     const close = () => setCoords(null)
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close() }
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (ref.current?.contains(t) || popRef.current?.contains(t)) return
+      close()
+    }
     document.addEventListener('mousedown', onDown)
     window.addEventListener('scroll', close, true)
     window.addEventListener('resize', close)
@@ -45,13 +50,25 @@ function InfoBubble({ text }: { text: string }) {
         className="absolute right-0 bottom-full mb-2 flex items-center gap-1 text-white/70 hover:text-white transition-colors"
       >
         <Info size={16} />
-        <span className="text-xs font-semibold">Info</span>
+        <span className="text-xs font-semibold">Rules</span>
       </button>
       {open && coords && createPortal(
         <div
-          className="fixed -translate-x-full -translate-y-full px-3 py-2 bg-white text-gray-700 text-sm leading-snug rounded-lg shadow-md w-62.5"
+          ref={popRef}
+          className="fixed -translate-x-full -translate-y-full px-3 py-2.5 bg-white text-gray-700 text-sm leading-snug rounded-lg shadow-md w-62.5"
           style={{ top: coords.top - 8, left: coords.left, zIndex: 100 }}
         >
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-gray-900">Guessing Rules</span>
+            <button
+              type="button"
+              onClick={() => setCoords(null)}
+              aria-label="Close"
+              className="text-gray-400 hover:text-gray-600 -mr-1"
+            >
+              <X size={15} />
+            </button>
+          </div>
           {text}
         </div>,
         document.body,
