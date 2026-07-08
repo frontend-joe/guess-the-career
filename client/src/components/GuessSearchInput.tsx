@@ -42,13 +42,14 @@ function InfoBubble({ text }: { text: string }) {
         type="button"
         onClick={toggle}
         aria-label="Guessing help"
-        className="absolute right-0 bottom-full mb-1 text-white/50 hover:text-white/90 transition-colors"
+        className="absolute right-0 bottom-full mb-1 flex items-center gap-1 text-white/70 hover:text-white transition-colors"
       >
         <Info size={16} />
+        <span className="text-xs font-semibold">Info</span>
       </button>
       {open && coords && createPortal(
         <div
-          className="fixed -translate-x-full -translate-y-full px-3 py-2 bg-white text-gray-700 text-xs leading-snug rounded-lg shadow-md max-w-60"
+          className="fixed -translate-x-full -translate-y-full px-3 py-2 bg-white text-gray-700 text-xs leading-snug rounded-lg shadow-md w-44"
           style={{ top: coords.top - 8, left: coords.left, zIndex: 100 }}
         >
           {text}
