@@ -221,7 +221,7 @@ export function BookendsPage() {
                   <span key={i} className="text-[11px] bg-red-500/20 text-red-300 rounded px-1.5 py-0.5 line-through">{g}</span>
                 ))
               ) : (
-                <span className="text-xs text-white">Make a guess</span>
+                <span className="text-xs text-white">Make your guess…</span>
               )}
             </div>
           )}
@@ -238,7 +238,7 @@ export function BookendsPage() {
               />
               <button
                 onClick={quit}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wide"
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-[11px] font-bold uppercase tracking-wide"
               >
                 Quit
               </button>
