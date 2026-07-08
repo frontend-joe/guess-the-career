@@ -49,7 +49,7 @@ function InfoBubble({ text }: { text: string }) {
       </button>
       {open && coords && createPortal(
         <div
-          className="fixed -translate-x-full -translate-y-full px-3 py-2 bg-white text-gray-700 text-xs leading-snug rounded-lg shadow-md w-48"
+          className="fixed -translate-x-full -translate-y-full px-3 py-2 bg-white text-gray-700 text-sm leading-snug rounded-lg shadow-md w-62.5"
           style={{ top: coords.top - 8, left: coords.left, zIndex: 100 }}
         >
           {text}
