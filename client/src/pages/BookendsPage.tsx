@@ -215,7 +215,7 @@ export function BookendsPage() {
           )}
 
           {status === "playing" && (
-            <div className="flex flex-wrap items-center gap-1 mb-2 min-h-6">
+            <div className="flex flex-wrap items-center gap-1 mb-2">
               {wrong.length > 0 ? (
                 wrong.map((g, i) => (
                   <span key={i} className="text-[11px] bg-red-500/20 text-red-300 rounded px-1.5 py-0.5 line-through">{g}</span>
