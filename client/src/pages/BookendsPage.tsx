@@ -238,7 +238,7 @@ export function BookendsPage() {
               />
               <button
                 onClick={quit}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-red-500 hover:bg-red-600 text-white rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wide"
+                className="absolute right-1 top-1 bottom-1 z-10 flex items-center bg-red-500 hover:bg-red-600 text-white rounded-lg px-3 text-xs font-bold"
               >
                 Quit
               </button>
