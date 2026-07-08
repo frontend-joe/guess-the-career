@@ -223,7 +223,7 @@ export function BookendsPage() {
           )}
 
           {status === "playing" && (
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mt-5 mb-3 flex items-center gap-2">
               <div className="flex-1">
                 <GuessSearchInput autoScrape={false}
                   inputRef={inputRef}
