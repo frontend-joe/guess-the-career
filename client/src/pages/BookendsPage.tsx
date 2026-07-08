@@ -225,7 +225,7 @@ export function BookendsPage() {
           {status === "playing" && (
             <div className="mb-3 flex items-center gap-2">
               <div className="flex-1">
-                <GuessSearchInput
+                <GuessSearchInput autoScrape={false}
                   inputRef={inputRef}
                   getKey={(f) => f.id}
                   getLabel={(f) => f.name}

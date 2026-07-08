@@ -636,7 +636,7 @@ export function InternationalLegendsPage() {
 
               {!isDone && (
                 <div className="mb-3">
-                  <GuessSearchInput
+                  <GuessSearchInput autoScrape={false}
                     inputRef={inputRef}
                     disabled={verifying}
                     getKey={(f) => f.id}

@@ -434,7 +434,7 @@ export function WorldCupPage() {
 
           {currentRound && !isRoundDone && (
             <div className="mb-3">
-              <GuessSearchInput
+              <GuessSearchInput autoScrape={false}
                 key={currentRound.squadId}
                 inputRef={inputRef}
                 getKey={(f) => f.id}

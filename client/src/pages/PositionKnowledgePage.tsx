@@ -340,7 +340,7 @@ export function PositionKnowledgePage() {
           </div>
         )}
 
-        <GuessSearchInput
+        <GuessSearchInput autoScrape={true}
           inputRef={inputRef}
           disabled={verifying}
           suppressDropdown={!!wrongGuess}

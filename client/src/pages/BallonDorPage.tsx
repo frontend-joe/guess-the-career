@@ -403,7 +403,7 @@ export function BallonDorPage() {
 
           {currentRound && !isRoundDone && (
             <div className="mb-3">
-              <GuessSearchInput
+              <GuessSearchInput autoScrape={false}
                 key={currentRound.ballonDorId}
                 inputRef={inputRef}
                 getKey={(f) => f.id}

@@ -341,7 +341,7 @@ export function TransferHistoryPage() {
 
           {currentRound && !isRoundDone && (
             <div className="mb-3">
-              <GuessSearchInput
+              <GuessSearchInput autoScrape={false}
                 key={roundKey(currentRound.windowId)}
                 inputRef={inputRef}
                 getKey={(f) => f.id}

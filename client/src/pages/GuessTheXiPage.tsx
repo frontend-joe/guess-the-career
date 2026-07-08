@@ -500,7 +500,7 @@ export function GuessTheXiPage() {
           {/* Input */}
           {currentRound && !isRoundDone && (
             <div className="mb-3">
-              <GuessSearchInput
+              <GuessSearchInput autoScrape={false}
                 key={roundKey(currentRound.matchId, currentRound.team)}
                 inputRef={inputRef}
                 getKey={(f) => f.id}

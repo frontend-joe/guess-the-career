@@ -450,7 +450,7 @@ export function TopScorersPage() {
 
           {currentRound && !isRoundDone && (
             <div className="mb-3">
-              <GuessSearchInput
+              <GuessSearchInput autoScrape={false}
                 key={currentRound.competitionId}
                 inputRef={inputRef}
                 getKey={(f) => f.id}

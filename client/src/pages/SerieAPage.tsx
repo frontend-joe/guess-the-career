@@ -333,7 +333,7 @@ export function SerieAPage() {
               {wrongGuessMsg && <div className="mb-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center animate-pulse">{wrongGuessMsg}</div>}
               {!isDone && (
                 <div className="mb-3">
-                  <GuessSearchInput inputRef={inputRef} disabled={verifying} getKey={(f) => f.id} getLabel={(f) => f.name} getStatus={guessStatus} onSelect={(name, item) => submitGuess(name, item?.id ?? null)} />
+                  <GuessSearchInput autoScrape={true} inputRef={inputRef} disabled={verifying} getKey={(f) => f.id} getLabel={(f) => f.name} getStatus={guessStatus} onSelect={(name, item) => submitGuess(name, item?.id ?? null)} />
                 </div>
               )}
               <div className="relative flex items-center justify-between pt-1">

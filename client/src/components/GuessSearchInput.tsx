@@ -1,11 +1,63 @@
-import { useRef } from 'react'
-import { Check, X } from 'lucide-react'
+import { useRef, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { Check, X, Info } from 'lucide-react'
 import { getFootballers, type Footballer } from '@/api/footballers'
 import { useGuessSearch } from '@/hooks/useGuessSearch'
 
 export type GuessStatus = 'correct' | 'incorrect' | null
 
 const defaultSearch = (q: string) => getFootballers({ search: q })
+
+// Tap-to-toggle help bubble that sits just above the input (far right) and shows
+// a popover above it. Portaled to <body> so the footer can't clip it.
+function InfoBubble({ text }: { text: string }) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const open = coords !== null
+
+  function toggle() {
+    if (open) { setCoords(null); return }
+    const r = ref.current?.getBoundingClientRect()
+    if (r) setCoords({ top: r.top, left: r.right })
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const close = () => setCoords(null)
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close() }
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open])
+
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        onClick={toggle}
+        aria-label="Guessing help"
+        className="absolute right-0 bottom-full mb-1 text-white/50 hover:text-white/90 transition-colors"
+      >
+        <Info size={16} />
+      </button>
+      {open && coords && createPortal(
+        <div
+          className="fixed -translate-x-full -translate-y-full px-3 py-2 bg-white text-gray-700 text-xs leading-snug rounded-lg shadow-md max-w-60"
+          style={{ top: coords.top - 8, left: coords.left, zIndex: 100 }}
+        >
+          {text}
+        </div>,
+        document.body,
+      )}
+    </>
+  )
+}
 
 interface Props<T> {
   /** Suggestion source. Defaults to footballer name search. */
@@ -25,6 +77,9 @@ interface Props<T> {
   inputClassName?: string
   /** Optional external ref so the page can keep focusing the input (round changes, etc.). */
   inputRef?: React.RefObject<HTMLInputElement | null>
+  /** When set, shows a help bubble above the input: true = "…can also add new
+   * players (…retired)", false = database-only. Omit to hide the bubble. */
+  autoScrape?: boolean
 }
 
 export function GuessSearchInput<T = Footballer>({
@@ -40,6 +95,7 @@ export function GuessSearchInput<T = Footballer>({
   debounceMs,
   inputClassName,
   inputRef: externalRef,
+  autoScrape,
 }: Props<T>) {
   const internalRef = useRef<HTMLInputElement>(null)
   const inputRef = externalRef ?? internalRef
@@ -83,6 +139,15 @@ export function GuessSearchInput<T = Footballer>({
 
   return (
     <div className="relative">
+      {autoScrape !== undefined && (
+        <InfoBubble
+          text={
+            autoScrape
+              ? 'You can guess any player in our database, and can also add new players (as long as they qualify and are retired)'
+              : 'You can guess any player in our database'
+          }
+        />
+      )}
       <input
         ref={inputRef}
         type="text"

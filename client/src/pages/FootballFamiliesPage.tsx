@@ -171,7 +171,7 @@ export function FootballFamiliesPage() {
             {isDone ? `All ${total} found! ✓` : `${guessedCount} / ${total} found`}
           </p>
           {!isDone && (
-            <GuessSearchInput
+            <GuessSearchInput autoScrape={false}
               inputRef={inputRef}
               getKey={(f) => f.id}
               getLabel={(f) => f.name}

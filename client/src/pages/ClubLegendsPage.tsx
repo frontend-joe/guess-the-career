@@ -684,7 +684,7 @@ export function ClubLegendsPage() {
 
               {!isDone && (
                 <div className="mb-3">
-                  <GuessSearchInput
+                  <GuessSearchInput autoScrape={true}
                     inputRef={inputRef}
                     disabled={verifying}
                     getKey={(f) => f.id}
