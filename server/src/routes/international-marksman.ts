@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
-import { db, sqlite } from "../db/client.ts";
+import { db, sqlite, normalizeName } from "../db/client.ts";
 import { footballers } from "../db/schema.ts";
-import { normalizeClubAlias } from "../services/scraper.ts";
+import { normalizeClubAlias, scrapeWikipedia } from "../services/scraper.ts";
 import {
   isSeniorNationalTeam,
   canonicalNationality,
@@ -423,6 +423,47 @@ internationalMarksmanRouter.post(
         reason,
       });
     }
+
+    // Not in our DB — scrape Wikipedia so we can still tell the player their
+    // actual tally for this country (the round is the DB's top scorers, so we
+    // don't import; this is just to give an informative message).
+    try {
+      const strip = normalizeName;
+      const nameParts = strip(footballerName).split(/\s+/).filter((p) => p.length > 2);
+      const titleMatches = (t: string) => nameParts.length > 0 && nameParts.every((p) => strip(t).includes(p));
+      const wikiSearch = async (query: string): Promise<string[]> => {
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=5`;
+        const res = await fetch(url, { headers: { "User-Agent": "GuessTheCareer-Admin/1.0" } });
+        if (!res.ok) return [];
+        const data = (await res.json()) as { query?: { search?: { title: string }[] } };
+        return (data.query?.search ?? []).map((s) => s.title);
+      };
+      const titles: string[] = [];
+      for (const q of [`${footballerName} footballer`, `${footballerName} ${country}`, footballerName]) {
+        for (const t of await wikiSearch(q)) if (titleMatches(t) && !titles.includes(t)) titles.push(t);
+      }
+      let fallback: { foundName: string } | null = null;
+      for (const title of titles.slice(0, 4)) {
+        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+        let scraped;
+        try { scraped = await scrapeWikipedia(wikiUrl); } catch { continue; }
+        if (!scraped.stints.some((s) => s.stint_type === "senior")) continue; // must be a footballer
+        const intlStints = scraped.stints
+          .filter((s) => s.stint_type === "international")
+          .map((s) => ({ club: s.club, goals: s.goals ?? null }));
+        if (playedForCountry(intlStints, country)) {
+          return c.json({
+            valid: false,
+            foundName: scraped.name,
+            goalsForCountry: sumIntlGoals(intlStints, country),
+            imported: false,
+            reason: "not_top",
+          });
+        }
+        fallback ??= { foundName: scraped.name };
+      }
+      if (fallback) return c.json({ valid: false, foundName: fallback.foundName, imported: false, reason: "wrong_nation" });
+    } catch { /* fall through */ }
 
     return c.json({ valid: false, footballer: null, imported: false });
   },
