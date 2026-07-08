@@ -17,6 +17,7 @@ import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { PositionBadge } from "@/components/PositionBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
+import { useCompactMode } from "@/contexts/CompactModeContext";
 
 type RoundState = "playing" | "cleared";
 
@@ -140,6 +141,7 @@ function buildRounds(
 }
 
 export function TopScorersPage() {
+  const { compact } = useCompactMode();
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -346,9 +348,9 @@ export function TopScorersPage() {
         )}
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
-          <div className="px-3 pt-4 pb-2">
+          <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
             {/* Competition header */}
-            <div className="mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3">
+            <div className={`mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3${compact ? " hidden" : ""}`}>
               <CompetitionBadge
                 name={currentRound.competitionName}
                 imageUrl={currentRound.competitionImageUrl}

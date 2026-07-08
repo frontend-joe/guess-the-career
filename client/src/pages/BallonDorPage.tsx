@@ -11,6 +11,7 @@ import {
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
+import { useCompactMode } from '@/contexts/CompactModeContext';
 
 type RoundState = 'playing' | 'cleared'
 
@@ -131,6 +132,7 @@ function buildRounds(data: BallonDorRound[], saved: SavedProgress): RoundResult[
 }
 
 export function BallonDorPage() {
+  const { compact } = useCompactMode();
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -312,9 +314,9 @@ export function BallonDorPage() {
         )}
 
         {!loading && !error && !showProgress && currentRound && (
-          <div className="px-3 pt-4 pb-2">
+          <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
             {/* Year header */}
-            <div className="mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3">
+            <div className={`mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3${compact ? " hidden" : ""}`}>
               <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden">
                 <img src="/ballon-dor.png" alt="Ballon d'Or" className="w-full h-full object-cover" />
               </div>

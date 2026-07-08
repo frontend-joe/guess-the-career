@@ -12,6 +12,7 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
+import { useCompactMode } from "@/contexts/CompactModeContext";
 
 // ─── localStorage ───────────────────────────────────────────────────────────
 const PROGRESS_KEY = "la_liga_progress";
@@ -116,6 +117,7 @@ async function verifyGuess(footballerName: string, footballerId: number | null, 
 }
 
 export function LaLigaPage() {
+  const { compact } = useCompactMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<LaLigaScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -307,8 +309,8 @@ export function LaLigaPage() {
         <>
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && (
-              <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
-                <div className="bg-white rounded-2xl border border-gray-200 px-4 pt-8 pb-4 flex flex-col items-center gap-3">
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
+                <div className={`bg-white rounded-2xl border border-gray-200 px-4 pt-8 pb-4 flex flex-col items-center gap-3${compact ? " hidden" : ""}`}>
                   {flagUrl && <img src={flagUrl} alt={currentRound.nationality} className="w-16 h-12 object-cover rounded-md border border-gray-200" />}
                   <span className="text-gray-800 font-bold text-lg">{currentRound.nationality}</span>
                   <span className="text-gray-400 text-[11px] text-center">{currentRound.nationality} players who played in Spain</span>

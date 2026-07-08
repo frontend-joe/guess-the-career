@@ -7,6 +7,7 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { getAnswers, type DualNationalityPlayer } from "@/api/dual-nationality";
+import { useCompactMode } from "@/contexts/CompactModeContext";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 const PROGRESS_KEY = "dual_nationality_progress";
@@ -94,6 +95,7 @@ function PlayerRow({ player, guessed }: { player: DualNationalityPlayer; guessed
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export function DualNationalityPage() {
+  const { compact } = useCompactMode();
   const [players, setPlayers] = useState<DualNationalityPlayer[] | null>(null);
   const [guessedIds, setGuessedIds] = useState<Set<number>>(new Set());
   const [wrongGuesses, setWrongGuesses] = useState<Set<string>>(new Set());
@@ -169,7 +171,7 @@ export function DualNationalityPage() {
             <p className="text-gray-500 text-sm text-center">No players added yet — check back soon.</p>
           </div>
         ) : (
-          <div className="px-3 pt-4 pb-2 flex flex-col gap-2">
+          <div className={`px-3 pt-4 pb-2 flex flex-col gap-2${compact ? " mt-auto" : ""}`}>
             {players.map((p) => (
               <PlayerRow key={p.footballerId} player={p} guessed={guessedIds.has(p.footballerId)} />
             ))}

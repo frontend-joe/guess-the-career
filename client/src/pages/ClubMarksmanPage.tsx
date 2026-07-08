@@ -22,6 +22,7 @@ import { NationalityFlag } from "@/components/NationalityFlag";
 import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
+import { useCompactMode } from "@/contexts/CompactModeContext";
 
 // Every Club Marksman round asks for exactly 5 of the club's marksmen.
 const ROUND_TARGET = 5;
@@ -301,6 +302,7 @@ async function verifyGuess(
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function ClubMarksmanPage() {
+  const { compact } = useCompactMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<ClubMarksmanScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>(
@@ -623,9 +625,9 @@ export function ClubMarksmanPage() {
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && (
-              <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
                 {/* Club header */}
-                <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-6 pb-5 flex flex-col items-center gap-3 overflow-hidden">
+                <div className={`relative bg-white rounded-2xl border border-gray-200 px-4 pt-6 pb-5 flex flex-col items-center gap-3 overflow-hidden${compact ? " hidden" : ""}`}>
                   {currentRound.marksmanCount >= 8 && (
                     <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
                       Easy

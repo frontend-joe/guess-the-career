@@ -10,6 +10,7 @@ import { NationalityFlag } from '@/components/NationalityFlag'
 import { PositionBadge } from '@/components/PositionBadge'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
+import { useCompactMode } from '@/contexts/CompactModeContext';
 
 const TARGET = 3
 
@@ -154,6 +155,7 @@ interface RoundState {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function ThreeClubsPage() {
+  const { compact } = useCompactMode();
   const [searchParams, setSearchParams] = useSearchParams()
   const [rounds, setRounds] = useState<ThreeClubsScheduleRound[]>([])
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({})
@@ -402,9 +404,9 @@ export function ThreeClubsPage() {
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && (
-              <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
                 {/* Club header — light theme */}
-                <div className="relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3">
+                <div className={`relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3${compact ? " hidden" : ""}`}>
                   {currentRound.playerCount >= 5 && (
                     <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
                       <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">

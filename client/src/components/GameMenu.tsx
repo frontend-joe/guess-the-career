@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { Menu, X, Home, Settings, type LucideIcon } from 'lucide-react'
+import { Menu, X, Home, Settings, Rows3, type LucideIcon } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCompactMode } from '@/contexts/CompactModeContext'
+import { Checkbox } from '@/components/ui/checkbox'
 import { LIST_GAMES, BANTER_GAMES, type Game } from '@/lib/games'
 
 // In-game burger menu: a frosted drawer that slides in from the left with
@@ -9,6 +11,7 @@ import { LIST_GAMES, BANTER_GAMES, type Game } from '@/lib/games'
 // slot of every game header.
 export function GameMenu() {
   const { user } = useAuth()
+  const { compact, setCompact } = useCompactMode()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [mounted, setMounted] = useState(false) // in the DOM (kept during exit)
@@ -105,6 +108,18 @@ export function GameMenu() {
               {user?.is_admin && <Row icon={Settings} label="Admin" to="/admin" />}
               <Row icon={Home} label="Home" to="/" />
             </nav>
+
+            {user?.is_admin && (
+              <div className="py-1 divide-soft-b">
+                <label className="w-full flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-white/5">
+                  <span className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-white/5 text-green-400">
+                    <Rows3 size={16} />
+                  </span>
+                  <span className="flex-1 text-sm font-semibold text-white">Compact mode</span>
+                  <Checkbox checked={compact} onCheckedChange={setCompact} className="h-4 w-4 shrink-0" />
+                </label>
+              </div>
+            )}
 
             <div className="px-4 pt-3 pb-1">
               <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">List Games</span>

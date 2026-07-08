@@ -7,6 +7,7 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { getFamilyGame, type Family, type FamilyMember } from "@/api/football-families";
+import { useCompactMode } from "@/contexts/CompactModeContext";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 const PROGRESS_KEY = "football_families_progress";
@@ -79,6 +80,7 @@ function MemberRow({ m, guessed }: { m: FamilyMember; guessed: boolean }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export function FootballFamiliesPage() {
+  const { compact } = useCompactMode();
   const [families, setFamilies] = useState<Family[] | null>(null);
   const [guessedIds, setGuessedIds] = useState<Set<number>>(new Set());
   const [wrongGuesses, setWrongGuesses] = useState<Set<string>>(new Set());
@@ -148,7 +150,7 @@ export function FootballFamiliesPage() {
             <p className="text-gray-500 text-sm text-center">No families added yet — check back soon.</p>
           </div>
         ) : (
-          <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
+          <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
             {families.map((f, i) => (
               <div key={i} className="relative mt-1">
                 <span className="absolute -top-2 left-3 z-10 px-1.5 bg-gray-50 text-[10px] font-bold uppercase tracking-widest text-gray-500">

@@ -13,6 +13,7 @@ import {
   getXiLeaderboard,
   type XiLeaderboardEntry,
 } from "@/api/xi-leaderboard";
+import { useCompactMode } from '@/contexts/CompactModeContext';
 
 type RoundState = "playing" | "cleared";
 
@@ -156,6 +157,7 @@ function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult
 }
 
 export function GuessTheXiPage() {
+  const { compact } = useCompactMode();
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -374,9 +376,9 @@ export function GuessTheXiPage() {
         )}
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
-          <div className="px-3 pt-4 pb-2">
+          <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
             {/* Match header card */}
-            <div className="mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3">
+            <div className={`mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3${compact ? " hidden" : ""}`}>
               <ClubBadge
                 name={currentRound.team}
                 imageUrl={currentRound.teamImageUrl}
