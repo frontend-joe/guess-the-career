@@ -405,7 +405,7 @@ export function InternationalLegendsPage() {
           const displayName = result.foundName ?? `"${name}"`;
           const msg =
             result.reason === "not_top"
-              ? `${displayName} isn't in ${currentRound.country}'s top 5 (${result.capsForCountry ?? 0} caps)`
+              ? `${displayName} only has ${result.capsForCountry ?? 0} caps for ${currentRound.country}`
               : result.reason === "wrong_nation"
                 ? `${displayName} never played for ${currentRound.country}`
                 : `${displayName} is not a valid answer`;
