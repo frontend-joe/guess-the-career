@@ -214,16 +214,20 @@ export function BookendsPage() {
             <p className="text-xs mb-2 text-red-400">It was {card.name}</p>
           )}
 
-          {status === "playing" && wrong.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {wrong.map((g, i) => (
-                <span key={i} className="text-[11px] bg-red-500/20 text-red-300 rounded px-1.5 py-0.5 line-through">{g}</span>
-              ))}
+          {status === "playing" && (
+            <div className="flex flex-wrap items-center gap-1 mb-2 min-h-6">
+              {wrong.length > 0 ? (
+                wrong.map((g, i) => (
+                  <span key={i} className="text-[11px] bg-red-500/20 text-red-300 rounded px-1.5 py-0.5 line-through">{g}</span>
+                ))
+              ) : (
+                <span className="text-xs text-white">Make a guess</span>
+              )}
             </div>
           )}
 
           {status === "playing" && (
-            <div className="mt-5 mb-3 flex items-center gap-2">
+            <div className="mb-3 flex items-center gap-2">
               <div className="flex-1">
                 <GuessSearchInput autoScrape={false}
                   inputRef={inputRef}
