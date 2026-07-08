@@ -42,7 +42,7 @@ function InfoBubble({ text }: { text: string }) {
         type="button"
         onClick={toggle}
         aria-label="Guessing help"
-        className="absolute right-0 bottom-full mb-1 flex items-center gap-1 text-white/70 hover:text-white transition-colors"
+        className="absolute right-0 bottom-full mb-2 flex items-center gap-1 text-white/70 hover:text-white transition-colors"
       >
         <Info size={16} />
         <span className="text-xs font-semibold">Info</span>
