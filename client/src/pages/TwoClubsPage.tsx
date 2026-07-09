@@ -11,6 +11,8 @@ import { PositionBadge } from '@/components/PositionBadge'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
 import { useCompactMode } from '@/contexts/CompactModeContext';
+import GameHeader from "@/components/GameHeader";
+import CrestBadge from "@/components/CrestBadge";
 
 const TARGET = 5
 
@@ -89,18 +91,6 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   if (lastName.length >= 4 && g === lastName) return true
   if (lastName.length >= 4 && g.length >= 4 && damerauDistance(g, lastName) === 1) return true
   return false
-}
-
-// ─── Club badge (light theme) ─────────────────────────────────────────────────
-
-// Framed club logo; tapping it shows the club name in a tooltip (reusing
-// MiniClubBadge's portaled, never-clipped tooltip).
-function ClubBadge({ name, wikiUrl }: { name: string; wikiUrl: string | null }) {
-  return (
-    <div className="w-16 h-16 bg-white border border-gray-200 rounded-xl flex items-center justify-center p-1.5 shrink-0">
-      <MiniClubBadge club={name} wikipediaUrl={wikiUrl} size={44} />
-    </div>
-  )
 }
 
 // ─── Player slot ──────────────────────────────────────────────────────────────
@@ -400,25 +390,20 @@ export function TwoClubsPage() {
         <>
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
+            {currentRound && !compact && (
+              <GameHeader
+                image={
+                  <div className="flex items-center gap-1.5">
+                    <CrestBadge name={currentRound.clubA} wikipediaUrl={currentRound.clubAWikiUrl} />
+                    <CrestBadge name={currentRound.clubB} wikipediaUrl={currentRound.clubBWikiUrl} />
+                  </div>
+                }
+                title="Who played for both?"
+                difficulty={currentRound.playerCount >= 10 ? { label: "Easy", color: "green" } : undefined}
+              />
+            )}
             {currentRound && (
               <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
-                {/* Club header — light theme */}
-                <div className={`relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3${compact ? " hidden" : ""}`}>
-                  {currentRound.playerCount >= 10 && (
-                    <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
-                      <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                        Easy
-                      </div>
-                    </div>
-                  )}
-                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Who played for both?</span>
-                  <div className="flex items-center justify-center gap-6">
-                    <ClubBadge name={currentRound.clubA} wikiUrl={currentRound.clubAWikiUrl} />
-                    <span className="text-gray-400 font-bold text-lg">&amp;</span>
-                    <ClubBadge name={currentRound.clubB} wikiUrl={currentRound.clubBWikiUrl} />
-                  </div>
-                </div>
-
                 {/* 5 player slots */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">

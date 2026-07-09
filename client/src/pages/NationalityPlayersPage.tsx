@@ -23,6 +23,8 @@ import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import GameHeader from "@/components/GameHeader";
+import CrestBadge from "@/components/CrestBadge";
 
 function roundTarget(playerCount: number): number {
   if (playerCount < 10) return 5;
@@ -222,90 +224,6 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   )
     return true;
   return false;
-}
-
-// ─── Nationality badge (large, same shape as ClubBadge in TwoClubs) ───────────
-
-function NationalityBadge({ nationality }: { nationality: string }) {
-  const flagUrl = nationalityToFlagUrl(nationality);
-
-  return (
-    <div className="flex flex-col items-center gap-1.5 w-24">
-      <div className="w-14 h-14 bg-white border border-gray-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
-        {flagUrl ? (
-          <img
-            src={flagUrl}
-            alt={nationality}
-            className="w-full h-full object-cover p-2 bg-gray-50"
-          />
-        ) : (
-          <span className="text-gray-500 font-bold text-xl">
-            {nationality.charAt(0)}
-          </span>
-        )}
-      </div>
-      <span className="text-gray-800 font-semibold text-xs text-center leading-tight max-w-20 h-8 flex items-start justify-center line-clamp-2">
-        {nationality}
-      </span>
-    </div>
-  );
-}
-
-// ─── Club badge ───────────────────────────────────────────────────────────────
-
-function ClubBadge({
-  name,
-  wikiUrl,
-}: {
-  name: string;
-  wikiUrl: string | null;
-}) {
-  const [logoUrl, setLogoUrl] = useState<string | false | null>(null);
-
-  useEffect(() => {
-    if (!wikiUrl) {
-      setLogoUrl(false);
-      return;
-    }
-    const title = wikiUrl.split("/wiki/")[1];
-    if (!title) {
-      setLogoUrl(false);
-      return;
-    }
-    const controller = new AbortController();
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, {
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then((data) => setLogoUrl(data?.thumbnail?.source ?? false))
-      .catch((err) => {
-        if (err.name !== "AbortError") setLogoUrl(false);
-      });
-    return () => controller.abort();
-  }, [wikiUrl]);
-
-  return (
-    <div className="flex flex-col items-center gap-1.5 w-24">
-      <div className="w-14 h-14 bg-white border border-gray-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
-        {logoUrl === null ? (
-          <div className="w-full h-full animate-pulse bg-gray-100" />
-        ) : logoUrl === false ? (
-          <span className="text-gray-500 font-bold text-xl">
-            {name.charAt(0)}
-          </span>
-        ) : (
-          <img
-            src={logoUrl}
-            alt={name}
-            className="w-full h-full object-contain p-1"
-          />
-        )}
-      </div>
-      <span className="text-gray-800 font-semibold text-xs text-center leading-tight max-w-20 h-8 flex items-start justify-center line-clamp-2">
-        {name}
-      </span>
-    </div>
-  );
 }
 
 // ─── Player slot ──────────────────────────────────────────────────────────────
@@ -778,39 +696,34 @@ export function NationalityPlayersPage() {
         <>
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
-            {currentRound && (
-              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
-                {/* Combo header */}
-                <div className={`relative bg-white rounded-2xl border border-gray-200 px-4 pt-3 pb-4 flex flex-col items-center gap-3 overflow-hidden${compact ? " hidden" : ""}`}>
-                  {currentRound.playerCount < 10 ? (
-                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-red-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                      Solid
-                    </div>
-                  ) : currentRound.playerCount <= 20 ? (
-                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-amber-400 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                      Medium
-                    </div>
-                  ) : (
-                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                      Easy
-                    </div>
-                  )}
-                  <span className="text-gray-400 text-xs font-semibold uppercase tracking-widest">
-                    {nationalityAdjective(currentRound.nationality)}{" "}
-                    {currentRound.club} Players
-                  </span>
-                  <div className="flex items-center justify-center gap-6">
-                    <NationalityBadge nationality={currentRound.nationality} />
-                    <span className="text-gray-400 font-bold text-lg">
-                      &amp;
-                    </span>
-                    <ClubBadge
+            {currentRound && !compact && (
+              <GameHeader
+                image={
+                  <div className="flex items-center gap-1.5">
+                    <CrestBadge name={currentRound.nationality} />
+                    <CrestBadge
                       name={currentRound.club}
-                      wikiUrl={currentRound.clubWikiUrl}
+                      wikipediaUrl={currentRound.clubWikiUrl}
                     />
                   </div>
-                </div>
-
+                }
+                title={
+                  <>
+                    {nationalityAdjective(currentRound.nationality)}{" "}
+                    {currentRound.club} Players
+                  </>
+                }
+                difficulty={
+                  currentRound.playerCount < 10
+                    ? { label: "Solid", color: "red" }
+                    : currentRound.playerCount <= 20
+                      ? { label: "Medium", color: "amber" }
+                      : { label: "Easy", color: "green" }
+                }
+              />
+            )}
+            {currentRound && (
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
                 {/* 5 player slots */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">

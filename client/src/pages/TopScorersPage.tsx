@@ -18,6 +18,8 @@ import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { PositionBadge } from "@/components/PositionBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import GameHeader from "@/components/GameHeader";
+import CrestBadge from "@/components/CrestBadge";
 
 type RoundState = "playing" | "cleared";
 
@@ -348,23 +350,20 @@ export function TopScorersPage() {
         )}
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
-          <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
-            {/* Competition header */}
-            <div className={`mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3${compact ? " hidden" : ""}`}>
-              <CompetitionBadge
-                name={currentRound.competitionName}
-                imageUrl={currentRound.competitionImageUrl}
+          <>
+            {!compact && (
+              <GameHeader
+                image={
+                  <CrestBadge
+                    name={currentRound.competitionName}
+                    imageUrl={currentRound.competitionImageUrl}
+                  />
+                }
+                title={currentRound.competitionName}
+                subtitle="Top Scorers"
               />
-              <div className="min-w-0">
-                <p className="text-xs text-gray-400 uppercase tracking-widest leading-tight">
-                  Top Scorers
-                </p>
-                <p className="text-base font-bold text-gray-900 leading-snug truncate">
-                  {currentRound.competitionName}
-                </p>
-              </div>
-            </div>
-
+            )}
+            <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
             {/* Scorers table */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               <table className="w-full">
@@ -433,7 +432,8 @@ export function TopScorersPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -503,33 +503,6 @@ export function TopScorersPage() {
             )}
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-function CompetitionBadge({
-  name,
-  imageUrl,
-}: {
-  name: string;
-  imageUrl: string | null;
-}) {
-  return (
-    <div
-      className="w-12 h-12 bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden"
-      style={{ borderRadius: "12px" }}
-    >
-      {imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={name}
-          className="w-10 h-10 object-contain rounded-lg"
-        />
-      ) : (
-        <span className="text-gray-400 font-bold text-sm">
-          {name.charAt(0)}
-        </span>
       )}
     </div>
   );

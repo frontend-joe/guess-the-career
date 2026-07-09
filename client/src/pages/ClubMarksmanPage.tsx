@@ -23,6 +23,8 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import GameHeader from "@/components/GameHeader";
+import CrestBadge from "@/components/CrestBadge";
 
 // Every Club Marksman round asks for exactly 5 of the club's marksmen.
 const ROUND_TARGET = 5;
@@ -128,63 +130,6 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 }
 
 // ─── Position badge ───────────────────────────────────────────────────────────
-
-// ─── Club badge ───────────────────────────────────────────────────────────────
-
-function ClubBadge({
-  name,
-  wikiUrl,
-}: {
-  name: string;
-  wikiUrl: string | null;
-}) {
-  const [logoUrl, setLogoUrl] = useState<string | false | null>(null);
-
-  useEffect(() => {
-    if (!wikiUrl) {
-      setLogoUrl(false);
-      return;
-    }
-    const title = wikiUrl.split("/wiki/")[1];
-    if (!title) {
-      setLogoUrl(false);
-      return;
-    }
-    const controller = new AbortController();
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, {
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then((data) => setLogoUrl(data?.thumbnail?.source ?? false))
-      .catch((err) => {
-        if (err.name !== "AbortError") setLogoUrl(false);
-      });
-    return () => controller.abort();
-  }, [wikiUrl]);
-
-  return (
-    <div className="flex flex-col items-center gap-1.5 w-32">
-      <div className="w-16 h-16 bg-white border border-gray-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
-        {logoUrl === null ? (
-          <div className="w-full h-full animate-pulse bg-gray-100" />
-        ) : logoUrl === false ? (
-          <span className="text-gray-500 font-bold text-2xl">
-            {name.charAt(0)}
-          </span>
-        ) : (
-          <img
-            src={logoUrl}
-            alt={name}
-            className="w-full h-full object-contain p-1"
-          />
-        )}
-      </div>
-      <span className="text-gray-800 font-semibold text-sm text-center leading-tight max-w-28 line-clamp-2">
-        {name}
-      </span>
-    </div>
-  );
-}
 
 // ─── Player slot ──────────────────────────────────────────────────────────────
 
@@ -624,24 +569,20 @@ export function ClubMarksmanPage() {
         <>
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
+            {currentRound && !compact && (
+              <GameHeader
+                image={<CrestBadge name={currentRound.club} wikipediaUrl={currentRound.clubWikiUrl} />}
+                title={currentRound.club}
+                subtitle="Players with 50+ goals"
+                difficulty={
+                  currentRound.marksmanCount >= 8
+                    ? { label: "Easy", color: "green" }
+                    : undefined
+                }
+              />
+            )}
             {currentRound && (
               <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
-                {/* Club header */}
-                <div className={`relative bg-white rounded-2xl border border-gray-200 px-4 pt-6 pb-5 flex flex-col items-center gap-3 overflow-hidden${compact ? " hidden" : ""}`}>
-                  {currentRound.marksmanCount >= 8 && (
-                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                      Easy
-                    </div>
-                  )}
-                  <ClubBadge
-                    name={currentRound.club}
-                    wikiUrl={currentRound.clubWikiUrl}
-                  />
-                  <span className="text-gray-400 text-[11px] text-center">
-                    Players with 50+ goals
-                  </span>
-                </div>
-
                 {/* Player slots */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">

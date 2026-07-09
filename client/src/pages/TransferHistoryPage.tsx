@@ -14,6 +14,7 @@ import {
   type TransferRoundPlayer,
 } from "@/api/transfer-history-schedule";
 import { useCompactMode } from '@/contexts/CompactModeContext';
+import GameHeader from "@/components/GameHeader";
 
 type RoundState = "playing" | "cleared";
 
@@ -278,13 +279,14 @@ export function TransferHistoryPage() {
         )}
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
-          <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
-            {/* Window header */}
-            <div className={`mb-3 bg-white rounded-xl border border-gray-200 px-4 py-3${compact ? " hidden" : ""}`}>
-              <p className="text-xs text-gray-400 uppercase tracking-widest leading-tight">{currentRound.seasonLabel} transfers</p>
-              <p className="text-base font-bold text-gray-900 leading-snug">{currentRound.league}</p>
-            </div>
-
+          <>
+            {!compact && (
+              <GameHeader
+                title={currentRound.league}
+                subtitle={`${currentRound.seasonLabel} transfers`}
+              />
+            )}
+            <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
             {/* Transfer list */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               {currentRound.transfers.map((t, i) => {
@@ -328,7 +330,8 @@ export function TransferHistoryPage() {
                 );
               })}
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
 

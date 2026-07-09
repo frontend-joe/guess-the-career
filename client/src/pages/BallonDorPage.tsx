@@ -12,6 +12,7 @@ import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { useCompactMode } from '@/contexts/CompactModeContext';
+import GameHeader from "@/components/GameHeader";
 
 type RoundState = 'playing' | 'cleared'
 
@@ -314,22 +315,19 @@ export function BallonDorPage() {
         )}
 
         {!loading && !error && !showProgress && currentRound && (
-          <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
-            {/* Year header */}
-            <div className={`mb-3 flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-3 py-3${compact ? " hidden" : ""}`}>
-              <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden">
-                <img src="/ballon-dor.png" alt="Ballon d'Or" className="w-full h-full object-cover" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-gray-400 uppercase tracking-widest leading-tight">
-                  Ballon d&apos;or Rankings
-                </p>
-                <p className="text-base font-bold text-gray-900 leading-snug truncate">
-                  {currentRound.year}
-                </p>
-              </div>
-            </div>
-
+          <>
+            {!compact && (
+              <GameHeader
+                image={
+                  <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden">
+                    <img src="/ballon-dor.png" alt="Ballon d'Or" className="w-full h-full object-cover" />
+                  </div>
+                }
+                title={currentRound.year}
+                subtitle="Ballon d'or Rankings"
+              />
+            )}
+            <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
             {/* Players table */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               <table className="w-full">
@@ -386,7 +384,8 @@ export function BallonDorPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+            </div>
+          </>
         )}
       </div>
 

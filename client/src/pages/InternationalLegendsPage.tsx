@@ -23,6 +23,7 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import GameHeader from "@/components/GameHeader";
 
 // Every International Legends round asks for exactly 5 of the country's legends.
 const ROUND_TARGET = 5;
@@ -125,24 +126,6 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   )
     return true;
   return false;
-}
-
-// ─── Country badge ────────────────────────────────────────────────────────────
-
-function CountryBadge({ country }: { country: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5 w-32">
-      <div className="h-16 flex items-center justify-center overflow-hidden shrink-0">
-        <NationalityFlag
-          nationality={country}
-          className="h-12 w-auto rounded-md border border-gray-200 shadow-sm"
-        />
-      </div>
-      <span className="text-gray-800 font-semibold text-sm text-center leading-tight max-w-28 line-clamp-2">
-        {country}
-      </span>
-    </div>
-  );
 }
 
 // ─── Player slot ──────────────────────────────────────────────────────────────
@@ -579,29 +562,27 @@ export function InternationalLegendsPage() {
         <>
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
+            {currentRound && !compact && (
+              <GameHeader
+                image={
+                  <NationalityFlag
+                    nationality={currentRound.country}
+                    className="h-9 w-auto rounded-md border border-gray-200"
+                  />
+                }
+                title={currentRound.country}
+                subtitle="Players with 50+ caps"
+                difficulty={
+                  currentRound.legendCount < 15
+                    ? { label: "Solid", color: "red" }
+                    : currentRound.legendCount < 30
+                      ? { label: "Medium", color: "amber" }
+                      : { label: "Easy", color: "green" }
+                }
+              />
+            )}
             {currentRound && (
               <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
-                {/* Country header */}
-                <div className={`relative bg-white rounded-2xl border border-gray-200 px-4 pt-6 pb-5 flex flex-col items-center gap-3 overflow-hidden${compact ? " hidden" : ""}`}>
-                  {currentRound.legendCount < 15 ? (
-                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-red-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                      Solid
-                    </div>
-                  ) : currentRound.legendCount < 30 ? (
-                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-amber-400 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                      Medium
-                    </div>
-                  ) : (
-                    <div className="absolute top-3.5 -right-7 rotate-45 w-24 text-center bg-green-500 text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm">
-                      Easy
-                    </div>
-                  )}
-                  <CountryBadge country={currentRound.country} />
-                  <span className="text-gray-400 text-[11px] text-center">
-                    Players with 50+ caps
-                  </span>
-                </div>
-
                 {/* Player slots */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">
