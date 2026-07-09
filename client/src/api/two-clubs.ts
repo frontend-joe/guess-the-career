@@ -9,7 +9,7 @@ export interface TwoClubsSession {
 
 export interface VerifyResult {
   valid: boolean
-  footballer: { id: number; name: string; photo_url: string | null } | null
+  footballer: { id: number; name: string; photo_url: string | null; nationality?: string | null; position?: string | null; apps?: number; careerYears?: string | null } | null
   imported: boolean
   reason?: string
   foundName?: string

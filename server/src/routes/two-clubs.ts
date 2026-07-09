@@ -20,6 +20,28 @@ function getClubVariants(clubName: string): string[] {
   return [...base, ...base.map(v => `→ ${v}`)]
 }
 
+// Build the full player row (nationality/position/apps/careerYears) for a guessed
+// footballer, matching the /answers list shape so a newly revealed/auto-scraped
+// player shows their flag, position and career span — not just a bare name.
+function verifiedPlayer(clubA: string, clubB: string, id: number) {
+  const variantsA = getClubVariants(clubA).map(v => v.toLowerCase())
+  const variantsB = getClubVariants(clubB).map(v => v.toLowerCase())
+  const allVariants = [...new Set([...variantsA, ...variantsB])]
+  const phAll = allVariants.map(() => '?').join(', ')
+  const row = sqlite.prepare(`
+    SELECT f.id, f.name, f.photo_url, f.nationality, f.position,
+      (SELECT COALESCE(SUM(cs.apps), 0) FROM career_stints cs
+         WHERE cs.footballer_id = f.id AND cs.stint_type = 'senior'
+         AND LOWER(cs.club) IN (${phAll})) AS apps,
+      ${CAREER_SPAN_SELECT}
+    FROM footballers f
+    WHERE f.id = ?
+  `).get(...allVariants, id) as { id: number; name: string; photo_url: string | null; nationality: string | null; position: string | null; apps: number; career_start: string | null; career_end: string | null } | undefined
+  if (!row) return null
+  const { career_start, career_end, ...rest } = row
+  return { ...rest, careerYears: formatCareerYears(career_start, career_end) }
+}
+
 function hasClub(stintClubs: string[], targetClub: string): boolean {
   const variants = getClubVariants(targetClub)
   return stintClubs.some(c => variants.includes(normalizeClubAlias(c)))
@@ -320,7 +342,7 @@ twoClubsRouter.post(
         .where(sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`)).map(s => s.club)
 
       if (hasClub(stintClubs, clubA) && hasClub(stintClubs, clubB)) {
-        return c.json({ valid: true, footballer: { id: footballer.id, name: footballer.name, photo_url: footballer.photo_url }, imported: false })
+        return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, footballer.id), imported: false })
       }
 
       // Stints incomplete — rescrape if we have a Wikipedia URL
@@ -355,7 +377,7 @@ twoClubsRouter.post(
             .where(sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`)).map(s => s.club)
 
           if (hasClub(stintClubs, clubA) && hasClub(stintClubs, clubB)) {
-            return c.json({ valid: true, footballer: { id: footballer.id, name: footballer.name, photo_url: footballer.photo_url }, imported: true })
+            return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, footballer.id), imported: true })
           }
         } catch {
           // scrape failed — fall through to Wikipedia name search
@@ -410,7 +432,7 @@ twoClubsRouter.post(
           .where(sql`${career_stints.footballer_id} = ${byUrl.id} AND ${career_stints.stint_type} = 'senior'`)
         const stintClubs = stints.map(s => s.club)
         if (hasClub(stintClubs, clubA) && hasClub(stintClubs, clubB)) {
-          return c.json({ valid: true, footballer: { id: byUrl.id, name: byUrl.name, photo_url: byUrl.photo_url }, imported: false })
+          return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, byUrl.id), imported: false })
         }
       }
 
@@ -451,7 +473,7 @@ twoClubsRouter.post(
             })
           }
         }
-        return c.json({ valid: true, footballer: { id: knownRecord.id, name: knownRecord.name, photo_url: scraped.photo_url ?? knownRecord.photo_url }, imported: true })
+        return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, knownRecord.id), imported: true })
       }
 
       // Truly new footballer — insert
@@ -480,7 +502,7 @@ twoClubsRouter.post(
         )
       }
 
-      return c.json({ valid: true, footballer: { id: newFootballer.id, name: newFootballer.name, photo_url: newFootballer.photo_url ?? null }, imported: true })
+      return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, newFootballer.id), imported: true })
     } catch {
       return c.json(fallbackInvalid ?? { valid: false, footballer: null, imported: false })
     }
