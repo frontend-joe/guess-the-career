@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export type Difficulty = { label: string; color: "red" | "amber" | "green" };
 
-const PILL_BG: Record<Difficulty["color"], string> = {
+const RIBBON_BG: Record<Difficulty["color"], string> = {
   red: "bg-red-500",
   amber: "bg-amber-400",
   green: "bg-green-500",
@@ -26,18 +26,18 @@ export default function GameHeader({
   difficulty?: Difficulty;
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
+    <div className="relative flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 overflow-hidden">
       {image && <div className="shrink-0 flex items-center">{image}</div>}
       <div className="min-w-0 flex-1">
         {title && <div className="text-base font-bold text-gray-900 leading-tight truncate">{title}</div>}
         {subtitle && <div className="text-xs text-gray-500 leading-snug">{subtitle}</div>}
       </div>
       {difficulty && (
-        <span
-          className={`ml-auto shrink-0 text-[10px] font-bold uppercase tracking-wider text-white px-2 py-0.5 rounded-full ${PILL_BG[difficulty.color]}`}
+        <div
+          className={`absolute top-3.5 -right-7 rotate-45 w-24 text-center text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm ${RIBBON_BG[difficulty.color]}`}
         >
           {difficulty.label}
-        </span>
+        </div>
       )}
     </div>
   );
