@@ -19,19 +19,25 @@ export default function GameHeader({
   title,
   subtitle,
   difficulty,
+  center = false,
 }: {
   image?: ReactNode;
   title?: ReactNode;
   subtitle?: ReactNode;
   difficulty?: Difficulty;
+  center?: boolean;
 }) {
   return (
-    <div className="relative flex items-center gap-3 px-4 py-3 min-h-18 bg-white border-b border-gray-200 overflow-hidden">
+    <div
+      className={`relative flex items-center gap-3 px-4 py-3 min-h-18 bg-white border-b border-gray-200 overflow-hidden ${center ? "justify-center" : ""}`}
+    >
       {image && <div className="shrink-0 flex items-center">{image}</div>}
-      <div className="min-w-0 flex-1">
-        {title && <div className="text-base font-bold text-gray-900 leading-tight truncate">{title}</div>}
-        {subtitle && <div className="text-xs text-gray-500 leading-snug">{subtitle}</div>}
-      </div>
+      {(title || subtitle) && (
+        <div className={center ? "min-w-0 text-center" : "min-w-0 flex-1"}>
+          {title && <div className="text-base font-bold text-gray-900 leading-tight truncate">{title}</div>}
+          {subtitle && <div className="text-xs text-gray-500 leading-snug">{subtitle}</div>}
+        </div>
+      )}
       {difficulty && (
         <div
           className={`absolute top-3.5 -right-7 rotate-45 w-24 text-center text-white text-[9px] font-bold tracking-wider uppercase py-0.5 shadow-sm ${RIBBON_BG[difficulty.color]}`}

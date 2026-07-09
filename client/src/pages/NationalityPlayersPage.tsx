@@ -699,6 +699,7 @@ export function NationalityPlayersPage() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && !compact && (
               <GameHeader
+                center
                 image={
                   <div className="flex items-center gap-1">
                     <CrestBadge name={currentRound.nationality} />

@@ -282,6 +282,7 @@ export function TransferHistoryPage() {
           <>
             {!compact && (
               <GameHeader
+                center
                 title={currentRound.league}
                 subtitle={`${currentRound.seasonLabel} transfers`}
               />
