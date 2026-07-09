@@ -61,8 +61,10 @@ function CareerTable({ title, stints, international }: { title: string; stints: 
               <td className="px-3 py-1.5 text-gray-500 tabular-nums align-top whitespace-nowrap">{s.years}</td>
               <td className="px-1 py-1.5">
                 <span className="flex items-center gap-1.5">
-                  {tag === 'loan' && <span className="text-gray-500 shrink-0">→</span>}
-                  {!international && tag !== 'loan' && <MiniClubBadge club={name} wikipediaUrl={s.club_wikipedia_url} size={16} />}
+                  {tag === 'loan' && (
+                    <span className="flex items-center justify-center shrink-0 text-gray-500" style={{ width: 16 }}>→</span>
+                  )}
+                  {!international && <MiniClubBadge club={name} wikipediaUrl={s.club_wikipedia_url} size={16} />}
                   <span className="text-gray-800">
                     {name}
                     {tag && ` (${tag})`}
