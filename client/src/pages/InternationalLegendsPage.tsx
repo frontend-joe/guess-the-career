@@ -24,6 +24,7 @@ import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
 import GameHeader from "@/components/GameHeader";
+import HeaderFlag from "@/components/HeaderFlag";
 
 // Every International Legends round asks for exactly 5 of the country's legends.
 const ROUND_TARGET = 5;
@@ -564,12 +565,7 @@ export function InternationalLegendsPage() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && !compact && (
               <GameHeader
-                image={
-                  <NationalityFlag
-                    nationality={currentRound.country}
-                    className="h-9 w-auto rounded-md border border-gray-200"
-                  />
-                }
+                image={<HeaderFlag nationality={currentRound.country} />}
                 title={currentRound.country}
                 subtitle="Players with 50+ caps"
                 difficulty={

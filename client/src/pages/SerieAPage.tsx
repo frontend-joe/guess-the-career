@@ -14,6 +14,7 @@ import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { useCompactMode } from "@/contexts/CompactModeContext";
 import GameHeader from "@/components/GameHeader";
+import HeaderFlag from "@/components/HeaderFlag";
 
 // ─── localStorage ───────────────────────────────────────────────────────────
 const PROGRESS_KEY = "serie_a_progress";
@@ -271,7 +272,6 @@ export function SerieAPage() {
         : { player: null, hint: unguessedList[i - guessedList.length] ?? null },
   );
 
-  const flagUrl = currentRound ? nationalityToFlagUrl(currentRound.nationality) : null;
 
   if (loading) return <div className="h-dvh flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-gray-400" size={28} /></div>;
   if (error || rounds.length === 0) {
@@ -311,7 +311,7 @@ export function SerieAPage() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && !compact && (
               <GameHeader
-                image={flagUrl ? <img src={flagUrl} alt={currentRound.nationality} className="w-16 h-12 object-cover rounded-md border border-gray-200" /> : undefined}
+                image={<HeaderFlag nationality={currentRound.nationality} />}
                 title={currentRound.nationality}
                 subtitle={`${currentRound.nationality} players who played in Serie A`}
               />
