@@ -315,7 +315,7 @@ export function UncappedPlayersPage() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && !compact && (
               <GameHeader
-                image={flagUrl ? <img src={flagUrl} alt={currentRound.nationality} className="w-16 h-12 object-cover rounded-md border border-gray-200" /> : undefined}
+                image={flagUrl ? <div className="p-2"><img src={flagUrl} alt={currentRound.nationality} className="w-12 h-8 object-contain rounded-sm border border-gray-200" /></div> : undefined}
                 title={currentRound.nationality}
                 subtitle={`Uncapped ${currentRound.nationality} players`}
               />
