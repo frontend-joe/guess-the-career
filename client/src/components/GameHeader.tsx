@@ -21,7 +21,7 @@ export default function GameHeader({
   difficulty,
 }: {
   image?: ReactNode;
-  title: ReactNode;
+  title?: ReactNode;
   subtitle?: ReactNode;
   difficulty?: Difficulty;
 }) {
@@ -29,7 +29,7 @@ export default function GameHeader({
     <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
       {image && <div className="shrink-0 flex items-center">{image}</div>}
       <div className="min-w-0 flex-1">
-        <div className="text-base font-bold text-gray-900 leading-tight truncate">{title}</div>
+        {title && <div className="text-base font-bold text-gray-900 leading-tight truncate">{title}</div>}
         {subtitle && <div className="text-xs text-gray-500 leading-snug">{subtitle}</div>}
       </div>
       {difficulty && (

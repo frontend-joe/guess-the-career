@@ -709,12 +709,6 @@ export function NationalityPlayersPage() {
                     />
                   </div>
                 }
-                title={
-                  <>
-                    {nationalityAdjective(currentRound.nationality)}{" "}
-                    {currentRound.club} Players
-                  </>
-                }
                 difficulty={
                   currentRound.playerCount < 10
                     ? { label: "Solid", color: "red" }
