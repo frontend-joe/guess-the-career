@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
-import { Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react'
+import { Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle, Plus } from 'lucide-react'
 import { GameMenu } from "@/components/GameMenu";
 import { getThreeClubsScheduleRounds, type ThreeClubsScheduleRound } from '@/api/three-clubs-schedule'
 import { verifyGuess } from '@/api/three-clubs'
@@ -395,14 +395,16 @@ export function ThreeClubsPage() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && !compact && (
               <GameHeader
+                center
                 image={
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <CrestBadge name={currentRound.clubA} wikipediaUrl={currentRound.clubAWikiUrl} />
+                    <Plus size={14} className="text-gray-400 shrink-0" />
                     <CrestBadge name={currentRound.clubB} wikipediaUrl={currentRound.clubBWikiUrl} />
+                    <Plus size={14} className="text-gray-400 shrink-0" />
                     <CrestBadge name={currentRound.clubC} wikipediaUrl={currentRound.clubCWikiUrl} />
                   </div>
                 }
-                title="Who played for all three?"
                 difficulty={currentRound.playerCount >= 5 ? { label: "Easy", color: "green" } : undefined}
               />
             )}

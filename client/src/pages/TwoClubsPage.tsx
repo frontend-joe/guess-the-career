@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
-import { Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react'
+import { Loader2, Trophy, X, ChevronLeft, ChevronRight, Shuffle, Plus } from 'lucide-react'
 import { GameMenu } from "@/components/GameMenu";
 import { getTwoClubsScheduleRounds, type TwoClubsScheduleRound } from '@/api/two-clubs-schedule'
 import { verifyGuess } from '@/api/two-clubs'
@@ -392,13 +392,14 @@ export function TwoClubsPage() {
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
             {currentRound && !compact && (
               <GameHeader
+                center
                 image={
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <CrestBadge name={currentRound.clubA} wikipediaUrl={currentRound.clubAWikiUrl} />
+                    <Plus size={14} className="text-gray-400 shrink-0" />
                     <CrestBadge name={currentRound.clubB} wikipediaUrl={currentRound.clubBWikiUrl} />
                   </div>
                 }
-                title="Who played for both?"
                 difficulty={currentRound.playerCount >= 10 ? { label: "Easy", color: "green" } : undefined}
               />
             )}
