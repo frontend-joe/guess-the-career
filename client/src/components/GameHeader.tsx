@@ -26,7 +26,7 @@ export default function GameHeader({
   difficulty?: Difficulty;
 }) {
   return (
-    <div className="relative flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 overflow-hidden">
+    <div className="relative flex items-center gap-3 px-4 py-3 min-h-18 bg-white border-b border-gray-200 overflow-hidden">
       {image && <div className="shrink-0 flex items-center">{image}</div>}
       <div className="min-w-0 flex-1">
         {title && <div className="text-base font-bold text-gray-900 leading-tight truncate">{title}</div>}
