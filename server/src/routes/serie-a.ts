@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
-import { scrapeWikipedia, isRetired, normalizeClubAlias } from '../services/scraper.ts'
+import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import {
   nationalitiesMatch,
   isItalianClub,
@@ -366,9 +366,6 @@ serieARouter.post(
         if (!qualifies(stintClubs, scraped.nationality)) {
           fallbackInvalid ??= invalidJson(scraped.name, scraped.nationality, stintClubs)
           continue
-        }
-        if (!isRetired(scraped.stints)) {
-          return c.json({ valid: false, foundName: scraped.name, foundNationality: null, imported: false, reason: 'not_retired' as const })
         }
 
         const knownRecord = byUrl ?? footballer

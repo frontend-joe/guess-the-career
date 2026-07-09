@@ -95,7 +95,7 @@ interface VerifyResult {
   foundName?: string;
   foundNationality?: string | null;
   imported: boolean;
-  reason?: "not_retired" | "wrong_nationality" | "wrong_club" | "wrong_both";
+  reason?: "wrong_nationality" | "wrong_club" | "wrong_both";
 }
 
 async function verifyGuess(footballerName: string, footballerId: number | null, nationality: string): Promise<VerifyResult> {
@@ -202,8 +202,7 @@ export function ForeignersPage() {
       } else {
         if (wrongTimer.current) clearTimeout(wrongTimer.current);
         const displayName = result.foundName ?? `"${name}"`;
-        const msg = result.reason === "not_retired" ? `Correct, but ${displayName} isn't retired yet!`
-          : result.reason === "wrong_club" ? `${displayName} didn't play for an English club`
+        const msg = result.reason === "wrong_club" ? `${displayName} didn't play for an English club`
           : result.reason === "wrong_nationality" ? (result.foundNationality ? `${displayName} is actually ${result.foundNationality}` : `${displayName} isn't ${currentRound.nationality}`)
           : `${displayName} is not a valid answer`;
         setWrongGuessMsg(msg);

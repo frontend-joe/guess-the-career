@@ -7,7 +7,9 @@ import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
-import { clubWikiUrl } from "../services/clubs.ts";
+import { clubWikiUrl, rebuildClubs } from "../services/clubs.ts";
+import { applyScrapeResult } from "../services/footballers.ts";
+import { setAppMeta } from "../services/appMeta.ts";
 
 // Family relations that are footballers, from the curated (included) football
 // family links — in either direction, with the relationship flipped for the
@@ -93,18 +95,6 @@ function parentClubBadgeUrl(club: string): string | null {
 }
 
 
-async function fetchSportsDbPhoto(name: string): Promise<string | null> {
-  try {
-    const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(name)}`, {
-      headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' },
-    })
-    const data = await res.json() as { player?: { strThumb?: string }[] }
-    return data?.player?.[0]?.strThumb ?? null
-  } catch {
-    return null
-  }
-}
-
 export const footballersRouter = new Hono()
 
 const stintSchema = z.object({
@@ -147,8 +137,9 @@ footballersRouter.get('/', async (c) => {
     conditions.push(sql`(${footballers.photo_url} IS NULL OR ${footballers.photo_url} = '')`)
   }
 
-  // Non-retired = has an active senior stint (years contains "present" or ends
-  // with a dash, e.g. "2021–"). Mirrors isRetired() in services/scraper.ts.
+  // Admin filter: "non-retired" = has an active senior stint (years contains
+  // "present" or ends with a dash, e.g. "2021–"). This is only a convenience
+  // filter for the footballer list — games no longer gate on retirement.
   if (nonRetired) {
     conditions.push(sql`EXISTS (
       SELECT 1 FROM career_stints cs
@@ -344,18 +335,8 @@ footballersRouter.get('/rescrape-all', async (c) => {
       try {
         const result = await scrapeWikipedia(player.url)
         const existing = await db.select({ photo_url: footballers.photo_url }).from(footballers).where(eq(footballers.id, player.id)).limit(1)
-        const photoUrl = existing[0]?.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(player.name)
 
-        await db.update(footballers)
-          .set({ name: result.name, nationality: result.nationality, full_name: result.full_name ?? null, birthplace: result.birthplace ?? null, position: result.position, all_positions: result.all_positions ?? null, style_of_play: result.style_of_play ?? null, born: result.born, height_cm: result.height_cm, photo_url: photoUrl, updated_at: sql`(datetime('now'))` })
-          .where(eq(footballers.id, player.id))
-
-        await db.delete(career_stints).where(eq(career_stints.footballer_id, player.id))
-        if (result.stints.length > 0) {
-          await db.insert(career_stints).values(
-            result.stints.map((s, i) => ({ ...s, sort_order: i, footballer_id: player.id }))
-          )
-        }
+        await applyScrapeResult(player.id, result, existing[0]?.photo_url ?? null)
 
         await stream.writeSSE({
           data: JSON.stringify({
@@ -373,6 +354,13 @@ footballersRouter.get('/rescrape-all', async (c) => {
       }
 
       await new Promise<void>(r => setTimeout(r, 1000))
+    }
+
+    // Only stamp a completed full rescrape (not an aborted one), then rebuild the
+    // clubs table from the freshly canonicalized stints and record the date.
+    if (!abortSignal.aborted) {
+      rebuildClubs()
+      setAppMeta('last_rescrape', new Date().toISOString().slice(0, 10))
     }
 
     await stream.writeSSE({ data: JSON.stringify({ type: 'complete' }) })
@@ -515,39 +503,7 @@ footballersRouter.post('/:id/rescrape', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
   const result = await scrapeWikipedia(existing.wikipedia_url)
-  const photoUrl = existing.photo_url ?? result.photo_url ?? await fetchSportsDbPhoto(result.name)
-
-  await db.update(footballers)
-    .set({
-      name: result.name,
-      nationality: result.nationality,
-      full_name: result.full_name ?? null,
-      birthplace: result.birthplace ?? null,
-      position: result.position,
-      all_positions: result.all_positions ?? null,
-      style_of_play: result.style_of_play ?? null,
-      born: result.born,
-      height_cm: result.height_cm,
-      photo_url: photoUrl,
-      honors_champions_league: result.honors_champions_league,
-      honors_fa_cup:           result.honors_fa_cup,
-      honors_league_cup:       result.honors_league_cup,
-      honors_club_world_cup:   result.honors_club_world_cup,
-      honors_world_cup:        result.honors_world_cup,
-      honors_euros:            result.honors_euros,
-      honors_copa_america:     result.honors_copa_america,
-      honors_ballon_dor:       result.honors_ballon_dor,
-      honors_world_player:     result.honors_world_player,
-      updated_at: sql`(datetime('now'))`,
-    })
-    .where(eq(footballers.id, id))
-
-  await db.delete(career_stints).where(eq(career_stints.footballer_id, id))
-  if (result.stints.length > 0) {
-    await db.insert(career_stints).values(
-      result.stints.map((s, i) => ({ ...s, sort_order: i, footballer_id: id }))
-    )
-  }
+  await applyScrapeResult(id, result, existing.photo_url)
 
   const [updated] = await db.select().from(footballers).where(eq(footballers.id, id)).limit(1)
   const stints = await db.select().from(career_stints).where(eq(career_stints.footballer_id, id))

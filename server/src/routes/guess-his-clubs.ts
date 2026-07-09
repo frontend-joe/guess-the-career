@@ -1,10 +1,13 @@
 import { Hono } from 'hono'
 import { sqlite } from '../db/client.ts'
+import { normalizeClubAlias } from '../services/scraper.ts'
 
 export const guessHisClubsRouter = new Hono()
 
+// Strip loan/→ markers AND collapse alias variants (e.g. "Borussia Dortmund" →
+// "Dortmund") so the same club isn't counted twice.
 function normalizeClubName(club: string): string {
-  return club.replace(/^→\s*/, '').replace(/\s*\(loan\)\s*$/i, '').trim()
+  return normalizeClubAlias(club)
 }
 
 function isReserveTeam(club: string): boolean {

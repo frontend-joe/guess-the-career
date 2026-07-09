@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
-import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia, isRetired } from '../services/scraper.ts'
+import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia } from '../services/scraper.ts'
 import { CAREER_SPAN_SELECT, formatCareerYears } from '../services/football.ts'
 
 export const twoClubsRouter = new Hono()
@@ -421,9 +421,6 @@ twoClubsRouter.post(
 
       if (!hasClub(stintClubs, clubA) || !hasClub(stintClubs, clubB)) {
         return c.json(fallbackInvalid ?? invalidJson(scraped.name, stintClubs))
-      }
-      if (!isRetired(scraped.stints)) {
-        return c.json({ valid: false, footballer: null, imported: false, foundName: scraped.name, reason: 'not_retired' as const })
       }
 
       // If we already have a record for this footballer (found by name in Step 2 or by URL above),

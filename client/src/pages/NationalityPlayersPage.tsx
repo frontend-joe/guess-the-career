@@ -307,7 +307,7 @@ interface VerifyResult {
   foundName?: string;
   foundNationality?: string | null;
   imported: boolean;
-  reason?: "not_retired" | "wrong_nationality" | "wrong_club" | "wrong_both";
+  reason?: "wrong_nationality" | "wrong_club" | "wrong_both";
 }
 
 async function verifyGuess(
@@ -496,9 +496,7 @@ export function NationalityPlayersPage() {
               result.foundNationality
             : null;
           const msg =
-            result.reason === "not_retired"
-              ? `Correct, but ${displayName} isn't retired yet!`
-              : result.reason === "wrong_nationality" && actualNat
+            result.reason === "wrong_nationality" && actualNat
                 ? `${displayName} is actually ${actualNat}`
                 : result.reason === "wrong_club"
                   ? `${displayName} didn't play for ${currentRound.club}`

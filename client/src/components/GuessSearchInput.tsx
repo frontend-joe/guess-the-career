@@ -2,15 +2,25 @@ import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, X, Info } from 'lucide-react'
 import { getFootballers, type Footballer } from '@/api/footballers'
+import { getLastRescrape } from '@/api/appMeta'
 import { useGuessSearch } from '@/hooks/useGuessSearch'
 
 export type GuessStatus = 'correct' | 'incorrect' | null
 
 const defaultSearch = (q: string) => getFootballers({ search: q })
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+// Format an ISO date (YYYY-MM-DD) as "Month YYYY". TZ-proof (no Date parsing).
+function formatAsOf(iso: string): string {
+  const [y, m] = iso.split('-').map(Number)
+  if (!y || !m || m < 1 || m > 12) return ''
+  return `${MONTHS[m - 1]} ${y}`
+}
+
 // Tap-to-toggle help bubble that sits just above the input (far right) and shows
 // a popover above it. Portaled to <body> so the footer can't clip it.
-function InfoBubble({ text }: { text: string }) {
+function InfoBubble({ text, asOf }: { text: string; asOf?: string }) {
   const ref = useRef<HTMLButtonElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
@@ -70,6 +80,11 @@ function InfoBubble({ text }: { text: string }) {
             </button>
           </div>
           {text}
+          {asOf && (
+            <div className="mt-2 text-xs text-gray-400">
+              Player statistics true as of {asOf}
+            </div>
+          )}
         </div>,
         document.body,
       )}
@@ -96,7 +111,7 @@ interface Props<T> {
   /** Optional external ref so the page can keep focusing the input (round changes, etc.). */
   inputRef?: React.RefObject<HTMLInputElement | null>
   /** When set, shows a help bubble above the input: true = "…can also add new
-   * players (…retired)", false = database-only. Omit to hide the bubble. */
+   * players (…that qualify)", false = database-only. Omit to hide the bubble. */
   autoScrape?: boolean
 }
 
@@ -117,6 +132,19 @@ export function GuessSearchInput<T = Footballer>({
 }: Props<T>) {
   const internalRef = useRef<HTMLInputElement>(null)
   const inputRef = externalRef ?? internalRef
+
+  // Load the "player statistics as of" date once (only when the rules bubble shows).
+  const [asOf, setAsOf] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    if (autoScrape === undefined) return
+    let cancelled = false
+    getLastRescrape()
+      .then(({ lastRescrape }) => {
+        if (!cancelled && lastRescrape) setAsOf(formatAsOf(lastRescrape) || undefined)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [autoScrape])
   const { query, suggestions, show, setShow, onChange, reset } = useGuessSearch<T>(
     search ?? (defaultSearch as unknown as (q: string) => Promise<T[]>),
     { limit, debounceMs },
@@ -159,9 +187,10 @@ export function GuessSearchInput<T = Footballer>({
     <div className="relative">
       {autoScrape !== undefined && (
         <InfoBubble
+          asOf={asOf}
           text={
             autoScrape
-              ? 'You can guess any player in our database, and can also add new players (as long as they qualify and are retired)'
+              ? 'You can guess any player in our database, and can also add new players (as long as they qualify)'
               : 'You can guess any player in our database'
           }
         />

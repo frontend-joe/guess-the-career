@@ -9,6 +9,7 @@ import { adminRouter } from './routes/admin.ts'
 import { managersRouter } from './routes/managers.ts'
 import { managerDaysRouter } from './routes/manager-days.ts'
 import { clubsRouter } from './routes/clubs.ts'
+import { appMetaRouter } from './routes/app-meta.ts'
 import { guessHisClubsRouter } from './routes/guess-his-clubs.ts'
 import { clubsInCommonRouter } from './routes/clubs-in-common.ts'
 import { whoScoredMoreRouter } from './routes/who-scored-more.ts'
@@ -71,6 +72,7 @@ app.route('/api/admin', adminRouter)
 app.route('/api/managers', managersRouter)
 app.route('/api/manager-days', managerDaysRouter)
 app.route('/api/clubs', clubsRouter)
+app.route('/api/app-meta', appMetaRouter)
 app.route('/api/guess-his-clubs', guessHisClubsRouter)
 app.route('/api/clubs-in-common', clubsInCommonRouter)
 app.route('/api/who-scored-more', whoScoredMoreRouter)

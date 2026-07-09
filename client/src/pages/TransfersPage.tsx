@@ -252,7 +252,7 @@ interface VerifyResult {
   footballer: { id: number; name: string; photo_url: string | null } | null;
   foundName?: string;
   imported: boolean;
-  reason?: "not_retired" | "no_transfer";
+  reason?: "no_transfer";
 }
 
 async function verifyGuess(
@@ -436,9 +436,7 @@ export function TransfersPage() {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
           const msg =
-            result.reason === "not_retired"
-              ? `Correct, but ${displayName} isn't retired yet!`
-              : result.reason === "no_transfer"
+            result.reason === "no_transfer"
                 ? `${displayName} didn't transfer ${currentRound.fromClub} → ${currentRound.toClub}`
                 : `${displayName} is not a valid answer`;
           setWrongGuessMsg(msg);

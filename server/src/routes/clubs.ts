@@ -3,6 +3,7 @@ import { asc, eq, sql, isNotNull } from 'drizzle-orm'
 import { db } from '../db/client.ts'
 import { clubs } from '../db/schema.ts'
 import { scrapeClubKitColours } from '../services/scraper.ts'
+import { rebuildClubs } from '../services/clubs.ts'
 
 export const clubsRouter = new Hono()
 
@@ -56,23 +57,10 @@ clubsRouter.delete('/', async (c) => {
   return c.json({ ok: true })
 })
 
-// POST /api/clubs/rebuild — re-seed clubs from footballer senior career stints (reserve teams excluded)
-clubsRouter.post('/rebuild', async (c) => {
-  await db.run(sql`
-    INSERT INTO clubs (name, wikipedia_url)
-    SELECT
-      TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) AS norm_name,
-      MIN(club_wikipedia_url) AS wiki_url
-    FROM career_stints
-    WHERE stint_type = 'senior'
-      AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% B'
-      AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% C'
-      AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) NOT LIKE '% II'
-      AND TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')) != 'Bilbao Athletic'
-    GROUP BY LOWER(TRIM(REPLACE(REPLACE(REPLACE(club, '→ ', ''), ' (loan)', ''), '(loan)', '')))
-    ON CONFLICT(name) DO UPDATE SET wikipedia_url = COALESCE(excluded.wikipedia_url, clubs.wikipedia_url)
-  `)
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(clubs)
+// POST /api/clubs/rebuild — re-seed clubs from footballer senior career stints
+// (reserve teams excluded), collapsing alias variants into one canonical row.
+clubsRouter.post('/rebuild', (c) => {
+  const count = rebuildClubs()
   return c.json({ count })
 })
 

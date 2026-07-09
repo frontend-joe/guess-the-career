@@ -23,7 +23,7 @@ knowYourClubRouter.get('/clubs', (c) => {
   const clubs = sqlite.prepare(`
     SELECT c.id, c.name, c.wikipedia_url, COUNT(DISTINCT cs.footballer_id) AS player_count
     FROM clubs c
-    JOIN career_stints cs ON cs.club = c.name
+    JOIN career_stints cs ON normalize_club_alias(cs.club) = normalize_club_alias(c.name)
     JOIN footballers f ON cs.footballer_id = f.id
     WHERE f.photo_url IS NOT NULL
       AND cs.stint_type = 'senior'
@@ -58,7 +58,7 @@ knowYourClubRouter.get('/session', (c) => {
     SELECT DISTINCT f.id, f.name, f.photo_url, f.nationality
     FROM footballers f
     JOIN career_stints cs ON cs.footballer_id = f.id
-    WHERE cs.club = ?
+    WHERE normalize_club_alias(cs.club) = normalize_club_alias(?)
       AND cs.stint_type = 'senior'
       AND f.photo_url IS NOT NULL
     ORDER BY RANDOM()
@@ -73,7 +73,7 @@ knowYourClubRouter.get('/session', (c) => {
     SELECT COUNT(DISTINCT f.id) AS player_count
     FROM footballers f
     JOIN career_stints cs ON cs.footballer_id = f.id
-    WHERE cs.club = ?
+    WHERE normalize_club_alias(cs.club) = normalize_club_alias(?)
       AND cs.stint_type = 'senior'
       AND f.photo_url IS NOT NULL
   `).get(club.name) as { player_count: number }

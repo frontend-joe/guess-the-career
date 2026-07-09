@@ -7,7 +7,6 @@ import { footballers, career_stints } from "../db/schema.ts";
 import {
   normalizeClubAlias,
   scrapeWikipedia,
-  isRetired,
 } from "../services/scraper.ts";
 import { clubWikiUrl } from "../services/clubs.ts";
 
@@ -604,14 +603,6 @@ transfersRouter.post(
             reason: "no_transfer",
           };
           continue;
-        }
-        if (!isRetired(scraped.stints)) {
-          return c.json({
-            valid: false,
-            foundName: scraped.name,
-            imported: false,
-            reason: "not_retired" as const,
-          });
         }
 
         // Qualifies + retired — update an existing record (matched by URL) or insert.

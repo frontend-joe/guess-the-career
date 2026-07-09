@@ -256,9 +256,7 @@ export function TwoClubsPage() {
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current)
           const displayName = result.foundName ?? `"${name}"`
-          const msg = result.reason === 'not_retired'
-            ? `Correct, but ${displayName} isn't retired yet!`
-            : result.missingClubs && result.missingClubs.length > 0
+          const msg = result.missingClubs && result.missingClubs.length > 0
               ? `${displayName} didn't play for ${result.missingClubs.join(' or ')}`
               : `${displayName} didn't play for both clubs`
           setWrongGuess(msg)

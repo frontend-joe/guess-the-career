@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as schema from './schema.ts'
+import { normalizeClubAlias } from '../services/scraper.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -31,6 +32,15 @@ export function normalizeName(s: string): string {
 sqlite.function('normalize', (s: unknown) => {
   if (typeof s !== 'string') return s
   return normalizeName(s)
+})
+
+// Canonicalize a club name in SQL (strips loan/→ markers and applies the club
+// alias map, e.g. "Borussia Dortmund" → "Dortmund", "Internazionale" → "Inter
+// Milan"). Lets raw-SQL games/rebuilds collapse the same club stored under
+// different names. Mirrors normalizeClubAlias() in services/scraper.ts.
+sqlite.function('normalize_club_alias', (s: unknown) => {
+  if (typeof s !== 'string') return s
+  return normalizeClubAlias(s)
 })
 
 export const db = drizzle(sqlite, { schema })

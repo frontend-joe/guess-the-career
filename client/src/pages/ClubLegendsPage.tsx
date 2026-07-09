@@ -220,7 +220,7 @@ interface VerifyResult {
   foundName?: string;
   appsAtClub?: number;
   imported: boolean;
-  reason?: "not_retired" | "wrong_club" | "not_enough_apps";
+  reason?: "wrong_club" | "not_enough_apps";
 }
 
 async function verifyGuess(
@@ -392,9 +392,7 @@ export function ClubLegendsPage() {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
           const msg =
-            result.reason === "not_retired"
-              ? `Correct, but ${displayName} isn't retired yet!`
-              : result.reason === "not_enough_apps"
+            result.reason === "not_enough_apps"
                 ? `${displayName} has only ${result.appsAtClub ?? 0} apps for ${currentRound.club}`
                 : result.reason === "wrong_club"
                   ? `${displayName} didn't even play for ${currentRound.club}`

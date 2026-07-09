@@ -4,7 +4,7 @@ import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { db, sqlite, normalizeName } from "../db/client.ts";
 import { footballers, career_stints } from "../db/schema.ts";
-import { normalizeClubAlias, scrapeWikipedia, isRetired } from "../services/scraper.ts";
+import { normalizeClubAlias, scrapeWikipedia } from "../services/scraper.ts";
 import {
   getClubVariants,
   hasClub,
@@ -525,9 +525,6 @@ clubForeignersRouter.post(
         if (!isForeign(scraped.nationality)) {
           fallback ??= { valid: false, foundName: scraped.name, imported: false, reason: "home_nation" };
           continue;
-        }
-        if (!isRetired(scraped.stints)) {
-          return c.json({ valid: false, foundName: scraped.name, imported: false, reason: "not_retired" });
         }
 
         if (byUrl) {

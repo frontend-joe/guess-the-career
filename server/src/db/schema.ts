@@ -475,3 +475,10 @@ export const transfers_schedule = sqliteTable('transfers_schedule', {
 
 export type TransfersEnabledPair = typeof transfers_enabled_pairs.$inferSelect
 export type TransfersScheduleEntry = typeof transfers_schedule.$inferSelect
+
+// Global key/value app metadata (e.g. last_rescrape = the date of the last full
+// player rescrape).
+export const app_meta = sqliteTable('app_meta', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+})

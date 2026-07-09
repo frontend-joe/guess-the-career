@@ -8,7 +8,6 @@ import {
   CLUB_ALIASES,
   normalizeClubAlias,
   scrapeWikipedia,
-  isRetired,
 } from "../services/scraper.ts";
 
 export const nationalsRouter = new Hono();
@@ -805,15 +804,6 @@ nationalsRouter.post(
             stintClubs,
           );
           continue;
-        }
-        if (!isRetired(scraped.stints)) {
-          return c.json({
-            valid: false,
-            foundName: scraped.name,
-            foundNationality: null,
-            imported: false,
-            reason: "not_retired" as const,
-          });
         }
 
         const knownRecord = byUrl ?? footballer;

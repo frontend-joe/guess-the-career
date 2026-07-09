@@ -220,7 +220,7 @@ interface VerifyResult {
   foundName?: string;
   goalsAtClub?: number;
   imported: boolean;
-  reason?: "not_retired" | "wrong_club" | "not_enough_goals";
+  reason?: "wrong_club" | "not_enough_goals";
 }
 
 async function verifyGuess(
@@ -392,9 +392,7 @@ export function ClubMarksmanPage() {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
           const msg =
-            result.reason === "not_retired"
-              ? `Correct, but ${displayName} isn't retired yet!`
-              : result.reason === "not_enough_goals"
+            result.reason === "not_enough_goals"
                 ? `${displayName} has only ${result.goalsAtClub ?? 0} goals for ${currentRound.club}`
                 : result.reason === "wrong_club"
                   ? `${displayName} didn't even play for ${currentRound.club}`

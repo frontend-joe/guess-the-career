@@ -8,7 +8,6 @@ import {
   CLUB_ALIASES,
   normalizeClubAlias,
   scrapeWikipedia,
-  isRetired,
 } from "../services/scraper.ts";
 import { clubWikiUrl } from "../services/clubs.ts";
 
@@ -587,14 +586,6 @@ clubLegendsRouter.post(
         if (!checkQualifies(scrapedStints)) {
           fallbackInvalid ??= invalidJson(scraped.name, scrapedStints);
           continue;
-        }
-        if (!isRetired(scraped.stints)) {
-          return c.json({
-            valid: false,
-            foundName: scraped.name,
-            imported: false,
-            reason: "not_retired" as const,
-          });
         }
 
         const knownRecord = byUrl ?? footballer;
