@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Shuffle,
+  Plus,
 } from "lucide-react";
 import { GameMenu } from "@/components/GameMenu";
 import {
@@ -699,8 +700,9 @@ export function NationalityPlayersPage() {
             {currentRound && !compact && (
               <GameHeader
                 image={
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <CrestBadge name={currentRound.nationality} />
+                    <Plus size={14} className="text-gray-400 shrink-0" />
                     <CrestBadge
                       name={currentRound.club}
                       wikipediaUrl={currentRound.clubWikiUrl}
