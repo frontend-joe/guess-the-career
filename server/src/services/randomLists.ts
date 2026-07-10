@@ -261,10 +261,10 @@ export const LIST_DEFS: ListDef[] = [
   {
     id: "under-5ft7",
     title: "Pocket rockets",
-    subtitle: "Players 5'7\" (170cm) and under",
+    subtitle: "Players 5'6\" (168cm) and under",
     derive() {
       return allFootballers()
-        .filter((f) => f.height_cm != null && f.height_cm <= 170)
+        .filter((f) => f.height_cm != null && f.height_cm <= 168)
         .sort((a, b) => (a.height_cm! - b.height_cm!) || a.name.localeCompare(b.name))
         .map((f) => ({ ...base(f), stat: heightLabel(f.height_cm!) }));
     },
