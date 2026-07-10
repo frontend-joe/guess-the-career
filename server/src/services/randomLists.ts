@@ -113,13 +113,33 @@ function heightLabel(cm: number): string {
 // ── Name dictionaries (seed lists — refine over time) ─────────────────────────
 // Matched as a substring of any alphabetic token in the player's name.
 
+// Standard British wildlife (plus a few classic animals), matched as a substring
+// of a name token. Very short / high-collision words (rat, bat, owl, eel, cod,
+// ray, bee, ant, ox, mole, boar, newt, adder, moth, lark, dove, gull, tern) are
+// intentionally omitted — they mostly produce false positives. Refine over time.
 const ANIMAL_WORDS = [
-  "fish", "fox", "wolf", "bull", "lamb", "hart", "swan", "crane", "sparrow", "frog",
-  "finch", "heron", "badger", "colt", "buck", "bird", "hawk", "crow", "drake",
-  "robin", "starling", "wren", "peacock", "nightingale", "falcon",
-  "eagle", "lion", "bear", "stag", "roe", "pigeon", "swift", "rook",
-  "kite", "mallard", "partridge", "doe", "salmon", "pike", "seal",
-  "hare", "crab", "raven", "gander", "bunny", "kestrel",
+  // mammals
+  "fox", "wolf", "badger", "otter", "stoat", "weasel", "hare", "rabbit",
+  "hedgehog", "shrew", "squirrel", "deer", "stag", "roe", "buck", "fawn",
+  "seal", "ferret", "mink", "polecat", "bull", "lamb", "hart", "doe", "bunny",
+  "colt", "bear", "dormouse",
+  // birds
+  "sparrow", "finch", "wren", "crow", "rook", "raven", "magpie", "jay",
+  "jackdaw", "starling", "swift", "swallow", "swan", "drake", "mallard",
+  "goose", "gander", "heron", "crane", "hawk", "kestrel", "falcon", "buzzard",
+  "kite", "eagle", "pigeon", "partridge", "pheasant", "grouse", "woodcock",
+  "snipe", "thrush", "blackbird", "robin", "nightingale", "peacock", "cuckoo",
+  "plover", "curlew", "lapwing", "moorhen", "wagtail", "goldfinch", "bullfinch",
+  "greenfinch", "kingfisher", "woodpecker", "nuthatch", "gannet", "cormorant",
+  "puffin", "guillemot", "oystercatcher", "sandpiper", "stonechat", "linnet",
+  "rook", "kestrel", "lion", "bird",
+  // fish
+  "fish", "salmon", "pike", "trout", "perch", "roach", "bream", "tench",
+  "herring", "haddock", "plaice", "minnow", "mackerel",
+  // amphibians / reptiles
+  "frog", "toad", "lizard",
+  // invertebrates
+  "crab", "wasp", "beetle", "spider", "snail",
 ];
 
 // Note: short colours like "red"/"amber" are omitted from the seed because they
