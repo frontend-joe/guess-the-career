@@ -90,7 +90,9 @@ const isCentreBack = (p: string | null) =>
   /cent(re|er)[ -]?back/.test(lc(p)) ||
   lc(p).includes("central defender") ||
   /cent(re|er)[ -]?half/.test(lc(p));
-const isMidfielder = (p: string | null) => lc(p).includes("midfield");
+// A pure midfielder — has "midfield" but is not also listed as a forward/striker.
+const isMidfielder = (p: string | null) =>
+  lc(p).includes("midfield") && !lc(p).includes("forward") && !lc(p).includes("striker");
 const isDefender = (p: string | null) => {
   const s = lc(p);
   const def =
