@@ -312,15 +312,16 @@ export function UncappedPlayersPage() {
       ) : (
         <>
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
-            {currentRound && !compact && (
+            {currentRound && (
               <GameHeader
+                compact={compact}
                 image={flagUrl ? <div className="p-2"><img src={flagUrl} alt={currentRound.nationality} className="w-10 h-10 object-cover rounded-lg border border-gray-200" /></div> : undefined}
                 title={currentRound.nationality}
                 subtitle={`Uncapped ${currentRound.nationality} players`}
               />
             )}
             {currentRound && (
-              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3`}>
                 {players === null ? (
                   <div className="flex items-center justify-center py-8"><Loader2 className="animate-spin text-gray-300" size={22} /></div>
                 ) : (

@@ -391,8 +391,9 @@ export function ThreeClubsPage() {
         <>
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
-            {currentRound && !compact && (
+            {currentRound && (
               <GameHeader
+                compact={compact}
                 center
                 image={
                   <div className="flex items-center gap-1">
@@ -407,7 +408,7 @@ export function ThreeClubsPage() {
               />
             )}
             {currentRound && (
-              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3`}>
                 {/* player slots */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">

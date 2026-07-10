@@ -20,16 +20,19 @@ export default function GameHeader({
   subtitle,
   difficulty,
   center = false,
+  compact = false,
 }: {
   image?: ReactNode;
   title?: ReactNode;
   subtitle?: ReactNode;
   difficulty?: Difficulty;
   center?: boolean;
+  /** In admin compact mode, sit the header (and the list below it) at the bottom. */
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`relative flex items-center gap-3 px-4 py-3 min-h-18 bg-white border-b border-gray-200 overflow-hidden ${center ? "justify-center" : ""}`}
+      className={`relative flex items-center gap-3 px-4 py-3 min-h-18 bg-white border-b border-gray-200 overflow-hidden ${center ? "justify-center " : ""}${compact ? "mt-auto" : ""}`}
     >
       {image && <div className="shrink-0 flex items-center">{image}</div>}
       {(title || subtitle) && (

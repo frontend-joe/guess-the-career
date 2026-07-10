@@ -280,14 +280,15 @@ export function TransferHistoryPage() {
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
           <>
-            {!compact && (
+            {(
               <GameHeader
+                compact={compact}
                 center
                 title={currentRound.league}
                 subtitle={`${currentRound.seasonLabel} transfers`}
               />
             )}
-            <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
+            <div className={`px-3 pt-4 pb-2`}>
             {/* Transfer list */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               {currentRound.transfers.map((t, i) => {

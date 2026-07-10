@@ -379,8 +379,9 @@ export function GuessTheXiPage() {
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
           <>
-            {!compact && (
+            {(
               <GameHeader
+                compact={compact}
                 image={
                   <CrestBadge
                     name={currentRound.team}
@@ -409,7 +410,7 @@ export function GuessTheXiPage() {
                 }
               />
             )}
-            <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
+            <div className={`px-3 pt-4 pb-2`}>
             {/* Player list */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               {currentRound.players.map((player, i) => {

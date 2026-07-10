@@ -316,8 +316,9 @@ export function BallonDorPage() {
 
         {!loading && !error && !showProgress && currentRound && (
           <>
-            {!compact && (
+            {(
               <GameHeader
+                compact={compact}
                 image={
                   <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden">
                     <img src="/ballon-dor.png" alt="Ballon d'Or" className="w-full h-full object-cover" />
@@ -327,7 +328,7 @@ export function BallonDorPage() {
                 subtitle="Ballon d'or Rankings"
               />
             )}
-            <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
+            <div className={`px-3 pt-4 pb-2`}>
             {/* Players table */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               <table className="w-full">

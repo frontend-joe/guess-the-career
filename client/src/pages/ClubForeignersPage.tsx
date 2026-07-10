@@ -470,8 +470,9 @@ export function ClubForeignersPage() {
       ) : (
         <>
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
-            {currentRound && !compact && (
+            {currentRound && (
               <GameHeader
+                compact={compact}
                 image={<CrestBadge name={currentRound.club} wikipediaUrl={currentRound.clubWikiUrl} />}
                 title={currentRound.club}
                 subtitle={`A player from ${target} different nationalities`}
@@ -485,7 +486,7 @@ export function ClubForeignersPage() {
               />
             )}
             {currentRound && (
-              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3`}>
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="animate-spin text-gray-300" size={22} />

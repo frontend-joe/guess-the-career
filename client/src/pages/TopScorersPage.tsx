@@ -351,8 +351,9 @@ export function TopScorersPage() {
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
           <>
-            {!compact && (
+            {(
               <GameHeader
+                compact={compact}
                 image={
                   <CrestBadge
                     name={currentRound.competitionName}
@@ -363,7 +364,7 @@ export function TopScorersPage() {
                 subtitle="Top Scorers"
               />
             )}
-            <div className={`px-3 pt-4 pb-2${compact ? " mt-auto" : ""}`}>
+            <div className={`px-3 pt-4 pb-2`}>
             {/* Scorers table */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
               <table className="w-full">

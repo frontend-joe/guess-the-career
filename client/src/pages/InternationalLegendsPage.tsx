@@ -563,8 +563,9 @@ export function InternationalLegendsPage() {
         <>
           {/* ── Body ── */}
           <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
-            {currentRound && !compact && (
+            {currentRound && (
               <GameHeader
+                compact={compact}
                 image={<HeaderFlag nationality={currentRound.country} />}
                 title={currentRound.country}
                 subtitle="Players with 50+ caps"
@@ -578,7 +579,7 @@ export function InternationalLegendsPage() {
               />
             )}
             {currentRound && (
-              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3${compact ? " mt-auto" : ""}`}>
+              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3`}>
                 {/* Player slots */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">
