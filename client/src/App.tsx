@@ -81,6 +81,9 @@ import { NationalsSchedulePage } from '@/pages/NationalsSchedulePage'
 import { ClubLegendsPage } from '@/pages/ClubLegendsPage'
 import { ClubLegendsAdminPage } from '@/pages/ClubLegendsAdminPage'
 import { ClubLegendsSchedulePage } from '@/pages/ClubLegendsSchedulePage'
+import { RandomListsPage } from '@/pages/RandomListsPage'
+import { RandomListsAdminPage } from '@/pages/RandomListsAdminPage'
+import { RandomListsSchedulePage } from '@/pages/RandomListsSchedulePage'
 import { ClubMarksmanPage } from '@/pages/ClubMarksmanPage'
 import { ClubMarksmanAdminPage } from '@/pages/ClubMarksmanAdminPage'
 import { ClubMarksmanSchedulePage } from '@/pages/ClubMarksmanSchedulePage'
@@ -142,6 +145,7 @@ const router = createBrowserRouter([
   { path: '/play/bookends', element: <BookendsPage /> },
   { path: '/play/uncapped-players', element: <UncappedPlayersPage /> },
   { path: '/play/club-legends', element: <ClubLegendsPage /> },
+  { path: '/play/random-lists', element: <RandomListsPage /> },
   { path: '/play/club-marksman', element: <ClubMarksmanPage /> },
   { path: '/play/international-legends', element: <InternationalLegendsPage /> },
   { path: '/play/international-marksman', element: <InternationalMarksmanPage /> },
@@ -207,6 +211,8 @@ const router = createBrowserRouter([
       { path: 'nationals/:nationality/:club', element: <NationalsAdminDetailPage /> },
       { path: 'club-legends', element: <ClubLegendsAdminPage /> },
       { path: 'club-legends/schedule', element: <ClubLegendsSchedulePage /> },
+      { path: 'random-lists', element: <RandomListsAdminPage /> },
+      { path: 'random-lists/schedule', element: <RandomListsSchedulePage /> },
       { path: 'club-marksman', element: <ClubMarksmanAdminPage /> },
       { path: 'club-marksman/schedule', element: <ClubMarksmanSchedulePage /> },
       { path: 'international-legends', element: <InternationalLegendsAdminPage /> },

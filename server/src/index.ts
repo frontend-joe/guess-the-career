@@ -46,6 +46,7 @@ import { footballFamiliesRouter } from './routes/football-families.ts'
 import { bookendsRouter } from './routes/bookends.ts'
 import { uncappedRouter } from './routes/uncapped-players.ts'
 import { clubLegendsRouter } from './routes/club-legends.ts'
+import { randomListsRouter } from './routes/random-lists.ts'
 import { clubMarksmanRouter } from './routes/club-marksman.ts'
 import { internationalLegendsRouter } from './routes/international-legends.ts'
 import { internationalMarksmanRouter } from './routes/international-marksman.ts'
@@ -109,6 +110,7 @@ app.route('/api/football-families', footballFamiliesRouter)
 app.route('/api/bookends', bookendsRouter)
 app.route('/api/uncapped-players', uncappedRouter)
 app.route('/api/club-legends', clubLegendsRouter)
+app.route('/api/random-lists', randomListsRouter)
 app.route('/api/club-marksman', clubMarksmanRouter)
 app.route('/api/international-legends', internationalLegendsRouter)
 app.route('/api/international-marksman', internationalMarksmanRouter)

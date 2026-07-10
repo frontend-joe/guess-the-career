@@ -482,3 +482,24 @@ export const app_meta = sqliteTable('app_meta', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 })
+
+// ── Random Lists game ─────────────────────────────────────────────────────────
+// Per-list admin config: how many to guess (target) + whether it can be
+// scheduled. The lists themselves are static config in services/randomLists.ts.
+export const random_lists_config = sqliteTable('random_lists_config', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  list_id: text('list_id').notNull().unique(),
+  target: integer('target'),
+  enabled: integer('enabled').notNull().default(1),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const random_lists_schedule = sqliteTable('random_lists_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  list_id: text('list_id').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type RandomListsConfig = typeof random_lists_config.$inferSelect
+export type RandomListsScheduleEntry = typeof random_lists_schedule.$inferSelect

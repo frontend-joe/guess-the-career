@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, Languages, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, Languages, ListChecks, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -37,6 +37,7 @@ export const GATED_GAMES: Game[] = [
   { name: "Ballon d'Or", pitch: 'Name every player in the running for football’s biggest prize.', to: '/play/ballon-dors', icon: Globe },
   { name: 'World Cup', pitch: 'Recall the squads that went to the World Cup.', to: '/play/world-cup', icon: Trophy },
   { name: 'Club Legends', pitch: 'Name the cult heroes with 100+ appearances.', to: '/play/club-legends', icon: Star },
+  { name: 'Random Lists', pitch: 'Name the players on each bespoke list.', to: '/play/random-lists', icon: ListChecks },
   { name: 'Club Marksman', pitch: 'Name the deadly strikers with 50+ goals for a club.', to: '/play/club-marksman', icon: Target },
   { name: 'International Legends', pitch: 'Name the players with 50+ caps for a country.', to: '/play/international-legends', icon: Award },
   { name: 'International Marksman', pitch: 'Name the players with 25+ international goals.', to: '/play/international-marksman', icon: Goal },
