@@ -118,7 +118,7 @@ const ANIMAL_WORDS = [
   "finch", "heron", "badger", "colt", "buck", "bird", "hawk", "crow", "drake",
   "robin", "starling", "wren", "peacock", "nightingale", "falcon",
   "eagle", "lion", "bear", "stag", "roe", "pigeon", "swift", "rook",
-  "kite", "mallard", "partridge", "hind", "doe", "salmon", "pike", "seal",
+  "kite", "mallard", "partridge", "doe", "salmon", "pike", "seal",
   "hare", "crab", "raven", "gander", "bunny", "kestrel",
 ];
 
