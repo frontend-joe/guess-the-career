@@ -114,7 +114,7 @@ function heightLabel(cm: number): string {
 // Matched as a substring of any alphabetic token in the player's name.
 
 const ANIMAL_WORDS = [
-  "fish", "fox", "wolf", "bull", "lamb", "hart", "swan", "crane", "sparrow",
+  "fish", "fox", "wolf", "bull", "lamb", "hart", "swan", "crane", "sparrow", "frog",
   "finch", "heron", "badger", "colt", "buck", "bird", "hawk", "crow", "drake",
   "robin", "starling", "wren", "peacock", "nightingale", "falcon",
   "eagle", "lion", "bear", "stag", "roe", "pigeon", "swift", "rook",
