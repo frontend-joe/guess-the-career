@@ -200,6 +200,18 @@ const AFRICA_NATIONS = new Set(
 );
 const isAfrican = (nat: string | null) => !!nat && AFRICA_NATIONS.has(nat.trim().toLowerCase());
 
+// South America (CONMEBOL) nationalities, matched against the stored noun/demonym.
+const SOUTH_AMERICA_NATIONS = new Set(
+  [
+    "Brazil", "Brazilian", "Argentina", "Argentine", "Argentinian",
+    "Uruguay", "Uruguayan", "Colombia", "Colombian", "Chile", "Chilean",
+    "Peru", "Peruvian", "Paraguay", "Paraguayan", "Ecuador", "Ecuadorian",
+    "Bolivia", "Bolivian", "Venezuela", "Venezuelan",
+  ].map((n) => n.toLowerCase()),
+);
+const isSouthAmerican = (nat: string | null) =>
+  !!nat && SOUTH_AMERICA_NATIONS.has(nat.trim().toLowerCase());
+
 // ── The 10 lists ──────────────────────────────────────────────────────────────
 
 // Build Candidates for every footballer in the DB.
@@ -272,6 +284,9 @@ export const LIST_DEFS: ListDef[] = [
     metric: (c) => c.seniorGoals, dir: "desc", stat: (c) => `${c.seniorGoals} goals` },
   { id: "africans-in-england", title: "Africans in England", subtitle: "African players who played in England",
     qualifies: (c) => isAfrican(c.nationality) && c.playedInEngland,
+    metric: (c) => c.seniorApps, dir: "desc", stat: appsStat },
+  { id: "south-americans-in-england", title: "South Americans in England", subtitle: "South American players who played in England",
+    qualifies: (c) => isSouthAmerican(c.nationality) && c.playedInEngland,
     metric: (c) => c.seniorApps, dir: "desc", stat: appsStat },
   { id: "animal-names", title: "An animal in their name", subtitle: "Players with an animal hiding in their name",
     qualifies: (c) => nameMatches(c.name, ANIMAL_WORDS),
