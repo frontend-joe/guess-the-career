@@ -105,10 +105,12 @@ function englishClubPlayers(): Set<number> {
 const lc = (s: string | null) => (s ?? "").toLowerCase();
 const isFullBack = (p: string | null) =>
   /\b(full|right|left|wing)[ -]?back\b/.test(lc(p)) || lc(p).includes("wingback");
-const isCentreBack = (p: string | null) =>
-  /cent(re|er)[ -]?back/.test(lc(p)) ||
-  lc(p).includes("central defender") ||
-  /cent(re|er)[ -]?half/.test(lc(p));
+// Primary position must be centre-back — the position string has to START with
+// it, so "Left-back, centre-back" is excluded but "Centre-back, left-back" isn't.
+const isCentreBack = (p: string | null) => {
+  const s = lc(p).trim();
+  return /^cent(re|er)[ -]?back/.test(s) || s.startsWith("central defender") || /^cent(re|er)[ -]?half/.test(s);
+};
 // A pure midfielder — has "midfield" but is not also listed as a forward/striker.
 const isMidfielder = (p: string | null) =>
   lc(p).includes("midfield") && !lc(p).includes("forward") && !lc(p).includes("striker");
