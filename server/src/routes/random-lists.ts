@@ -1,8 +1,19 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { sqlite } from "../db/client.ts";
-import { deriveList, getListDef, listSummaries } from "../services/randomLists.ts";
+import { eq, sql } from "drizzle-orm";
+import { db, sqlite, normalizeName } from "../db/client.ts";
+import { footballers } from "../db/schema.ts";
+import { scrapeWikipedia } from "../services/scraper.ts";
+import { applyScrapeResult } from "../services/footballers.ts";
+import {
+  deriveList,
+  getListDef,
+  listSummaries,
+  candidateFromScrape,
+  qualifyCandidate,
+  type ListPlayer,
+} from "../services/randomLists.ts";
 
 export const randomListsRouter = new Hono();
 
@@ -170,3 +181,123 @@ randomListsRouter.get("/answers", (c) => {
   if (players === null) return c.json({ error: "list required" }, 400);
   return c.json(players);
 });
+
+// ── Verify a guess (with Wikipedia auto-scrape for unknown players) ───────────
+
+interface VerifyResult {
+  valid: boolean;
+  footballer: ListPlayer | null;
+  foundName?: string;
+  imported: boolean;
+}
+
+const invalid = (foundName?: string): VerifyResult => ({ valid: false, footballer: null, foundName, imported: false });
+
+// POST /api/random-lists/verify { name, listId }
+randomListsRouter.post(
+  "/verify",
+  zValidator("json", z.object({ name: z.string().min(1), listId: z.string().min(1) })),
+  async (c) => {
+    const { name, listId } = c.req.valid("json");
+    if (!getListDef(listId)) return c.json(invalid());
+
+    const inList = (id: number): ListPlayer | null =>
+      (deriveList(listId) ?? []).find((p) => p.id === id) ?? null;
+
+    // Step 1 — resolve a known footballer by name.
+    const known = await db
+      .select({ id: footballers.id, name: footballers.name, wikipedia_url: footballers.wikipedia_url, photo_url: footballers.photo_url })
+      .from(footballers)
+      .where(sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${name}))`)
+      .limit(1)
+      .then((r) => r[0]);
+
+    if (known) {
+      const hit = inList(known.id);
+      if (hit) return c.json({ valid: true, footballer: hit, imported: false });
+
+      // Data may be stale (e.g. missing height / caps) — rescrape once and recheck.
+      if (known.wikipedia_url) {
+        try {
+          const scraped = await scrapeWikipedia(known.wikipedia_url);
+          await applyScrapeResult(known.id, scraped, known.photo_url);
+          const after = inList(known.id);
+          if (after) return c.json({ valid: true, footballer: after, imported: true });
+        } catch { /* fall through */ }
+      }
+      return c.json(invalid(known.name));
+    }
+
+    // Step 2 — not in DB: search Wikipedia, scrape candidates, import if they qualify.
+    try {
+      const wikiHeaders = { "User-Agent": "GuessTheCareer-Admin/1.0" };
+      const nameParts = normalizeName(name).split(/\s+/).filter((p) => p.length > 2);
+      const titleMatches = (title: string) => {
+        const t = normalizeName(title);
+        return nameParts.length > 0 && nameParts.every((p) => t.includes(p));
+      };
+      async function wikiSearch(query: string): Promise<string[]> {
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=5`;
+        const res = await fetch(url, { headers: wikiHeaders });
+        if (!res.ok) return [];
+        const data = (await res.json()) as { query?: { search?: { title: string }[] } };
+        return (data.query?.search ?? []).map((s) => s.title);
+      }
+
+      const titles: string[] = [];
+      for (const q of [`${name} footballer`, name]) {
+        for (const title of await wikiSearch(q)) {
+          if (titleMatches(title) && !titles.includes(title)) titles.push(title);
+        }
+      }
+      if (titles.length === 0) return c.json(invalid());
+
+      let fallbackName: string | undefined;
+      for (const title of titles.slice(0, 6)) {
+        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+        await new Promise((r) => setTimeout(r, 300));
+
+        let scraped;
+        try {
+          scraped = await scrapeWikipedia(wikiUrl);
+        } catch {
+          continue;
+        }
+
+        const cand = candidateFromScrape(scraped);
+        if (!qualifyCandidate(listId, cand)) {
+          fallbackName ??= scraped.name;
+          continue;
+        }
+
+        // Qualifies — import (update if we already hold this Wikipedia URL, else insert).
+        const existing = await db
+          .select({ id: footballers.id, photo_url: footballers.photo_url })
+          .from(footballers)
+          .where(eq(footballers.wikipedia_url, scraped.wikipedia_url))
+          .limit(1)
+          .then((r) => r[0]);
+
+        let id: number;
+        if (existing) {
+          id = existing.id;
+          await applyScrapeResult(id, scraped, existing.photo_url);
+        } else {
+          const [inserted] = await db
+            .insert(footballers)
+            .values({ name: scraped.name, wikipedia_url: scraped.wikipedia_url })
+            .returning({ id: footballers.id });
+          id = inserted.id;
+          await applyScrapeResult(id, scraped, null);
+        }
+
+        const player = inList(id);
+        if (player) return c.json({ valid: true, footballer: player, imported: true });
+      }
+
+      return c.json(invalid(fallbackName));
+    } catch {
+      return c.json(invalid());
+    }
+  },
+);

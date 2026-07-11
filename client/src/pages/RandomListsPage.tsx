@@ -142,6 +142,29 @@ interface RoundState {
   wrongGuesses: Set<string>;
 }
 
+// ─── Verify (Wikipedia auto-scrape for players not already in the pool) ─────────
+
+interface VerifyResult {
+  valid: boolean;
+  footballer: Player | null;
+  foundName?: string;
+  imported: boolean;
+}
+
+async function verifyGuess(name: string, listId: string): Promise<VerifyResult> {
+  try {
+    const res = await fetch("/api/random-lists/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, listId }),
+    });
+    if (!res.ok) return { valid: false, footballer: null, imported: false };
+    return await res.json();
+  } catch {
+    return { valid: false, footballer: null, imported: false };
+  }
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function RandomListsPage() {
@@ -155,6 +178,7 @@ export function RandomListsPage() {
   const [showProgress, setShowProgress] = useState(false);
   const [progressSearch, setProgressSearch] = useState("");
   const [wrongGuessMsg, setWrongGuessMsg] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -218,9 +242,12 @@ export function RandomListsPage() {
     }
   }, [roundIndex, loading, error, rounds.length, showProgress]);
 
-  // ── Submit guess (pure client-side — pool is the full answer set) ──────────
-  function submitGuess(name: string) {
-    if (!currentState || !currentKey || !currentRound) return;
+  // ── Submit guess ───────────────────────────────────────────────────────────
+  // Match against the fetched pool client-side first; otherwise verify on the
+  // server, which auto-scrapes the player from Wikipedia and checks whether they
+  // qualify for this round's list.
+  async function submitGuess(name: string) {
+    if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
     const target = currentRound.target;
@@ -235,15 +262,36 @@ export function RandomListsPage() {
       const newGuessedIds = new Set([...currentState.guessedIds, ...matched.map((p) => p.id)]);
       setRoundStates((prev) => ({ ...prev, [currentKey]: { ...prev[currentKey], guessedIds: newGuessedIds } }));
       persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
-    } else {
-      if (wrongTimer.current) clearTimeout(wrongTimer.current);
-      setWrongGuessMsg(`"${name}" isn't in this list`);
-      wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
+      return;
+    }
 
-      const newWrong = new Set(currentState.wrongGuesses);
-      newWrong.add(normalizeGuess(name));
-      setRoundStates((prev) => ({ ...prev, [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong } }));
-      persistRound(currentKey, currentState.guessedIds, newWrong);
+    setVerifying(true);
+    try {
+      const result = await verifyGuess(name, currentRound.listId);
+      if (result.valid && result.footballer) {
+        const f = result.footballer;
+        const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
+        setRoundStates((prev) => {
+          const state = prev[currentKey];
+          if (!state) return prev;
+          const alreadyInList = state.players?.some((p) => p.id === f.id);
+          const newPlayers = alreadyInList ? state.players! : [...(state.players ?? []), f];
+          return { ...prev, [currentKey]: { ...state, players: newPlayers, guessedIds: new Set([...state.guessedIds, f.id]) } };
+        });
+        persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
+      } else {
+        if (wrongTimer.current) clearTimeout(wrongTimer.current);
+        const displayName = result.foundName ?? `"${name}"`;
+        setWrongGuessMsg(`${displayName} isn't in this list`);
+        wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
+
+        const newWrong = new Set(currentState.wrongGuesses);
+        newWrong.add(normalizeGuess(name));
+        setRoundStates((prev) => ({ ...prev, [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong } }));
+        persistRound(currentKey, currentState.guessedIds, newWrong);
+      }
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -409,8 +457,8 @@ export function RandomListsPage() {
           {/* ── Bottom panel ── */}
           {currentRound && (
             <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
-              <p className={`text-xs mb-2 ${guessedCount > 0 ? "text-green-400" : "text-white/50"}`}>
-                {isDone ? `All ${target} found! ✓` : `${guessedCount} / ${target} found`}
+              <p className={`text-xs mb-2 ${verifying ? "text-yellow-400" : guessedCount > 0 ? "text-green-400" : "text-white/50"}`}>
+                {verifying ? "Checking…" : isDone ? `All ${target} found! ✓` : `${guessedCount} / ${target} found`}
               </p>
 
               {wrongGuessMsg && (
@@ -422,8 +470,9 @@ export function RandomListsPage() {
               {!isDone && (
                 <div className="mb-3">
                   <GuessSearchInput
-                    autoScrape={false}
+                    autoScrape={true}
                     inputRef={inputRef}
+                    disabled={verifying}
                     getKey={(f) => f.id}
                     getLabel={(f) => f.name}
                     getStatus={guessStatus}
