@@ -138,7 +138,7 @@ function heightLabel(cm: number): string {
 // intentionally omitted — they mostly produce false positives. Refine over time.
 const ANIMAL_WORDS = [
   // mammals
-  "fox", "wolf", "badger", "otter", "stoat", "weasel", "hare", "rabbit",
+  "fox", "wolf", "badger", "stoat", "weasel", "hare", "rabbit",
   "hedgehog", "shrew", "squirrel", "deer", "stag", "roe", "buck", "fawn",
   "seal", "ferret", "mink", "polecat", "bull", "lamb", "hart", "doe", "bunny",
   "colt", "bear", "dormouse",
