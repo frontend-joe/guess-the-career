@@ -103,10 +103,14 @@ function englishClubPlayers(): Set<number> {
 // ── Position classifiers (free-text, hyphen-tolerant; multi-value strings) ────
 
 const lc = (s: string | null) => (s ?? "").toLowerCase();
-// Primary position must be a full-back — the position string has to START with
-// left/right/full/wing-back, so wingers/midfielders who merely list a full-back
-// role as a secondary position are excluded.
-const isFullBack = (p: string | null) => /^(full|right|left|wing)[ -]?back\b/.test(lc(p).trim());
+// Strictly a full-back — EVERY listed position must be a full-back role
+// (left/right/full/wing-back). A player who also lists winger, midfielder,
+// forward or centre-back is excluded.
+const FB_TOKEN = /^(full|right|left|wing)[ -]?back$/;
+const isFullBack = (p: string | null) => {
+  const tokens = lc(p).split(",").map((t) => t.trim()).filter(Boolean);
+  return tokens.length > 0 && tokens.every((t) => FB_TOKEN.test(t));
+};
 // Primary position must be centre-back — the position string has to START with
 // it, so "Left-back, centre-back" is excluded but "Centre-back, left-back" isn't.
 const isCentreBack = (p: string | null) => {
