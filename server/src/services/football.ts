@@ -251,6 +251,76 @@ export function isSpain(nat: string | null | undefined): boolean {
   return allNationalityIsos(nat).has('ES')
 }
 
+// ── German clubs (curated) ──────────────────────────────────────────────────
+// Bundesliga + 2. Bundesliga clubs (all-time top flight plus current/recent 2.
+// Bundesliga and notable historic sides), using the canonical name forms that
+// appear in career_stints.club. Variant spellings present in the data are listed
+// directly so membership is exact. Reserve/B/II teams are filtered by reserveRe.
+export const GERMAN_CLUBS: string[] = [
+  // Bundesliga mainstays
+  'Bayern Munich', 'Bayern München', 'FC Bayern Munich',
+  'Borussia Dortmund', 'Dortmund',
+  'Bayer Leverkusen', 'Leverkusen',
+  'Schalke 04', 'Schalke',
+  'Borussia Mönchengladbach', 'Mönchengladbach', 'Borussia Monchengladbach',
+  'VfB Stuttgart', 'Stuttgart',
+  'Werder Bremen', 'Bremen',
+  'Hamburger SV', 'Hamburg',
+  'Eintracht Frankfurt', 'Frankfurt',
+  '1. FC Köln', 'FC Köln', 'Köln', 'Cologne', '1. FC Cologne',
+  'VfL Wolfsburg', 'Wolfsburg',
+  'TSG Hoffenheim', '1899 Hoffenheim', 'Hoffenheim',
+  'Hertha BSC', 'Hertha Berlin', 'Hertha',
+  '1. FC Union Berlin', 'Union Berlin',
+  'RB Leipzig', 'Leipzig',
+  'SC Freiburg', 'Freiburg',
+  '1. FSV Mainz 05', 'FSV Mainz 05', 'Mainz 05', 'Mainz',
+  'FC Augsburg', 'Augsburg',
+  'Hannover 96', 'Hannover',
+  '1. FC Nürnberg', 'Nürnberg', 'Nuremberg',
+  'VfL Bochum', 'Bochum',
+  'Fortuna Düsseldorf', 'Düsseldorf',
+  '1. FC Kaiserslautern', 'Kaiserslautern',
+  'Arminia Bielefeld', 'Bielefeld',
+  'Eintracht Braunschweig', 'Braunschweig',
+  // 2. Bundesliga / historic
+  'MSV Duisburg', 'Duisburg',
+  'Karlsruher SC', 'Karlsruhe',
+  'SpVgg Greuther Fürth', 'Greuther Fürth', 'Fürth',
+  'SC Paderborn 07', 'SC Paderborn', 'Paderborn',
+  'FC St. Pauli', 'St. Pauli', 'St Pauli',
+  'Holstein Kiel', 'Kiel',
+  'SV Darmstadt 98', 'Darmstadt 98', 'Darmstadt',
+  'Energie Cottbus', 'Cottbus',
+  'Hansa Rostock', 'Rostock',
+  '1860 Munich', 'TSV 1860 München', '1860 München',
+  'Dynamo Dresden', 'Dresden',
+  'Kickers Offenbach', 'Offenbach',
+  'SV Wehen Wiesbaden', 'Wehen Wiesbaden',
+  'Erzgebirge Aue', 'Aue',
+  'SV Sandhausen', 'Sandhausen',
+  '1. FC Heidenheim', 'Heidenheim',
+  'FC Ingolstadt 04', 'FC Ingolstadt', 'Ingolstadt',
+  'Bayer Uerdingen', 'KFC Uerdingen', 'Uerdingen',
+  'Waldhof Mannheim', 'Rot-Weiss Essen', 'Alemannia Aachen', 'Aachen',
+  'Wuppertaler SV', 'Stuttgarter Kickers', 'Rot-Weiß Oberhausen',
+  'Preußen Münster', 'VfL Osnabrück', 'Jahn Regensburg', 'SG Wattenscheid 09',
+]
+
+const GERMAN_CLUB_SET = new Set(
+  GERMAN_CLUBS.map((c) => normalizeClubAlias(c).toLowerCase()),
+)
+
+export function isGermanClub(club: string): boolean {
+  return GERMAN_CLUB_SET.has(normalizeClubAlias(club).toLowerCase())
+}
+
+// True when the nationality is German (so it can be excluded from the Bundesliga
+// "foreigners-in-Germany" game).
+export function isGermany(nat: string | null | undefined): boolean {
+  return allNationalityIsos(nat).has('DE')
+}
+
 // ── International team → nation (for the Dual Nationality game) ──────────────
 // Reduce an international team name to its base nation by dropping age-group /
 // reserve / Olympic suffixes, then map to an ISO so predecessor/variant names

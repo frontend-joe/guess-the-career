@@ -41,6 +41,7 @@ import { nationalsRouter } from './routes/nationals.ts'
 import { foreignersRouter } from './routes/foreigners.ts'
 import { serieARouter } from './routes/serie-a.ts'
 import { laLigaRouter } from './routes/la-liga.ts'
+import { bundesligaRouter } from './routes/bundesliga.ts'
 import { dualNationalityRouter } from './routes/dual-nationality.ts'
 import { footballFamiliesRouter } from './routes/football-families.ts'
 import { bookendsRouter } from './routes/bookends.ts'
@@ -105,6 +106,7 @@ app.route('/api/nationals', nationalsRouter)
 app.route('/api/foreigners', foreignersRouter)
 app.route('/api/serie-a', serieARouter)
 app.route('/api/la-liga', laLigaRouter)
+app.route('/api/bundesliga', bundesligaRouter)
 app.route('/api/dual-nationality', dualNationalityRouter)
 app.route('/api/football-families', footballFamiliesRouter)
 app.route('/api/bookends', bookendsRouter)
