@@ -151,12 +151,24 @@ bundesligaRouter.get('/admin/countries', (c) => {
     .all() as { nationality: string; round_size: number }[]
   const enabledMap = new Map(enabled.map((e) => [e.nationality, e.round_size]))
 
+  const validNats = new Set(valid.map(([n]) => n))
   const data = valid.map(([nationality, playerCount]) => ({
     nationality,
     playerCount,
     enabled: enabledMap.has(nationality),
     roundSize: enabledMap.get(nationality) ?? 5,
   }))
+  // Also surface manually-enabled countries that fall below the threshold (e.g.
+  // England, added before any qualifying players have been scraped in).
+  for (const e of enabled) {
+    if (validNats.has(e.nationality)) continue
+    data.push({
+      nationality: e.nationality,
+      playerCount: getCountryPlayers(e.nationality).length,
+      enabled: true,
+      roundSize: e.round_size,
+    })
+  }
   return c.json({ data, total: data.length, enabledCount: enabled.length })
 })
 
