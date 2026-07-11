@@ -103,8 +103,13 @@ function englishClubPlayers(): Set<number> {
 // ── Position classifiers (free-text, hyphen-tolerant; multi-value strings) ────
 
 const lc = (s: string | null) => (s ?? "").toLowerCase();
-const isFullBack = (p: string | null) =>
-  /\b(full|right|left|wing)[ -]?back\b/.test(lc(p)) || lc(p).includes("wingback");
+const isFullBack = (p: string | null) => {
+  const s = lc(p).trim();
+  // A centre-back who also lists a full-back role (position starts with "centre")
+  // shouldn't count as a full-back.
+  if (s.startsWith("cent")) return false;
+  return /\b(full|right|left|wing)[ -]?back\b/.test(s) || s.includes("wingback");
+};
 // Primary position must be centre-back — the position string has to START with
 // it, so "Left-back, centre-back" is excluded but "Centre-back, left-back" isn't.
 const isCentreBack = (p: string | null) => {
