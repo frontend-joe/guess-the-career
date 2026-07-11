@@ -321,6 +321,67 @@ export function isGermany(nat: string | null | undefined): boolean {
   return allNationalityIsos(nat).has('DE')
 }
 
+// ── French clubs (curated) ──────────────────────────────────────────────────
+// Ligue 1 + Ligue 2 clubs (all-time top flight plus current/recent Ligue 2 and
+// notable historic sides), using the canonical name forms that appear in
+// career_stints.club. Variant spellings are listed directly so membership is
+// exact. Reserve/B teams are filtered by reserveRe.
+export const FRENCH_CLUBS: string[] = [
+  // Ligue 1 mainstays
+  'Paris Saint-Germain', 'Paris Saint Germain', 'PSG', 'Paris SG',
+  'Marseille', 'Olympique de Marseille', 'Olympique Marseille',
+  'Lyon', 'Olympique Lyonnais',
+  'Monaco', 'AS Monaco',
+  'Lille', 'LOSC Lille', 'Lille OSC',
+  'Bordeaux', 'Girondins de Bordeaux', 'Girondins Bordeaux',
+  'Saint-Étienne', 'Saint-Etienne', 'AS Saint-Étienne',
+  'Nice', 'OGC Nice',
+  'Rennes', 'Stade Rennais',
+  'Nantes', 'FC Nantes',
+  'Lens', 'RC Lens',
+  'Montpellier', 'Montpellier HSC',
+  'Strasbourg', 'RC Strasbourg',
+  'Toulouse', 'Toulouse FC',
+  'Reims', 'Stade de Reims',
+  'Nancy', 'AS Nancy',
+  'Auxerre', 'AJ Auxerre',
+  'Metz', 'FC Metz',
+  'Sochaux', 'FC Sochaux', 'FC Sochaux-Montbéliard',
+  'Lorient', 'FC Lorient',
+  'Guingamp', 'EA Guingamp',
+  'Caen', 'SM Caen',
+  'Bastia', 'SC Bastia',
+  'Angers', 'Angers SCO',
+  'Dijon', 'Dijon FCO',
+  'Brest', 'Stade Brestois',
+  'Troyes', 'ES Troyes', 'ESTAC Troyes',
+  'Amiens', 'Amiens SC',
+  'Nîmes', 'Nîmes Olympique',
+  'Le Havre', 'Le Havre AC',
+  'Clermont', 'Clermont Foot',
+  'Ajaccio', 'AC Ajaccio',
+  // Ligue 2 / historic
+  'Valenciennes', 'Valenciennes FC', 'Grenoble', 'Le Mans', 'Le Mans FC',
+  'Sedan', 'CS Sedan', 'Istres', 'Arles-Avignon', 'Évian', 'Évian Thonon Gaillard',
+  'Gazélec Ajaccio', 'Boulogne', 'Châteauroux', 'Créteil', 'Niort', 'Laval',
+  'Tours', 'Red Star', 'Paris FC', 'Quevilly', 'Rodez', 'Pau', 'Annecy',
+  'Bastia-Borgo', 'Chamois Niortais', 'Gueugnon', 'Louhans-Cuiseaux',
+]
+
+const FRENCH_CLUB_SET = new Set(
+  FRENCH_CLUBS.map((c) => normalizeClubAlias(c).toLowerCase()),
+)
+
+export function isFrenchClub(club: string): boolean {
+  return FRENCH_CLUB_SET.has(normalizeClubAlias(club).toLowerCase())
+}
+
+// True when the nationality is French (so it can be excluded from the Ligue 1
+// "foreigners-in-France" game).
+export function isFrance(nat: string | null | undefined): boolean {
+  return allNationalityIsos(nat).has('FR')
+}
+
 // ── International team → nation (for the Dual Nationality game) ──────────────
 // Reduce an international team name to its base nation by dropping age-group /
 // reserve / Olympic suffixes, then map to an ISO so predecessor/variant names

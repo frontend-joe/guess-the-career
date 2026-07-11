@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, Languages, ListChecks, Beer, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, Languages, ListChecks, Beer, Croissant, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -31,6 +31,7 @@ export const GATED_GAMES: Game[] = [
   { name: 'Serie A Players', pitch: 'Name the players of a country who turned out in Serie A.', to: '/play/serie-a', icon: MapPin },
   { name: 'La Liga Players', pitch: 'Name the players of a country who turned out in Spain.', to: '/play/la-liga', icon: Sun },
   { name: 'Bundesliga Players', pitch: 'Name the players of a country who turned out in Germany.', to: '/play/bundesliga', icon: Beer },
+  { name: 'Ligue 1 Players', pitch: 'Name the players of a country who turned out in France.', to: '/play/ligue-1', icon: Croissant },
   { name: 'Dual Nationality', pitch: 'Name the players who represented two different nations.', to: '/play/dual-nationality', icon: Users },
   { name: 'Football Families', pitch: 'Name the related footballers from each family.', to: '/play/football-families', icon: Network },
   { name: 'Bookend Players', pitch: 'Name the player who started and finished at the same club.', to: '/play/bookends', icon: Bookmark },
