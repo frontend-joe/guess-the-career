@@ -503,3 +503,16 @@ export const random_lists_schedule = sqliteTable('random_lists_schedule', {
 
 export type RandomListsConfig = typeof random_lists_config.$inferSelect
 export type RandomListsScheduleEntry = typeof random_lists_schedule.$inferSelect
+
+// Per-user game progress — one opaque JSON blob per (user, localStorage game key),
+// mirroring the browser's localStorage so progress survives iOS Safari's 7-day
+// storage eviction and follows the account across devices.
+export const user_game_progress = sqliteTable('user_game_progress', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  user_id: integer('user_id').notNull().references(() => users.id),
+  game_key: text('game_key').notNull(),
+  data: text('data').notNull(),
+  updated_at: text('updated_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type UserGameProgress = typeof user_game_progress.$inferSelect

@@ -56,6 +56,7 @@ import { clubForeignersRouter } from './routes/club-foreigners.ts'
 import { transfersRouter } from './routes/transfers.ts'
 import { transferHistoryRouter } from './routes/transfer-history.ts'
 import { authRouter } from './routes/auth.ts'
+import { progressRouter } from './routes/progress.ts'
 import { usersRouter } from './routes/users.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
@@ -122,6 +123,7 @@ app.route('/api/club-foreigners', clubForeignersRouter)
 app.route('/api/transfers', transfersRouter)
 app.route('/api/transfer-history', transferHistoryRouter)
 app.route('/api/auth', authRouter)
+app.route('/api/progress', progressRouter)
 app.route('/api/users', usersRouter)
 
 // redeploy trigger: 2026-07-06c
