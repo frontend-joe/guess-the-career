@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import {
   Trash2, ExternalLink, Calendar, CheckCircle2, Loader2, Circle, Power, RefreshCw, ChevronDown, Link2,
@@ -15,6 +15,7 @@ import {
   deleteRecordSigningsClub,
   updateRecordSigningsClub,
   relinkRecordSigningsClub,
+  getRecordSigningsClubDetail,
   resolvePlayer,
   type CheckedSigning,
   type RecordSigningsClubListItem,
@@ -63,7 +64,10 @@ export function RecordSigningsAdminPage() {
 
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const [importSummary, setImportSummary] = useState<{ linked: number; queued: number } | null>(null)
+  // Live linking progress after an import; polled every second until all the
+  // queued (newly-scraped) players are linked or progress stalls.
+  const [importProgress, setImportProgress] = useState<{ clubId: number; total: number; linked: number; done: boolean } | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [relinkingId, setRelinkingId] = useState<number | null>(null)
@@ -84,8 +88,52 @@ export function RecordSigningsAdminPage() {
     setSelected(new Set())
     setScrapeError(null)
     setImportError(null)
-    setImportSummary(null)
+    stopPolling()
+    setImportProgress(null)
   }
+
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }
+
+  // Poll the club's players every second, updating the linked count until every
+  // queued player is linked — or progress stalls (some names can't be matched).
+  function startPolling(clubId: number, total: number) {
+    stopPolling()
+    let lastLinked = -1
+    let stalls = 0
+    pollRef.current = setInterval(async () => {
+      try {
+        const detail = await getRecordSigningsClubDetail(clubId)
+        const linked = detail.signings.filter((s) => s.linked).length
+        setImportProgress((p) => (p && p.clubId === clubId ? { ...p, linked } : p))
+        if (linked >= total) {
+          setImportProgress((p) => (p && p.clubId === clubId ? { ...p, linked, done: true } : p))
+          stopPolling()
+          void load()
+          return
+        }
+        if (linked === lastLinked) {
+          stalls++
+        } else {
+          stalls = 0
+          lastLinked = linked
+        }
+        if (stalls >= 45) {
+          setImportProgress((p) => (p && p.clubId === clubId ? { ...p, done: true } : p))
+          stopPolling()
+          void load()
+        }
+      } catch {
+        // keep polling on a transient error
+      }
+    }, 1000)
+  }
+
+  useEffect(() => () => stopPolling(), [])
 
   function toggle(i: number) {
     setSelected(prev => {
@@ -155,17 +203,21 @@ export function RecordSigningsAdminPage() {
           footballer_id: t.footballer_id,
         })),
       })
-      setImportSummary({
+      const total = result.importSummary.linked + result.importSummary.queued
+      setImportProgress({
+        clubId: result.club.id,
+        total,
         linked: result.importSummary.linked,
-        queued: result.importSummary.queued,
+        done: result.importSummary.queued === 0,
       })
       // Hide + reset the scrape/preview form so the admin can go straight to the
-      // next team. The summary above persists until they start a new scrape.
+      // next team. The progress line above persists until they start a new scrape.
       setMeta(null)
       setSignings([])
       setSelected(new Set())
       setUrl('')
       await load()
+      if (result.importSummary.queued > 0) startPolling(result.club.id, total)
     } catch (e) {
       setImportError(e instanceof Error ? e.message : 'Import failed')
     } finally {
@@ -235,15 +287,20 @@ export function RecordSigningsAdminPage() {
 
         {scrapeError && <p className="text-sm text-destructive">{scrapeError}</p>}
 
-        {importSummary && (
-          <p className="text-sm text-green-600 font-medium">
-            ✓ Imported — {importSummary.linked} linked
-            {importSummary.queued > 0 && (
-              <span className="text-blue-600 font-normal">
-                {' · '}{importSummary.queued} new player{importSummary.queued !== 1 ? 's' : ''} being scraped &amp; added in the background (refresh in a minute)
-              </span>
-            )}
-          </p>
+        {importProgress && (
+          importProgress.done ? (
+            <p className="text-sm text-green-600 font-medium">
+              ✓ Imported — {importProgress.linked}/{importProgress.total} players linked
+              {importProgress.linked < importProgress.total && (
+                <span className="text-amber-600 font-normal"> · {importProgress.total - importProgress.linked} couldn't be matched (try Rescrape)</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-sm text-blue-600 font-medium inline-flex items-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Linking players… {importProgress.linked}/{importProgress.total}
+            </p>
+          )
         )}
 
         {meta && signings.length > 0 && (

@@ -39,6 +39,8 @@ const NATIONALITY_ISO: Record<string, string> = {
   "New Zealand": "NZ",
   Japan: "JP",
   "South Korea": "KR",
+  "Korea, South": "KR",
+  "Korea, North": "KP",
   "Saudi Arabia": "SA",
   Turkey: "TR",
   Russia: "RU",
