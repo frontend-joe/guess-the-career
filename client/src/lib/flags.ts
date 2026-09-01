@@ -27,6 +27,8 @@ const NATIONALITY_ISO: Record<string, string> = {
   Senegal: "SN",
   Ghana: "GH",
   "Ivory Coast": "CI",
+  "Cote d'Ivoire": "CI",
+  "Côte d'Ivoire": "CI",
   Cameroon: "CM",
   Mali: "ML",
   Egypt: "EG",

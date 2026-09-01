@@ -160,6 +160,12 @@ export function RecordSigningsAdminPage() {
         alreadyExisted: result.importSummary.alreadyExisted.length,
         failed: result.importSummary.failed,
       })
+      // Hide + reset the scrape/preview form so the admin can go straight to the
+      // next team. The summary above persists until they start a new scrape.
+      setMeta(null)
+      setSignings([])
+      setSelected(new Set())
+      setUrl('')
       await load()
     } catch (e) {
       setImportError(e instanceof Error ? e.message : 'Import failed')
@@ -229,6 +235,15 @@ export function RecordSigningsAdminPage() {
         </div>
 
         {scrapeError && <p className="text-sm text-destructive">{scrapeError}</p>}
+
+        {importSummary && (
+          <p className="text-sm text-green-600 font-medium">
+            ✓ Imported — {importSummary.added} new players, {importSummary.alreadyExisted} existing
+            {importSummary.failed.length > 0 && (
+              <span className="text-red-500 font-normal"> · {importSummary.failed.length} could not be matched: {importSummary.failed.join(', ')}</span>
+            )}
+          </p>
+        )}
 
         {meta && signings.length > 0 && (
           <div className="space-y-3 pt-1">
@@ -312,14 +327,6 @@ export function RecordSigningsAdminPage() {
             </div>
 
             {importError && <p className="text-sm text-destructive">{importError}</p>}
-            {importSummary && (
-              <p className="text-sm text-green-600 font-medium">
-                ✓ Imported — {importSummary.added} new players, {importSummary.alreadyExisted} existing
-                {importSummary.failed.length > 0 && (
-                  <span className="text-red-500 font-normal"> · {importSummary.failed.length} could not be matched: {importSummary.failed.join(', ')}</span>
-                )}
-              </p>
-            )}
 
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-muted-foreground">
