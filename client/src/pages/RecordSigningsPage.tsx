@@ -117,6 +117,14 @@ function buildRounds(data: RecordSigningsRound[], saved: SavedProgress): RoundRe
   });
 }
 
+// Show seasons as "01/02" (Transfermarkt style) rather than the stored
+// "2001/2002". Falls back to the raw value if it isn't a YYYY/YYYY span.
+function shortSeason(label: string | null): string {
+  if (!label) return '';
+  const m = label.match(/^(\d{4})\/(\d{4})$/);
+  return m ? `${m[1].slice(-2)}/${m[2].slice(-2)}` : label;
+}
+
 export function RecordSigningsPage() {
   const { compact } = useCompactMode();
   const showPlayer = useShowPlayer();
@@ -323,7 +331,7 @@ export function RecordSigningsPage() {
                       <MiniClubBadge club={t.fromClub} wikipediaUrl={t.fromClubWikipediaUrl} size={16} />
                     </span>
 
-                    <span className="text-[11px] tabular-nums text-gray-500 shrink-0">{t.seasonLabel}</span>
+                    <span className="text-[11px] tabular-nums text-gray-500 shrink-0">{shortSeason(t.seasonLabel)}</span>
 
                     <span className="text-[11px] tabular-nums text-gray-500 shrink-0 w-14 text-right">{t.feeText}</span>
                   </div>
