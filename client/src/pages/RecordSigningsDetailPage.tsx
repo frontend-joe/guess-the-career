@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ExternalLink, AlertTriangle, CheckCircle2, Link2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { PositionBadge } from '@/components/PositionBadge'
-import { getRecordSigningsClubDetail, type RecordSigningsClubDetail } from '@/api/record-signings-admin'
+import { FootballerPicker } from '@/components/FootballerPicker'
+import {
+  getRecordSigningsClubDetail,
+  updateSigning,
+  resolvePlayer,
+  type RecordSigningsClubDetail,
+} from '@/api/record-signings-admin'
 
 export function RecordSigningsDetailPage() {
   const navigate = useNavigate()
@@ -13,6 +19,7 @@ export function RecordSigningsDetailPage() {
   const [data, setData] = useState<RecordSigningsClubDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<number | null>(null)
 
   const reload = useCallback(async () => {
     if (!id) return
@@ -28,6 +35,17 @@ export function RecordSigningsDetailPage() {
     setLoading(true)
     reload().finally(() => setLoading(false))
   }, [reload])
+
+  // Link a signing to a footballer (chosen from the DB, or freshly scraped).
+  async function linkPlayer(signingId: number, footballerId: number) {
+    setBusyId(signingId)
+    try {
+      await updateSigning(signingId, { footballer_id: footballerId })
+      await reload()
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const unlinked = data?.signings.filter((t) => !t.linked).length ?? 0
 
@@ -54,23 +72,47 @@ export function RecordSigningsDetailPage() {
         <>
           <div className="flex items-center gap-4 text-sm mb-3 flex-wrap">
             <span className="text-muted-foreground">{data.signings.length} signings (ordered by fee, as in the game)</span>
-            {unlinked > 0 && (
+            {unlinked > 0 ? (
               <span className="text-amber-600 flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" /> {unlinked} not linked to a footballer
+                <AlertTriangle className="h-3.5 w-3.5" /> {unlinked} not linked — use “link” to fix each
+              </span>
+            ) : (
+              <span className="text-green-600 flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> all linked
               </span>
             )}
           </div>
 
           <div className="rounded-lg border overflow-hidden divide-y">
             {data.signings.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 px-3 py-2 bg-white">
+              <div
+                key={t.id}
+                className={`flex items-center gap-2 px-3 py-2 ${t.linked ? 'bg-white' : 'bg-amber-50'}`}
+              >
                 <span className="w-4 shrink-0 flex items-center justify-center">
                   <NationalityFlag nationality={t.nationality} className="w-4 h-3.5 object-cover border border-[#ebebeb]" />
                 </span>
 
                 <PositionBadge position={t.position} className="text-xs font-semibold w-7 text-center py-0.5" />
 
-                <span className="flex-1 min-w-0 text-sm font-medium truncate">{t.playerName}</span>
+                <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                  <span className="text-sm font-medium truncate">{t.playerName}</span>
+                  {t.linked ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  ) : busyId === t.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600 shrink-0" />
+                  ) : (
+                    <FootballerPicker
+                      onPick={(fid) => linkPlayer(t.id, fid)}
+                      scrape={(query) => resolvePlayer(query, t.fromClub)}
+                      initialQuery={t.playerName}
+                      title="Find this player in the database, or scrape the correct name from Wikipedia"
+                      className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-200 transition-colors shrink-0"
+                    >
+                      <Link2 className="h-3 w-3" /> link
+                    </FootballerPicker>
+                  )}
+                </span>
 
                 <span className="flex items-center gap-1 shrink-0 max-w-40">
                   <MiniClubBadge club={t.fromClub} wikipediaUrl={t.fromClubWikipediaUrl} size={18} />
