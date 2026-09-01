@@ -123,8 +123,9 @@ export function RecordSigningsAdminPage() {
         source_url: result.source_url,
       })
       setSignings(result.signings)
-      // All signings start unchecked — the admin picks the major ones.
-      setSelected(new Set())
+      // All signings are checked by default (the top 10 record signings); the
+      // admin can uncheck any they don't want.
+      setSelected(new Set(result.signings.map((_, i) => i)))
     } catch (e) {
       setScrapeError(e instanceof Error ? e.message : 'Scrape failed')
     } finally {
