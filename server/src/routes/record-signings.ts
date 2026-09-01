@@ -68,6 +68,25 @@ function clubSignings(clubId: number) {
   }))
 }
 
+// Resolve unlinked signings in the background: for each, find or Wikipedia-scrape
+// the footballer and set footballer_id. Fire-and-forget from import/relink so the
+// request returns immediately.
+async function resolveMissingPlayers(rows: { rowId: number; name: string }[], clubHint: string) {
+  for (const r of rows) {
+    try {
+      const { id } = await resolveOrCreateFootballer(r.name, clubHint)
+      if (id) {
+        await db
+          .update(record_signings_players)
+          .set({ footballer_id: id })
+          .where(eq(record_signings_players.id, r.rowId))
+      }
+    } catch {
+      // leave unlinked; the admin can Rescrape later
+    }
+  }
+}
+
 // ── Scrape preview (no writes) ───────────────────────────────────────────────
 // POST /api/record-signings/scrape
 recordSigningsRouter.post(
@@ -147,43 +166,48 @@ recordSigningsRouter.post('/', zValidator('json', importSchema), async (c) => {
       .returning()
   }
 
-  const summary = { added: [] as string[], alreadyExisted: [] as string[], failed: [] as string[] }
   const matchClub = buildClubMatcher()
 
+  // Insert every signing immediately, linking players already in the DB by name
+  // (fast). Players NOT in the DB are inserted UNLINKED but fully playable (they
+  // carry the scraped nationality/position/name) — they get scraped from
+  // Wikipedia and linked in the background so the import request returns fast
+  // instead of blocking ~minutes on 10 Wikipedia lookups (which times out).
   let sortOrder = 0
+  let linked = 0
+  const unresolved: { rowId: number; name: string }[] = []
   for (const s of body.signings) {
     let footballerId: number | null = null
-    let created = false
     if (s.footballer_id != null) {
       const [f] = await db.select({ id: footballers.id }).from(footballers).where(eq(footballers.id, s.footballer_id)).limit(1)
       footballerId = f?.id ?? null
     }
-    if (footballerId === null) {
-      const r = await resolveOrCreateFootballer(s.player_name, body.club)
-      footballerId = r.id
-      created = r.created
-    }
-    if (footballerId === null) summary.failed.push(s.player_name)
-    else if (created) summary.added.push(s.player_name)
-    else summary.alreadyExisted.push(s.player_name)
+    if (footballerId === null) footballerId = dbFootballerByName(s.player_name)
+    if (footballerId !== null) linked++
 
     const fromClub = matchClub(s.from_club)
-    await db.insert(record_signings_players).values({
-      club_id: clubRow.id,
-      footballer_id: footballerId,
-      player_name: s.player_name,
-      nationality: s.nationality,
-      position: s.position,
-      from_club: fromClub.name,
-      from_club_wikipedia_url: fromClub.wikipedia_url,
-      fee_text: s.fee_text,
-      fee_value: s.fee_value,
-      season_label: s.season_label,
-      sort_order: sortOrder++,
-    })
+    const [row] = await db
+      .insert(record_signings_players)
+      .values({
+        club_id: clubRow.id,
+        footballer_id: footballerId,
+        player_name: s.player_name,
+        nationality: s.nationality,
+        position: s.position,
+        from_club: fromClub.name,
+        from_club_wikipedia_url: fromClub.wikipedia_url,
+        fee_text: s.fee_text,
+        fee_value: s.fee_value,
+        season_label: s.season_label,
+        sort_order: sortOrder++,
+      })
+      .returning({ id: record_signings_players.id })
+    if (footballerId === null) unresolved.push({ rowId: row.id, name: s.player_name })
   }
 
-  return c.json({ club: clubRow, importSummary: summary })
+  if (unresolved.length > 0) void resolveMissingPlayers(unresolved, body.club)
+
+  return c.json({ club: clubRow, importSummary: { linked, queued: unresolved.length } })
 })
 
 // POST /api/record-signings/resolve-player — find or scrape+create a footballer.
@@ -275,17 +299,10 @@ recordSigningsRouter.post('/clubs/:id/relink', async (c) => {
   const unlinked = sqlite
     .prepare(`SELECT id, player_name FROM record_signings_players WHERE club_id = ? AND footballer_id IS NULL`)
     .all(id) as { id: number; player_name: string }[]
-  const summary = { relinked: [] as string[], failed: [] as string[] }
-  for (const p of unlinked) {
-    const { id: footballerId } = await resolveOrCreateFootballer(p.player_name, clubRow?.club ?? '')
-    if (footballerId) {
-      await db.update(record_signings_players).set({ footballer_id: footballerId }).where(eq(record_signings_players.id, p.id))
-      summary.relinked.push(p.player_name)
-    } else {
-      summary.failed.push(p.player_name)
-    }
+  if (unlinked.length > 0) {
+    void resolveMissingPlayers(unlinked.map((u) => ({ rowId: u.id, name: u.player_name })), clubRow?.club ?? '')
   }
-  return c.json({ ok: true, summary })
+  return c.json({ ok: true, queued: unlinked.length })
 })
 
 // ── Schedule ─────────────────────────────────────────────────────────────────

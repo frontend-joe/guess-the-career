@@ -63,7 +63,7 @@ export function RecordSigningsAdminPage() {
 
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const [importSummary, setImportSummary] = useState<{ added: number; alreadyExisted: number; failed: string[] } | null>(null)
+  const [importSummary, setImportSummary] = useState<{ linked: number; queued: number } | null>(null)
 
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [relinkingId, setRelinkingId] = useState<number | null>(null)
@@ -156,9 +156,8 @@ export function RecordSigningsAdminPage() {
         })),
       })
       setImportSummary({
-        added: result.importSummary.added.length,
-        alreadyExisted: result.importSummary.alreadyExisted.length,
-        failed: result.importSummary.failed,
+        linked: result.importSummary.linked,
+        queued: result.importSummary.queued,
       })
       // Hide + reset the scrape/preview form so the admin can go straight to the
       // next team. The summary above persists until they start a new scrape.
@@ -238,9 +237,11 @@ export function RecordSigningsAdminPage() {
 
         {importSummary && (
           <p className="text-sm text-green-600 font-medium">
-            ✓ Imported — {importSummary.added} new players, {importSummary.alreadyExisted} existing
-            {importSummary.failed.length > 0 && (
-              <span className="text-red-500 font-normal"> · {importSummary.failed.length} could not be matched: {importSummary.failed.join(', ')}</span>
+            ✓ Imported — {importSummary.linked} linked
+            {importSummary.queued > 0 && (
+              <span className="text-blue-600 font-normal">
+                {' · '}{importSummary.queued} new player{importSummary.queued !== 1 ? 's' : ''} being scraped &amp; added in the background (refresh in a minute)
+              </span>
             )}
           </p>
         )}

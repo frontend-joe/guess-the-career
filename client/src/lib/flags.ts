@@ -77,6 +77,7 @@ const NATIONALITY_ISO: Record<string, string> = {
   "FR Yugoslavia": "__yugoslavia__",
   "SFR Yugoslavia": "__yugoslavia__",
   "Bosnia and Herzegovina": "BA",
+  "Bosnia-Herzegovina": "BA",
   Montenegro: "ME",
   Bulgaria: "BG",
   Georgia: "GE",

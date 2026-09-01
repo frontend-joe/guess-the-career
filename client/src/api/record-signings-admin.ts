@@ -34,9 +34,10 @@ export interface RecordSigningsClubListItem {
 }
 
 export interface ImportSummary {
-  added: string[]
-  alreadyExisted: string[]
-  failed: string[]
+  // Players already in the DB, linked immediately.
+  linked: number
+  // New players queued for background Wikipedia scraping + linking.
+  queued: number
 }
 
 export interface ImportResult {
@@ -142,7 +143,7 @@ export function updateSigning(
 
 export interface RelinkResult {
   ok: boolean
-  summary: { relinked: string[]; failed: string[] }
+  queued: number
 }
 
 export function relinkRecordSigningsClub(id: number): Promise<RelinkResult> {
