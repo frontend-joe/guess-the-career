@@ -109,6 +109,10 @@ import { TransferHistoryPage } from '@/pages/TransferHistoryPage'
 import { TransferHistoryAdminPage } from '@/pages/TransferHistoryAdminPage'
 import { TransferHistorySchedulePage } from '@/pages/TransferHistorySchedulePage'
 import { TransferWindowDetailPage } from '@/pages/TransferWindowDetailPage'
+import { RecordSigningsPage } from '@/pages/RecordSigningsPage'
+import { RecordSigningsAdminPage } from '@/pages/RecordSigningsAdminPage'
+import { RecordSigningsSchedulePage } from '@/pages/RecordSigningsSchedulePage'
+import { RecordSigningsDetailPage } from '@/pages/RecordSigningsDetailPage'
 
 const router = createBrowserRouter([
  {
@@ -160,6 +164,7 @@ const router = createBrowserRouter([
   { path: '/play/club-foreigners', element: <ClubForeignersPage /> },
   { path: '/play/transfers', element: <TransfersPage /> },
   { path: '/play/transfer-history', element: <TransferHistoryPage /> },
+  { path: '/play/record-signings', element: <RecordSigningsPage /> },
 
   // Admin-only all-games testing hub
   { path: '/play', element: <RequireAdmin><PlayHubPage /></RequireAdmin> },
@@ -238,6 +243,9 @@ const router = createBrowserRouter([
       { path: 'transfer-history', element: <TransferHistoryAdminPage /> },
       { path: 'transfer-history/schedule', element: <TransferHistorySchedulePage /> },
       { path: 'transfer-history/:id', element: <TransferWindowDetailPage /> },
+      { path: 'record-signings', element: <RecordSigningsAdminPage /> },
+      { path: 'record-signings/schedule', element: <RecordSigningsSchedulePage /> },
+      { path: 'record-signings/:id', element: <RecordSigningsDetailPage /> },
     ],
   },
   ],

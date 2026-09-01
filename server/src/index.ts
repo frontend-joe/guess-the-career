@@ -55,6 +55,7 @@ import { internationalMarksmanRouter } from './routes/international-marksman.ts'
 import { clubForeignersRouter } from './routes/club-foreigners.ts'
 import { transfersRouter } from './routes/transfers.ts'
 import { transferHistoryRouter } from './routes/transfer-history.ts'
+import { recordSigningsRouter } from './routes/record-signings.ts'
 import { authRouter } from './routes/auth.ts'
 import { progressRouter } from './routes/progress.ts'
 import { usersRouter } from './routes/users.ts'
@@ -122,6 +123,7 @@ app.route('/api/international-marksman', internationalMarksmanRouter)
 app.route('/api/club-foreigners', clubForeignersRouter)
 app.route('/api/transfers', transfersRouter)
 app.route('/api/transfer-history', transferHistoryRouter)
+app.route('/api/record-signings', recordSigningsRouter)
 app.route('/api/auth', authRouter)
 app.route('/api/progress', progressRouter)
 app.route('/api/users', usersRouter)

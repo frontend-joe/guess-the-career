@@ -516,3 +516,41 @@ export const user_game_progress = sqliteTable('user_game_progress', {
 })
 
 export type UserGameProgress = typeof user_game_progress.$inferSelect
+
+// Record Signings game (transfermarkt-scraped club record signings). A round =
+// one club; record_signings_players = the club's top signings (by fee).
+export const record_signings_clubs = sqliteTable('record_signings_clubs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  club: text('club').notNull(),
+  club_wikipedia_url: text('club_wikipedia_url'),
+  source_url: text('source_url').notNull().unique(),
+  transfermarkt_id: text('transfermarkt_id'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const record_signings_players = sqliteTable('record_signings_players', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  club_id: integer('club_id').notNull().references(() => record_signings_clubs.id, { onDelete: 'cascade' }),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  player_name: text('player_name').notNull(),
+  nationality: text('nationality'),
+  position: text('position'),
+  from_club: text('from_club').notNull(),
+  from_club_wikipedia_url: text('from_club_wikipedia_url'),
+  fee_text: text('fee_text'),
+  fee_value: integer('fee_value'),
+  season_label: text('season_label'),
+  sort_order: integer('sort_order').notNull().default(0),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const record_signings_schedule = sqliteTable('record_signings_schedule', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  club_id: integer('club_id').references(() => record_signings_clubs.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type RecordSigningsClub = typeof record_signings_clubs.$inferSelect
+export type RecordSigningsPlayer = typeof record_signings_players.$inferSelect

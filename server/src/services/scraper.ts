@@ -3032,3 +3032,96 @@ export async function scrapeTransfermarktTransfers(url: string): Promise<Transfe
 
   return { league, league_code, season_id, season_label, source_url: url, transfers }
 }
+
+// ── Transfermarkt "transfer records" (record signings) ──────────────────────
+export interface RecordSigning {
+  player_name: string
+  nationality: string | null
+  position: 'GK' | 'DF' | 'MF' | 'FW' | null
+  from_club: string
+  fee_text: string
+  fee_value: number | null
+  season_label: string
+}
+
+export interface RecordSigningsScrapeResult {
+  club: string
+  transfermarkt_id: string | null
+  source_url: string
+  signings: RecordSigning[]
+}
+
+// "26/27" → "2026/2027", "99/00" → "1999/2000". Seasons >= 90 are 1900s.
+function expandSeason(raw: string): string {
+  const m = raw.match(/(\d{2})\/(\d{2})/)
+  if (!m) return raw.trim()
+  const yy = parseInt(m[1], 10)
+  const start = yy >= 90 ? 1900 + yy : 2000 + yy
+  return `${start}/${start + 1}`
+}
+
+// Scrape a club's Transfermarkt "transferrekorde" page — its most-expensive
+// arrivals (record signings), already ranked by fee. Returns the top signings
+// with the club they left, fee and season.
+export async function scrapeTransfermarktRecordSignings(
+  url: string,
+): Promise<RecordSigningsScrapeResult> {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml',
+    },
+  })
+  if (!res.ok) {
+    throw new Error(`Transfermarkt returned ${res.status}. The page may be rate-limited or blocked.`)
+  }
+  const html = await res.text()
+  const $ = cheerio.load(html)
+
+  const club =
+    $('.data-header__headline-wrapper').first().text().replace(/\s+/g, ' ').trim() ||
+    ($('title').first().text().split(' - ')[0] || '').trim() ||
+    'Club'
+  const idMatch = url.match(/\/verein\/(\d+)/)
+  const transfermarkt_id = idMatch ? idMatch[1] : null
+
+  const signings: RecordSigning[] = []
+  const $table = $('table.items').first()
+  $table.children('tbody').children('tr').each((_i, trEl) => {
+    const $tr = $(trEl)
+    const tds = $tr.children('td')
+    if (tds.length < 6) return
+
+    const $name = $tr.find('a[href*="/profil/spieler/"]').first()
+    if ($name.length === 0) return
+    const player_name = ($name.attr('title') || $name.text()).replace(/\s+/g, ' ').trim()
+    if (!player_name) return
+
+    const position = tmAbbrevPosition(
+      $tr.find('table.inline-table tr').eq(1).find('td').first().text().trim() || null,
+    )
+    const nationality = $tr.find('img.flaggenrahmen').first().attr('title')?.trim() || null
+
+    // Columns: # | Player | Age | Nat | Season | Left | Fee
+    const season_label = expandSeason($(tds[tds.length - 3]).text().replace(/\s+/g, ' ').trim())
+    const $left = $(tds[tds.length - 2])
+    const from_club = (
+      $left.find('a[href*="/verein/"]').first().attr('title') ||
+      $left.find('img').first().attr('title') ||
+      $left.text()
+    ).replace(/\s+/g, ' ').trim()
+    const fee_text = $(tds[tds.length - 1]).text().replace(/\s+/g, ' ').trim()
+    const fee_value = parseTransferFee(fee_text)
+
+    signings.push({ player_name, nationality, position, from_club, fee_text, fee_value, season_label })
+  })
+
+  if (signings.length === 0) {
+    throw new Error('No signings found on this page — the structure may have changed or the page was blocked.')
+  }
+
+  // Already ranked by fee on the page; keep that order, top 10.
+  return { club, transfermarkt_id, source_url: url, signings: signings.slice(0, 10) }
+}
