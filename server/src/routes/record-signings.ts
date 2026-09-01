@@ -72,18 +72,27 @@ function clubSignings(clubId: number) {
 // the footballer and set footballer_id. Fire-and-forget from import/relink so the
 // request returns immediately.
 async function resolveMissingPlayers(rows: { rowId: number; name: string }[], clubHint: string) {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
   for (const r of rows) {
-    try {
-      const { id } = await resolveOrCreateFootballer(r.name, clubHint)
-      if (id) {
-        await db
-          .update(record_signings_players)
-          .set({ footballer_id: id })
-          .where(eq(record_signings_players.id, r.rowId))
+    let id: number | null = null
+    // Retry the whole resolution a couple of times — a transient Wikipedia
+    // rate-limit shouldn't leave a straggler (e.g. the cheapest signing)
+    // permanently unlinked.
+    for (let attempt = 0; attempt < 3 && id == null; attempt++) {
+      if (attempt > 0) await sleep(2000 * attempt)
+      try {
+        id = (await resolveOrCreateFootballer(r.name, clubHint)).id
+      } catch {
+        id = null
       }
-    } catch {
-      // leave unlinked; the admin can Rescrape later
     }
+    if (id) {
+      await db
+        .update(record_signings_players)
+        .set({ footballer_id: id })
+        .where(eq(record_signings_players.id, r.rowId))
+    }
+    await sleep(500) // throttle between players to avoid bursting Wikipedia
   }
 }
 

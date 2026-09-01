@@ -479,10 +479,18 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     throw new Error("URL must be a Wikipedia article URL");
   }
 
-  const res = await fetch(url, {
-    headers: { "User-Agent": "GuessTheCareer-Admin/1.0" },
-  });
-  if (!res.ok) {
+  // Retry on rate-limit (429/503) with backoff — Wikipedia throttles during a
+  // bulk import (e.g. scraping a club's 10 record signings back-to-back).
+  let res: Response;
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(url, {
+      headers: { "User-Agent": "GuessTheCareer-Admin/1.0" },
+    });
+    if (res.ok) break;
+    if ((res.status === 429 || res.status === 503) && attempt < 3) {
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      continue;
+    }
     throw new Error(`Wikipedia returned ${res.status}`);
   }
 
