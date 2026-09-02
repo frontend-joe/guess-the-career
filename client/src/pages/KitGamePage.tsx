@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react'
 import { GameMenu } from "@/components/GameMenu";
 import { getKitQuestion, type KitQuestion } from '@/api/kit-game'
 import { KitSvg } from '@/components/KitSvg'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 // ── Fuzzy matching ─────────────────────────────────────────────────────────────
 
@@ -134,10 +135,13 @@ export function KitGamePage() {
         <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">
           Guess the Kit
         </span>
-        <span className="text-white/60 text-sm font-mono whitespace-nowrap flex items-center gap-1">
-          {score}
-          <CheckCircle2 size={14} className="text-green-400" />
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-white/60 text-sm font-mono whitespace-nowrap flex items-center gap-1">
+            {score}
+            <CheckCircle2 size={14} className="text-green-400" />
+          </span>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Main content area */}

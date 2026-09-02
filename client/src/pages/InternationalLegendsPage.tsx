@@ -23,6 +23,8 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import HeaderFlag from "@/components/HeaderFlag";
 
@@ -247,6 +249,9 @@ async function verifyGuess(
 
 export function InternationalLegendsPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
+  // Slots always render ROUND_TARGET; only the pass threshold scales with the setting.
+  const passTarget = requiredToPass(ROUND_TARGET);
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<InternationalLegendsScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>(
@@ -342,7 +347,7 @@ export function InternationalLegendsPage() {
     const activeGuesses = players.filter((p) =>
       currentState.guessedIds.has(p.id),
     ).length;
-    if (activeGuesses >= ROUND_TARGET) return;
+    if (activeGuesses >= passTarget) return;
 
     const alreadyFound = players
       .filter((p) => currentState.guessedIds.has(p.id))
@@ -432,7 +437,7 @@ export function InternationalLegendsPage() {
     const validIds = statePlayers
       ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length
       : (state?.guessedIds.size ?? 0);
-    const target = ROUND_TARGET;
+    const target = passTarget;
     const guessed = Math.min(validIds, target);
     return {
       name: (
@@ -449,7 +454,7 @@ export function InternationalLegendsPage() {
 
   const totalGuessed = rounds.filter((r) => {
     const state = roundStates[r.country];
-    return (state?.guessedIds.size ?? 0) >= ROUND_TARGET;
+    return (state?.guessedIds.size ?? 0) >= passTarget;
   }).length;
   const totalPlayers = rounds.length;
 
@@ -475,7 +480,7 @@ export function InternationalLegendsPage() {
       )
     : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
-  const isDone = guessedCount >= target;
+  const isDone = guessedCount >= passTarget;
 
   const guessedList = players
     ? players.filter((p) => validGuessedIds.has(p.id))
@@ -523,12 +528,15 @@ export function InternationalLegendsPage() {
         <span className="text-white font-display text-sm tracking-wide uppercase">
           International Legends
         </span>
-        <button
-          className="text-white/90 hover:text-green-400 transition-colors p-1"
-          onClick={() => setShowProgress((v) => !v)}
-        >
-          {showProgress ? <X size={20} /> : <Trophy size={20} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="text-white/90 hover:text-green-400 transition-colors p-1"
+            onClick={() => setShowProgress((v) => !v)}
+          >
+            {showProgress ? <X size={20} /> : <Trophy size={20} />}
+          </button>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {showProgress ? (

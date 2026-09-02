@@ -23,6 +23,8 @@ import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
@@ -279,6 +281,7 @@ async function verifyGuess(
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function TransfersPage() {
+  const { requiredToPass } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<TransfersScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -368,7 +371,7 @@ export function TransfersPage() {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
-    if (currentState.guessedIds.size >= Math.min(currentRound.playerCount, MAX_SLOTS)) return;
+    if (currentState.guessedIds.size >= requiredToPass(Math.min(currentRound.playerCount, MAX_SLOTS))) return;
 
     const alreadyFound = players
       .filter((p) => currentState.guessedIds.has(p.id))
@@ -476,7 +479,7 @@ export function TransfersPage() {
     const validIds = statePlayers
       ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length
       : (state?.guessedIds.size ?? 0);
-    const target = Math.min(r.playerCount, MAX_SLOTS);
+    const target = requiredToPass(Math.min(r.playerCount, MAX_SLOTS));
     const guessed = Math.min(validIds, target);
     return {
       name: (
@@ -499,7 +502,7 @@ export function TransfersPage() {
   const totalGuessed = rounds.filter((r) => {
     const key = roundKey(r.fromClub, r.toClub);
     const state = roundStates[key];
-    return (state?.guessedIds.size ?? 0) >= Math.min(r.playerCount, MAX_SLOTS);
+    return (state?.guessedIds.size ?? 0) >= requiredToPass(Math.min(r.playerCount, MAX_SLOTS));
   }).length;
   const totalPlayers = rounds.length;
 
@@ -517,7 +520,9 @@ export function TransfersPage() {
   const filteredOriginalIndices = filteredProgressData.map((d) => d.i);
 
   const players = currentState?.players ?? null;
+  // Slots always render the full target count; only the pass threshold scales.
   const target = currentRound ? Math.min(currentRound.playerCount, MAX_SLOTS) : 0;
+  const passTarget = requiredToPass(target);
 
   const validGuessedIds = players
     ? new Set(
@@ -527,7 +532,7 @@ export function TransfersPage() {
       )
     : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
-  const isDone = target > 0 && guessedCount >= target;
+  const isDone = passTarget > 0 && guessedCount >= passTarget;
 
   // Slots: the player's own correct guesses first (revealed, in any order), then
   // flag/position hints drawn from the round's first `target` (stable-random)
@@ -578,9 +583,12 @@ export function TransfersPage() {
         <span className="text-white font-display text-sm tracking-wide uppercase">
           Know Your Transfers
         </span>
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
-          {showProgress ? <X size={20} /> : <Trophy size={20} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
+            {showProgress ? <X size={20} /> : <Trophy size={20} />}
+          </button>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {showProgress ? (

@@ -8,6 +8,7 @@ import {
 } from '@/api/goal-ratios'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 function normalizeName(name: string): string {
   return name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
@@ -192,9 +193,12 @@ export function GoalRatiosPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Goal Ratios</span>
-        <span className="text-white/60 text-sm font-mono whitespace-nowrap">
-          {foundCount}/{totalCount}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-white/60 text-sm font-mono whitespace-nowrap">
+            {foundCount}/{totalCount}
+          </span>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable player list */}

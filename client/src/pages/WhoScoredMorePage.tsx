@@ -8,6 +8,7 @@ import {
 } from "@/api/who-scored-more";
 import type { WsmPlayer, WsmLeaderboardEntry } from "@/api/who-scored-more";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 type GameStatus = "lobby" | "playing" | "correct" | "wrong" | "won";
 type View = "game" | "leaderboard";
@@ -139,6 +140,7 @@ export function WhoScoredMorePage() {
           >
             <Trophy size={20} />
           </button>
+          <GameSettingsButton />
         </div>
       </div>
 

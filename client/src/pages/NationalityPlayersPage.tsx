@@ -24,6 +24,8 @@ import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
@@ -338,6 +340,7 @@ async function verifyGuess(
 
 export function NationalityPlayersPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<NationalsScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>(
@@ -439,7 +442,7 @@ export function NationalityPlayersPage() {
     const activeGuesses = players.filter((p) =>
       currentState.guessedIds.has(p.id),
     ).length;
-    if (activeGuesses >= roundTarget(currentRound.playerCount)) return;
+    if (activeGuesses >= requiredToPass(roundTarget(currentRound.playerCount))) return;
 
     const alreadyFound = players
       .filter((p) => currentState.guessedIds.has(p.id))
@@ -541,7 +544,7 @@ export function NationalityPlayersPage() {
     const validIds = statePlayers
       ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length
       : (state?.guessedIds.size ?? 0);
-    const target = roundTarget(r.playerCount);
+    const target = requiredToPass(roundTarget(r.playerCount));
     const guessed = Math.min(validIds, target);
     return {
       name: (
@@ -574,7 +577,7 @@ export function NationalityPlayersPage() {
   const totalGuessed = rounds.filter((r) => {
     const key = comboKey(r.nationality, r.club);
     const state = roundStates[key];
-    return (state?.guessedIds.size ?? 0) >= roundTarget(r.playerCount);
+    return (state?.guessedIds.size ?? 0) >= requiredToPass(roundTarget(r.playerCount));
   }).length;
   const totalPlayers = rounds.length;
 
@@ -596,6 +599,7 @@ export function NationalityPlayersPage() {
   // Only count IDs that exist in the loaded players list — guards against stale localStorage IDs
   // from players that were deleted and re-imported with a new ID.
   const target = currentRound ? roundTarget(currentRound.playerCount) : 5;
+  const passTarget = requiredToPass(target);
 
   const validGuessedIds = players
     ? new Set(
@@ -605,7 +609,7 @@ export function NationalityPlayersPage() {
       )
     : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
-  const isDone = guessedCount >= target;
+  const isDone = guessedCount >= passTarget;
 
   // Guessed players fill slots first; remaining slots show a position + years
   // hint drawn from the top still-unguessed players.
@@ -655,12 +659,15 @@ export function NationalityPlayersPage() {
         <span className="text-white font-display text-sm tracking-wide uppercase">
           Nationality Players
         </span>
-        <button
-          className="text-white/90 hover:text-green-400 transition-colors p-1"
-          onClick={() => setShowProgress((v) => !v)}
-        >
-          {showProgress ? <X size={20} /> : <Trophy size={20} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="text-white/90 hover:text-green-400 transition-colors p-1"
+            onClick={() => setShowProgress((v) => !v)}
+          >
+            {showProgress ? <X size={20} /> : <Trophy size={20} />}
+          </button>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {showProgress ? (

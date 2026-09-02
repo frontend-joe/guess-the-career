@@ -23,6 +23,8 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
@@ -199,6 +201,7 @@ async function verifyGuess(footballerName: string, footballerId: number | null, 
 
 export function ClubForeignersPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<ClubForeignersScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -285,7 +288,7 @@ export function ClubForeignersPage() {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
-    const roundTarget = currentRound.roundSize ?? DEFAULT_ROUND_TARGET;
+    const roundTarget = requiredToPass(currentRound.roundSize ?? DEFAULT_ROUND_TARGET);
     const guessedPlayers = players.filter((p) => currentState.guessedIds.has(p.id));
     if (guessedPlayers.length >= roundTarget) return;
     const countryOf = (p: Player) => p.country ?? p.nationality ?? "";
@@ -353,7 +356,7 @@ export function ClubForeignersPage() {
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
     const state = roundStates[r.club];
     const statePlayers = state?.players;
-    const roundTarget = r.roundSize ?? DEFAULT_ROUND_TARGET;
+    const roundTarget = requiredToPass(r.roundSize ?? DEFAULT_ROUND_TARGET);
     const validIds = statePlayers ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length : (state?.guessedIds.size ?? 0);
     const guessed = Math.min(validIds, roundTarget);
     return {
@@ -371,7 +374,7 @@ export function ClubForeignersPage() {
 
   const totalGuessed = rounds.filter((r) => {
     const state = roundStates[r.club];
-    return (state?.guessedIds.size ?? 0) >= (r.roundSize ?? DEFAULT_ROUND_TARGET);
+    return (state?.guessedIds.size ?? 0) >= requiredToPass(r.roundSize ?? DEFAULT_ROUND_TARGET);
   }).length;
   const totalPlayers = rounds.length;
 
@@ -385,13 +388,15 @@ export function ClubForeignersPage() {
   const filteredOriginalIndices = filteredProgressData.map((d) => d.i);
 
   const players = currentState?.players ?? null;
+  // Slots always render the full round size; only the pass threshold scales.
   const target = currentRound?.roundSize ?? DEFAULT_ROUND_TARGET;
+  const passTarget = requiredToPass(target);
 
   const validGuessedIds = players
     ? new Set(players.filter((p) => currentState!.guessedIds.has(p.id)).map((p) => p.id))
     : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
-  const isDone = guessedCount >= target;
+  const isDone = guessedCount >= passTarget;
 
   const countryOf = (p: Player) => p.country ?? p.nationality ?? "";
   const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
@@ -437,9 +442,12 @@ export function ClubForeignersPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Club Foreigners</span>
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
-          {showProgress ? <X size={20} /> : <Trophy size={20} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
+            {showProgress ? <X size={20} /> : <Trophy size={20} />}
+          </button>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {showProgress ? (

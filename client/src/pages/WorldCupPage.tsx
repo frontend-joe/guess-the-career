@@ -14,6 +14,8 @@ import { getWorldCupRounds, type WorldCupRound } from "@/api/world-cup-squads";
 import { NationalityFlag } from "@/components/NationalityFlag";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 type RoundState = "playing" | "cleared";
 
@@ -147,6 +149,7 @@ function buildRounds(
 }
 
 export function WorldCupPage() {
+  const { requiredToPass } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +208,7 @@ export function WorldCupPage() {
 
     const newGuessed = new Set(round.guessedIndices);
     matched.forEach((i) => newGuessed.add(i));
-    const allGuessed = newGuessed.size === round.players.length;
+    const allGuessed = newGuessed.size >= requiredToPass(round.players.length);
     const newState: RoundState = allGuessed ? "cleared" : "playing";
 
     const updated = [...rounds];
@@ -255,11 +258,13 @@ export function WorldCupPage() {
 
   const currentRound = rounds[roundIndex] ?? null;
   const isRoundDone = currentRound?.state === "cleared";
+  // Pass goal per round scales with the global Guess-percentage setting (100% = all).
   const totalGuessed = rounds.reduce(
-    (sum, r) => sum + r.guessedIndices.size,
+    (sum, r) => sum + Math.min(r.guessedIndices.size, requiredToPass(r.players.length)),
     0,
   );
-  const totalPlayers = rounds.reduce((sum, r) => sum + r.players.length, 0);
+  const totalPlayers = rounds.reduce((sum, r) => sum + requiredToPass(r.players.length), 0);
+  const roundTotal = currentRound ? requiredToPass(currentRound.players.length) : 0;
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
@@ -269,30 +274,31 @@ export function WorldCupPage() {
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           World Cup
         </span>
-        {rounds.length > 0 ? (
-          showProgress ? (
-            <button
-              onClick={() => setShowProgress(false)}
-              className="text-white/60 hover:text-white transition-colors p-1"
-            >
-              <X size={18} />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-white/60 text-sm font-mono">
-                {roundIndex + 1} / {rounds.length}
-              </span>
+        <div className="flex items-center gap-1">
+          {rounds.length > 0 ? (
+            showProgress ? (
               <button
-                onClick={() => setShowProgress(true)}
-                className="text-white/40 hover:text-white/80 transition-colors p-0.5"
+                onClick={() => setShowProgress(false)}
+                className="text-white/60 hover:text-white transition-colors p-1"
               >
-                <Trophy size={14} />
+                <X size={18} />
               </button>
-            </div>
-          )
-        ) : (
-          <span className="w-8" />
-        )}
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-sm font-mono">
+                  {roundIndex + 1} / {rounds.length}
+                </span>
+                <button
+                  onClick={() => setShowProgress(true)}
+                  className="text-white/40 hover:text-white/80 transition-colors p-0.5"
+                >
+                  <Trophy size={14} />
+                </button>
+              </div>
+            )
+          ) : null}
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable content */}
@@ -329,8 +335,8 @@ export function WorldCupPage() {
             totalPlayers={totalPlayers}
             rounds={rounds.map((r) => ({
               name: `${r.team} ${r.year}`,
-              guessed: r.guessedIndices.size,
-              total: r.players.length,
+              guessed: Math.min(r.guessedIndices.size, requiredToPass(r.players.length)),
+              total: requiredToPass(r.players.length),
             }))}
             onRoundClick={(i) => {
               goToRound(i);
@@ -427,8 +433,8 @@ export function WorldCupPage() {
               className={`text-xs mb-2 ${currentRound.guessedIndices.size > 0 ? "text-green-400" : "text-white/50"}`}
             >
               {isRoundDone
-                ? `All ${currentRound.players.length} guessed! ✓`
-                : `${currentRound.guessedIndices.size} / ${currentRound.players.length} guessed`}
+                ? `All ${roundTotal} guessed! ✓`
+                : `${Math.min(currentRound.guessedIndices.size, roundTotal)} / ${roundTotal} guessed`}
             </p>
           )}
 

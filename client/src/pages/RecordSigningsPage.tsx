@@ -14,6 +14,8 @@ import {
   type RoundSigning,
 } from "@/api/record-signings-schedule";
 import { useCompactMode } from '@/contexts/CompactModeContext';
+import { useSettings } from '@/contexts/SettingsContext';
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 
 type RoundState = "playing" | "cleared";
@@ -127,6 +129,7 @@ function shortSeason(label: string | null): string {
 
 export function RecordSigningsPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -188,7 +191,7 @@ export function RecordSigningsPage() {
 
     const newGuessed = new Set(round.guessedIndices);
     matched.forEach((i) => newGuessed.add(i));
-    const allGuessed = newGuessed.size === round.signings.length;
+    const allGuessed = newGuessed.size >= requiredToPass(round.signings.length);
     const newState: RoundState = allGuessed ? "cleared" : "playing";
 
     const updated = [...rounds];
@@ -214,9 +217,10 @@ export function RecordSigningsPage() {
   const isRoundDone = currentRound?.state === "cleared";
   const isLastRound = roundIndex === rounds.length - 1;
   const allCleared = rounds.length > 0 && rounds.every((r) => r.state === "cleared");
-  const totalGuessed = rounds.reduce((sum, r) => sum + r.guessedIndices.size, 0);
-  const totalPlayers = rounds.reduce((sum, r) => sum + r.signings.length, 0);
-  const roundTotal = currentRound?.signings.length ?? 0;
+  // Pass goal per round scales with the global Guess-percentage setting (100% = all).
+  const totalGuessed = rounds.reduce((sum, r) => sum + Math.min(r.guessedIndices.size, requiredToPass(r.signings.length)), 0);
+  const totalPlayers = rounds.reduce((sum, r) => sum + requiredToPass(r.signings.length), 0);
+  const roundTotal = currentRound ? requiredToPass(currentRound.signings.length) : 0;
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
@@ -226,22 +230,23 @@ export function RecordSigningsPage() {
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Record Signings
         </span>
-        {rounds.length > 0 ? (
-          showProgress ? (
-            <button onClick={() => setShowProgress(false)} className="text-white/60 hover:text-white transition-colors p-1">
-              <X size={18} />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-white/60 text-sm font-mono">{roundIndex + 1} / {rounds.length}</span>
-              <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
-                <Trophy size={14} />
+        <div className="flex items-center gap-1">
+          {rounds.length > 0 ? (
+            showProgress ? (
+              <button onClick={() => setShowProgress(false)} className="text-white/60 hover:text-white transition-colors p-1">
+                <X size={18} />
               </button>
-            </div>
-          )
-        ) : (
-          <span className="w-8" />
-        )}
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-sm font-mono">{roundIndex + 1} / {rounds.length}</span>
+                <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
+                  <Trophy size={14} />
+                </button>
+              </div>
+            )
+          ) : null}
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable content */}
@@ -266,7 +271,7 @@ export function RecordSigningsPage() {
         )}
 
         {!loading && !error && showFinalScore && (
-          <FinalScore rounds={rounds} totalGuessed={totalGuessed} totalPlayers={totalPlayers} onBack={() => setShowFinalScore(false)} />
+          <FinalScore rounds={rounds} totalGuessed={totalGuessed} totalPlayers={totalPlayers} requiredToPass={requiredToPass} onBack={() => setShowFinalScore(false)} />
         )}
 
         {!loading && !error && !showFinalScore && showProgress && (
@@ -277,8 +282,8 @@ export function RecordSigningsPage() {
             rounds={rounds.map((r) => ({
               name: r.club,
               subtitle: `${r.signings.length} signings`,
-              guessed: r.guessedIndices.size,
-              total: r.signings.length,
+              guessed: Math.min(r.guessedIndices.size, requiredToPass(r.signings.length)),
+              total: requiredToPass(r.signings.length),
             }))}
             onRoundClick={(i) => { goToRound(i); setShowProgress(false); }}
           />
@@ -348,7 +353,7 @@ export function RecordSigningsPage() {
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
           {currentRound && (
             <p className={`text-xs mb-2 ${currentRound.guessedIndices.size > 0 ? "text-green-400" : "text-white/50"}`}>
-              {isRoundDone ? `All ${roundTotal} guessed! ✓` : `${currentRound.guessedIndices.size} / ${roundTotal} guessed`}
+              {isRoundDone ? `All ${roundTotal} guessed! ✓` : `${Math.min(currentRound.guessedIndices.size, roundTotal)} / ${roundTotal} guessed`}
             </p>
           )}
 
@@ -416,11 +421,13 @@ function FinalScore({
   rounds,
   totalGuessed,
   totalPlayers,
+  requiredToPass,
   onBack,
 }: {
   rounds: RoundResult[];
   totalGuessed: number;
   totalPlayers: number;
+  requiredToPass: (total: number) => number;
   onBack: () => void;
 }) {
   const pct = totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0;
@@ -436,8 +443,8 @@ function FinalScore({
 
       <div className="w-full flex flex-col gap-2">
         {rounds.map((r, i) => {
-          const guessedCount = r.guessedIndices.size;
-          const total = r.signings.length;
+          const total = requiredToPass(r.signings.length);
+          const guessedCount = Math.min(r.guessedIndices.size, total);
           const cleared = r.state === "cleared";
           return (
             <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">

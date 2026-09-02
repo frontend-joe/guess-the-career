@@ -23,6 +23,8 @@ import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
@@ -169,6 +171,7 @@ async function verifyGuess(name: string, listId: string): Promise<VerifyResult> 
 
 export function RandomListsPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<RandomListsScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -250,7 +253,7 @@ export function RandomListsPage() {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
     if (!players) return;
-    const target = currentRound.target;
+    const target = requiredToPass(currentRound.target);
     const activeGuesses = players.filter((p) => currentState.guessedIds.has(p.id)).length;
     if (activeGuesses >= target) return;
 
@@ -313,7 +316,8 @@ export function RandomListsPage() {
     const validIds = statePlayers
       ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length
       : (state?.guessedIds.size ?? 0);
-    const guessed = Math.min(validIds, r.target);
+    const roundTarget = requiredToPass(r.target);
+    const guessed = Math.min(validIds, roundTarget);
     return {
       name: (
         <span className="text-xs font-medium">
@@ -323,13 +327,13 @@ export function RandomListsPage() {
       ),
       icon: <ListChecks size={16} className="text-gray-400" />,
       guessed,
-      total: r.target,
+      total: roundTarget,
     };
   });
 
   const totalGuessed = rounds.filter((r) => {
     const state = roundStates[r.listId];
-    return (state?.guessedIds.size ?? 0) >= r.target;
+    return (state?.guessedIds.size ?? 0) >= requiredToPass(r.target);
   }).length;
   const totalPlayers = rounds.length;
 
@@ -344,13 +348,15 @@ export function RandomListsPage() {
   const filteredOriginalIndices = filteredProgressData.map((d) => d.i);
 
   const players = currentState?.players ?? null;
+  // Slots always render the full target count; only the pass threshold scales.
   const target = currentRound?.target ?? 0;
+  const passTarget = requiredToPass(target);
 
   const validGuessedIds = players
     ? new Set(players.filter((p) => currentState!.guessedIds.has(p.id)).map((p) => p.id))
     : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
-  const isDone = target > 0 && guessedCount >= target;
+  const isDone = passTarget > 0 && guessedCount >= passTarget;
 
   const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
   const unguessedList = players ? players.filter((p) => !validGuessedIds.has(p.id)) : [];
@@ -387,9 +393,12 @@ export function RandomListsPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Random Lists</span>
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
-          {showProgress ? <X size={20} /> : <Trophy size={20} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
+            {showProgress ? <X size={20} /> : <Trophy size={20} />}
+          </button>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {showProgress ? (

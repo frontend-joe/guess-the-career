@@ -13,6 +13,8 @@ import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import HeaderFlag from "@/components/HeaderFlag";
 
@@ -120,6 +122,7 @@ async function verifyGuess(footballerName: string, footballerId: number | null, 
 
 export function BundesligaPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<BundesligaScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -184,8 +187,9 @@ export function BundesligaPage() {
     const players = currentState.players;
     if (!players) return;
     const target = roundTarget(currentRound);
+    const passTarget = requiredToPass(target);
     const activeGuesses = players.filter((p) => currentState.guessedIds.has(p.id)).length;
-    if (activeGuesses >= target) return;
+    if (activeGuesses >= passTarget) return;
     if (players.filter((p) => currentState.guessedIds.has(p.id)).some((p) => matchesPlayer(name, p.name))) return;
 
     const matched = players.filter((p) => !currentState.guessedIds.has(p.id) && matchesPlayer(name, p.name));
@@ -238,7 +242,7 @@ export function BundesligaPage() {
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
     const state = roundStates[r.nationality];
     const validIds = state?.players ? state.players.filter((p) => state.guessedIds.has(p.id)).length : (state?.guessedIds.size ?? 0);
-    const target = roundTarget(r);
+    const target = requiredToPass(roundTarget(r));
     return {
       name: (<span className="text-xs font-medium"><span className="text-gray-400 mr-1">#{i + 1}</span>{r.nationality}</span>),
       icon: <span className="w-5 h-4 inline-flex items-center justify-center">{nationalityToFlagUrl(r.nationality) ? <img src={nationalityToFlagUrl(r.nationality)!} alt={r.nationality} className="w-5 h-3.5 object-cover border border-[#ebebeb]" /> : null}</span>,
@@ -247,7 +251,7 @@ export function BundesligaPage() {
     };
   });
 
-  const totalGuessed = rounds.filter((r) => (roundStates[r.nationality]?.guessedIds.size ?? 0) >= roundTarget(r)).length;
+  const totalGuessed = rounds.filter((r) => (roundStates[r.nationality]?.guessedIds.size ?? 0) >= requiredToPass(roundTarget(r))).length;
   const totalPlayers = rounds.length;
 
   const filteredProgress = progressRounds.map((r, i) => ({ r, i })).filter(({ i }) => !progressSearch.trim() || rounds[i].nationality.toLowerCase().includes(progressSearch.toLowerCase()));
@@ -256,9 +260,10 @@ export function BundesligaPage() {
 
   const players = currentState?.players ?? null;
   const target = currentRound ? roundTarget(currentRound) : 5;
+  const passTarget = requiredToPass(target);
   const validGuessedIds = players ? new Set(players.filter((p) => currentState!.guessedIds.has(p.id)).map((p) => p.id)) : (currentState?.guessedIds ?? new Set<number>());
   const guessedCount = validGuessedIds.size;
-  const isDone = guessedCount >= target;
+  const isDone = guessedCount >= passTarget;
   // Guessed players fill slots first; remaining slots show a club-logo hint
   // drawn from the top still-unguessed players.
   const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
@@ -287,7 +292,10 @@ export function BundesligaPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Bundesliga Players</span>
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>{showProgress ? <X size={20} /> : <Trophy size={20} />}</button>
+        <div className="flex items-center gap-1">
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>{showProgress ? <X size={20} /> : <Trophy size={20} />}</button>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {showProgress ? (

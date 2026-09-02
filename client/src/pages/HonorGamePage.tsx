@@ -4,6 +4,7 @@ import { GameMenu } from '@/components/GameMenu'
 import { getHonorSession } from '@/api/honor-game'
 import type { HonorQuestion, HonorPlayer } from '@/api/honor-game'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 type GameStatus = 'lobby' | 'playing' | 'correct' | 'wrong' | 'won'
 
@@ -226,9 +227,12 @@ function Header({ round, total }: { round: number; total: number }) {
     <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
       <GameMenu />
       <span className="text-white font-display text-sm tracking-wide uppercase">More Trophies?</span>
-      <span className="text-white text-sm font-semibold w-12 text-right">
-        {round}/{total}
-      </span>
+      <div className="flex items-center gap-1">
+        <span className="text-white text-sm font-semibold w-12 text-right">
+          {round}/{total}
+        </span>
+        <GameSettingsButton />
+      </div>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router'
 import { Users, ClipboardList, ChevronLeft } from 'lucide-react'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0c1a]'
@@ -24,6 +25,10 @@ export function GuessTheCareerModePage() {
         <ChevronLeft size={16} />
         Games
       </button>
+
+      <div className="absolute top-4 right-4 z-10">
+        <GameSettingsButton />
+      </div>
 
       <div className="relative text-center animate-rise">
         <h1 className="font-display text-3xl sm:text-4xl tracking-tight">

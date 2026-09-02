@@ -152,6 +152,7 @@ export const users = sqliteTable('users', {
   password_hash: text('password_hash'),
   google_id: text('google_id').unique(),
   is_admin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
+  settings: text('settings').notNull().default('{}'),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 

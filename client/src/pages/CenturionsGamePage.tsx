@@ -9,6 +9,8 @@ import {
 } from '@/api/centurions'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
+import { useSettings } from '@/contexts/SettingsContext'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 // ── Fuzzy matching (same as TwoClubsPage) ─────────────────────────────────────
 
@@ -94,6 +96,7 @@ function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: b
 export function CenturionsGamePage() {
   const { mode } = useParams<{ mode: string }>()
   const navigate = useNavigate()
+  const { requiredToPass } = useSettings()
 
   const modeConfig = CENTURION_MODES.find(m => m.id === mode)
 
@@ -219,7 +222,9 @@ export function CenturionsGamePage() {
 
   const guessedCount = guessedKeys.size
   const total = players.length
-  const isComplete = total > 0 && guessedCount >= total
+  const passTarget = requiredToPass(total)
+  const shownGuessed = Math.min(guessedCount, passTarget)
+  const isComplete = total > 0 && guessedCount >= passTarget
 
   return (
     <div
@@ -237,9 +242,12 @@ export function CenturionsGamePage() {
         <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">
           {modeConfig.title}
         </span>
-        <span className="text-white/60 text-sm font-mono whitespace-nowrap">
-          {guessedCount}/{loading ? '…' : total}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-white/60 text-sm font-mono whitespace-nowrap">
+            {shownGuessed}/{loading ? '…' : passTarget}
+          </span>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Player list */}
@@ -270,7 +278,7 @@ export function CenturionsGamePage() {
       {/* Bottom input panel */}
       <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
         <p className={`text-xs mb-2 ${isComplete ? 'text-green-400' : guessedCount > 0 ? 'text-blue-300' : 'text-white/50'}`}>
-          {isComplete ? `All ${total} found! ✓` : `${guessedCount} / ${total} found`}
+          {isComplete ? `All ${passTarget} found! ✓` : `${shownGuessed} / ${passTarget} found`}
         </p>
 
         {isComplete ? (

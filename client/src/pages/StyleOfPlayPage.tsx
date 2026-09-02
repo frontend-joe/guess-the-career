@@ -7,6 +7,7 @@ import { OverallProgressScreen } from '@/components/OverallProgressScreen'
 import { getSopRounds, type SopRound } from '@/api/sop-schedule'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { getSopLeaderboard, submitSopScore, type SopLeaderboardEntry } from '@/api/sop-leaderboard'
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 type RoundState = 'playing' | 'cleared'
 
@@ -257,22 +258,23 @@ export function StyleOfPlayPage() {
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Style Of Play
         </span>
-        {rounds.length > 0 ? (
-          showProgress ? (
-            <button onClick={() => setShowProgress(false)} className="text-white/60 hover:text-white transition-colors p-1">
-              <X size={18} />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-white/60 text-sm font-mono">{roundIndex + 1} / {rounds.length}</span>
-              <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
-                <Trophy size={14} />
+        <div className="flex items-center gap-1">
+          {rounds.length > 0 ? (
+            showProgress ? (
+              <button onClick={() => setShowProgress(false)} className="text-white/60 hover:text-white transition-colors p-1">
+                <X size={18} />
               </button>
-            </div>
-          )
-        ) : (
-          <span className="w-8" />
-        )}
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-sm font-mono">{roundIndex + 1} / {rounds.length}</span>
+                <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
+                  <Trophy size={14} />
+                </button>
+              </div>
+            )
+          ) : null}
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable content */}

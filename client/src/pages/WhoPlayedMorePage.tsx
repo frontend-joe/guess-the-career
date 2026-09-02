@@ -8,6 +8,7 @@ import {
 } from "@/api/who-played-more";
 import type { WpmPair, WpmLeaderboardEntry } from "@/api/who-played-more";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 type GameStatus = "lobby" | "playing" | "correct" | "wrong" | "won";
 type View = "game" | "leaderboard";
@@ -153,6 +154,7 @@ export function WhoPlayedMorePage() {
           >
             <Trophy size={20} />
           </button>
+          <GameSettingsButton />
         </div>
       </div>
 

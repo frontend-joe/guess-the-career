@@ -7,6 +7,7 @@ import { NationalityFlag } from "@/components/NationalityFlag";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { getFootballerCard, type FootballerCard, type CardStint } from "@/api/footballers";
 import { getBookendsScheduleRounds, type BookendsScheduleRound } from "@/api/bookends-schedule";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 const PROGRESS_KEY = "bookends_progress";
@@ -165,7 +166,10 @@ export function BookendsPage() {
       <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">Bookend Players</span>
-        {rounds.length > 0 && <span className="text-white/60 text-sm font-mono">{index + 1} / {rounds.length}</span>}
+        <div className="flex items-center gap-1">
+          {rounds.length > 0 && <span className="text-white/60 text-sm font-mono">{index + 1} / {rounds.length}</span>}
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Body */}

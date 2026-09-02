@@ -5,6 +5,8 @@ import { getCicSession, searchClubs } from '@/api/clubs-in-common'
 import type { CicPair, ClubSuggestion } from '@/api/clubs-in-common'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
+import { useSettings } from '@/contexts/SettingsContext'
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 type RoundState = 'playing' | 'cleared' | 'given_up'
 
@@ -20,6 +22,7 @@ interface CicRoundResult {
 }
 
 export function ClubsInCommonPage() {
+  const { requiredToPass } = useSettings()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rounds, setRounds] = useState<CicRoundResult[]>([])
@@ -73,7 +76,7 @@ export function ClubsInCommonPage() {
     }
 
     const newGuessed = [...round.guessedClubs, matched]
-    const newState: RoundState = newGuessed.length >= round.required ? 'cleared' : 'playing'
+    const newState: RoundState = newGuessed.length >= requiredToPass(round.required) ? 'cleared' : 'playing'
     const updated = [...rounds]
     updated[roundIndex] = { ...round, guessedClubs: newGuessed, state: newState }
     setRounds(updated)
@@ -106,8 +109,10 @@ export function ClubsInCommonPage() {
   const currentRound = rounds[roundIndex] ?? null
   const isRoundDone = currentRound?.state !== 'playing'
   const isLastRound = roundIndex === rounds.length - 1
-  const totalGuessed = rounds.reduce((sum, r) => sum + r.guessedClubs.length, 0)
-  const totalRequired = rounds.reduce((sum, r) => sum + r.required, 0)
+  // Pass goal per round scales with the global Guess-percentage setting (100% = all).
+  const totalGuessed = rounds.reduce((sum, r) => sum + Math.min(r.guessedClubs.length, requiredToPass(r.required)), 0)
+  const totalRequired = rounds.reduce((sum, r) => sum + requiredToPass(r.required), 0)
+  const roundTarget = currentRound ? requiredToPass(currentRound.required) : 0
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-[400px] mx-auto font-sans">
@@ -117,13 +122,14 @@ export function ClubsInCommonPage() {
         <span className="text-white font-display text-sm tracking-wide uppercase absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
           Clubs In Common
         </span>
-        {rounds.length > 0 ? (
-          <span className="text-white/60 text-sm font-mono">
-            {roundIndex + 1} / {rounds.length}
-          </span>
-        ) : (
-          <span className="w-8" />
-        )}
+        <div className="flex items-center gap-1">
+          {rounds.length > 0 ? (
+            <span className="text-white/60 text-sm font-mono">
+              {roundIndex + 1} / {rounds.length}
+            </span>
+          ) : null}
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable area */}
@@ -151,13 +157,14 @@ export function ClubsInCommonPage() {
             rounds={rounds}
             totalGuessed={totalGuessed}
             totalRequired={totalRequired}
+            requiredToPass={requiredToPass}
             onPlayAgain={loadSession}
           />
         )}
 
         {!loading && !error && !showFinalScore && currentRound && (
           <div className="flex flex-col items-center px-3 pt-6 pb-4 gap-5 mt-auto">
-            <PairCard round={currentRound} />
+            <PairCard round={currentRound} target={roundTarget} />
             <ClubReveal round={currentRound} clubWikiUrls={currentRound.clubWikiUrls} />
           </div>
         )}
@@ -197,9 +204,9 @@ export function ClubsInCommonPage() {
           <p className="text-white/50 text-xs mb-2">
             {isRoundDone
               ? currentRound.state === 'cleared'
-                ? `Cleared! Found all ${currentRound.required} club${currentRound.required !== 1 ? 's' : ''} in common`
-                : `Gave up — ${currentRound.guessedClubs.length} / ${currentRound.required} found`
-              : `${currentRound.guessedClubs.length} / ${currentRound.required} clubs in common found`}
+                ? `Cleared! Found all ${roundTarget} club${roundTarget !== 1 ? 's' : ''} in common`
+                : `Gave up — ${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} found`
+              : `${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} clubs in common found`}
           </p>
 
           {/* Input */}
@@ -263,7 +270,7 @@ function PlayerPhoto({ id, name, wikipediaUrl, photoUrl }: { id: number; name: s
   )
 }
 
-function PairCard({ round }: { round: CicRoundResult }) {
+function PairCard({ round, target }: { round: CicRoundResult; target: number }) {
   return (
     <div className="flex flex-col items-center text-center gap-3 w-full">
       <div className="flex items-center gap-3 w-full">
@@ -288,7 +295,7 @@ function PairCard({ round }: { round: CicRoundResult }) {
           clubs in common
         </p>
         <p className="text-gray-900 font-bold text-base">
-          Guess {round.required} shared club{round.required !== 1 ? 's' : ''}
+          Guess {target} shared club{target !== 1 ? 's' : ''}
         </p>
       </div>
     </div>
@@ -365,11 +372,13 @@ function FinalScore({
   rounds,
   totalGuessed,
   totalRequired,
+  requiredToPass,
   onPlayAgain,
 }: {
   rounds: CicRoundResult[]
   totalGuessed: number
   totalRequired: number
+  requiredToPass: (total: number) => number
   onPlayAgain: () => void
 }) {
   const pct = totalRequired > 0 ? Math.round((totalGuessed / totalRequired) * 100) : 0
@@ -384,6 +393,8 @@ function FinalScore({
 
       <div className="w-full flex flex-col gap-2">
         {rounds.map((r, i) => {
+          const target = requiredToPass(r.required)
+          const guessedCount = Math.min(r.guessedClubs.length, target)
           const cleared = r.state === 'cleared'
           const partial = r.guessedClubs.length > 0 && !cleared
           return (
@@ -399,7 +410,7 @@ function FinalScore({
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-2">
                 <span className="text-xs text-gray-500">
-                  {r.guessedClubs.length}/{r.required}
+                  {guessedCount}/{target}
                 </span>
                 {cleared ? (
                   <Check size={14} className="text-green-500" />

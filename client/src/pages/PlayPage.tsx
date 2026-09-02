@@ -6,6 +6,7 @@ import { getDays } from '@/api/days'
 import { getFootballers, getFootballer } from '@/api/footballers'
 import { getManagerDays } from '@/api/manager-days'
 import { getManagers, getManager } from '@/api/managers'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 type GuessState = 'playing' | 'won' | 'lost'
 
@@ -216,9 +217,12 @@ export function PlayPage({ mode }: Props) {
         <h1 className="text-white font-display text-sm tracking-wide uppercase absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
           Guess the Career
         </h1>
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1">
-          <BarChart2 size={22} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1">
+            <BarChart2 size={22} />
+          </button>
+          <GameSettingsButton />
+        </div>
       </header>
 
       {/* Scrollable career table */}

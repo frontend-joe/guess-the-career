@@ -11,6 +11,8 @@ import { PositionBadge } from '@/components/PositionBadge'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
 import { useCompactMode } from '@/contexts/CompactModeContext';
+import { useSettings } from '@/contexts/SettingsContext'
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
@@ -146,6 +148,9 @@ interface RoundState {
 
 export function TwoClubsPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings()
+  // Slots always render TARGET; only the pass threshold scales with the setting.
+  const passTarget = requiredToPass(TARGET)
   const [searchParams, setSearchParams] = useSearchParams()
   const [rounds, setRounds] = useState<TwoClubsScheduleRound[]>([])
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({})
@@ -223,7 +228,7 @@ export function TwoClubsPage() {
   // ── Submit guess ──────────────────────────────────────────────────────────
   async function submitGuess(name: string) {
     if (!currentState || !currentKey || !currentRound || verifying) return
-    if (currentState.guessedIds.size >= TARGET) return
+    if (currentState.guessedIds.size >= passTarget) return
     const players = currentState.players
     if (!players) return
 
@@ -289,7 +294,7 @@ export function TwoClubsPage() {
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
     const key = pairKey(r.clubA, r.clubB)
     const state = roundStates[key]
-    const guessed = Math.min(state?.guessedIds.size ?? 0, TARGET)
+    const guessed = Math.min(state?.guessedIds.size ?? 0, passTarget)
     return {
       name: <span className="text-xs font-medium"><span className="text-gray-400 mr-1">#{i + 1}</span>{r.clubA} × {r.clubB}</span>,
       icon: (
@@ -299,11 +304,11 @@ export function TwoClubsPage() {
         </div>
       ),
       guessed,
-      total: TARGET,
+      total: passTarget,
     }
   })
 
-  const totalGuessed = Object.values(roundStates).filter(s => s.guessedIds.size >= TARGET).length
+  const totalGuessed = Object.values(roundStates).filter(s => s.guessedIds.size >= passTarget).length
   const totalPlayers = rounds.length
 
   const filteredProgressData = progressRounds
@@ -317,7 +322,7 @@ export function TwoClubsPage() {
   const filteredOriginalIndices = filteredProgressData.map(d => d.i)
 
   const guessedCount = currentState?.guessedIds.size ?? 0
-  const isDone = guessedCount >= TARGET
+  const isDone = guessedCount >= passTarget
   const players = currentState?.players ?? null
 
   // Slots: guessed players fill first, then empty slots show a flag + position
@@ -354,9 +359,12 @@ export function TwoClubsPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Two Clubs</span>
-        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
-          {showProgress ? <X size={20} /> : <Trophy size={20} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
+            {showProgress ? <X size={20} /> : <Trophy size={20} />}
+          </button>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {showProgress ? (

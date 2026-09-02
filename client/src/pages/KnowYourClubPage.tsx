@@ -3,6 +3,8 @@ import { ChevronLeft, X, Search } from 'lucide-react'
 import { getKycClubs, getKycSession, type KycClub, type KycPlayer } from '@/api/know-your-club'
 import { getFootballers, type Footballer } from '@/api/footballers'
 import { NationalityFlag } from '@/components/NationalityFlag'
+import { useSettings } from '@/contexts/SettingsContext'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 type GameState = 'lobby' | 'loading' | 'playing' | 'complete' | 'given_up'
 
@@ -52,6 +54,7 @@ function ClubBadge({ name, wikipediaUrl }: { name: string; wikipediaUrl: string 
 }
 
 export function KnowYourClubPage() {
+  const { requiredToPass } = useSettings()
   const [gameState, setGameState] = useState<GameState>('lobby')
   const [clubs, setClubs] = useState<KycClub[]>([])
   const [clubsLoading, setClubsLoading] = useState(true)
@@ -132,7 +135,7 @@ export function KnowYourClubPage() {
     inputRef.current?.blur()
     window.scrollTo(0, 0)
 
-    if (currentIndex + 1 >= players.length) {
+    if (currentIndex + 1 >= requiredToPass(players.length)) {
       setTimeout(() => setGameState('complete'), 500)
     } else {
       setTimeout(() => setCurrentIndex(i => i + 1), 400)
@@ -151,6 +154,8 @@ export function KnowYourClubPage() {
   )
 
   const guessedCount = players.filter(p => p.guessed).length
+  const passTarget = requiredToPass(players.length)
+  const shownGuessed = Math.min(guessedCount, passTarget)
   const currentPlayer = players[currentIndex] ?? null
   const isEndState = gameState === 'complete' || gameState === 'given_up'
 
@@ -225,11 +230,14 @@ export function KnowYourClubPage() {
               <ClubBadge name={selectedClub.name} wikipediaUrl={selectedClub.wikipediaUrl} />
               <span className="text-white font-bold text-sm truncate">{selectedClub.name}</span>
             </div>
-            {gameState === 'playing' && (
-              <span className="text-white/60 text-sm font-mono shrink-0 ml-2">
-                {guessedCount} / {players.length}
-              </span>
-            )}
+            <div className="flex items-center gap-1 shrink-0 ml-2">
+              {gameState === 'playing' && (
+                <span className="text-white/60 text-sm font-mono">
+                  {shownGuessed} / {passTarget}
+                </span>
+              )}
+              <GameSettingsButton />
+            </div>
           </div>
 
           {/* Photo */}
@@ -264,7 +272,7 @@ export function KnowYourClubPage() {
                 ) : (
                   <h2 className="text-xl font-bold text-gray-900">Too bad!</h2>
                 )}
-                <p className="text-sm text-gray-500 mt-0.5">{guessedCount} / {gameState === 'given_up' ? currentIndex + 1 : players.length} guessed</p>
+                <p className="text-sm text-gray-500 mt-0.5">{shownGuessed} / {gameState === 'given_up' ? currentIndex + 1 : passTarget} guessed</p>
               </div>
               <div className="grid grid-cols-2 gap-3 px-4 pb-4">
                 {(gameState === 'given_up' ? players.slice(0, currentIndex + 1) : players).map(({ player, guessed }) => (

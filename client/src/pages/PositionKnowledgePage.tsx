@@ -7,6 +7,7 @@ import {
   type PositionPlayer,
 } from '@/api/position-knowledge'
 import { nationalityToFlagUrl } from '@/lib/flags'
+import { GameSettingsButton } from '@/components/GameSettingsButton'
 
 const NATIONS = ['England', 'Spain', 'Italy', 'France', 'Germany', 'Argentina', 'Brazil', 'Netherlands', 'Portugal', 'Ireland']
 
@@ -291,9 +292,12 @@ export function PositionKnowledgePage() {
           </button>
         </div>
         <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">{gameTitle}</span>
-        <span className="text-white/60 text-sm font-mono whitespace-nowrap">
-          {foundCount}/{totalCount}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-white/60 text-sm font-mono whitespace-nowrap">
+            {foundCount}/{totalCount}
+          </span>
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable player list */}

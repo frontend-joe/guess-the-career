@@ -5,6 +5,8 @@ import { getGhcSession, searchClubs } from '@/api/guess-his-clubs'
 import type { GhcFootballer, ClubSuggestion } from '@/api/guess-his-clubs'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
+import { useSettings } from '@/contexts/SettingsContext'
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 type RoundState = 'playing' | 'cleared' | 'given_up'
 
@@ -22,6 +24,7 @@ interface RoundResult {
 }
 
 export function GuessHisClubsPage() {
+  const { requiredToPass } = useSettings()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rounds, setRounds] = useState<RoundResult[]>([])
@@ -76,7 +79,7 @@ export function GuessHisClubsPage() {
     }
 
     const newCorrect = [...round.correctClubs, matched]
-    const newState: RoundState = newCorrect.length >= round.required ? 'cleared' : 'playing'
+    const newState: RoundState = newCorrect.length >= requiredToPass(round.required) ? 'cleared' : 'playing'
     const updated = [...rounds]
     updated[roundIndex] = { ...round, correctClubs: newCorrect, state: newState }
     setRounds(updated)
@@ -109,8 +112,10 @@ export function GuessHisClubsPage() {
   const currentRound = rounds[roundIndex] ?? null
   const isRoundDone = currentRound?.state !== 'playing'
   const isLastRound = roundIndex === rounds.length - 1
-  const totalCorrect = rounds.reduce((sum, r) => sum + r.correctClubs.length, 0)
-  const totalRequired = rounds.reduce((sum, r) => sum + r.required, 0)
+  // Pass goal per round scales with the global Guess-percentage setting (100% = all).
+  const totalCorrect = rounds.reduce((sum, r) => sum + Math.min(r.correctClubs.length, requiredToPass(r.required)), 0)
+  const totalRequired = rounds.reduce((sum, r) => sum + requiredToPass(r.required), 0)
+  const roundTarget = currentRound ? requiredToPass(currentRound.required) : 0
 
   return (
     <div
@@ -122,13 +127,14 @@ export function GuessHisClubsPage() {
         <span className="text-white font-display text-sm tracking-wide uppercase absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
           Guess His Clubs
         </span>
-        {rounds.length > 0 ? (
-          <span className="text-white/60 text-sm font-mono">
-            {roundIndex + 1} / {rounds.length}
-          </span>
-        ) : (
-          <span className="w-8" />
-        )}
+        <div className="flex items-center gap-1">
+          {rounds.length > 0 ? (
+            <span className="text-white/60 text-sm font-mono">
+              {roundIndex + 1} / {rounds.length}
+            </span>
+          ) : null}
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable area */}
@@ -156,13 +162,14 @@ export function GuessHisClubsPage() {
             rounds={rounds}
             totalCorrect={totalCorrect}
             totalRequired={totalRequired}
+            requiredToPass={requiredToPass}
             onPlayAgain={loadSession}
           />
         )}
 
         {!loading && !error && !showFinalScore && currentRound && (
           <div className="flex flex-col items-center px-3 pt-6 pb-4 gap-5 mt-auto">
-            <FootballerCard round={currentRound} />
+            <FootballerCard round={currentRound} target={roundTarget} />
             <ClubReveal round={currentRound} clubWikiUrls={currentRound.clubWikiUrls} />
           </div>
         )}
@@ -202,9 +209,9 @@ export function GuessHisClubsPage() {
           <p className="text-white/50 text-xs mb-2">
             {isRoundDone
               ? currentRound.state === 'cleared'
-                ? `Cleared! ${currentRound.correctClubs.length} / ${currentRound.required} required`
-                : `Gave up — ${currentRound.correctClubs.length} / ${currentRound.required} required`
-              : `${currentRound.correctClubs.length} / ${currentRound.required} required`}
+                ? `Cleared! ${Math.min(currentRound.correctClubs.length, roundTarget)} / ${roundTarget} required`
+                : `Gave up — ${Math.min(currentRound.correctClubs.length, roundTarget)} / ${roundTarget} required`
+              : `${Math.min(currentRound.correctClubs.length, roundTarget)} / ${roundTarget} required`}
           </p>
 
           {/* Input */}
@@ -259,7 +266,7 @@ export function GuessHisClubsPage() {
   )
 }
 
-function FootballerCard({ round }: { round: RoundResult }) {
+function FootballerCard({ round, target }: { round: RoundResult; target: number }) {
   return (
     <div className="flex flex-col items-center text-center gap-2">
       <PlayerAvatar
@@ -273,7 +280,7 @@ function FootballerCard({ round }: { round: RoundResult }) {
         <p className="text-gray-400 text-xs uppercase tracking-widest leading-none mb-0.5">Name the clubs of</p>
         <p className="text-gray-900 font-bold text-lg leading-tight">{round.footballerName}</p>
         <p className="text-gray-400 text-xs mt-0.5">{round.allClubs.length} clubs</p>
-        <p className="text-gray-900 font-bold text-base mt-1">Guess {round.required} to clear</p>
+        <p className="text-gray-900 font-bold text-base mt-1">Guess {target} to clear</p>
       </div>
     </div>
   )
@@ -349,11 +356,13 @@ function FinalScore({
   rounds,
   totalCorrect,
   totalRequired,
+  requiredToPass,
   onPlayAgain,
 }: {
   rounds: RoundResult[]
   totalCorrect: number
   totalRequired: number
+  requiredToPass: (total: number) => number
   onPlayAgain: () => void
 }) {
   const pct = totalRequired > 0 ? Math.round((totalCorrect / totalRequired) * 100) : 0
@@ -368,6 +377,8 @@ function FinalScore({
 
       <div className="w-full flex flex-col gap-2">
         {rounds.map((r, i) => {
+          const target = requiredToPass(r.required)
+          const correctCount = Math.min(r.correctClubs.length, target)
           const cleared = r.state === 'cleared'
           const partial = r.correctClubs.length > 0 && !cleared
           return (
@@ -381,7 +392,7 @@ function FinalScore({
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-2">
                 <span className="text-xs text-gray-500">
-                  {r.correctClubs.length}/{r.required}
+                  {correctCount}/{target}
                 </span>
                 {cleared ? (
                   <Check size={14} className="text-green-500" />

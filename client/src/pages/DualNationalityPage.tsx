@@ -8,6 +8,8 @@ import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { getAnswers, type DualNationalityPlayer } from "@/api/dual-nationality";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 const PROGRESS_KEY = "dual_nationality_progress";
@@ -96,6 +98,7 @@ function PlayerRow({ player, guessed }: { player: DualNationalityPlayer; guessed
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export function DualNationalityPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const [players, setPlayers] = useState<DualNationalityPlayer[] | null>(null);
   const [guessedIds, setGuessedIds] = useState<Set<number>>(new Set());
   const [wrongGuesses, setWrongGuesses] = useState<Set<string>>(new Set());
@@ -144,7 +147,9 @@ export function DualNationalityPage() {
 
   const total = players?.length ?? 0;
   const guessedCount = players ? players.filter((p) => guessedIds.has(p.footballerId)).length : 0;
-  const isDone = total > 0 && guessedCount >= total;
+  const passTarget = requiredToPass(total);
+  const shownGuessed = Math.min(guessedCount, passTarget);
+  const isDone = total > 0 && guessedCount >= passTarget;
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
@@ -152,7 +157,7 @@ export function DualNationalityPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Dual Nationality</span>
-        <span className="w-8" />
+        <GameSettingsButton />
       </div>
 
       {/* Body */}
@@ -183,7 +188,7 @@ export function DualNationalityPage() {
       {players !== null && total > 0 && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
           <p className={`text-xs mb-2 ${guessedCount > 0 ? "text-green-400" : "text-white/50"}`}>
-            {isDone ? `All ${total} found! ✓` : `${guessedCount} / ${total} found`}
+            {isDone ? `All ${passTarget} found! ✓` : `${shownGuessed} / ${passTarget} found`}
           </p>
           {!isDone && (
             <GuessSearchInput autoScrape={false}

@@ -18,6 +18,8 @@ import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { PositionBadge } from "@/components/PositionBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
@@ -144,6 +146,7 @@ function buildRounds(
 
 export function TopScorersPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -206,7 +209,7 @@ export function TopScorersPage() {
 
     const newGuessed = new Set(round.guessedIndices);
     matched.forEach((i) => newGuessed.add(i));
-    const allGuessed = newGuessed.size === round.players.length;
+    const allGuessed = newGuessed.size >= requiredToPass(round.players.length);
     const newState: RoundState = allGuessed ? "cleared" : "playing";
 
     const updated = [...rounds];
@@ -259,11 +262,13 @@ export function TopScorersPage() {
   const isLastRound = roundIndex === rounds.length - 1;
   const allCleared =
     rounds.length > 0 && rounds.every((r) => r.state === "cleared");
+  // Pass goal per round scales with the global Guess-percentage setting (100% = all).
   const totalGuessed = rounds.reduce(
-    (sum, r) => sum + r.guessedIndices.size,
+    (sum, r) => sum + Math.min(r.guessedIndices.size, requiredToPass(r.players.length)),
     0,
   );
-  const totalPlayers = rounds.reduce((sum, r) => sum + r.players.length, 0);
+  const totalPlayers = rounds.reduce((sum, r) => sum + requiredToPass(r.players.length), 0);
+  const roundTotal = currentRound ? requiredToPass(currentRound.players.length) : 0;
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
@@ -273,30 +278,31 @@ export function TopScorersPage() {
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Top Scorers
         </span>
-        {rounds.length > 0 ? (
-          showProgress ? (
-            <button
-              onClick={() => setShowProgress(false)}
-              className="text-white/60 hover:text-white transition-colors p-1"
-            >
-              <X size={18} />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-white/60 text-sm font-mono">
-                {roundIndex + 1} / {rounds.length}
-              </span>
+        <div className="flex items-center gap-1">
+          {rounds.length > 0 ? (
+            showProgress ? (
               <button
-                onClick={() => setShowProgress(true)}
-                className="text-white/40 hover:text-white/80 transition-colors p-0.5"
+                onClick={() => setShowProgress(false)}
+                className="text-white/60 hover:text-white transition-colors p-1"
               >
-                <Trophy size={14} />
+                <X size={18} />
               </button>
-            </div>
-          )
-        ) : (
-          <span className="w-8" />
-        )}
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-sm font-mono">
+                  {roundIndex + 1} / {rounds.length}
+                </span>
+                <button
+                  onClick={() => setShowProgress(true)}
+                  className="text-white/40 hover:text-white/80 transition-colors p-0.5"
+                >
+                  <Trophy size={14} />
+                </button>
+              </div>
+            )
+          ) : null}
+          <GameSettingsButton />
+        </div>
       </div>
 
       {/* Scrollable content */}
@@ -332,6 +338,7 @@ export function TopScorersPage() {
             rounds={rounds}
             totalGuessed={totalGuessed}
             totalPlayers={totalPlayers}
+            requiredToPass={requiredToPass}
             onBack={() => setShowFinalScore(false)}
           />
         )}
@@ -342,8 +349,8 @@ export function TopScorersPage() {
             totalPlayers={totalPlayers}
             rounds={rounds.map((r) => ({
               name: r.competitionName,
-              guessed: r.guessedIndices.size,
-              total: r.players.length,
+              guessed: Math.min(r.guessedIndices.size, requiredToPass(r.players.length)),
+              total: requiredToPass(r.players.length),
             }))}
             onRoundClick={(i) => { goToRound(i); setShowProgress(false); }}
           />
@@ -446,8 +453,8 @@ export function TopScorersPage() {
               className={`text-xs mb-2 ${currentRound.guessedIndices.size > 0 ? "text-green-400" : "text-white/50"}`}
             >
               {isRoundDone
-                ? `All ${currentRound.players.length} guessed! ✓`
-                : `${currentRound.guessedIndices.size} / ${currentRound.players.length} guessed`}
+                ? `All ${roundTotal} guessed! ✓`
+                : `${Math.min(currentRound.guessedIndices.size, roundTotal)} / ${roundTotal} guessed`}
             </p>
           )}
 
@@ -513,11 +520,13 @@ function FinalScore({
   rounds,
   totalGuessed,
   totalPlayers,
+  requiredToPass,
   onBack,
 }: {
   rounds: RoundResult[];
   totalGuessed: number;
   totalPlayers: number;
+  requiredToPass: (total: number) => number;
   onBack: () => void;
 }) {
   const pct =
@@ -594,8 +603,8 @@ function FinalScore({
         <>
           <div className="w-full flex flex-col gap-2">
             {rounds.map((r, i) => {
-              const guessedCount = r.guessedIndices.size;
-              const total = r.players.length;
+              const total = requiredToPass(r.players.length);
+              const guessedCount = Math.min(r.guessedIndices.size, total);
               const cleared = r.state === "cleared";
               return (
                 <div

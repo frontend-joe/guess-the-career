@@ -8,6 +8,8 @@ import { MiniClubBadge } from "@/components/MiniClubBadge";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { getFamilyGame, type Family, type FamilyMember } from "@/api/football-families";
 import { useCompactMode } from "@/contexts/CompactModeContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { GameSettingsButton } from "@/components/GameSettingsButton";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 const PROGRESS_KEY = "football_families_progress";
@@ -81,6 +83,7 @@ function MemberRow({ m, guessed }: { m: FamilyMember; guessed: boolean }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export function FootballFamiliesPage() {
   const { compact } = useCompactMode();
+  const { requiredToPass } = useSettings();
   const [families, setFamilies] = useState<Family[] | null>(null);
   const [guessedIds, setGuessedIds] = useState<Set<number>>(new Set());
   const [wrongGuesses, setWrongGuesses] = useState<Set<string>>(new Set());
@@ -106,7 +109,10 @@ export function FootballFamiliesPage() {
   const uniqueIds = [...new Set(allMembers.map((m) => m.footballerId))];
   const total = uniqueIds.length;
   const guessedCount = uniqueIds.filter((id) => guessedIds.has(id)).length;
-  const isDone = total > 0 && guessedCount >= total;
+  // The pass goal scales with the global Guess-percentage setting (100% = all).
+  const passTarget = requiredToPass(total);
+  const shownGuessed = Math.min(guessedCount, passTarget);
+  const isDone = total > 0 && guessedCount >= passTarget;
 
   function submitGuess(name: string) {
     const matched = allMembers.filter((m) => !guessedIds.has(m.footballerId) && matchesPlayer(name, m.name));
@@ -134,7 +140,7 @@ export function FootballFamiliesPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Football Families</span>
-        <span className="w-8" />
+        <GameSettingsButton />
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50 flex flex-col">
@@ -170,7 +176,7 @@ export function FootballFamiliesPage() {
       {families !== null && total > 0 && (
         <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
           <p className={`text-xs mb-2 ${guessedCount > 0 ? "text-green-400" : "text-white/50"}`}>
-            {isDone ? `All ${total} found! ✓` : `${guessedCount} / ${total} found`}
+            {isDone ? `All ${passTarget} found! ✓` : `${shownGuessed} / ${passTarget} found`}
           </p>
           {!isDone && (
             <GuessSearchInput autoScrape={false}

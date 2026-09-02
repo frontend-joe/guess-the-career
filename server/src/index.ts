@@ -58,6 +58,7 @@ import { transferHistoryRouter } from './routes/transfer-history.ts'
 import { recordSigningsRouter } from './routes/record-signings.ts'
 import { authRouter } from './routes/auth.ts'
 import { progressRouter } from './routes/progress.ts'
+import { settingsRouter } from './routes/settings.ts'
 import { usersRouter } from './routes/users.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
@@ -71,6 +72,7 @@ app.use('*', logger())
 // to reflecting the request origin when CLIENT_URL isn't set (dev/proxy).
 app.use('*', cors({ origin: process.env.CLIENT_URL ?? ((origin) => origin), credentials: true }))
 
+app.route('/api/settings', settingsRouter)
 app.route('/api/footballers', footballersRouter)
 app.route('/api/days', daysRouter)
 app.route('/api/admin', adminRouter)

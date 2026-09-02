@@ -3,6 +3,7 @@ import { Outlet } from 'react-router'
 import { SignupBanner } from '@/components/SignupBanner'
 import { PlayerModalProvider } from '@/contexts/PlayerModalContext'
 import { CompactModeProvider } from '@/contexts/CompactModeContext'
+import { SettingsProvider } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { installProgressSync, enableSync, disableSync, syncProgress } from '@/lib/progressSync'
 
@@ -31,11 +32,13 @@ export function RootLayout() {
   }, [loading, user])
 
   return (
-    <CompactModeProvider>
-      <PlayerModalProvider>
-        <Outlet />
-        <SignupBanner />
-      </PlayerModalProvider>
-    </CompactModeProvider>
+    <SettingsProvider>
+      <CompactModeProvider>
+        <PlayerModalProvider>
+          <Outlet />
+          <SignupBanner />
+        </PlayerModalProvider>
+      </CompactModeProvider>
+    </SettingsProvider>
   )
 }
