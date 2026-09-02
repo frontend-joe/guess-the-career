@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import {
-  Trash2, ExternalLink, Calendar, CheckCircle2, Loader2, Circle, Power, RefreshCw, ChevronDown, Link2,
+  Trash2, ExternalLink, Calendar, CheckCircle2, Loader2, Circle, Power, RefreshCw, ChevronDown, Link2, AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
@@ -414,14 +414,21 @@ export function RecordSigningsAdminPage() {
           <p className="text-sm text-muted-foreground">No clubs imported yet.</p>
         )}
         {items.map(item => (
-          <div key={item.id} className={`flex items-center gap-3 border rounded-lg px-3 py-2.5 ${item.active ? '' : 'opacity-60'}`}>
+          <div key={item.id} className={`flex items-center gap-3 border rounded-lg px-3 py-2.5 ${item.active ? '' : 'opacity-60'} ${item.unlinked_count > 0 ? 'border-amber-300 bg-amber-50/50' : ''}`}>
             <button
               onClick={() => navigate(`/admin/record-signings/${item.id}`)}
               className="flex-1 min-w-0 text-left group"
-              title="View signings as they appear in the game"
+              title={item.unlinked_count > 0 ? `${item.unlinked_count} player${item.unlinked_count !== 1 ? 's' : ''} not linked — click to fix` : 'View signings as they appear in the game'}
             >
               <p className="text-sm font-semibold truncate group-hover:underline">{item.club}</p>
-              <p className="text-xs text-muted-foreground">{item.player_count} signings</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                {item.player_count} signings
+                {item.unlinked_count > 0 && (
+                  <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
+                    <AlertTriangle className="h-3 w-3" /> {item.unlinked_count} to fix
+                  </span>
+                )}
+              </p>
             </button>
             <button
               onClick={() => handleToggleActive(item)}

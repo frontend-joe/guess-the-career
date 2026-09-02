@@ -226,6 +226,17 @@ recordSigningsRouter.post(
   zValidator('json', z.object({ name: z.string().min(1), club: z.string().optional() })),
   async (c) => {
     const { name, club } = c.req.valid('json')
+    // Tolerate a pasted Wikipedia URL here too (scrape it directly by URL).
+    if (name.includes('wikipedia.org/wiki/')) {
+      try {
+        const id = await insertScrapedFootballer(name.trim())
+        if (id == null) return c.json({ error: 'Could not scrape that page' }, 400)
+        const [f] = await db.select({ id: footballers.id, name: footballers.name }).from(footballers).where(eq(footballers.id, id)).limit(1)
+        return c.json(f)
+      } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : 'Scrape failed' }, 400)
+      }
+    }
     const { id } = await resolveOrCreateFootballer(name, club ?? '')
     if (id == null) return c.json({ error: `Couldn't find "${name}" on Wikipedia.` }, 404)
     const [f] = await db.select({ id: footballers.id, name: footballers.name }).from(footballers).where(eq(footballers.id, id)).limit(1)
@@ -258,7 +269,8 @@ recordSigningsRouter.get('/clubs', (c) => {
   const rows = sqlite
     .prepare(
       `SELECT rc.id, rc.club, rc.club_wikipedia_url, rc.source_url, rc.active, rc.created_at,
-              (SELECT COUNT(*) FROM record_signings_players sp WHERE sp.club_id = rc.id) AS player_count
+              (SELECT COUNT(*) FROM record_signings_players sp WHERE sp.club_id = rc.id) AS player_count,
+              (SELECT COUNT(*) FROM record_signings_players sp WHERE sp.club_id = rc.id AND sp.footballer_id IS NULL) AS unlinked_count
        FROM record_signings_clubs rc
        ORDER BY rc.club ASC`,
     )
@@ -270,6 +282,7 @@ recordSigningsRouter.get('/clubs', (c) => {
     active: number
     created_at: string
     player_count: number
+    unlinked_count: number
   }[]
   return c.json(rows.map((r) => ({ ...r, active: !!r.active })))
 })

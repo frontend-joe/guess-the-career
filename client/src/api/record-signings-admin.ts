@@ -31,6 +31,7 @@ export interface RecordSigningsClubListItem {
   active: boolean
   created_at: string
   player_count: number
+  unlinked_count: number
 }
 
 export interface ImportSummary {
