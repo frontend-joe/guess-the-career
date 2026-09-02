@@ -297,13 +297,25 @@ recordSigningsRouter.get('/clubs/:id', async (c) => {
   return c.json({ club: clubRow, signings: clubSignings(id) })
 })
 
-// PATCH /api/record-signings/clubs/:id — toggle active / edit club name
+// PATCH /api/record-signings/clubs/:id — toggle active / relink club name
 recordSigningsRouter.patch(
   '/clubs/:id',
-  zValidator('json', z.object({ active: z.boolean().optional(), club: z.string().optional() })),
+  zValidator('json', z.object({
+    active: z.boolean().optional(),
+    club: z.string().min(1).optional(),
+    club_wikipedia_url: z.string().nullable().optional(),
+  })),
   async (c) => {
     const id = parseInt(c.req.param('id'), 10)
-    const [updated] = await db.update(record_signings_clubs).set(c.req.valid('json')).where(eq(record_signings_clubs.id, id)).returning()
+    const body = c.req.valid('json')
+    const set: { active?: boolean; club?: string; club_wikipedia_url?: string | null } = {}
+    if (body.active !== undefined) set.active = body.active
+    // Relinking the club to a canonical name (e.g. "Chelsea FC" → "Chelsea")
+    // also refreshes its badge URL from the new name.
+    if (body.club !== undefined) { set.club = body.club; set.club_wikipedia_url = clubWikiUrl(body.club) }
+    if (body.club_wikipedia_url !== undefined) set.club_wikipedia_url = body.club_wikipedia_url
+    if (Object.keys(set).length === 0) return c.json({ error: 'Nothing to update' }, 400)
+    const [updated] = await db.update(record_signings_clubs).set(set).where(eq(record_signings_clubs.id, id)).returning()
     if (!updated) return c.json({ error: 'Not found' }, 404)
     return c.json(updated)
   },

@@ -10,6 +10,7 @@ import { ClubPicker } from '@/components/ClubPicker'
 import {
   getRecordSigningsClubDetail,
   updateSigning,
+  updateRecordSigningsClub,
   resolvePlayer,
   resolvePlayerByUrl,
   type RecordSigningsClubDetail,
@@ -49,6 +50,17 @@ export function RecordSigningsDetailPage() {
     }
   }
 
+  // Relink the round's club to a canonical name (e.g. "Chelsea FC" → "Chelsea").
+  async function relinkClub(name: string) {
+    if (!id) return
+    try {
+      await updateRecordSigningsClub(Number(id), { club: name })
+      await reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to relink club')
+    }
+  }
+
   // Fix the "from" club (who the player left) if it matched the wrong club on
   // import. The server recomputes the club badge URL from the new name.
   async function changeFromClub(signingId: number, name: string) {
@@ -69,9 +81,19 @@ export function RecordSigningsDetailPage() {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/admin/record-signings')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-xl font-semibold">
-          {data ? data.club.club : 'Record signings'}
-        </h1>
+        {data ? (
+          <ClubPicker
+            onPick={(name) => relinkClub(name)}
+            initialQuery={data.club.club}
+            title="Wrong name? Click to relink this club (e.g. “Chelsea FC” → “Chelsea”)"
+            className="group inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 -ml-1 hover:bg-muted transition-colors"
+          >
+            <span className="text-xl font-semibold">{data.club.club}</span>
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          </ClubPicker>
+        ) : (
+          <h1 className="text-xl font-semibold">Record signings</h1>
+        )}
         {data && (
           <a href={data.club.source_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
             <ExternalLink className="h-3.5 w-3.5" />
