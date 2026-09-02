@@ -41,6 +41,12 @@ export const CLUB_ALIASES: Record<string, string> = {
   "Celta de Vigo": "Celta Vigo",
   "RC Celta": "Celta Vigo",
   "RC Celta de Vigo": "Celta Vigo",
+  // Atletico Madrid (drop the accent + consolidate variants)
+  "Atlético Madrid": "Atletico Madrid",
+  "Atlético de Madrid": "Atletico Madrid",
+  "Atletico de Madrid": "Atletico Madrid",
+  "Club Atlético de Madrid": "Atletico Madrid",
+  "Atlético Madrid B": "Atletico Madrid B",
 };
 
 export const FOOTBALLING_NATIONS = new Set([

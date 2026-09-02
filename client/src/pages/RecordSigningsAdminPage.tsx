@@ -6,6 +6,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { PositionBadge } from '@/components/PositionBadge'
+import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { ClubPicker } from '@/components/ClubPicker'
 import { FootballerPicker } from '@/components/FootballerPicker'
 import {
@@ -415,6 +416,7 @@ export function RecordSigningsAdminPage() {
         )}
         {items.map(item => (
           <div key={item.id} className={`flex items-center gap-3 border rounded-lg px-3 py-2.5 ${item.active ? '' : 'opacity-60'} ${item.unlinked_count > 0 ? 'border-amber-300 bg-amber-50/50' : ''}`}>
+            <MiniClubBadge club={item.club} wikipediaUrl={item.club_wikipedia_url} size={28} />
             <button
               onClick={() => navigate(`/admin/record-signings/${item.id}`)}
               className="flex-1 min-w-0 text-left group"
