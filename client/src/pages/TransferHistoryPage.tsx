@@ -273,8 +273,22 @@ export function TransferHistoryPage() {
             .map((r, i) => ({ r, i }))
             .filter(({ r }) => !term || `${r.league} ${r.seasonLabel}`.toLowerCase().includes(term));
           return (
-            <>
-              <div className="sticky top-0 z-10 bg-gray-50 px-4 pt-3 pb-2 border-b border-gray-200">
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 overflow-y-auto">
+                <OverallProgressScreen
+                  totalGuessed={totalGuessed}
+                  totalPlayers={totalPlayers}
+                  label="guessed"
+                  rounds={filtered.map(({ r }) => ({
+                    name: `${r.league} ${r.seasonLabel}`,
+                    subtitle: `${r.transfers.length} transfers`,
+                    guessed: Math.min(r.guessedIndices.size, requiredToPass(r.transfers.length)),
+                    total: requiredToPass(r.transfers.length),
+                  }))}
+                  onRoundClick={(i) => { goToRound(filtered[i].i); setShowProgress(false); }}
+                />
+              </div>
+              <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
                 <input
                   type="text"
                   value={progressSearch}
@@ -283,23 +297,11 @@ export function TransferHistoryPage() {
                   autoComplete="off"
                   autoCorrect="off"
                   spellCheck={false}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
                   style={{ fontSize: "16px" }}
                 />
               </div>
-              <OverallProgressScreen
-                totalGuessed={totalGuessed}
-                totalPlayers={totalPlayers}
-                label="guessed"
-                rounds={filtered.map(({ r }) => ({
-                  name: `${r.league} ${r.seasonLabel}`,
-                  subtitle: `${r.transfers.length} transfers`,
-                  guessed: Math.min(r.guessedIndices.size, requiredToPass(r.transfers.length)),
-                  total: requiredToPass(r.transfers.length),
-                }))}
-                onRoundClick={(i) => { goToRound(filtered[i].i); setShowProgress(false); }}
-              />
-            </>
+            </div>
           );
         })()}
 
