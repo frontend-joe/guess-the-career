@@ -3141,3 +3141,8 @@ export async function scrapeTransfermarktRecordSignings(
   // Already ranked by fee on the page; keep that order, top 10.
   return { club, transfermarkt_id, source_url: url, signings: signings.slice(0, 10) }
 }
+
+// Record Sales scrapes a club's record departures (…/rekordabgaenge/…). The page
+// layout is identical to record signings — same table, same second-to-last club
+// column (here the buying club) — so the parser is reused verbatim.
+export const scrapeTransfermarktRecordSales = scrapeTransfermarktRecordSignings

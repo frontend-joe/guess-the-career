@@ -113,6 +113,10 @@ import { RecordSigningsPage } from '@/pages/RecordSigningsPage'
 import { RecordSigningsAdminPage } from '@/pages/RecordSigningsAdminPage'
 import { RecordSigningsSchedulePage } from '@/pages/RecordSigningsSchedulePage'
 import { RecordSigningsDetailPage } from '@/pages/RecordSigningsDetailPage'
+import { RecordSalesPage } from '@/pages/RecordSalesPage'
+import { RecordSalesAdminPage } from '@/pages/RecordSalesAdminPage'
+import { RecordSalesSchedulePage } from '@/pages/RecordSalesSchedulePage'
+import { RecordSalesDetailPage } from '@/pages/RecordSalesDetailPage'
 
 const router = createBrowserRouter([
  {
@@ -165,6 +169,7 @@ const router = createBrowserRouter([
   { path: '/play/transfers', element: <TransfersPage /> },
   { path: '/play/transfer-history', element: <TransferHistoryPage /> },
   { path: '/play/record-signings', element: <RecordSigningsPage /> },
+  { path: '/play/record-sales', element: <RecordSalesPage /> },
 
   // Admin-only all-games testing hub
   { path: '/play', element: <RequireAdmin><PlayHubPage /></RequireAdmin> },
@@ -246,6 +251,9 @@ const router = createBrowserRouter([
       { path: 'record-signings', element: <RecordSigningsAdminPage /> },
       { path: 'record-signings/schedule', element: <RecordSigningsSchedulePage /> },
       { path: 'record-signings/:id', element: <RecordSigningsDetailPage /> },
+      { path: 'record-sales', element: <RecordSalesAdminPage /> },
+      { path: 'record-sales/schedule', element: <RecordSalesSchedulePage /> },
+      { path: 'record-sales/:id', element: <RecordSalesDetailPage /> },
     ],
   },
   ],

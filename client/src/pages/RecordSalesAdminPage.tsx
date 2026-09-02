@@ -10,20 +10,20 @@ import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { ClubPicker } from '@/components/ClubPicker'
 import { FootballerPicker } from '@/components/FootballerPicker'
 import {
-  scrapeRecordSignings,
-  importRecordSignings,
-  getRecordSigningsClubs,
-  deleteRecordSigningsClub,
-  updateRecordSigningsClub,
-  relinkRecordSigningsClub,
-  getRecordSigningsClubDetail,
+  scrapeRecordSales,
+  importRecordSales,
+  getRecordSalesClubs,
+  deleteRecordSalesClub,
+  updateRecordSalesClub,
+  relinkRecordSalesClub,
+  getRecordSalesClubDetail,
   resolvePlayer,
   resolvePlayerByUrl,
   type CheckedSigning,
-  type RecordSigningsClubListItem,
-} from '@/api/record-signings-admin'
+  type RecordSalesClubListItem,
+} from '@/api/record-sales-admin'
 
-const EXAMPLE_URL = 'https://www.transfermarkt.com/fc-barcelona/transferrekorde/verein/131'
+const EXAMPLE_URL = 'https://www.transfermarkt.com/fc-barcelona/rekordabgaenge/verein/131'
 
 // A matched club renders as plain text. An unmatched one is a red badge that
 // opens a searchable club dropdown to pick the right club from our DB.
@@ -50,9 +50,9 @@ function ClubLabel({
   )
 }
 
-export function RecordSigningsAdminPage() {
+export function RecordSalesAdminPage() {
   const navigate = useNavigate()
-  const [items, setItems] = useState<RecordSigningsClubListItem[]>([])
+  const [items, setItems] = useState<RecordSalesClubListItem[]>([])
   const [loading, setLoading] = useState(true)
 
   const [url, setUrl] = useState('')
@@ -77,7 +77,7 @@ export function RecordSigningsAdminPage() {
   async function load() {
     setLoading(true)
     try {
-      setItems(await getRecordSigningsClubs())
+      setItems(await getRecordSalesClubs())
     } finally {
       setLoading(false)
     }
@@ -109,7 +109,7 @@ export function RecordSigningsAdminPage() {
     let stalls = 0
     pollRef.current = setInterval(async () => {
       try {
-        const detail = await getRecordSigningsClubDetail(clubId)
+        const detail = await getRecordSalesClubDetail(clubId)
         const linked = detail.signings.filter((s) => s.linked).length
         setImportProgress((p) => (p && p.clubId === clubId ? { ...p, linked } : p))
         if (linked >= total) {
@@ -166,14 +166,14 @@ export function RecordSigningsAdminPage() {
     setScraping(true)
     resetPreview()
     try {
-      const result = await scrapeRecordSignings(url.trim())
+      const result = await scrapeRecordSales(url.trim())
       setMeta({
         club: result.club,
         transfermarkt_id: result.transfermarkt_id,
         source_url: result.source_url,
       })
       setSignings(result.signings)
-      // All signings are checked by default (the top 10 record signings); the
+      // All signings are checked by default (the top 10 record sales); the
       // admin can uncheck any they don't want.
       setSelected(new Set(result.signings.map((_, i) => i)))
     } catch (e) {
@@ -189,7 +189,7 @@ export function RecordSigningsAdminPage() {
     setImportError(null)
     try {
       const chosen = signings.filter((_, i) => selected.has(i))
-      const result = await importRecordSignings({
+      const result = await importRecordSales({
         club: meta.club,
         club_wikipedia_url: null,
         transfermarkt_id: meta.transfermarkt_id,
@@ -231,22 +231,22 @@ export function RecordSigningsAdminPage() {
     if (!confirm(`Delete ${label} and all its signings?`)) return
     setDeletingId(id)
     try {
-      await deleteRecordSigningsClub(id)
+      await deleteRecordSalesClub(id)
       await load()
     } finally {
       setDeletingId(null)
     }
   }
 
-  async function handleToggleActive(item: RecordSigningsClubListItem) {
-    await updateRecordSigningsClub(item.id, { active: !item.active })
+  async function handleToggleActive(item: RecordSalesClubListItem) {
+    await updateRecordSalesClub(item.id, { active: !item.active })
     await load()
   }
 
   async function handleRelink(id: number) {
     setRelinkingId(id)
     try {
-      await relinkRecordSigningsClub(id)
+      await relinkRecordSalesClub(id)
       await load()
     } finally {
       setRelinkingId(null)
@@ -259,8 +259,8 @@ export function RecordSigningsAdminPage() {
   return (
     <div className="p-4 md:p-6 max-w-4xl space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-semibold">Record Signings</h1>
-        <Button variant="outline" size="sm" onClick={() => navigate('/admin/record-signings/schedule')}>
+        <h1 className="text-xl font-semibold">Record Sales</h1>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/record-sales/schedule')}>
           <Calendar className="h-3.5 w-3.5 mr-1.5" />
           Schedule
         </Button>
@@ -268,14 +268,14 @@ export function RecordSigningsAdminPage() {
 
       {/* Scrape panel */}
       <div className="border rounded-lg p-4 space-y-3">
-        <p className="text-sm font-medium">Import a club's record signings from Transfermarkt</p>
+        <p className="text-sm font-medium">Import a club's record sales from Transfermarkt</p>
         <p className="text-xs text-muted-foreground">
           e.g. <code className="bg-muted px-1 rounded">{EXAMPLE_URL}</code>
         </p>
         <div className="flex gap-2">
           <input
             type="url"
-            placeholder="Transfermarkt record signings URL…"
+            placeholder="Transfermarkt record sales URL…"
             value={url}
             onChange={e => { setUrl(e.target.value); resetPreview() }}
             onKeyDown={e => e.key === 'Enter' && !scraping && handleScrape()}
@@ -309,7 +309,7 @@ export function RecordSigningsAdminPage() {
           <div className="space-y-3 pt-1">
             <div className="flex items-center gap-4 text-sm flex-wrap">
               <span className="font-semibold">
-                {meta.club}{meta.transfermarkt_id ? ` (#${meta.transfermarkt_id})` : ''} — {signings.length} signings
+                {meta.club}{meta.transfermarkt_id ? ` (#${meta.transfermarkt_id})` : ''} — {signings.length} sales
               </span>
               <span className="text-muted-foreground">{selectedCount} selected</span>
               {newSelected > 0 && (
@@ -398,7 +398,7 @@ export function RecordSigningsAdminPage() {
               <Button size="sm" onClick={handleImport} disabled={importing || selectedCount === 0}>
                 {importing
                   ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Importing…</>
-                  : `Import ${selectedCount} signing${selectedCount !== 1 ? 's' : ''}`}
+                  : `Import ${selectedCount} sale${selectedCount !== 1 ? 's' : ''}`}
               </Button>
             </div>
           </div>
@@ -418,13 +418,13 @@ export function RecordSigningsAdminPage() {
           <div key={item.id} className={`flex items-center gap-3 border rounded-lg px-3 py-2.5 ${item.active ? '' : 'opacity-60'} ${item.unlinked_count > 0 ? 'border-amber-300 bg-amber-50/50' : ''}`}>
             <MiniClubBadge club={item.club} wikipediaUrl={item.club_wikipedia_url} size={28} />
             <button
-              onClick={() => navigate(`/admin/record-signings/${item.id}`)}
+              onClick={() => navigate(`/admin/record-sales/${item.id}`)}
               className="flex-1 min-w-0 text-left group"
-              title={item.unlinked_count > 0 ? `${item.unlinked_count} player${item.unlinked_count !== 1 ? 's' : ''} not linked — click to fix` : 'View signings as they appear in the game'}
+              title={item.unlinked_count > 0 ? `${item.unlinked_count} player${item.unlinked_count !== 1 ? 's' : ''} not linked — click to fix` : 'View sales as they appear in the game'}
             >
               <p className="text-sm font-semibold truncate group-hover:underline">{item.club}</p>
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                {item.player_count} signings
+                {item.player_count} sales
                 {item.unlinked_count > 0 && (
                   <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
                     <AlertTriangle className="h-3 w-3" /> {item.unlinked_count} to fix
