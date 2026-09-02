@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, ExternalLink, AlertTriangle, CheckCircle2, Link2, Loader2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, AlertTriangle, CheckCircle2, Link2, Loader2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { PositionBadge } from '@/components/PositionBadge'
 import { FootballerPicker } from '@/components/FootballerPicker'
+import { ClubPicker } from '@/components/ClubPicker'
 import {
   getRecordSigningsClubDetail,
   updateSigning,
@@ -42,6 +43,18 @@ export function RecordSigningsDetailPage() {
     setBusyId(signingId)
     try {
       await updateSigning(signingId, { footballer_id: footballerId })
+      await reload()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  // Fix the "from" club (who the player left) if it matched the wrong club on
+  // import. The server recomputes the club badge URL from the new name.
+  async function changeFromClub(signingId: number, name: string) {
+    setBusyId(signingId)
+    try {
+      await updateSigning(signingId, { from_club: name })
       await reload()
     } finally {
       setBusyId(null)
@@ -120,10 +133,16 @@ export function RecordSigningsDetailPage() {
                   )}
                 </span>
 
-                <span className="flex items-center gap-1 shrink-0 max-w-40">
+                <ClubPicker
+                  onPick={(name) => changeFromClub(t.id, name)}
+                  initialQuery={t.fromClub}
+                  title="Wrong club? Click to change who the player left"
+                  className="group flex items-center gap-1 shrink-0 max-w-40 rounded px-1 py-0.5 hover:bg-muted transition-colors"
+                >
                   <MiniClubBadge club={t.fromClub} wikipediaUrl={t.fromClubWikipediaUrl} size={18} />
                   <span className="text-xs truncate">{t.fromClub}</span>
-                </span>
+                  <Pencil className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </ClubPicker>
 
                 <span className="text-[11px] tabular-nums text-gray-500 shrink-0">{t.seasonLabel}</span>
 
