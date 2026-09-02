@@ -98,9 +98,7 @@ export function RecordSigningsDetailPage() {
 
                 <span className="flex-1 min-w-0 flex items-center gap-1.5">
                   <span className="text-sm font-medium truncate">{t.playerName}</span>
-                  {t.linked ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  ) : busyId === t.id ? (
+                  {busyId === t.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600 shrink-0" />
                   ) : (
                     <FootballerPicker
@@ -108,10 +106,16 @@ export function RecordSigningsDetailPage() {
                       scrape={(query) => resolvePlayer(query, t.fromClub)}
                       scrapeUrl={(u) => resolvePlayerByUrl(u)}
                       initialQuery={t.playerName}
-                      title="Find this player in the database, or scrape the correct name / Wikipedia URL"
-                      className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-200 transition-colors shrink-0"
+                      title={t.linked
+                        ? 'Linked — click to re-link (fix a wrong match) via DB search, name or Wikipedia URL'
+                        : 'Find this player in the database, or scrape the correct name / Wikipedia URL'}
+                      className={t.linked
+                        ? 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:bg-muted transition-colors shrink-0'
+                        : 'inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-200 transition-colors shrink-0'}
                     >
-                      <Link2 className="h-3 w-3" /> link
+                      {t.linked
+                        ? <><CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> relink</>
+                        : <><Link2 className="h-3 w-3" /> link</>}
                     </FootballerPicker>
                   )}
                 </span>
