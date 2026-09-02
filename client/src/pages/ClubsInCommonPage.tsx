@@ -23,6 +23,10 @@ interface CicRoundResult {
 
 export function ClubsInCommonPage() {
   const { requiredToPass } = useSettings("clubs_in_common")
+  // Done = gave up, or reached the (difficulty-scaled) target — derived live so
+  // changing the guess percentage re-evaluates each round instead of trusting the
+  // persisted 'cleared' state.
+  const roundDone = (r: CicRoundResult) => r.state === 'given_up' || r.guessedClubs.length >= requiredToPass(r.required)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rounds, setRounds] = useState<CicRoundResult[]>([])
@@ -59,7 +63,7 @@ export function ClubsInCommonPage() {
 
   function handleClubGuess(clubName: string) {
     const round = rounds[roundIndex]
-    if (!round || round.state !== 'playing') return
+    if (!round || roundDone(round)) return
 
     const normalised = clubName.toLowerCase().trim()
 
@@ -93,7 +97,7 @@ export function ClubsInCommonPage() {
 
   function handleGiveUp() {
     const round = rounds[roundIndex]
-    if (!round || round.state !== 'playing') return
+    if (!round || roundDone(round)) return
     const updated = [...rounds]
     updated[roundIndex] = { ...round, state: 'given_up' }
     setRounds(updated)
@@ -107,7 +111,7 @@ export function ClubsInCommonPage() {
   }
 
   const currentRound = rounds[roundIndex] ?? null
-  const isRoundDone = currentRound?.state !== 'playing'
+  const isRoundDone = !!currentRound && roundDone(currentRound)
   const isLastRound = roundIndex === rounds.length - 1
   // Pass goal per round scales with the global Guess-percentage setting (100% = all).
   const totalGuessed = rounds.reduce((sum, r) => sum + Math.min(r.guessedClubs.length, requiredToPass(r.required)), 0)
@@ -200,9 +204,9 @@ export function ClubsInCommonPage() {
           <div className="flex items-center justify-between mb-2">
             <p className="text-white/50 text-xs">
               {isRoundDone
-                ? currentRound.state === 'cleared'
-                  ? `Cleared! Found all ${roundTarget} club${roundTarget !== 1 ? 's' : ''} in common`
-                  : `Gave up — ${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} found`
+                ? currentRound.state === 'given_up'
+                  ? `Gave up — ${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} found`
+                  : `Cleared! Found all ${roundTarget} club${roundTarget !== 1 ? 's' : ''} in common`
                 : `${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} clubs in common found`}
             </p>
             <span className="text-white/60 text-xs font-mono shrink-0 ml-2">#{roundIndex + 1}/{rounds.length}</span>
@@ -336,7 +340,7 @@ function ClubBadge({ name, wikipediaUrl, guessed }: { name: string; wikipediaUrl
 }
 
 function ClubReveal({ round, target, clubWikiUrls = {} }: { round: CicRoundResult; target: number; clubWikiUrls?: Record<string, string> }) {
-  if (round.state === 'playing') return null
+  if (round.state !== 'given_up' && round.guessedClubs.length < target) return null
 
   const missedClubs = round.commonClubs.slice(0, target).filter(
     c => !round.guessedClubs.some(g => g.toLowerCase() === c.toLowerCase())
@@ -394,7 +398,7 @@ function FinalScore({
         {rounds.map((r, i) => {
           const target = requiredToPass(r.required)
           const guessedCount = Math.min(r.guessedClubs.length, target)
-          const cleared = r.state === 'cleared'
+          const cleared = guessedCount >= target
           const partial = r.guessedClubs.length > 0 && !cleared
           return (
             <div

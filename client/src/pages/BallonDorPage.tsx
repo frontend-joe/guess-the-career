@@ -137,6 +137,9 @@ function buildRounds(data: BallonDorRound[], saved: SavedProgress): RoundResult[
 export function BallonDorPage() {
   const { compact } = useCompactMode();
   const { requiredToPass } = useSettings("ballon_dor");
+  // Done-ness is derived live from the current difficulty, not the persisted
+  // "cleared" state — so changing the guess percentage re-evaluates each round.
+  const roundDone = (r: RoundResult) => r.guessedIndices.size >= requiredToPass(r.players.length)
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -170,7 +173,7 @@ export function BallonDorPage() {
 
   function handleGuess(name: string) {
     const round = rounds[roundIndex]
-    if (!round || round.state !== 'playing') return
+    if (!round || roundDone(round)) return
 
     // Only the first `passTarget` players are in play at the current difficulty.
     const passTarget = requiredToPass(round.players.length)
@@ -240,7 +243,7 @@ export function BallonDorPage() {
   }
 
   const currentRound = rounds[roundIndex] ?? null
-  const isRoundDone = currentRound?.state === 'cleared'
+  const isRoundDone = !!currentRound && roundDone(currentRound)
   // Pass goal per round scales with the global Guess-percentage setting (100% = all).
   const totalGuessed = rounds.reduce((sum, r) => sum + Math.min(r.guessedIndices.size, requiredToPass(r.players.length)), 0)
   const totalPlayers = rounds.reduce((sum, r) => sum + requiredToPass(r.players.length), 0)

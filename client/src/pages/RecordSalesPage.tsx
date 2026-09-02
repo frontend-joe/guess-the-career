@@ -130,6 +130,9 @@ function shortSeason(label: string | null): string {
 export function RecordSalesPage() {
   const { compact } = useCompactMode();
   const { requiredToPass } = useSettings("record_sales");
+  // Done-ness is derived live from the current difficulty, not the persisted
+  // "cleared" state — so changing the guess percentage re-evaluates each round.
+  const roundDone = (r: RoundResult) => r.guessedIndices.size >= requiredToPass(r.signings.length);
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -173,7 +176,7 @@ export function RecordSalesPage() {
 
   function handleGuess(name: string) {
     const round = rounds[roundIndex];
-    if (!round || round.state !== "playing") return;
+    if (!round || roundDone(round)) return;
 
     // Only the first `passTarget` signings are in play at the current difficulty.
     const passTarget = requiredToPass(round.signings.length);
@@ -217,9 +220,9 @@ export function RecordSalesPage() {
   }
 
   const currentRound = rounds[roundIndex] ?? null;
-  const isRoundDone = currentRound?.state === "cleared";
+  const isRoundDone = !!currentRound && roundDone(currentRound);
   const isLastRound = roundIndex === rounds.length - 1;
-  const allCleared = rounds.length > 0 && rounds.every((r) => r.state === "cleared");
+  const allCleared = rounds.length > 0 && rounds.every(roundDone);
   // Pass goal per round scales with the global Guess-percentage setting (100% = all).
   const totalGuessed = rounds.reduce((sum, r) => sum + Math.min(r.guessedIndices.size, requiredToPass(r.signings.length)), 0);
   const totalPlayers = rounds.reduce((sum, r) => sum + requiredToPass(r.signings.length), 0);
@@ -468,7 +471,7 @@ function FinalScore({
         {rounds.map((r, i) => {
           const total = requiredToPass(r.signings.length);
           const guessedCount = Math.min(r.guessedIndices.size, total);
-          const cleared = r.state === "cleared";
+          const cleared = guessedCount >= total;
           return (
             <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
               <div className="flex-1 min-w-0">

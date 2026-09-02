@@ -163,6 +163,9 @@ function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult
 export function GuessTheXiPage() {
   const { compact } = useCompactMode();
   const { requiredToPass } = useSettings("guess_the_xi");
+  // Done-ness is derived live from the current difficulty, not the persisted
+  // "cleared" state — so changing the guess percentage re-evaluates each round.
+  const roundDone = (r: RoundResult) => r.guessedIndices.size >= requiredToPass(r.players.length);
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -197,7 +200,7 @@ export function GuessTheXiPage() {
 
   function handleGuess(name: string) {
     const round = rounds[roundIndex];
-    if (!round || round.state !== "playing") return;
+    if (!round || roundDone(round)) return;
 
     // Only the first `passTarget` players are in play at the current difficulty.
     const passTarget = requiredToPass(round.players.length);
@@ -277,9 +280,9 @@ export function GuessTheXiPage() {
   }
 
   const currentRound = rounds[roundIndex] ?? null;
-  const isRoundDone = currentRound?.state === "cleared";
+  const isRoundDone = !!currentRound && roundDone(currentRound);
   const isLastRound = roundIndex === rounds.length - 1;
-  const allCleared = rounds.length > 0 && rounds.every((r) => r.state === "cleared");
+  const allCleared = rounds.length > 0 && rounds.every(roundDone);
   // Pass goal per round scales with the global Guess-percentage setting (100% = all).
   const totalGuessed = rounds.reduce((sum, r) => sum + Math.min(r.guessedIndices.size, requiredToPass(r.players.length)), 0);
   const totalPlayers = rounds.reduce((sum, r) => sum + requiredToPass(r.players.length), 0);
@@ -585,7 +588,7 @@ function FinalScore({
   const pct = totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0;
   const pctColor =
     pct >= 80 ? "text-green-500" : pct >= 50 ? "text-orange-400" : "text-red-500";
-  const allCleared = rounds.every((r) => r.state === "cleared");
+  const allCleared = rounds.every((r) => r.guessedIndices.size >= requiredToPass(r.players.length));
 
   const [tab, setTab] = useState<"score" | "leaderboard">("score");
   const [name, setName] = useState("");
@@ -647,7 +650,7 @@ function FinalScore({
             {rounds.map((r, i) => {
               const total = requiredToPass(r.players.length);
               const guessedCount = Math.min(r.guessedIndices.size, total);
-              const cleared = r.state === "cleared";
+              const cleared = guessedCount >= total;
               return (
                 <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
                   <div className="flex-1 min-w-0">
