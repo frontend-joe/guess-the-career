@@ -132,6 +132,7 @@ export function TransferHistoryPage() {
   const [roundIndex, setRoundIndex] = useState(0);
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  const [progressSearch, setProgressSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -266,20 +267,41 @@ export function TransferHistoryPage() {
           <FinalScore rounds={rounds} totalGuessed={totalGuessed} totalPlayers={totalPlayers} requiredToPass={requiredToPass} onBack={() => setShowFinalScore(false)} />
         )}
 
-        {!loading && !error && !showFinalScore && showProgress && (
-          <OverallProgressScreen
-            totalGuessed={totalGuessed}
-            totalPlayers={totalPlayers}
-            label="guessed"
-            rounds={rounds.map((r) => ({
-              name: `${r.league} ${r.seasonLabel}`,
-              subtitle: `${r.transfers.length} transfers`,
-              guessed: Math.min(r.guessedIndices.size, requiredToPass(r.transfers.length)),
-              total: requiredToPass(r.transfers.length),
-            }))}
-            onRoundClick={(i) => { goToRound(i); setShowProgress(false); }}
-          />
-        )}
+        {!loading && !error && !showFinalScore && showProgress && (() => {
+          const term = progressSearch.trim().toLowerCase();
+          const filtered = rounds
+            .map((r, i) => ({ r, i }))
+            .filter(({ r }) => !term || `${r.league} ${r.seasonLabel}`.toLowerCase().includes(term));
+          return (
+            <>
+              <div className="sticky top-0 z-10 bg-gray-50 px-4 pt-3 pb-2 border-b border-gray-200">
+                <input
+                  type="text"
+                  value={progressSearch}
+                  onChange={(e) => setProgressSearch(e.target.value)}
+                  placeholder="Filter by league or season…"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+                  style={{ fontSize: "16px" }}
+                />
+              </div>
+              <OverallProgressScreen
+                totalGuessed={totalGuessed}
+                totalPlayers={totalPlayers}
+                label="guessed"
+                rounds={filtered.map(({ r }) => ({
+                  name: `${r.league} ${r.seasonLabel}`,
+                  subtitle: `${r.transfers.length} transfers`,
+                  guessed: Math.min(r.guessedIndices.size, requiredToPass(r.transfers.length)),
+                  total: requiredToPass(r.transfers.length),
+                }))}
+                onRoundClick={(i) => { goToRound(filtered[i].i); setShowProgress(false); }}
+              />
+            </>
+          );
+        })()}
 
         {!loading && !error && !showFinalScore && !showProgress && currentRound && (
           <>
