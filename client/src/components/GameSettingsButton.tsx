@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { SlidersHorizontal } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSettings } from '@/contexts/SettingsContext'
 import { cn } from '@/lib/utils'
@@ -23,7 +23,7 @@ export function GameSettingsButton({ gameKey }: { gameKey: string }) {
         title="Settings"
         className="text-white/60 hover:text-white transition-colors p-1"
       >
-        <SlidersHorizontal size={18} />
+        <Settings size={18} />
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>

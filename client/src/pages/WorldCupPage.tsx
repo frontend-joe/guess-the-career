@@ -185,9 +185,11 @@ export function WorldCupPage() {
     const round = rounds[roundIndex];
     if (!round || round.state !== "playing") return;
 
+    // Only the first `passTarget` players are in play at the current difficulty.
+    const passTarget = requiredToPass(round.players.length);
     const matched: number[] = [];
     round.playerNames.forEach((pName, i) => {
-      if (!round.guessedIndices.has(i) && matchesPlayer(name, pName))
+      if (i < passTarget && !round.guessedIndices.has(i) && matchesPlayer(name, pName))
         matched.push(i);
     });
     if (matched.length === 0) {
@@ -275,6 +277,7 @@ export function WorldCupPage() {
           World Cup
         </span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="world_cup" />
           {rounds.length > 0 ? (
             showProgress ? (
               <button
@@ -284,20 +287,14 @@ export function WorldCupPage() {
                 <X size={18} />
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-white/60 text-sm font-mono">
-                  {roundIndex + 1} / {rounds.length}
-                </span>
-                <button
-                  onClick={() => setShowProgress(true)}
-                  className="text-white/40 hover:text-white/80 transition-colors p-0.5"
-                >
-                  <Trophy size={14} />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowProgress(true)}
+                className="text-white/40 hover:text-white/80 transition-colors p-0.5"
+              >
+                <Trophy size={14} />
+              </button>
             )
           ) : null}
-          <GameSettingsButton gameKey="world_cup" />
         </div>
       </div>
 
@@ -379,7 +376,7 @@ export function WorldCupPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentRound.players.map((player, i) => {
+                  {currentRound.players.slice(0, roundTotal).map((player, i) => {
                     const guessed = currentRound.guessedIndices.has(i);
                     const name = currentRound.playerNames[i];
                     return (
@@ -460,7 +457,7 @@ export function WorldCupPage() {
               <ChevronLeft size={16} /> Previous
             </button>
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-white/60 text-xs font-mono">
-              <span>#{roundIndex + 1}</span>
+              <span>#{roundIndex + 1}/{rounds.length}</span>
               <button
                 onClick={handleRandom}
                 className="text-white/40 hover:text-white transition-colors"

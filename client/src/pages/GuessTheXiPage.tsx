@@ -199,9 +199,11 @@ export function GuessTheXiPage() {
     const round = rounds[roundIndex];
     if (!round || round.state !== "playing") return;
 
+    // Only the first `passTarget` players are in play at the current difficulty.
+    const passTarget = requiredToPass(round.players.length);
     const matched: number[] = [];
     round.playerNames.forEach((pName, i) => {
-      if (!round.guessedIndices.has(i) && matchesPlayer(name, pName)) {
+      if (i < passTarget && !round.guessedIndices.has(i) && matchesPlayer(name, pName)) {
         matched.push(i);
       }
     });
@@ -313,6 +315,7 @@ export function GuessTheXiPage() {
           Guess The XI
         </span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="guess_the_xi" />
           {rounds.length > 0 ? (
             showProgress ? (
               <button
@@ -322,20 +325,14 @@ export function GuessTheXiPage() {
                 <X size={18} />
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-white/60 text-sm font-mono">
-                  {roundIndex + 1} / {rounds.length}
-                </span>
-                <button
-                  onClick={() => setShowProgress(true)}
-                  className="text-white/40 hover:text-white/80 transition-colors p-0.5"
-                >
-                  <Trophy size={14} />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowProgress(true)}
+                className="text-white/40 hover:text-white/80 transition-colors p-0.5"
+              >
+                <Trophy size={14} />
+              </button>
             )
           ) : null}
-          <GameSettingsButton gameKey="guess_the_xi" />
         </div>
       </div>
 
@@ -420,7 +417,7 @@ export function GuessTheXiPage() {
             <div className={`px-3 pt-4 pb-2`}>
             {/* Player list */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-              {currentRound.players.map((player, i) => {
+              {currentRound.players.slice(0, roundTotal).map((player, i) => {
                 const guessed = currentRound.guessedIndices.has(i);
                 const name = currentRound.playerNames[i];
 
@@ -541,7 +538,7 @@ export function GuessTheXiPage() {
             </button>
 
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-white/60 text-xs font-mono">
-              <span>#{roundIndex + 1}</span>
+              <span>#{roundIndex + 1}/{rounds.length}</span>
               <button onClick={handleRandom} className="text-white/40 hover:text-white transition-colors">
                 <Shuffle size={13} />
               </button>

@@ -65,7 +65,7 @@ export function ClubsInCommonPage() {
 
     if (round.guessedClubs.some(c => c.toLowerCase() === normalised)) return
 
-    const matched = round.commonClubs.find(c => c.toLowerCase() === normalised)
+    const matched = round.commonClubs.slice(0, requiredToPass(round.required)).find(c => c.toLowerCase() === normalised)
     if (!matched) {
       // Wrong guess — remember it so the dropdown greys it out.
       if (round.wrongGuesses.some(c => c.toLowerCase() === normalised)) return
@@ -123,11 +123,6 @@ export function ClubsInCommonPage() {
           Clubs In Common
         </span>
         <div className="flex items-center gap-1">
-          {rounds.length > 0 ? (
-            <span className="text-white/60 text-sm font-mono">
-              {roundIndex + 1} / {rounds.length}
-            </span>
-          ) : null}
           <GameSettingsButton gameKey="clubs_in_common" />
         </div>
       </div>
@@ -165,7 +160,7 @@ export function ClubsInCommonPage() {
         {!loading && !error && !showFinalScore && currentRound && (
           <div className="flex flex-col items-center px-3 pt-6 pb-4 gap-5 mt-auto">
             <PairCard round={currentRound} target={roundTarget} />
-            <ClubReveal round={currentRound} clubWikiUrls={currentRound.clubWikiUrls} />
+            <ClubReveal round={currentRound} target={roundTarget} clubWikiUrls={currentRound.clubWikiUrls} />
           </div>
         )}
       </div>
@@ -187,6 +182,7 @@ export function ClubsInCommonPage() {
                 </span>
               ))}
               {currentRound.state === 'given_up' && currentRound.commonClubs
+                .slice(0, roundTarget)
                 .filter(c => !currentRound.guessedClubs.some(g => g.toLowerCase() === c.toLowerCase()))
                 .map(club => (
                   <span
@@ -201,13 +197,16 @@ export function ClubsInCommonPage() {
           )}
 
           {/* Status text */}
-          <p className="text-white/50 text-xs mb-2">
-            {isRoundDone
-              ? currentRound.state === 'cleared'
-                ? `Cleared! Found all ${roundTarget} club${roundTarget !== 1 ? 's' : ''} in common`
-                : `Gave up — ${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} found`
-              : `${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} clubs in common found`}
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white/50 text-xs">
+              {isRoundDone
+                ? currentRound.state === 'cleared'
+                  ? `Cleared! Found all ${roundTarget} club${roundTarget !== 1 ? 's' : ''} in common`
+                  : `Gave up — ${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} found`
+                : `${Math.min(currentRound.guessedClubs.length, roundTarget)} / ${roundTarget} clubs in common found`}
+            </p>
+            <span className="text-white/60 text-xs font-mono shrink-0 ml-2">#{roundIndex + 1}/{rounds.length}</span>
+          </div>
 
           {/* Input */}
           {!isRoundDone && (
@@ -336,10 +335,10 @@ function ClubBadge({ name, wikipediaUrl, guessed }: { name: string; wikipediaUrl
   )
 }
 
-function ClubReveal({ round, clubWikiUrls = {} }: { round: CicRoundResult; clubWikiUrls?: Record<string, string> }) {
+function ClubReveal({ round, target, clubWikiUrls = {} }: { round: CicRoundResult; target: number; clubWikiUrls?: Record<string, string> }) {
   if (round.state === 'playing') return null
 
-  const missedClubs = round.commonClubs.filter(
+  const missedClubs = round.commonClubs.slice(0, target).filter(
     c => !round.guessedClubs.some(g => g.toLowerCase() === c.toLowerCase())
   )
 

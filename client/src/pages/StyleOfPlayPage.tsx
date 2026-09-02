@@ -259,21 +259,18 @@ export function StyleOfPlayPage() {
           Style Of Play
         </span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="style_of_play" />
           {rounds.length > 0 ? (
             showProgress ? (
               <button onClick={() => setShowProgress(false)} className="text-white/60 hover:text-white transition-colors p-1">
                 <X size={18} />
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-white/60 text-sm font-mono">{roundIndex + 1} / {rounds.length}</span>
-                <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
-                  <Trophy size={14} />
-                </button>
-              </div>
+              <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
+                <Trophy size={14} />
+              </button>
             )
           ) : null}
-          <GameSettingsButton gameKey="style_of_play" />
         </div>
       </div>
 
@@ -379,7 +376,7 @@ export function StyleOfPlayPage() {
             </button>
 
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-white/60 text-xs font-mono">
-              <span>#{roundIndex + 1}</span>
+              <span>#{roundIndex + 1}/{rounds.length}</span>
               <button onClick={handleRandom} className="text-white/40 hover:text-white transition-colors">
                 <Shuffle size={13} />
               </button>

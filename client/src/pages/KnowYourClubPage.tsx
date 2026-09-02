@@ -231,12 +231,12 @@ export function KnowYourClubPage() {
               <span className="text-white font-bold text-sm truncate">{selectedClub.name}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0 ml-2">
+              <GameSettingsButton gameKey="know_your_club" />
               {gameState === 'playing' && (
                 <span className="text-white/60 text-sm font-mono">
                   {shownGuessed} / {passTarget}
                 </span>
               )}
-              <GameSettingsButton gameKey="know_your_club" />
             </div>
           </div>
 

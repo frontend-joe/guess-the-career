@@ -356,14 +356,14 @@ export function TwoClubsPage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* ── Header ── */}
-      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
-        <span className="text-white font-display text-sm tracking-wide uppercase">Two Clubs</span>
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">Two Clubs</span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="two_clubs" />
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton gameKey="two_clubs" />
         </div>
       </div>
 

@@ -174,9 +174,11 @@ export function RecordSigningsPage() {
     const round = rounds[roundIndex];
     if (!round || round.state !== "playing") return;
 
+    // Only the first `passTarget` signings are in play at the current difficulty.
+    const passTarget = requiredToPass(round.signings.length);
     const matched: number[] = [];
     round.playerNames.forEach((pName, i) => {
-      if (!round.guessedIndices.has(i) && matchesPlayer(name, pName)) matched.push(i);
+      if (i < passTarget && !round.guessedIndices.has(i) && matchesPlayer(name, pName)) matched.push(i);
     });
 
     if (matched.length === 0) {
@@ -231,21 +233,18 @@ export function RecordSigningsPage() {
           Record Signings
         </span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="record_signings" />
           {rounds.length > 0 ? (
             showProgress ? (
               <button onClick={() => setShowProgress(false)} className="text-white/60 hover:text-white transition-colors p-1">
                 <X size={18} />
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-white/60 text-sm font-mono">{roundIndex + 1} / {rounds.length}</span>
-                <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
-                  <Trophy size={14} />
-                </button>
-              </div>
+              <button onClick={() => setShowProgress(true)} className="text-white/40 hover:text-white/80 transition-colors p-0.5">
+                <Trophy size={14} />
+              </button>
             )
           ) : null}
-          <GameSettingsButton gameKey="record_signings" />
         </div>
       </div>
 
@@ -302,7 +301,7 @@ export function RecordSigningsPage() {
             <div className={`px-3 pt-4 pb-2`}>
             {/* Signing list */}
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-              {currentRound.signings.map((t, i) => {
+              {currentRound.signings.slice(0, roundTotal).map((t, i) => {
                 const guessed = currentRound.guessedIndices.has(i);
                 const name = currentRound.playerNames[i];
                 return (
@@ -381,7 +380,7 @@ export function RecordSigningsPage() {
             </button>
 
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-white/60 text-xs font-mono">
-              <span>#{roundIndex + 1}</span>
+              <span>#{roundIndex + 1}/{rounds.length}</span>
               <button
                 onClick={() => {
                   if (rounds.length <= 1) return;

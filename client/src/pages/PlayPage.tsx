@@ -218,10 +218,10 @@ export function PlayPage({ mode }: Props) {
           Guess the Career
         </h1>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="play" />
           <button className="text-white/90 hover:text-green-400 transition-colors p-1">
             <BarChart2 size={22} />
           </button>
-          <GameSettingsButton gameKey="play" />
         </div>
       </header>
 

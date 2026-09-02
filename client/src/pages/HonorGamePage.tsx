@@ -224,14 +224,14 @@ export function HonorGamePage() {
 
 function Header({ round, total }: { round: number; total: number }) {
   return (
-    <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+    <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
       <GameMenu />
-      <span className="text-white font-display text-sm tracking-wide uppercase">More Trophies?</span>
+      <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">More Trophies?</span>
       <div className="flex items-center gap-1">
+        <GameSettingsButton gameKey="honor_game" />
         <span className="text-white text-sm font-semibold w-12 text-right">
           {round}/{total}
         </span>
-        <GameSettingsButton gameKey="honor_game" />
       </div>
     </div>
   )

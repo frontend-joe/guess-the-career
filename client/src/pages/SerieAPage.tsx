@@ -289,12 +289,12 @@ export function SerieAPage() {
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
-      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
-        <span className="text-white font-display text-sm tracking-wide uppercase">Serie A Players</span>
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">Serie A Players</span>
         <div className="flex items-center gap-1">
-          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>{showProgress ? <X size={20} /> : <Trophy size={20} />}</button>
           <GameSettingsButton gameKey="serie_a" />
+          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>{showProgress ? <X size={20} /> : <Trophy size={20} />}</button>
         </div>
       </div>
 

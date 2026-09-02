@@ -363,10 +363,10 @@ export function ThreeClubsPage() {
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">Three Clubs</span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="three_clubs" />
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton gameKey="three_clubs" />
         </div>
       </div>
 

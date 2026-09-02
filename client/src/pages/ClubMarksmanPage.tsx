@@ -527,19 +527,19 @@ export function ClubMarksmanPage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* ── Header ── */}
-      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
-        <span className="text-white font-display text-sm tracking-wide uppercase">
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Club Marksman
         </span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="club_marksman" />
           <button
             className="text-white/90 hover:text-green-400 transition-colors p-1"
             onClick={() => setShowProgress((v) => !v)}
           >
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton gameKey="club_marksman" />
         </div>
       </div>
 

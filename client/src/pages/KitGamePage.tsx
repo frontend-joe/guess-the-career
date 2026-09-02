@@ -130,17 +130,17 @@ export function KitGamePage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
-      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
-        <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase truncate px-2">
           Guess the Kit
         </span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="kit_game" />
           <span className="text-white/60 text-sm font-mono whitespace-nowrap flex items-center gap-1">
             {score}
             <CheckCircle2 size={14} className="text-green-400" />
           </span>
-          <GameSettingsButton gameKey="kit_game" />
         </div>
       </div>
 

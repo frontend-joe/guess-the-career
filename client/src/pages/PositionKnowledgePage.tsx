@@ -284,19 +284,19 @@ export function PositionKnowledgePage() {
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
       {/* Header */}
-      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <div className="flex items-center gap-1">
           <GameMenu />
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={handleBack}>
             <ArrowLeft size={22} />
           </button>
         </div>
-        <span className="text-white font-display text-sm tracking-wide uppercase truncate px-2">{gameTitle}</span>
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase truncate px-2">{gameTitle}</span>
         <div className="flex items-center gap-1">
+          <GameSettingsButton gameKey="position_knowledge" />
           <span className="text-white/60 text-sm font-mono whitespace-nowrap">
             {foundCount}/{totalCount}
           </span>
-          <GameSettingsButton gameKey="position_knowledge" />
         </div>
       </div>
 

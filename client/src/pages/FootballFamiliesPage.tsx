@@ -137,9 +137,9 @@ export function FootballFamiliesPage() {
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans">
-      <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
+      <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
-        <span className="text-white font-display text-sm tracking-wide uppercase">Football Families</span>
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">Football Families</span>
         <GameSettingsButton gameKey="football_families" />
       </div>
 
