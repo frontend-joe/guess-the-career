@@ -122,7 +122,7 @@ async function wikiSearch(query: string, attempt = 0): Promise<string[]> {
   )}&format=json&srlimit=5`
   let res: Response
   try {
-    res = await fetch(url, { headers: WIKI_HEADERS })
+    res = await fetch(url, { headers: WIKI_HEADERS, signal: AbortSignal.timeout(15000) })
   } catch {
     if (attempt < 3) { await sleep(600 * (attempt + 1)); return wikiSearch(query, attempt + 1) }
     return []

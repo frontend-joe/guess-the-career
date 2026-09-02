@@ -485,6 +485,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   for (let attempt = 0; ; attempt++) {
     res = await fetch(url, {
       headers: { "User-Agent": "GuessTheCareer-Admin/1.0" },
+      signal: AbortSignal.timeout(15000), // never hang forever on a slow page
     });
     if (res.ok) break;
     if ((res.status === 429 || res.status === 503) && attempt < 3) {
@@ -3081,6 +3082,7 @@ export async function scrapeTransfermarktRecordSignings(
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept': 'text/html,application/xhtml+xml',
     },
+    signal: AbortSignal.timeout(20000),
   })
   if (!res.ok) {
     throw new Error(`Transfermarkt returned ${res.status}. The page may be rate-limited or blocked.`)

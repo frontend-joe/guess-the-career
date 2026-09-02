@@ -74,18 +74,20 @@ function clubSignings(clubId: number) {
 // request returns immediately.
 async function resolveMissingPlayers(rows: { rowId: number; name: string }[], clubHint: string) {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+  // Bound each player so a single slow/blocked/unfindable one can never stall
+  // the rest of the queue. If it can't resolve within the cap we skip it and
+  // move on — the admin links stragglers by hand afterwards.
+  const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([
+      p,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('resolve-timeout')), ms)),
+    ])
   for (const r of rows) {
     let id: number | null = null
-    // Retry the whole resolution a couple of times — a transient Wikipedia
-    // rate-limit shouldn't leave a straggler (e.g. the cheapest signing)
-    // permanently unlinked.
-    for (let attempt = 0; attempt < 3 && id == null; attempt++) {
-      if (attempt > 0) await sleep(2000 * attempt)
-      try {
-        id = (await resolveOrCreateFootballer(r.name, clubHint)).id
-      } catch {
-        id = null
-      }
+    try {
+      id = (await withTimeout(resolveOrCreateFootballer(r.name, clubHint), 40000)).id
+    } catch {
+      id = null // fail over: leave unlinked, keep going
     }
     if (id) {
       await db
@@ -93,7 +95,7 @@ async function resolveMissingPlayers(rows: { rowId: number; name: string }[], cl
         .set({ footballer_id: id })
         .where(eq(record_signings_players.id, r.rowId))
     }
-    await sleep(500) // throttle between players to avoid bursting Wikipedia
+    await sleep(400) // throttle between players to avoid bursting Wikipedia
   }
 }
 
