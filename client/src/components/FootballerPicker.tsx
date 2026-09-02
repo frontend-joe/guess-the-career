@@ -10,17 +10,22 @@ import { getFootballers } from '@/api/footballers'
 interface Props {
   onPick: (id: number, name: string) => void
   scrape?: (query: string) => Promise<{ id: number; name: string }>
+  // Scrape+create a footballer from an exact Wikipedia URL (used when the typed
+  // value is a wikipedia.org/wiki/ link instead of a name).
+  scrapeUrl?: (url: string) => Promise<{ id: number; name: string }>
   className?: string
   title?: string
   initialQuery?: string
   children: React.ReactNode
 }
 
+const isWikiUrl = (s: string) => /wikipedia\.org\/wiki\//i.test(s)
+
 interface Coords { left: number; top?: number; bottom?: number }
 
 const POPOVER_EST_HEIGHT = 300
 
-export function FootballerPicker({ onPick, scrape, className, title, initialQuery, children }: Props) {
+export function FootballerPicker({ onPick, scrape, scrapeUrl, className, title, initialQuery, children }: Props) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<Coords | null>(null)
   const [q, setQ] = useState('')
@@ -78,13 +83,14 @@ export function FootballerPicker({ onPick, scrape, className, title, initialQuer
   }, [open])
 
   async function handleScrape() {
-    if (!scrape || scraping) return
+    if ((!scrape && !scrapeUrl) || scraping) return
     const query = q.trim()
     if (query.length < 2) return
     setScraping(true)
     setScrapeError(null)
     try {
-      const f = await scrape(query)
+      const f = isWikiUrl(query) && scrapeUrl ? await scrapeUrl(query) : scrape ? await scrape(query) : null
+      if (!f) { setScrapeError('Enter a name or a Wikipedia URL'); return }
       onPick(f.id, f.name)
       setOpen(false)
     } catch (e) {
@@ -109,7 +115,7 @@ export function FootballerPicker({ onPick, scrape, className, title, initialQuer
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search or type correct name…"
+            placeholder={scrapeUrl ? 'Search, or paste a Wikipedia URL…' : 'Search or type correct name…'}
             className="w-full text-xs border rounded px-2 py-1 mb-1 outline-none focus:ring-1 focus:ring-ring"
           />
           <div className="max-h-48 overflow-y-auto">
@@ -131,18 +137,20 @@ export function FootballerPicker({ onPick, scrape, className, title, initialQuer
             )}
           </div>
 
-          {scrape && (
+          {(scrape || scrapeUrl) && (
             <div className="mt-1 pt-1 border-t">
               <button
                 type="button"
                 onClick={handleScrape}
                 disabled={scraping || q.trim().length < 2}
-                className="w-full flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded text-blue-700 hover:bg-blue-50 disabled:opacity-40"
-                title="Search Wikipedia for this name and import the player"
+                className="w-full flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded text-blue-700 hover:bg-blue-50 disabled:opacity-40 text-left"
+                title="Scrape and import this player from Wikipedia"
               >
                 {scraping
-                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scraping…</>
-                  : <><Download className="h-3.5 w-3.5" /> Scrape “{q.trim()}” from Wikipedia</>}
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> Scraping…</>
+                  : isWikiUrl(q.trim()) && scrapeUrl
+                    ? <><Download className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Scrape this Wikipedia URL</span></>
+                    : <><Download className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Scrape “{q.trim()}” from Wikipedia</span></>}
               </button>
               {scrapeError && <p className="text-[11px] text-destructive px-2 pb-1">{scrapeError}</p>}
             </div>

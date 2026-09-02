@@ -10,6 +10,7 @@ import {
   getRecordSigningsClubDetail,
   updateSigning,
   resolvePlayer,
+  resolvePlayerByUrl,
   type RecordSigningsClubDetail,
 } from '@/api/record-signings-admin'
 
@@ -105,8 +106,9 @@ export function RecordSigningsDetailPage() {
                     <FootballerPicker
                       onPick={(fid) => linkPlayer(t.id, fid)}
                       scrape={(query) => resolvePlayer(query, t.fromClub)}
+                      scrapeUrl={(u) => resolvePlayerByUrl(u)}
                       initialQuery={t.playerName}
-                      title="Find this player in the database, or scrape the correct name from Wikipedia"
+                      title="Find this player in the database, or scrape the correct name / Wikipedia URL"
                       className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-200 transition-colors shrink-0"
                     >
                       <Link2 className="h-3 w-3" /> link

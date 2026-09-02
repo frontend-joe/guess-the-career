@@ -15,6 +15,7 @@ import {
   buildClubMatcher,
   dbFootballerByName,
   resolveOrCreateFootballer,
+  insertScrapedFootballer,
 } from '../services/playerImport.ts'
 
 export const recordSigningsRouter = new Hono()
@@ -229,6 +230,25 @@ recordSigningsRouter.post(
     if (id == null) return c.json({ error: `Couldn't find "${name}" on Wikipedia.` }, 404)
     const [f] = await db.select({ id: footballers.id, name: footballers.name }).from(footballers).where(eq(footballers.id, id)).limit(1)
     return c.json(f)
+  },
+)
+
+// POST /api/record-signings/resolve-url — scrape+create a footballer from an
+// exact Wikipedia URL (for when a name search can't find the right player).
+recordSigningsRouter.post(
+  '/resolve-url',
+  zValidator('json', z.object({ url: z.string().url() })),
+  async (c) => {
+    const { url } = c.req.valid('json')
+    if (!url.includes('wikipedia.org/wiki/')) return c.json({ error: 'Must be a Wikipedia article URL' }, 400)
+    try {
+      const id = await insertScrapedFootballer(url)
+      if (id == null) return c.json({ error: 'Could not scrape that page' }, 400)
+      const [f] = await db.select({ id: footballers.id, name: footballers.name }).from(footballers).where(eq(footballers.id, id)).limit(1)
+      return c.json(f)
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : 'Scrape failed' }, 400)
+    }
   },
 )
 

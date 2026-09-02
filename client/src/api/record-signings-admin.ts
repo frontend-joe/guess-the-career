@@ -105,6 +105,15 @@ export function resolvePlayer(name: string, club?: string): Promise<{ id: number
   })
 }
 
+// Scrape + create a footballer from an exact Wikipedia article URL.
+export function resolvePlayerByUrl(url: string): Promise<{ id: number; name: string }> {
+  return apiFetch('/api/record-signings/resolve-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+}
+
 export interface DetailSigning {
   id: number
   fromClub: string

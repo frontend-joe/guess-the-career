@@ -154,7 +154,7 @@ export function dbFootballerByName(name: string): number | null {
   return row?.id ?? null
 }
 
-async function insertScrapedFootballer(wikiUrl: string): Promise<number | null> {
+export async function insertScrapedFootballer(wikiUrl: string): Promise<number | null> {
   const [existing] = await db
     .select({ id: footballers.id })
     .from(footballers)

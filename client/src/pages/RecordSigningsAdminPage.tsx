@@ -17,6 +17,7 @@ import {
   relinkRecordSigningsClub,
   getRecordSigningsClubDetail,
   resolvePlayer,
+  resolvePlayerByUrl,
   type CheckedSigning,
   type RecordSigningsClubListItem,
 } from '@/api/record-signings-admin'
@@ -355,8 +356,9 @@ export function RecordSigningsAdminPage() {
                               <FootballerPicker
                                 onPick={(id, name) => setFootballer(i, id, name)}
                                 scrape={(query) => resolvePlayer(query, t.from_club)}
+                                scrapeUrl={(u) => resolvePlayerByUrl(u)}
                                 initialQuery={t.player_name}
-                                title="Link to an existing player, or scrape the correct name from Wikipedia"
+                                title="Link to an existing player, or scrape the correct name / Wikipedia URL"
                                 className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-200 transition-colors"
                               >
                                 <Link2 className="h-3 w-3" /> link
