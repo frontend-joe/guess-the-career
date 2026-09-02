@@ -197,7 +197,7 @@ export function GoalRatiosPage() {
           <span className="text-white/60 text-sm font-mono whitespace-nowrap">
             {foundCount}/{totalCount}
           </span>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="goal_ratios" />
         </div>
       </div>
 

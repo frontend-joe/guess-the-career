@@ -148,8 +148,8 @@ interface RoundState {
 
 export function ThreeClubsPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings()
-  // Slots always render TARGET; only the pass threshold scales with the setting.
+  const { requiredToPass } = useSettings("three_clubs")
+  // The pass goal — and the number of slots shown — scale with the setting.
   const passTarget = requiredToPass(TARGET)
   const [searchParams, setSearchParams] = useSearchParams()
   const [rounds, setRounds] = useState<ThreeClubsScheduleRound[]>([])
@@ -333,7 +333,7 @@ export function ThreeClubsPage() {
   const MAX_HINTS = 3
   const guessedList = players ? players.filter(p => currentState!.guessedIds.has(p.id)) : []
   const unguessedList = players ? players.filter(p => !currentState!.guessedIds.has(p.id)) : []
-  const slots: { player: Player | null; hint: Player | null }[] = Array.from({ length: TARGET }, (_, i) => {
+  const slots: { player: Player | null; hint: Player | null }[] = Array.from({ length: passTarget }, (_, i) => {
     if (i < guessedList.length) return { player: guessedList[i], hint: null }
     const emptyIdx = i - guessedList.length
     return { player: null, hint: emptyIdx < MAX_HINTS ? (unguessedList[emptyIdx] ?? null) : null }
@@ -366,7 +366,7 @@ export function ThreeClubsPage() {
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="three_clubs" />
         </div>
       </div>
 
@@ -444,7 +444,7 @@ export function ThreeClubsPage() {
           {currentRound && (
             <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
               <p className={`text-xs mb-2 ${verifying ? 'text-yellow-400' : guessedCount > 0 ? 'text-green-400' : 'text-white/50'}`}>
-                {verifying ? 'Checking…' : isDone ? `All ${TARGET} found! ✓` : `${guessedCount} / ${TARGET} found`}
+                {verifying ? 'Checking…' : isDone ? `All ${passTarget} found! ✓` : `${Math.min(guessedCount, passTarget)} / ${passTarget} found`}
               </p>
 
               {!isDone && (

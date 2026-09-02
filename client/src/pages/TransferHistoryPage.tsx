@@ -123,7 +123,7 @@ function buildRounds(data: TransferScheduleRound[], saved: SavedProgress): Round
 
 export function TransferHistoryPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("transfer_history");
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -238,7 +238,7 @@ export function TransferHistoryPage() {
                 </button>
               </div>
             ))}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="transfer_history" />
         </div>
       </div>
 

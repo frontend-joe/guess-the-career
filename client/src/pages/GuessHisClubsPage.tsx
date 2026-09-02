@@ -24,7 +24,7 @@ interface RoundResult {
 }
 
 export function GuessHisClubsPage() {
-  const { requiredToPass } = useSettings()
+  const { requiredToPass } = useSettings("guess_his_clubs")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rounds, setRounds] = useState<RoundResult[]>([])
@@ -133,7 +133,7 @@ export function GuessHisClubsPage() {
               {roundIndex + 1} / {rounds.length}
             </span>
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="guess_his_clubs" />
         </div>
       </div>
 

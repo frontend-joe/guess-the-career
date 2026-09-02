@@ -231,7 +231,7 @@ function Header({ round, total }: { round: number; total: number }) {
         <span className="text-white text-sm font-semibold w-12 text-right">
           {round}/{total}
         </span>
-        <GameSettingsButton />
+        <GameSettingsButton gameKey="honor_game" />
       </div>
     </div>
   )

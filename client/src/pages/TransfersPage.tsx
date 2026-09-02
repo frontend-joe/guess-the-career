@@ -281,7 +281,7 @@ async function verifyGuess(
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function TransfersPage() {
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("transfers");
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<TransfersScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -540,10 +540,10 @@ export function TransfersPage() {
   const guessedPlayers = players
     ? players.filter((p) => validGuessedIds.has(p.id))
     : [];
-  const hintPlayers = players ? players.slice(0, target) : [];
+  const hintPlayers = players ? players.slice(0, passTarget) : [];
   const unrevealedHints = hintPlayers.filter((p) => !validGuessedIds.has(p.id));
   const slots: { player: Player; revealed: boolean }[] = [];
-  for (let i = 0; i < target; i++) {
+  for (let i = 0; i < passTarget; i++) {
     if (i < guessedPlayers.length) {
       slots.push({ player: guessedPlayers[i], revealed: true });
     } else {
@@ -587,7 +587,7 @@ export function TransfersPage() {
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="transfers" />
         </div>
       </div>
 
@@ -671,8 +671,8 @@ export function TransfersPage() {
                 {verifying
                   ? "Checking…"
                   : isDone
-                    ? `All ${target} found! ✓`
-                    : `${guessedCount} / ${target} found`}
+                    ? `All ${passTarget} found! ✓`
+                    : `${Math.min(guessedCount, passTarget)} / ${passTarget} found`}
               </p>
 
               {wrongGuessMsg && (

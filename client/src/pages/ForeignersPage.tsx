@@ -112,7 +112,7 @@ async function verifyGuess(footballerName: string, footballerId: number | null, 
 
 export function ForeignersPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("foreigners");
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<ForeignersScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -257,7 +257,7 @@ export function ForeignersPage() {
   const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
   const unguessedList = players ? players.filter((p) => !validGuessedIds.has(p.id)) : [];
   const slots: { player: Player | null; hint: Player | null }[] = Array.from(
-    { length: target },
+    { length: passTarget },
     (_, i) =>
       i < guessedList.length
         ? { player: guessedList[i], hint: null }
@@ -282,7 +282,7 @@ export function ForeignersPage() {
         <span className="text-white font-display text-sm tracking-wide uppercase">Overseas Players</span>
         <div className="flex items-center gap-1">
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>{showProgress ? <X size={20} /> : <Trophy size={20} />}</button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="foreigners" />
         </div>
       </div>
 
@@ -328,7 +328,7 @@ export function ForeignersPage() {
           {currentRound && (
             <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
               <p className={`text-xs mb-2 ${verifying ? "text-yellow-400" : guessedCount > 0 ? "text-green-400" : "text-white/50"}`}>
-                {verifying ? "Checking…" : isDone ? `All ${target} found! ✓` : `${guessedCount} / ${target} found`}
+                {verifying ? "Checking…" : isDone ? `All ${passTarget} found! ✓` : `${Math.min(guessedCount, passTarget)} / ${passTarget} found`}
               </p>
               {wrongGuessMsg && <div className="mb-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center animate-pulse">{wrongGuessMsg}</div>}
               {!isDone && (

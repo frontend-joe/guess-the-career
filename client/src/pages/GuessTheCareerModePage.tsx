@@ -27,7 +27,7 @@ export function GuessTheCareerModePage() {
       </button>
 
       <div className="absolute top-4 right-4 z-10">
-        <GameSettingsButton />
+        <GameSettingsButton gameKey="guess_the_career_mode" />
       </div>
 
       <div className="relative text-center animate-rise">

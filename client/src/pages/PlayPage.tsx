@@ -221,7 +221,7 @@ export function PlayPage({ mode }: Props) {
           <button className="text-white/90 hover:text-green-400 transition-colors p-1">
             <BarChart2 size={22} />
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="play" />
         </div>
       </header>
 

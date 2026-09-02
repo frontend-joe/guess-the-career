@@ -6,8 +6,8 @@ import { getCurrentUser } from '../services/auth.ts'
 
 export const settingsRouter = new Hono()
 
-// Per-user global game settings, stored as a JSON blob on users.settings.
-// Currently just { guessPercentage }, but shaped to grow.
+// Per-user game settings, stored as a JSON blob on users.settings.
+// Guess percentage is per-game: { guessPercentages: { [gameKey]: 25|50|75|100 } }.
 
 function readSettings(userId: number): Record<string, unknown> {
   const row = sqlite.prepare(`SELECT settings FROM users WHERE id = ?`).get(userId) as
@@ -29,22 +29,29 @@ settingsRouter.get('/', async (c) => {
   return c.json(readSettings(user.id))
 })
 
-// PUT /api/settings — shallow-merge the provided fields into the stored blob.
+// PUT /api/settings — set one game's guess percentage, merged into the blob.
 settingsRouter.put(
   '/',
   zValidator(
     'json',
     z.object({
-      guessPercentage: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(100)]).optional(),
+      gameKey: z.string().min(1).max(64),
+      guessPercentage: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(100)]),
     }),
   ),
   async (c) => {
     const user = await getCurrentUser(c)
     if (!user) return c.json({ error: 'Not authenticated' }, 401)
 
-    const patch = c.req.valid('json')
-    const merged = { ...readSettings(user.id), ...patch }
-    sqlite.prepare(`UPDATE users SET settings = ? WHERE id = ?`).run(JSON.stringify(merged), user.id)
-    return c.json(merged)
+    const { gameKey, guessPercentage } = c.req.valid('json')
+    const settings = readSettings(user.id)
+    const map =
+      settings.guessPercentages && typeof settings.guessPercentages === 'object'
+        ? (settings.guessPercentages as Record<string, number>)
+        : {}
+    map[gameKey] = guessPercentage
+    settings.guessPercentages = map
+    sqlite.prepare(`UPDATE users SET settings = ? WHERE id = ?`).run(JSON.stringify(settings), user.id)
+    return c.json(settings)
   },
 )

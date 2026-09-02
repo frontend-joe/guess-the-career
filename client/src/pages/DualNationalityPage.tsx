@@ -98,7 +98,7 @@ function PlayerRow({ player, guessed }: { player: DualNationalityPlayer; guessed
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export function DualNationalityPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("dual_nationality");
   const [players, setPlayers] = useState<DualNationalityPlayer[] | null>(null);
   const [guessedIds, setGuessedIds] = useState<Set<number>>(new Set());
   const [wrongGuesses, setWrongGuesses] = useState<Set<string>>(new Set());
@@ -157,7 +157,7 @@ export function DualNationalityPage() {
       <div className="bg-[#0b0c1a] divide-soft-b flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="text-white font-display text-sm tracking-wide uppercase">Dual Nationality</span>
-        <GameSettingsButton />
+        <GameSettingsButton gameKey="dual_nationality" />
       </div>
 
       {/* Body */}

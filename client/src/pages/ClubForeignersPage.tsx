@@ -201,7 +201,7 @@ async function verifyGuess(footballerName: string, footballerId: number | null, 
 
 export function ClubForeignersPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("club_foreigners");
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<ClubForeignersScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -412,7 +412,7 @@ export function ClubForeignersPage() {
       if (c && !seen.has(c)) { seen.add(c); unusedReps.push(p); }
     }
   }
-  const slots: { player: Player | null; hint: Player | null }[] = Array.from({ length: target }, (_, i) =>
+  const slots: { player: Player | null; hint: Player | null }[] = Array.from({ length: passTarget }, (_, i) =>
     i < guessedList.length
       ? { player: guessedList[i], hint: null }
       : { player: null, hint: unusedReps[i - guessedList.length] ?? null },
@@ -446,7 +446,7 @@ export function ClubForeignersPage() {
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="club_foreigners" />
         </div>
       </div>
 
@@ -513,7 +513,7 @@ export function ClubForeignersPage() {
           {currentRound && (
             <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
               <p className={`text-xs mb-2 ${verifying ? "text-yellow-400" : guessedCount > 0 ? "text-green-400" : "text-white/50"}`}>
-                {verifying ? "Checking…" : isDone ? `All ${target} found! ✓` : `${guessedCount} / ${target} found`}
+                {verifying ? "Checking…" : isDone ? `All ${passTarget} found! ✓` : `${Math.min(guessedCount, passTarget)} / ${passTarget} found`}
               </p>
 
               {wrongGuessMsg && (

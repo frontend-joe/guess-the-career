@@ -140,7 +140,7 @@ export function KitGamePage() {
             {score}
             <CheckCircle2 size={14} className="text-green-400" />
           </span>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="kit_game" />
         </div>
       </div>
 

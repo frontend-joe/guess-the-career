@@ -140,7 +140,7 @@ export function WhoScoredMorePage() {
           >
             <Trophy size={20} />
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="who_scored_more" />
         </div>
       </div>
 

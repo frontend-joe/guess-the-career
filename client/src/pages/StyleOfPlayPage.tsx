@@ -273,7 +273,7 @@ export function StyleOfPlayPage() {
               </div>
             )
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="style_of_play" />
         </div>
       </div>
 

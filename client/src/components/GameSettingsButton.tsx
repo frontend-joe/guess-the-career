@@ -6,12 +6,13 @@ import { cn } from '@/lib/utils'
 
 const OPTIONS = [25, 50, 75, 100] as const
 
-// Header settings icon (top-right of every game) opening a global-settings modal.
-// First setting: Guess percentage — the share of a round's players you must guess
-// to pass it. Self-contained so it can be dropped into any game's header.
-export function GameSettingsButton() {
+// Header settings icon (top-right of every game) opening a per-game settings
+// modal. First setting: Guess percentage — the share of a round's players you must
+// guess to pass it. Self-contained; each game passes its own stable gameKey so the
+// difficulty is remembered per game.
+export function GameSettingsButton({ gameKey }: { gameKey: string }) {
   const [open, setOpen] = useState(false)
-  const { guessPercentage, setGuessPercentage } = useSettings()
+  const { guessPercentage, setGuessPercentage } = useSettings(gameKey)
 
   return (
     <>

@@ -22,7 +22,7 @@ interface CicRoundResult {
 }
 
 export function ClubsInCommonPage() {
-  const { requiredToPass } = useSettings()
+  const { requiredToPass } = useSettings("clubs_in_common")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rounds, setRounds] = useState<CicRoundResult[]>([])
@@ -128,7 +128,7 @@ export function ClubsInCommonPage() {
               {roundIndex + 1} / {rounds.length}
             </span>
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="clubs_in_common" />
         </div>
       </div>
 

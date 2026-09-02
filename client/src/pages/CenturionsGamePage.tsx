@@ -96,7 +96,7 @@ function PlayerSlot({ player, found, mode }: { player: CenturionPlayer; found: b
 export function CenturionsGamePage() {
   const { mode } = useParams<{ mode: string }>()
   const navigate = useNavigate()
-  const { requiredToPass } = useSettings()
+  const { requiredToPass } = useSettings("centurions")
 
   const modeConfig = CENTURION_MODES.find(m => m.id === mode)
 
@@ -246,7 +246,7 @@ export function CenturionsGamePage() {
           <span className="text-white/60 text-sm font-mono whitespace-nowrap">
             {shownGuessed}/{loading ? '…' : passTarget}
           </span>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="centurions" />
         </div>
       </div>
 

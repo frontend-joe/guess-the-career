@@ -1,7 +1,8 @@
-// Account-synced global game settings. All calls send the session cookie.
+// Account-synced game settings. All calls send the session cookie.
+// Guess percentage is stored PER GAME under `guessPercentages[gameKey]`.
 
 export interface GameSettings {
-  guessPercentage?: number
+  guessPercentages?: Record<string, number>
 }
 
 export async function getSettings(): Promise<GameSettings> {
@@ -10,12 +11,12 @@ export async function getSettings(): Promise<GameSettings> {
   return res.json()
 }
 
-export async function putSettings(patch: GameSettings): Promise<GameSettings> {
+export async function putGuessPercentage(gameKey: string, guessPercentage: number): Promise<GameSettings> {
   const res = await fetch('/api/settings', {
     method: 'PUT',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
+    body: JSON.stringify({ gameKey, guessPercentage }),
   })
   if (!res.ok) throw new Error(`settings put failed: ${res.status}`)
   return res.json()

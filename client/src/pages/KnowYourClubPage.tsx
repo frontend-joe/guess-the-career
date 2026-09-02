@@ -54,7 +54,7 @@ function ClubBadge({ name, wikipediaUrl }: { name: string; wikipediaUrl: string 
 }
 
 export function KnowYourClubPage() {
-  const { requiredToPass } = useSettings()
+  const { requiredToPass } = useSettings("know_your_club")
   const [gameState, setGameState] = useState<GameState>('lobby')
   const [clubs, setClubs] = useState<KycClub[]>([])
   const [clubsLoading, setClubsLoading] = useState(true)
@@ -236,7 +236,7 @@ export function KnowYourClubPage() {
                   {shownGuessed} / {passTarget}
                 </span>
               )}
-              <GameSettingsButton />
+              <GameSettingsButton gameKey="know_your_club" />
             </div>
           </div>
 

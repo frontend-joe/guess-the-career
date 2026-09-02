@@ -149,7 +149,7 @@ function buildRounds(
 }
 
 export function WorldCupPage() {
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("world_cup");
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -297,7 +297,7 @@ export function WorldCupPage() {
               </div>
             )
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="world_cup" />
         </div>
       </div>
 

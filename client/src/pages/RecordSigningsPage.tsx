@@ -129,7 +129,7 @@ function shortSeason(label: string | null): string {
 
 export function RecordSigningsPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("record_signings");
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -245,7 +245,7 @@ export function RecordSigningsPage() {
               </div>
             )
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="record_signings" />
         </div>
       </div>
 

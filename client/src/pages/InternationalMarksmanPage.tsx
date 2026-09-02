@@ -249,8 +249,8 @@ async function verifyGuess(
 
 export function InternationalMarksmanPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
-  // Slots always render ROUND_TARGET; only the pass threshold scales with the setting.
+  const { requiredToPass } = useSettings("international_marksman");
+  // The pass goal — and the number of slots shown — scale with the setting.
   const passTarget = requiredToPass(ROUND_TARGET);
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<InternationalMarksmanScheduleRound[]>([]);
@@ -470,7 +470,7 @@ export function InternationalMarksmanPage() {
 
   const players = currentState?.players ?? null;
 
-  const target = ROUND_TARGET;
+  const target = passTarget;
 
   const validGuessedIds = players
     ? new Set(
@@ -535,7 +535,7 @@ export function InternationalMarksmanPage() {
           >
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="international_marksman" />
         </div>
       </div>
 

@@ -154,7 +154,7 @@ export function WhoPlayedMorePage() {
           >
             <Trophy size={20} />
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="who_played_more" />
         </div>
       </div>
 

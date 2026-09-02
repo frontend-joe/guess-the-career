@@ -146,7 +146,7 @@ function buildRounds(
 
 export function TopScorersPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("top_scorers");
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -301,7 +301,7 @@ export function TopScorersPage() {
               </div>
             )
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="top_scorers" />
         </div>
       </div>
 

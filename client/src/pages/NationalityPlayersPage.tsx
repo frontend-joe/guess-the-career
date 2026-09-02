@@ -340,7 +340,7 @@ async function verifyGuess(
 
 export function NationalityPlayersPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("nationality_players");
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<NationalsScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>(
@@ -620,7 +620,7 @@ export function NationalityPlayersPage() {
     ? players.filter((p) => !validGuessedIds.has(p.id))
     : [];
   const slots: { player: Player | null; hint: Player | null }[] = Array.from(
-    { length: target },
+    { length: passTarget },
     (_, i) =>
       i < guessedList.length
         ? { player: guessedList[i], hint: null }
@@ -666,7 +666,7 @@ export function NationalityPlayersPage() {
           >
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="nationality_players" />
         </div>
       </div>
 
@@ -752,8 +752,8 @@ export function NationalityPlayersPage() {
                 {verifying
                   ? "Checking…"
                   : isDone
-                    ? `All ${target} found! ✓`
-                    : `${guessedCount} / ${target} found`}
+                    ? `All ${passTarget} found! ✓`
+                    : `${Math.min(guessedCount, passTarget)} / ${passTarget} found`}
               </p>
 
               {wrongGuessMsg && (

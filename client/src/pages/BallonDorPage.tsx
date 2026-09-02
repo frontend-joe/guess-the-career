@@ -136,7 +136,7 @@ function buildRounds(data: BallonDorRound[], saved: SavedProgress): RoundResult[
 
 export function BallonDorPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("ballon_dor");
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -275,7 +275,7 @@ export function BallonDorPage() {
               </div>
             )
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="ballon_dor" />
         </div>
       </div>
 

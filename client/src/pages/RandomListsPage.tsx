@@ -171,7 +171,7 @@ async function verifyGuess(name: string, listId: string): Promise<VerifyResult> 
 
 export function RandomListsPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("random_lists");
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<RandomListsScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
@@ -361,7 +361,7 @@ export function RandomListsPage() {
   const guessedList = players ? players.filter((p) => validGuessedIds.has(p.id)) : [];
   const unguessedList = players ? players.filter((p) => !validGuessedIds.has(p.id)) : [];
   const slots: { player: Player | null; hint: Player | null }[] = Array.from(
-    { length: target },
+    { length: passTarget },
     (_, i) =>
       i < guessedList.length
         ? { player: guessedList[i], hint: null }
@@ -397,7 +397,7 @@ export function RandomListsPage() {
           <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress((v) => !v)}>
             {showProgress ? <X size={20} /> : <Trophy size={20} />}
           </button>
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="random_lists" />
         </div>
       </div>
 
@@ -467,7 +467,7 @@ export function RandomListsPage() {
           {currentRound && (
             <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
               <p className={`text-xs mb-2 ${verifying ? "text-yellow-400" : guessedCount > 0 ? "text-green-400" : "text-white/50"}`}>
-                {verifying ? "Checking…" : isDone ? `All ${target} found! ✓` : `${guessedCount} / ${target} found`}
+                {verifying ? "Checking…" : isDone ? `All ${passTarget} found! ✓` : `${Math.min(guessedCount, passTarget)} / ${passTarget} found`}
               </p>
 
               {wrongGuessMsg && (

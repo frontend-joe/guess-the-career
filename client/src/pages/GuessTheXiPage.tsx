@@ -162,7 +162,7 @@ function buildRounds(data: XiScheduleRound[], saved: SavedProgress): RoundResult
 
 export function GuessTheXiPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings();
+  const { requiredToPass } = useSettings("guess_the_xi");
   const showPlayer = useShowPlayer();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -335,7 +335,7 @@ export function GuessTheXiPage() {
               </div>
             )
           ) : null}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="guess_the_xi" />
         </div>
       </div>
 

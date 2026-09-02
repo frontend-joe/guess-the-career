@@ -168,7 +168,7 @@ export function BookendsPage() {
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">Bookend Players</span>
         <div className="flex items-center gap-1">
           {rounds.length > 0 && <span className="text-white/60 text-sm font-mono">{index + 1} / {rounds.length}</span>}
-          <GameSettingsButton />
+          <GameSettingsButton gameKey="bookends" />
         </div>
       </div>
 
