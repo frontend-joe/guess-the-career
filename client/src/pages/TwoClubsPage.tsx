@@ -426,6 +426,12 @@ export function TwoClubsPage() {
                   </div>
                 )}
 
+                {players !== null && (
+                  <p className="text-xs text-gray-400 text-center px-2 leading-snug">
+                    You can guess any {passTarget} players, these hints are just the top {passTarget} ordered by combined appearances.
+                  </p>
+                )}
+
                 {/* Wrong guess flash */}
                 {wrongGuess && (
                   <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center animate-pulse">
