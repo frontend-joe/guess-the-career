@@ -399,7 +399,6 @@ export function TwoClubsPage() {
             {currentRound && (
               <GameHeader
                 compact={compact}
-                center
                 image={
                   <div className="flex items-center gap-1">
                     <CrestBadge name={currentRound.clubA} wikipediaUrl={currentRound.clubAWikiUrl} />
@@ -407,6 +406,8 @@ export function TwoClubsPage() {
                     <CrestBadge name={currentRound.clubB} wikipediaUrl={currentRound.clubBWikiUrl} />
                   </div>
                 }
+                title="Who played for both?"
+                subtitle={`${currentRound.playerCount} match${currentRound.playerCount !== 1 ? 'es' : ''} found in our database`}
                 difficulty={currentRound.playerCount >= 10 ? { label: "Easy", color: "green" } : undefined}
               />
             )}
