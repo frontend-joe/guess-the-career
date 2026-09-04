@@ -16,13 +16,13 @@ function getClubVariants(clubName: string): string[] {
     .filter(([, v]) => v === canonical)
     .map(([k]) => k)
   const base = [canonical, ...aliases]
-  // Loan stints are stored with a "→ " prefix — include those forms too
-  return [...base, ...base.map(v => `→ ${v}`)]
+  // Loan stints are stored with a "â " prefix â include those forms too
+  return [...base, ...base.map(v => `â ${v}`)]
 }
 
 // Build the full player row (nationality/position/apps/careerYears) for a guessed
 // footballer, matching the /answers list shape so a newly revealed/auto-scraped
-// player shows their flag, position and career span — not just a bare name.
+// player shows their flag, position and career span â not just a bare name.
 function verifiedPlayer(clubA: string, clubB: string, id: number) {
   const variantsA = getClubVariants(clubA).map(v => v.toLowerCase())
   const variantsB = getClubVariants(clubB).map(v => v.toLowerCase())
@@ -32,7 +32,7 @@ function verifiedPlayer(clubA: string, clubB: string, id: number) {
     SELECT f.id, f.name, f.photo_url, f.nationality, f.position,
       (SELECT COALESCE(SUM(cs.apps), 0) FROM career_stints cs
          WHERE cs.footballer_id = f.id AND cs.stint_type = 'senior'
-         AND LOWER(cs.club) IN (${phAll})) AS apps,
+         AND LOWER(TRIM(REPLACE(REPLACE(cs.club, '→', ''), '(loan)', ''))) IN (${phAll})) AS apps,
       ${CAREER_SPAN_SELECT}
     FROM footballers f
     WHERE f.id = ?
@@ -197,7 +197,7 @@ twoClubsRouter.delete(
   }
 )
 
-// GET /api/two-clubs/schedule — admin list
+// GET /api/two-clubs/schedule â admin list
 twoClubsRouter.get('/schedule', (c) => {
   const rows = sqlite.prepare(
     `SELECT id, date, club_a, club_b, created_at FROM two_clubs_schedule ORDER BY date ASC`
@@ -205,7 +205,7 @@ twoClubsRouter.get('/schedule', (c) => {
   return c.json(rows)
 })
 
-// GET /api/two-clubs/schedule/rounds — game data with wiki URLs and player counts
+// GET /api/two-clubs/schedule/rounds â game data with wiki URLs and player counts
 twoClubsRouter.get('/schedule/rounds', (c) => {
   const scheduled = sqlite.prepare(
     `SELECT date, club_a, club_b FROM two_clubs_schedule ORDER BY date ASC`
@@ -241,7 +241,7 @@ twoClubsRouter.get('/schedule/rounds', (c) => {
   return c.json(rounds)
 })
 
-// PUT /api/two-clubs/schedule/:date — assign a pair to a date
+// PUT /api/two-clubs/schedule/:date â assign a pair to a date
 twoClubsRouter.put(
   '/schedule/:date',
   zValidator('json', z.object({ clubA: z.string().min(1), clubB: z.string().min(1) })),
@@ -258,14 +258,14 @@ twoClubsRouter.put(
   }
 )
 
-// DELETE /api/two-clubs/schedule/:date — remove a specific date
+// DELETE /api/two-clubs/schedule/:date â remove a specific date
 twoClubsRouter.delete('/schedule/:date', async (c) => {
   const date = c.req.param('date')
   sqlite.prepare(`DELETE FROM two_clubs_schedule WHERE date = ?`).run(date)
   return c.json({ ok: true })
 })
 
-// DELETE /api/two-clubs/schedule — clear entire schedule
+// DELETE /api/two-clubs/schedule â clear entire schedule
 twoClubsRouter.delete('/schedule', async (c) => {
   sqlite.prepare(`DELETE FROM two_clubs_schedule`).run()
   return c.json({ ok: true })
@@ -283,7 +283,7 @@ twoClubsRouter.post(
   async (c) => {
     const { footballerName, footballerId, clubA, clubB } = c.req.valid('json')
 
-    // Which of the target clubs did the player NOT play for — used to build a
+    // Which of the target clubs did the player NOT play for â used to build a
     // specific "didn't play for X" message.
     const targetClubs = [clubA, clubB]
     const missingClubsFor = (clubs: string[]) => targetClubs.filter(t => !hasClub(clubs, t))
@@ -345,7 +345,7 @@ twoClubsRouter.post(
         return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, footballer.id), imported: false })
       }
 
-      // Stints incomplete — rescrape if we have a Wikipedia URL
+      // Stints incomplete â rescrape if we have a Wikipedia URL
       if (footballer.wikipedia_url) {
         try {
           const scraped = await scrapeWikipedia(footballer.wikipedia_url)
@@ -380,12 +380,12 @@ twoClubsRouter.post(
             return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, footballer.id), imported: true })
           }
         } catch {
-          // scrape failed — fall through to Wikipedia name search
+          // scrape failed â fall through to Wikipedia name search
         }
       }
 
       // A real player who's missing some of the clubs. If they played at least
-      // one of them it's almost certainly the right person — report exactly which
+      // one of them it's almost certainly the right person â report exactly which
       // clubs they're missing. Otherwise keep it as a fallback and try a namesake.
       fallbackInvalid = invalidJson(footballer.name, stintClubs)
       if (missingClubsFor(stintClubs).length < targetClubs.length) {
@@ -393,7 +393,7 @@ twoClubsRouter.post(
       }
     }
 
-    // Step 3: footballer not in DB at all — try Wikipedia name search
+    // Step 3: footballer not in DB at all â try Wikipedia name search
     try {
       const wikiHeaders = { 'User-Agent': 'GuessTheCareer-Admin/1.0' }
       const nameParts = normalizeName(footballerName).split(/\s+/).filter(p => p.length > 2)
@@ -476,7 +476,7 @@ twoClubsRouter.post(
         return c.json({ valid: true, footballer: verifiedPlayer(clubA, clubB, knownRecord.id), imported: true })
       }
 
-      // Truly new footballer — insert
+      // Truly new footballer â insert
       const [newFootballer] = await db.insert(footballers).values({
         name: scraped.name,
         wikipedia_url: scraped.wikipedia_url,
@@ -529,7 +529,7 @@ twoClubsRouter.get('/answers', async (c) => {
     SELECT f.id, f.name, f.photo_url, f.nationality, f.position,
       (SELECT COALESCE(SUM(cs.apps), 0) FROM career_stints cs
          WHERE cs.footballer_id = f.id AND cs.stint_type = 'senior'
-         AND LOWER(cs.club) IN (${phAll})) AS apps,
+         AND LOWER(TRIM(REPLACE(REPLACE(cs.club, '→', ''), '(loan)', ''))) IN (${phAll})) AS apps,
       ${CAREER_SPAN_SELECT}
     FROM footballers f
     JOIN career_stints csa ON csa.footballer_id = f.id

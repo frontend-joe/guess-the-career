@@ -53,7 +53,8 @@ function verifiedNational(
       `SELECT f.position, GROUP_CONCAT(cs.years, '|') as years_raw
        FROM footballers f
        JOIN career_stints cs ON cs.footballer_id = f.id
-         AND cs.stint_type = 'senior' AND LOWER(cs.club) IN (${ph})
+         AND cs.stint_type = 'senior'
+         AND LOWER(TRIM(REPLACE(REPLACE(cs.club, '→', ''), '(loan)', ''))) IN (${ph})
        WHERE f.id = ?
        GROUP BY f.id`,
     )
@@ -502,7 +503,7 @@ nationalsRouter.get("/answers", (c) => {
     FROM footballers f
     JOIN career_stints cs ON cs.footballer_id = f.id
       AND cs.stint_type = 'senior'
-      AND LOWER(cs.club) IN (${ph})
+      AND LOWER(TRIM(REPLACE(REPLACE(cs.club, '→', ''), '(loan)', ''))) IN (${ph})
     WHERE LOWER(f.nationality) = LOWER(?)
     GROUP BY f.id
     ORDER BY club_apps DESC, f.name ASC
