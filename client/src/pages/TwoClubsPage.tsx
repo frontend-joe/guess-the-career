@@ -119,7 +119,7 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
           {player.nationality && <NationalityFlag nationality={player.nationality} size={14} />}
           {player.position && <PositionBadge position={player.position} />}
           <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
-          {player.careerYears && <span className="ml-auto text-[11px] font-medium text-gray-400 tabular-nums shrink-0">{player.careerYears}</span>}
+          {player.apps != null && <span className="ml-auto text-[11px] font-medium text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
         </div>
       ) : hint ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
