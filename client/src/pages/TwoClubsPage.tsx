@@ -407,7 +407,7 @@ export function TwoClubsPage() {
                   </div>
                 }
                 title="Who played for both?"
-                subtitle={`${currentRound.playerCount} match${currentRound.playerCount !== 1 ? 'es' : ''} found in our database`}
+                subtitle={`${currentRound.playerCount} player${currentRound.playerCount !== 1 ? 's' : ''} found in our database`}
                 difficulty={currentRound.playerCount >= 10 ? { label: "Easy", color: "green" } : undefined}
               />
             )}
