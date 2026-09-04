@@ -134,6 +134,25 @@ function PlayerSlot({ index, player, hint }: { index: number; player: Player | n
   )
 }
 
+// A fully-revealed player row (used once the round is done to show every player in
+// the database for the pairing). Green when the player was one of the guesses.
+function RevealRow({ rank, player, guessed }: { rank: number; player: Player; guessed: boolean }) {
+  const showPlayer = useShowPlayer()
+  return (
+    <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${guessed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${guessed ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+        {rank}
+      </span>
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {player.nationality && <NationalityFlag nationality={player.nationality} size={14} />}
+        {player.position && <PositionBadge position={player.position} />}
+        <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
+        {player.apps != null && <span className="ml-auto text-[11px] font-medium text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
+      </div>
+    </div>
+  )
+}
+
 // ─── Round state ──────────────────────────────────────────────────────────────
 
 interface RoundState {
@@ -414,6 +433,28 @@ export function TwoClubsPage() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="animate-spin text-gray-300" size={22} />
                   </div>
+                ) : isDone ? (
+                  (() => {
+                    const correct = players.filter(p => currentState?.guessedIds.has(p.id))
+                    const rest = players.filter(p => !currentState?.guessedIds.has(p.id))
+                    return (
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          {correct.map((p, i) => (
+                            <RevealRow key={p.id} rank={i + 1} player={p} guessed />
+                          ))}
+                        </div>
+                        {rest.length > 0 && (
+                          <div className="flex flex-col gap-2">
+                            <p className="text-xs text-gray-400 uppercase tracking-wide text-center px-2">Others who played for both</p>
+                            {rest.map((p, i) => (
+                              <RevealRow key={p.id} rank={i + 1} player={p} guessed={false} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()
                 ) : (
                   <div className="flex flex-col gap-2">
                     {slots.map((s, i) => (
@@ -422,7 +463,7 @@ export function TwoClubsPage() {
                   </div>
                 )}
 
-                {players !== null && (
+                {players !== null && !isDone && (
                   <p className="text-xs text-gray-400 text-center px-2 leading-snug">
                     You can guess any {passTarget} players, these hints are just the top {passTarget} ordered by combined appearances.
                   </p>
