@@ -427,7 +427,7 @@ export function TwoClubsPage() {
                 )}
 
                 {players !== null && (
-                  <p className="text-xs text-gray-400 text-center px-2 leading-snug">
+                  <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-center leading-snug">
                     You can guess any {passTarget} players, these hints are just the top {passTarget} ordered by combined appearances.
                   </p>
                 )}
