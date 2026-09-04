@@ -24,15 +24,11 @@ import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { useCompactMode } from "@/contexts/CompactModeContext";
-import { useSettings } from "@/contexts/SettingsContext";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
-function roundTarget(playerCount: number): number {
-  if (playerCount < 10) return 5;
-  if (playerCount <= 20) return 10;
-  return 15;
-}
+// Always ask for 5, regardless of how many players exist for the pairing.
+const ROUND_TARGET = 5;
 
 const COUNTRY_ADJECTIVE: Record<string, string> = {
   England: "English",
@@ -358,7 +354,6 @@ async function verifyGuess(
 
 export function NationalityPlayersPage() {
   const { compact } = useCompactMode();
-  const { requiredToPass } = useSettings("nationality_players");
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<NationalsScheduleRound[]>([]);
   const [roundStates, setRoundStates] = useState<Record<string, RoundState>>(
@@ -460,7 +455,7 @@ export function NationalityPlayersPage() {
     const activeGuesses = players.filter((p) =>
       currentState.guessedIds.has(p.id),
     ).length;
-    if (activeGuesses >= requiredToPass(roundTarget(currentRound.playerCount))) return;
+    if (activeGuesses >= ROUND_TARGET) return;
 
     const alreadyFound = players
       .filter((p) => currentState.guessedIds.has(p.id))
@@ -562,7 +557,7 @@ export function NationalityPlayersPage() {
     const validIds = statePlayers
       ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length
       : (state?.guessedIds.size ?? 0);
-    const target = requiredToPass(roundTarget(r.playerCount));
+    const target = ROUND_TARGET;
     const guessed = Math.min(validIds, target);
     return {
       name: (
@@ -595,7 +590,7 @@ export function NationalityPlayersPage() {
   const totalGuessed = rounds.filter((r) => {
     const key = comboKey(r.nationality, r.club);
     const state = roundStates[key];
-    return (state?.guessedIds.size ?? 0) >= requiredToPass(roundTarget(r.playerCount));
+    return (state?.guessedIds.size ?? 0) >= ROUND_TARGET;
   }).length;
   const totalPlayers = rounds.length;
 
@@ -616,8 +611,7 @@ export function NationalityPlayersPage() {
 
   // Only count IDs that exist in the loaded players list — guards against stale localStorage IDs
   // from players that were deleted and re-imported with a new ID.
-  const target = currentRound ? roundTarget(currentRound.playerCount) : 5;
-  const passTarget = requiredToPass(target);
+  const passTarget = ROUND_TARGET;
 
   const validGuessedIds = players
     ? new Set(
