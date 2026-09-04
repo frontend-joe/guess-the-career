@@ -12,7 +12,6 @@ import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
 import { useCompactMode } from '@/contexts/CompactModeContext';
 import { useSettings } from '@/contexts/SettingsContext'
-import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
@@ -359,12 +358,9 @@ export function TwoClubsPage() {
       <div className="bg-[#0b0c1a] divide-soft-b relative flex items-center justify-between px-3 py-2.5 shrink-0">
         <GameMenu />
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">Two Clubs</span>
-        <div className="flex items-center gap-1">
-          <GameSettingsButton gameKey="two_clubs" />
-          <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
-            {showProgress ? <X size={20} /> : <Trophy size={20} />}
-          </button>
-        </div>
+        <button className="text-white/90 hover:text-green-400 transition-colors p-1" onClick={() => setShowProgress(v => !v)}>
+          {showProgress ? <X size={20} /> : <Trophy size={20} />}
+        </button>
       </div>
 
       {showProgress ? (
