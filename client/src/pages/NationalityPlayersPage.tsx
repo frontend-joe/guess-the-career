@@ -25,7 +25,6 @@ import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
 import { useCompactMode } from "@/contexts/CompactModeContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { GameSettingsButton } from "@/components/GameSettingsButton";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
@@ -237,6 +236,7 @@ interface Player {
   photo_url: string | null;
   position?: string | null;
   years?: string | null;
+  apps?: number;
 }
 
 function PlayerSlot({
@@ -269,9 +269,9 @@ function PlayerSlot({
           >
             {player.name}
           </button>
-          {player.years && (
-            <span className="ml-auto text-xs text-gray-400 tabular-nums shrink-0">
-              {player.years}
+          {player.apps != null && (
+            <span className="ml-auto text-xs text-gray-500 tabular-nums shrink-0">
+              {player.apps} apps
             </span>
           )}
         </div>
@@ -288,6 +288,24 @@ function PlayerSlot({
       ) : (
         <div className="h-px bg-gray-200 flex-1 rounded-full" />
       )}
+    </div>
+  );
+}
+
+// A fully-revealed player row (shown once the round is done to list everyone in the
+// database for the nationality × club). Green when it was one of the guesses.
+function RevealRow({ rank, player, guessed }: { rank: number; player: Player; guessed: boolean }) {
+  const showPlayer = useShowPlayer();
+  return (
+    <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${guessed ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
+      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${guessed ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}>
+        {rank}
+      </span>
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {player.position && <PositionBadge position={player.position} />}
+        <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
+        {player.apps != null && <span className="ml-auto text-xs text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
+      </div>
     </div>
   );
 }
@@ -659,15 +677,12 @@ export function NationalityPlayersPage() {
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Nationality Players
         </span>
-        <div className="flex items-center gap-1">
-          <GameSettingsButton gameKey="nationality_players" />
-          <button
-            className="text-white/90 hover:text-green-400 transition-colors p-1"
-            onClick={() => setShowProgress((v) => !v)}
-          >
-            {showProgress ? <X size={20} /> : <Trophy size={20} />}
-          </button>
-        </div>
+        <button
+          className="text-white/90 hover:text-green-400 transition-colors p-1"
+          onClick={() => setShowProgress((v) => !v)}
+        >
+          {showProgress ? <X size={20} /> : <Trophy size={20} />}
+        </button>
       </div>
 
       {showProgress ? (
@@ -705,7 +720,6 @@ export function NationalityPlayersPage() {
             {currentRound && (
               <GameHeader
                 compact={compact}
-                center
                 image={
                   <div className="flex items-center gap-1">
                     <CrestBadge name={currentRound.nationality} />
@@ -716,6 +730,8 @@ export function NationalityPlayersPage() {
                     />
                   </div>
                 }
+                title={`${currentRound.nationality} ${currentRound.club} Players`}
+                subtitle={`${currentRound.playerCount} player${currentRound.playerCount !== 1 ? 's' : ''} found in our database`}
                 difficulty={
                   currentRound.playerCount < 10
                     ? { label: "Solid", color: "red" }
@@ -727,10 +743,26 @@ export function NationalityPlayersPage() {
             )}
             {currentRound && (
               <div className={`px-3 pt-4 pb-2 flex flex-col gap-3`}>
-                {/* 5 player slots */}
+                {/* player slots (or full reveal once done) */}
                 {players === null ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="animate-spin text-gray-300" size={22} />
+                  </div>
+                ) : isDone ? (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      {guessedList.map((p, i) => (
+                        <RevealRow key={p.id} rank={i + 1} player={p} guessed />
+                      ))}
+                    </div>
+                    {unguessedList.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide text-center px-2">Others who played here</p>
+                        {unguessedList.map((p, i) => (
+                          <RevealRow key={p.id} rank={i + 1} player={p} guessed={false} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -738,6 +770,12 @@ export function NationalityPlayersPage() {
                       <PlayerSlot key={i} index={i} player={s.player} hint={s.hint} />
                     ))}
                   </div>
+                )}
+
+                {players !== null && !isDone && (
+                  <p className="text-xs text-gray-400 text-center px-2 leading-snug">
+                    You can guess any {passTarget} players, these hints are just the top {passTarget} ordered by appearances.
+                  </p>
                 )}
               </div>
             )}

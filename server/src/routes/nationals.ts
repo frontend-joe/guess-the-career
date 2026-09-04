@@ -524,6 +524,7 @@ nationalsRouter.get("/answers", (c) => {
       photo_url: r.photo_url,
       position: r.position,
       years: yearsSpan(r.years_raw),
+      apps: r.club_apps,
     })),
   );
 });
