@@ -534,10 +534,10 @@ twoClubsRouter.get('/answers', async (c) => {
     FROM footballers f
     JOIN career_stints csa ON csa.footballer_id = f.id
       AND csa.stint_type = 'senior'
-      AND LOWER(csa.club) IN (${phA})
+      AND LOWER(TRIM(REPLACE(REPLACE(csa.club, '→', ''), '(loan)', ''))) IN (${phA})
     JOIN career_stints csb ON csb.footballer_id = f.id
       AND csb.stint_type = 'senior'
-      AND LOWER(csb.club) IN (${phB})
+      AND LOWER(TRIM(REPLACE(REPLACE(csb.club, '→', ''), '(loan)', ''))) IN (${phB})
     GROUP BY f.id
     ORDER BY apps DESC, f.name ASC
   `).all(...allVariants, ...variantsA, ...variantsB) as { id: number; name: string; photo_url: string | null; nationality: string | null; position: string | null; apps: number; career_start: string | null; career_end: string | null }[]
