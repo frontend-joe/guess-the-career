@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { BadgeTooltip } from "@/components/BadgeTooltip";
 import { nationalityToFlagUrl } from "@/lib/flags";
 
 /**
@@ -94,17 +94,11 @@ export default function CrestBadge({
       ) : (
         <img src={logoUrl} alt={name} className="w-10 h-10 object-contain" />
       )}
-      {open &&
-        coords &&
-        createPortal(
-          <div
-            className="fixed -translate-x-1/2 -translate-y-full px-2 py-1 bg-white text-gray-700 text-xs rounded-lg shadow-md whitespace-nowrap pointer-events-none"
-            style={{ top: coords.top - 6, left: coords.left, zIndex: 100 }}
-          >
-            {name}
-          </div>,
-          document.body,
-        )}
+      {open && coords && (
+        <BadgeTooltip x={coords.left} top={coords.top}>
+          {name}
+        </BadgeTooltip>
+      )}
     </div>
   );
 }

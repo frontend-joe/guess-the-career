@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { BadgeTooltip } from '@/components/BadgeTooltip'
 
 interface Props {
   club: string
@@ -84,14 +84,10 @@ export function MiniClubBadge({ club, wikipediaUrl, size = 20 }: Props) {
             </svg>
           : <img src={logoUrl} alt={club} className="max-h-full max-w-full object-contain" />
       }
-      {open && coords && createPortal(
-        <div
-          className="fixed -translate-x-1/2 -translate-y-full px-2 py-1 bg-white text-gray-700 text-xs rounded-lg shadow-md whitespace-nowrap pointer-events-none"
-          style={{ top: coords.top - 6, left: coords.left, zIndex: 100 }}
-        >
+      {open && coords && (
+        <BadgeTooltip x={coords.left} top={coords.top}>
           {club}
-        </div>,
-        document.body,
+        </BadgeTooltip>
       )}
     </div>
   )

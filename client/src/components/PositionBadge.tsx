@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { BadgeTooltip } from "@/components/BadgeTooltip";
 import { cn } from "@/lib/utils";
 import { detailedPosition, POSITION_COLOURS } from "@/lib/position";
 
@@ -60,17 +60,11 @@ export function PositionBadge({ footballer, position, className }: Props) {
       )}
     >
       {detail.code}
-      {open &&
-        coords &&
-        createPortal(
-          <div
-            className="fixed -translate-x-1/2 -translate-y-full px-2 py-1 bg-white text-gray-700 text-xs rounded-lg shadow-md whitespace-nowrap pointer-events-none"
-            style={{ top: coords.top - 6, left: coords.left, zIndex: 100 }}
-          >
-            {raw}
-          </div>,
-          document.body,
-        )}
+      {open && coords && (
+        <BadgeTooltip x={coords.left} top={coords.top}>
+          {raw}
+        </BadgeTooltip>
+      )}
     </span>
   );
 }
