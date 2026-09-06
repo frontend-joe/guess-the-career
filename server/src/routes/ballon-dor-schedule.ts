@@ -73,6 +73,7 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
              COALESCE(f.nationality, f2.nationality, bdp.nationality) AS nationality,
              bdp.wikipedia_url AS player_wikipedia_url,
              COALESCE(f.name, f2.name) AS footballer_name,
+             COALESCE(f.id, f2.id) AS footballer_id,
              COALESCE(f.position, f2.position) AS footballer_position
       FROM ballon_dor_players bdp
       LEFT JOIN footballers f ON f.id = bdp.footballer_id
@@ -84,6 +85,7 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
       id: number
       name: string
       footballer_name: string | null
+      footballer_id: number | null
       club: string
       points: number | null
       rank: number
@@ -107,6 +109,7 @@ ballonDorScheduleRouter.get('/rounds', (c) => {
         }
         return {
           id: p.id,
+          footballerId: p.footballer_id ?? null,
           name: p.name,
           club: p.club,
           clubs: resolveClubs(p.club),

@@ -1,5 +1,6 @@
 export interface BallonDorPlayer {
   id: number
+  footballerId: number | null
   name: string
   club: string
   clubs: { name: string; wikipedia_url: string | null }[]

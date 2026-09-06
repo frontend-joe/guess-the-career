@@ -13,7 +13,7 @@ import { NationalityFlag } from '@/components/NationalityFlag'
 import { MiniClubBadge } from '@/components/MiniClubBadge'
 import { useCompactMode } from '@/contexts/CompactModeContext';
 import { useSettings } from '@/contexts/SettingsContext';
-import { GameSettingsButton } from "@/components/GameSettingsButton";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import GameHeader from "@/components/GameHeader";
 
 type RoundState = 'playing' | 'cleared'
@@ -137,6 +137,7 @@ function buildRounds(data: BallonDorRound[], saved: SavedProgress): RoundResult[
 export function BallonDorPage() {
   const { compact } = useCompactMode();
   const { requiredToPass } = useSettings("ballon_dor");
+  const showPlayer = useShowPlayer();
   // Done-ness is derived live from the current difficulty, not the persisted
   // "cleared" state — so changing the guess percentage re-evaluates each round.
   const roundDone = (r: RoundResult) => r.guessedIndices.size >= requiredToPass(r.players.length)
@@ -257,26 +258,16 @@ export function BallonDorPage() {
         <span className="absolute inset-0 flex items-center justify-center pointer-events-none text-white font-display text-sm tracking-wide uppercase">
           Ballon d&apos;Or
         </span>
-        <div className="flex items-center gap-1">
-          <GameSettingsButton gameKey="ballon_dor" />
-          {rounds.length > 0 ? (
-            showProgress ? (
-              <button
-                onClick={() => setShowProgress(false)}
-                className="text-white/60 hover:text-white transition-colors p-1"
-              >
-                <X size={18} />
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowProgress(true)}
-                className="text-white/40 hover:text-white/80 transition-colors p-0.5"
-              >
-                <Trophy size={14} />
-              </button>
-            )
-          ) : null}
-        </div>
+        {rounds.length > 0 ? (
+          <button
+            className="text-white/90 hover:text-green-400 transition-colors p-1"
+            onClick={() => setShowProgress((v) => !v)}
+          >
+            {showProgress ? <X size={20} /> : <Trophy size={20} />}
+          </button>
+        ) : (
+          <span className="w-8" />
+        )}
       </div>
 
       {/* Scrollable content */}
@@ -364,9 +355,19 @@ export function BallonDorPage() {
                         <td className="px-2">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {guessed ? (
-                              <span className="flex-1 text-gray-900 font-semibold text-sm truncate">
-                                {name}
-                              </span>
+                              player.footballerId != null ? (
+                                <button
+                                  type="button"
+                                  onClick={() => showPlayer(player.footballerId!)}
+                                  className="flex-1 min-w-0 text-gray-900 font-semibold text-sm truncate text-left hover:underline"
+                                >
+                                  {name}
+                                </button>
+                              ) : (
+                                <span className="flex-1 text-gray-900 font-semibold text-sm truncate">
+                                  {name}
+                                </span>
+                              )
                             ) : (
                               <div className="flex-1 h-px bg-gray-300 rounded-full" />
                             )}
