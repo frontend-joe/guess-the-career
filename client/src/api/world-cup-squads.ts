@@ -1,5 +1,6 @@
 export interface WorldCupPlayer {
   id: number
+  footballerId: number | null
   name: string
   shirt_number: number | null
   position: 'GK' | 'DF' | 'MF' | 'FW' | null

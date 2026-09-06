@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { GameMenu } from "@/components/GameMenu";
 import { PositionBadge } from "@/components/PositionBadge";
+import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { OverallProgressScreen } from "@/components/OverallProgressScreen";
 import { getWorldCupRounds, type WorldCupRound } from "@/api/world-cup-squads";
 import { NationalityFlag } from "@/components/NationalityFlag";
@@ -150,6 +151,7 @@ function buildRounds(
 
 export function WorldCupPage() {
   const { requiredToPass } = useSettings("world_cup");
+  const showPlayer = useShowPlayer();
   // Done-ness is derived live from the current difficulty, not the persisted
   // "cleared" state — so changing the guess percentage re-evaluates each round.
   const roundDone = (r: RoundResult) => r.guessedIndices.size >= requiredToPass(r.players.length);
@@ -393,9 +395,19 @@ export function WorldCupPage() {
                         <td className="px-2">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {guessed ? (
-                              <span className="flex-1 text-gray-900 font-semibold text-sm truncate">
-                                {name}
-                              </span>
+                              player.footballerId != null ? (
+                                <button
+                                  type="button"
+                                  onClick={() => showPlayer(player.footballerId!)}
+                                  className="flex-1 min-w-0 text-gray-900 font-semibold text-sm truncate text-left hover:underline"
+                                >
+                                  {name}
+                                </button>
+                              ) : (
+                                <span className="flex-1 text-gray-900 font-semibold text-sm truncate">
+                                  {name}
+                                </span>
+                              )
                             ) : (
                               <div className="flex-1 h-px bg-gray-300 rounded-full" />
                             )}

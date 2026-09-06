@@ -50,7 +50,9 @@ worldCupScheduleRouter.get('/rounds', (c) => {
 
   const rounds = scheduleRows.map(row => {
     const players = sqlite.prepare(`
-      SELECT p.id, p.name, p.shirt_number, p.position, p.club,
+      SELECT p.id, p.name, p.shirt_number, p.club,
+             COALESCE(f.position, f2.position, p.position) AS position,
+             COALESCE(f.id, f2.id) AS footballer_id,
              COALESCE(f.nationality, f2.nationality, p.nationality) AS nationality,
              COALESCE(f.name, f2.name) AS footballer_name
       FROM world_cup_squad_players p
@@ -63,6 +65,7 @@ worldCupScheduleRouter.get('/rounds', (c) => {
       name: string
       shirt_number: number | null
       position: string | null
+      footballer_id: number | null
       club: string
       nationality: string | null
       footballer_name: string | null
@@ -75,6 +78,7 @@ worldCupScheduleRouter.get('/rounds', (c) => {
       team: row.squad_team,
       players: players.map(p => ({
         id: p.id,
+        footballerId: p.footballer_id ?? null,
         name: p.name,
         shirt_number: p.shirt_number,
         position: p.position as 'GK' | 'DF' | 'MF' | 'FW' | null,
