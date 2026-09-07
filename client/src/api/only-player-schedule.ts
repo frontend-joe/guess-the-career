@@ -44,3 +44,13 @@ export async function clearOnlyPlayerSchedule(): Promise<void> {
   const res = await fetch('/api/only-player/schedule', { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to clear schedule')
 }
+
+// A second qualifying player was found in-game, so the combo is no longer "only":
+// remove it from the schedule and disable it.
+export async function invalidateOnlyPlayer(nationality: string, club: string): Promise<void> {
+  await fetch('/api/only-player/invalidate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nationality, club }),
+  }).catch(() => {})
+}

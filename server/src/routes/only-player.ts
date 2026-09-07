@@ -405,6 +405,31 @@ onlyPlayerRouter.delete(
   },
 );
 
+// POST /api/only-player/invalidate — a player discovered in-game a SECOND
+// qualifying player for this combo, so it's no longer an "only". Remove it from
+// the schedule and disable the combo so it isn't re-assigned.
+onlyPlayerRouter.post(
+  "/invalidate",
+  zValidator(
+    "json",
+    z.object({ nationality: z.string().min(1), club: z.string().min(1) }),
+  ),
+  (c) => {
+    const { nationality, club } = c.req.valid("json");
+    sqlite
+      .prepare(
+        `DELETE FROM only_player_schedule WHERE LOWER(nationality) = LOWER(?) AND LOWER(club) = LOWER(?)`,
+      )
+      .run(nationality, club);
+    sqlite
+      .prepare(
+        `DELETE FROM only_player_enabled_combos WHERE LOWER(nationality) = LOWER(?) AND LOWER(club) = LOWER(?)`,
+      )
+      .run(nationality, club);
+    return c.json({ ok: true });
+  },
+);
+
 // GET /api/only-player/schedule — admin list
 onlyPlayerRouter.get("/schedule", (c) => {
   const rows = sqlite

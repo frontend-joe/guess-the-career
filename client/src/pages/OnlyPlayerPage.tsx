@@ -12,6 +12,7 @@ import {
 import { GameMenu } from "@/components/GameMenu";
 import {
   getOnlyPlayerScheduleRounds,
+  invalidateOnlyPlayer,
   type OnlyPlayerScheduleRound,
 } from "@/api/only-player-schedule";
 import {
@@ -27,7 +28,7 @@ import { useCompactMode } from "@/contexts/CompactModeContext";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
-// Always ask for 5, regardless of how many players exist for the pairing.
+// Only Player: exactly one qualifying player per round.
 const ROUND_TARGET = 1;
 
 const COUNTRY_ADJECTIVE: Record<string, string> = {
@@ -336,7 +337,6 @@ async function verifyGuess(
     const body: Record<string, unknown> = { footballerName, nationality, club };
     if (footballerId != null) body.footballerId = footballerId;
 
-    console.log("Verifying guess", body);
 
     const res = await fetch("/api/only-player/verify", {
       method: "POST",
@@ -448,6 +448,21 @@ export function OnlyPlayerPage() {
 
   // ── Autocomplete ──────────────────────────────────────────────────────────
   // ── Submit guess ──────────────────────────────────────────────────────────
+  // Drop the current round: a second qualifying player was found so it's no longer
+  // an "only". Unschedules + disables the combo server-side, removes it locally.
+  function invalidateCurrentRound(extraName: string) {
+    if (!currentRound) return;
+    void invalidateOnlyPlayer(currentRound.nationality, currentRound.club);
+    const removeAt = roundIndex;
+    setRounds((prev) => prev.filter((_, i) => i !== removeAt));
+    setRoundIndex((idx) => Math.max(0, Math.min(idx, rounds.length - 2)));
+    if (wrongTimer.current) clearTimeout(wrongTimer.current);
+    setWrongGuessMsg(
+      `${extraName} also qualifies — not the only one! Round removed.`,
+    );
+    wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 4000);
+  }
+
   async function submitGuess(name: string, id: number | null = null) {
     if (!currentState || !currentKey || !currentRound || verifying) return;
     const players = currentState.players;
@@ -486,24 +501,31 @@ export function OnlyPlayerPage() {
         );
         if (result.valid && result.footballer) {
           const f = result.footballer;
-          const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
-          setRoundStates((prev) => {
-            const state = prev[currentKey];
-            if (!state) return prev;
-            const alreadyInList = state.players?.some((p) => p.id === f.id);
-            const newPlayers = alreadyInList
-              ? state.players!
-              : [...(state.players ?? []), f];
-            return {
-              ...prev,
-              [currentKey]: {
-                ...state,
-                players: newPlayers,
-                guessedIds: new Set([...state.guessedIds, f.id]),
-              },
-            };
-          });
-          persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
+          // A qualifying player NOT in our answer set means a SECOND player of this
+          // nationality played for the club (just scraped in by /verify) — so this
+          // is no longer an "only". Invalidate and drop the round.
+          if (!players.some((p) => p.id === f.id)) {
+            invalidateCurrentRound(f.name);
+          } else {
+            const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
+            setRoundStates((prev) => {
+              const state = prev[currentKey];
+              if (!state) return prev;
+              const alreadyInList = state.players?.some((p) => p.id === f.id);
+              const newPlayers = alreadyInList
+                ? state.players!
+                : [...(state.players ?? []), f];
+              return {
+                ...prev,
+                [currentKey]: {
+                  ...state,
+                  players: newPlayers,
+                  guessedIds: new Set([...state.guessedIds, f.id]),
+                },
+              };
+            });
+            persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
+          }
         } else {
           if (wrongTimer.current) clearTimeout(wrongTimer.current);
           const displayName = result.foundName ?? `"${name}"`;
