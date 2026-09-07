@@ -44,20 +44,27 @@ guessTheXiRouter.get('/explain', (c) => {
 
   if (!row) return c.json({ text: `${name} is incorrect` })
 
+  // Check senior club stints AND international caps — an XI can be a club or a
+  // national team; for the latter the nation is stored as an 'international'
+  // stint's club (youth sides like "England U19" don't match the variants).
   const stints = sqlite
-    .prepare(`SELECT club, years FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
-    .all(row.id) as { club: string; years: string | null }[]
+    .prepare(
+      `SELECT club, years, stint_type FROM career_stints
+       WHERE footballer_id = ? AND stint_type IN ('senior', 'international')`,
+    )
+    .all(row.id) as { club: string; years: string | null; stint_type: string }[]
   const variants = getClubVariants(team)
-  const atClub = stints.filter((s) => variants.includes(normalizeClubAlias(s.club)))
+  const atTeam = stints.filter((s) => variants.includes(normalizeClubAlias(s.club)))
 
-  if (atClub.length === 0) {
+  if (atTeam.length === 0) {
     return c.json({ text: `${row.name} never even played for ${team}` })
   }
-  const span = yearRange(atClub)
+  const verb = atTeam.some((s) => s.stint_type === 'international') ? 'played for' : 'was at'
+  const span = yearRange(atTeam)
   return c.json({
     text: span
-      ? `${row.name} was at ${team} but between ${span}`
-      : `${row.name} was at ${team}, but not in this XI`,
+      ? `${row.name} ${verb} ${team} but between ${span}`
+      : `${row.name} ${verb} ${team}, but not in this XI`,
   })
 })
 
