@@ -25,6 +25,18 @@ export interface XiRound {
   playerNames: string[]
 }
 
+// Explain why a wrong guess is wrong (never played for the club / wrong years).
+export async function explainXiGuess(name: string, team: string): Promise<string> {
+  try {
+    const res = await fetch(`/api/guess-the-xi/explain?name=${encodeURIComponent(name)}&team=${encodeURIComponent(team)}`)
+    if (!res.ok) return ''
+    const body = (await res.json()) as { text?: string }
+    return body.text ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export async function getXiSessionBySpec(spec: string): Promise<XiRound[]> {
   const res = await fetch(`/api/guess-the-xi/load?s=${encodeURIComponent(spec)}`)
   if (!res.ok) throw new Error('Failed to restore session')

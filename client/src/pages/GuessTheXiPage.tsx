@@ -4,6 +4,7 @@ import { ChevronRight, ChevronLeft, Shuffle, Trophy, X } from "lucide-react";
 import { GameMenu } from "@/components/GameMenu";
 import { OverallProgressScreen } from "@/components/OverallProgressScreen";
 import {
+  explainXiGuess,
   type XiRoundPlayer,
 } from "@/api/guess-the-xi";
 import { getXiScheduleRounds, type XiScheduleRound } from "@/api/xi-schedule";
@@ -175,6 +176,8 @@ export function GuessTheXiPage() {
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
   const [progressSearch, setProgressSearch] = useState("");
+  const [wrongMessage, setWrongMessage] = useState<string | null>(null);
+  const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -224,9 +227,17 @@ export function GuessTheXiPage() {
         state: round.state,
       };
       saveProgress(progress);
+      void explainXiGuess(name, round.team).then((text) => {
+        if (!text) return;
+        if (wrongTimer.current) clearTimeout(wrongTimer.current);
+        setWrongMessage(text);
+        wrongTimer.current = setTimeout(() => setWrongMessage(null), 6000);
+      });
       return;
     }
 
+    if (wrongTimer.current) clearTimeout(wrongTimer.current);
+    setWrongMessage(null);
     const newGuessed = new Set(round.guessedIndices);
     matched.forEach((i) => newGuessed.add(i));
     const allGuessed = newGuessed.size >= requiredToPass(round.players.length);
@@ -513,6 +524,13 @@ export function GuessTheXiPage() {
                 ? `All ${roundTotal} guessed! ✓`
                 : `${Math.min(currentRound.guessedIndices.size, roundTotal)} / ${roundTotal} guessed`}
             </p>
+          )}
+
+          {/* Wrong-guess explanation */}
+          {wrongMessage && !isRoundDone && (
+            <div className="mb-3 text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+              {wrongMessage}
+            </div>
           )}
 
           {/* Input */}

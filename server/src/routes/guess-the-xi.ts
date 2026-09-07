@@ -1,7 +1,65 @@
 import { Hono } from 'hono'
 import { sqlite } from '../db/client.ts'
+import { getClubVariants } from '../services/football.ts'
+import { normalizeClubAlias } from '../services/scraper.ts'
 
 export const guessTheXiRouter = new Hono()
+
+// Short year range from a set of stint "years" strings, e.g. ["1993–1998"] → "93–98".
+function yearRange(stints: { years: string | null }[]): string | null {
+  const nums: number[] = []
+  for (const s of stints) {
+    if (!s.years) continue
+    for (const m of s.years.matchAll(/\d{4}/g)) nums.push(Number(m[0]))
+  }
+  if (nums.length === 0) return null
+  const two = (y: number) => String(y).slice(-2)
+  const min = Math.min(...nums)
+  const max = Math.max(...nums)
+  return min === max ? two(min) : `${two(min)}–${two(max)}`
+}
+
+// GET /api/guess-the-xi/explain?name=&team= — why a wrong guess is wrong:
+// never played for the club / played there but different years / just incorrect.
+guessTheXiRouter.get('/explain', (c) => {
+  const name = (c.req.query('name') ?? '').trim()
+  const team = (c.req.query('team') ?? '').trim()
+  if (!name || !team) return c.json({ text: '' })
+
+  let row = sqlite
+    .prepare(`SELECT id, name FROM footballers WHERE normalize(name) = normalize(?) LIMIT 1`)
+    .get(name) as { id: number; name: string } | undefined
+
+  // Surname-only guess: match the last name, preferring the most-capped footballer.
+  if (!row && !name.includes(' ')) {
+    row = sqlite
+      .prepare(
+        `SELECT f.id, f.name FROM footballers f
+         WHERE normalize(f.name) LIKE '%' || normalize(?)
+         ORDER BY (SELECT COUNT(*) FROM career_stints cs WHERE cs.footballer_id = f.id AND cs.stint_type = 'senior') DESC
+         LIMIT 1`,
+      )
+      .get(name) as { id: number; name: string } | undefined
+  }
+
+  if (!row) return c.json({ text: `${name} is incorrect` })
+
+  const stints = sqlite
+    .prepare(`SELECT club, years FROM career_stints WHERE footballer_id = ? AND stint_type = 'senior'`)
+    .all(row.id) as { club: string; years: string | null }[]
+  const variants = getClubVariants(team)
+  const atClub = stints.filter((s) => variants.includes(normalizeClubAlias(s.club)))
+
+  if (atClub.length === 0) {
+    return c.json({ text: `${row.name} never even played for ${team}` })
+  }
+  const span = yearRange(atClub)
+  return c.json({
+    text: span
+      ? `${row.name} was at ${team} but between ${span}`
+      : `${row.name} was at ${team}, but not in this XI`,
+  })
+})
 
 interface MatchRow {
   id: number
