@@ -227,7 +227,7 @@ export function GuessTheXiPage() {
         state: round.state,
       };
       saveProgress(progress);
-      void explainXiGuess(name, round.team).then((text) => {
+      void explainXiGuess(name, round.team, round.year).then((text) => {
         if (!text) return;
         if (wrongTimer.current) clearTimeout(wrongTimer.current);
         setWrongMessage(text);

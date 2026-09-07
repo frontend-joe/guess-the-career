@@ -26,9 +26,9 @@ export interface XiRound {
 }
 
 // Explain why a wrong guess is wrong (never played for the club / wrong years).
-export async function explainXiGuess(name: string, team: string): Promise<string> {
+export async function explainXiGuess(name: string, team: string, year: number): Promise<string> {
   try {
-    const res = await fetch(`/api/guess-the-xi/explain?name=${encodeURIComponent(name)}&team=${encodeURIComponent(team)}`)
+    const res = await fetch(`/api/guess-the-xi/explain?name=${encodeURIComponent(name)}&team=${encodeURIComponent(team)}&year=${year}`)
     if (!res.ok) return ''
     const body = (await res.json()) as { text?: string }
     return body.text ?? ''

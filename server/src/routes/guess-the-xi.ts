@@ -21,9 +21,21 @@ function yearRange(stints: { years: string | null }[]): string | null {
 
 // GET /api/guess-the-xi/explain?name=&team= — why a wrong guess is wrong:
 // never played for the club / played there but different years / just incorrect.
+// Does a stint "years" string (e.g. "1992–2003", or ongoing "2005–") cover `y`?
+function coversYear(years: string | null, y: number): boolean {
+  if (!years || !y) return false
+  const nums = [...years.matchAll(/\d{4}/g)].map((m) => Number(m[0]))
+  if (nums.length === 0) return false
+  const min = Math.min(...nums)
+  let max = Math.max(...nums)
+  if (nums.length === 1 && /\d{4}\s*[–-]\s*(present|current)?\s*$/i.test(years)) max = 9999
+  return y >= min && y <= max
+}
+
 guessTheXiRouter.get('/explain', (c) => {
   const name = (c.req.query('name') ?? '').trim()
   const team = (c.req.query('team') ?? '').trim()
+  const year = parseInt(c.req.query('year') ?? '', 10) || 0
   if (!name || !team) return c.json({ text: '' })
 
   let row = sqlite
@@ -59,7 +71,17 @@ guessTheXiRouter.get('/explain', (c) => {
   if (atTeam.length === 0) {
     return c.json({ text: `${row.name} never even played for ${team}` })
   }
-  const verb = atTeam.some((s) => s.stint_type === 'international') ? 'played for' : 'was at'
+
+  const isIntl = atTeam.some((s) => s.stint_type === 'international')
+
+  // They were at the club/nation during the XI's year — just not in this lineup.
+  if (year && atTeam.some((s) => coversYear(s.years, year))) {
+    const where = isIntl ? `in the ${team} squad` : `at ${team}`
+    return c.json({ text: `${row.name} was ${where} in ${year} but didn't play that day` })
+  }
+
+  // They were there, but in a different era.
+  const verb = isIntl ? 'played for' : 'was at'
   const span = yearRange(atTeam)
   return c.json({
     text: span
