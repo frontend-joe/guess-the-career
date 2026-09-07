@@ -84,6 +84,9 @@ import { NationalityPlayersPage } from '@/pages/NationalityPlayersPage'
 import { NationalsAdminPage } from '@/pages/NationalsAdminPage'
 import { NationalsAdminDetailPage } from '@/pages/NationalsAdminDetailPage'
 import { NationalsSchedulePage } from '@/pages/NationalsSchedulePage'
+import { OnlyPlayerPage } from '@/pages/OnlyPlayerPage'
+import { OnlyPlayerAdminPage } from '@/pages/OnlyPlayerAdminPage'
+import { OnlyPlayerSchedulePage } from '@/pages/OnlyPlayerSchedulePage'
 import { ClubLegendsPage } from '@/pages/ClubLegendsPage'
 import { ClubLegendsAdminPage } from '@/pages/ClubLegendsAdminPage'
 import { ClubLegendsSchedulePage } from '@/pages/ClubLegendsSchedulePage'
@@ -151,6 +154,7 @@ const router = createBrowserRouter([
   { path: '/play/ballon-dors', element: <BallonDorPage /> },
   { path: '/play/world-cup', element: <WorldCupPage /> },
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
+  { path: '/play/only-player', element: <OnlyPlayerPage /> },
   { path: '/play/foreigners', element: <ForeignersPage /> },
   { path: '/play/serie-a', element: <SerieAPage /> },
   { path: '/play/la-liga', element: <LaLigaPage /> },
@@ -214,6 +218,8 @@ const router = createBrowserRouter([
       { path: 'world-cup/schedule', element: <WorldCupSchedulePage /> },
       { path: 'nationals', element: <NationalsAdminPage /> },
       { path: 'nationals/schedule', element: <NationalsSchedulePage /> },
+      { path: 'only-player', element: <OnlyPlayerAdminPage /> },
+      { path: 'only-player/schedule', element: <OnlyPlayerSchedulePage /> },
       { path: 'foreigners', element: <ForeignersAdminPage /> },
       { path: 'foreigners/schedule', element: <ForeignersSchedulePage /> },
       { path: 'serie-a', element: <SerieAAdminPage /> },

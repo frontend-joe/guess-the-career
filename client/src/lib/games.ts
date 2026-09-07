@@ -1,6 +1,6 @@
 import {
   Shirt, Medal, Link2, Globe, Shield, Star, ArrowLeftRight, Banknote, Flag, Plane,
-  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, Languages, ListChecks, Beer, Croissant, Gem, Coins, type LucideIcon,
+  BookOpen, Handshake, Route, TrendingUp, Footprints, Trophy, Target, Users, Waypoints, MapPin, Sun, Network, Bookmark, UserX, Award, Goal, Languages, ListChecks, Beer, Croissant, Gem, Coins, Fingerprint, type LucideIcon,
 } from 'lucide-react'
 
 // Shared game metadata — single source of truth for the landing page game cards
@@ -29,6 +29,7 @@ export const GATED_GAMES: Game[] = [
   { name: 'Record Signings', pitch: "Name a club's most expensive signings from the fee, club and season.", to: '/play/record-signings', icon: Gem },
   { name: 'Record Sales', pitch: "Name a club's biggest sales from the fee, club and season.", to: '/play/record-sales', icon: Coins },
   { name: 'Nationality Players', pitch: 'A flag and a club — name the players who are both.', to: '/play/nationality-players', icon: Flag },
+  { name: 'Only Player', pitch: 'Name the only player of a nationality to turn out for an English club.', to: '/play/only-player', icon: Fingerprint },
   { name: 'Overseas Players', pitch: 'Name the overseas players who lined up for an English club.', to: '/play/foreigners', icon: Plane },
   { name: 'Serie A Players', pitch: 'Name the players of a country who turned out in Serie A.', to: '/play/serie-a', icon: MapPin },
   { name: 'La Liga Players', pitch: 'Name the players of a country who turned out in Spain.', to: '/play/la-liga', icon: Sun },
