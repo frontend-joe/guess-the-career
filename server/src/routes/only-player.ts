@@ -46,12 +46,14 @@ function verifiedNational(
   photo_url: string | null;
   position: string | null;
   years: string | null;
+  apps: number;
 } {
   const variants = getClubVariants(club).map((v) => v.toLowerCase());
   const ph = variants.map(() => "?").join(", ");
   const row = sqlite
     .prepare(
-      `SELECT f.position, GROUP_CONCAT(cs.years, '|') as years_raw
+      `SELECT f.position, GROUP_CONCAT(cs.years, '|') as years_raw,
+              SUM(COALESCE(cs.apps, 0)) as club_apps
        FROM footballers f
        JOIN career_stints cs ON cs.footballer_id = f.id
          AND cs.stint_type = 'senior'
@@ -60,7 +62,7 @@ function verifiedNational(
        GROUP BY f.id`,
     )
     .get(...variants, id) as
-    | { position: string | null; years_raw: string | null }
+    | { position: string | null; years_raw: string | null; club_apps: number }
     | undefined;
   return {
     id,
@@ -68,6 +70,7 @@ function verifiedNational(
     photo_url: fallback.photo_url,
     position: row?.position ?? null,
     years: row ? yearsSpan(row.years_raw) : null,
+    apps: row?.club_apps ?? 0,
   };
 }
 
