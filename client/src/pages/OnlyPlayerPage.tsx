@@ -119,10 +119,17 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   const g = normalizeGuess(guess);
   const p = normalizeGuess(playerName);
   if (g === p) return true;
-  const lastName = p.split(" ").at(-1) ?? "";
-  if (lastName.length >= 4 && g === lastName) return true;
-  if (lastName.length >= 4 && g.length >= 4 && damerauDistance(g, lastName) === 1)
-    return true;
+  const guessLast = g.split(" ").at(-1) ?? "";
+  const answerLast = p.split(" ").at(-1) ?? "";
+  if (answerLast.length < 4) return false;
+  // Typed just the surname.
+  if (g === answerLast) return true;
+  // Surnames match (or near-miss by one char) — tolerates a differently spelled
+  // or omitted first name, e.g. "Georgi Kinkladze" vs "Giorgi Kinkladze".
+  if (guessLast.length >= 4) {
+    if (guessLast === answerLast) return true;
+    if (damerauDistance(guessLast, answerLast) === 1) return true;
+  }
   return false;
 }
 
