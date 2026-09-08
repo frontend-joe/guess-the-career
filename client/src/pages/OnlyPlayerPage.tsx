@@ -156,7 +156,7 @@ function PlayerCard({
 
   return (
     <div
-      className={`mx-auto w-full max-w-xs rounded-2xl border p-6 flex flex-col items-center gap-3 shadow-sm transition-colors ${solved ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
+      className="mx-auto w-full max-w-xs rounded-2xl border border-gray-200 bg-white p-6 flex flex-col items-center gap-3 shadow-sm"
     >
       {/* Question */}
       <p className="text-center text-sm font-semibold text-gray-800 text-balance">
