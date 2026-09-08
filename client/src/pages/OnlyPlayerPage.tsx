@@ -463,7 +463,7 @@ export function OnlyPlayerPage() {
                     />
                   </div>
                 }
-                title={`${currentRound.nationality} × ${currentRound.club}`}
+                title={`Who is the only ${currentRound.nationality} player for ${currentRound.club}?`}
                 subtitle="Name the only one"
               />
             )}
