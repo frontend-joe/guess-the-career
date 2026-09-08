@@ -177,7 +177,15 @@ function AnswerSlot({
           )}
         </div>
       ) : (
-        <div className="h-px bg-gray-200 flex-1 rounded-full" />
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {player.position && <PositionBadge position={player.position} />}
+          <div className="h-px bg-gray-200 flex-1 rounded-full" />
+          {player.period && (
+            <span className="text-xs text-gray-400 tabular-nums shrink-0">
+              {player.period}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

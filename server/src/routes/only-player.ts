@@ -252,7 +252,7 @@ onlyPlayerRouter.get("/schedule/rounds", (c) => {
   const rows = sqlite
     .prepare(
       `SELECT s.date, e.id as entry_id, e.nationality, e.club, e.player_name,
-              e.footballer_id, f.photo_url, f.position
+              e.period, e.footballer_id, f.photo_url, f.position
        FROM only_player_schedule s
        JOIN only_player_entries e ON e.id = s.entry_id
        LEFT JOIN footballers f ON f.id = e.footballer_id
@@ -264,6 +264,7 @@ onlyPlayerRouter.get("/schedule/rounds", (c) => {
     nationality: string;
     club: string;
     player_name: string;
+    period: string | null;
     footballer_id: number | null;
     photo_url: string | null;
     position: string | null;
@@ -281,6 +282,7 @@ onlyPlayerRouter.get("/schedule/rounds", (c) => {
         footballerId: r.footballer_id,
         photoUrl: r.photo_url,
         position: r.position,
+        period: r.period,
         apps: r.footballer_id ? clubApps(r.footballer_id, r.club) : null,
       },
     })),

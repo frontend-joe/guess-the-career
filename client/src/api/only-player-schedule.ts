@@ -12,6 +12,7 @@ export interface OnlyPlayerRoundPlayer {
   footballerId: number | null
   photoUrl: string | null
   position: string | null
+  period: string | null
   apps: number | null
 }
 
