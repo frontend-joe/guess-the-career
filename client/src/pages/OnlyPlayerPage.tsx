@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Shuffle,
   Plus,
+  User,
 } from "lucide-react";
 import { GameMenu } from "@/components/GameMenu";
 import {
@@ -19,7 +20,6 @@ import {
   type ProgressRound,
 } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
-import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
@@ -133,9 +133,9 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   return false;
 }
 
-// ─── Answer reveal row ──────────────────────────────────────────────────────────
+// ─── Answer card ────────────────────────────────────────────────────────────────
 
-function AnswerSlot({
+function PlayerCard({
   player,
   solved,
 }: {
@@ -143,55 +143,62 @@ function AnswerSlot({
   solved: boolean;
 }) {
   const showPlayer = useShowPlayer();
-  const clickable = player.footballerId != null;
+  const clickable = solved && player.footballerId != null;
+
+  // Hints shown both before and after guessing.
+  const meta = [
+    player.position,
+    player.apps != null ? `${player.apps} apps` : null,
+    player.period,
+  ].filter(Boolean) as string[];
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${solved ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
+      className={`mx-auto w-full max-w-xs rounded-2xl border p-6 flex flex-col items-center gap-3 shadow-sm transition-colors ${solved ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
     >
-      <span
-        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${solved ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}
+      {/* Avatar */}
+      <div
+        className={`w-28 h-28 rounded-full overflow-hidden flex items-center justify-center bg-gray-100 ${solved ? "border-4 border-green-200" : "border-2 border-gray-200"}`}
       >
-        1
-      </span>
+        {solved && player.photoUrl ? (
+          <img
+            src={player.photoUrl}
+            alt={player.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <User className="w-12 h-12 text-gray-300" strokeWidth={1.5} />
+        )}
+      </div>
+
+      {/* Name */}
       {solved ? (
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {player.photoUrl && (
-            <img
-              src={player.photoUrl}
-              alt={player.name}
-              className="w-7 h-7 rounded-full object-cover shrink-0 bg-gray-100"
-            />
-          )}
-          {player.position && <PositionBadge position={player.position} />}
-          {clickable ? (
-            <button
-              type="button"
-              onClick={() => showPlayer(player.footballerId!)}
-              className="text-sm font-semibold text-gray-800 truncate text-left hover:underline"
-            >
-              {player.name}
-            </button>
-          ) : (
-            <span className="text-sm font-semibold text-gray-800 truncate">
-              {player.name}
-            </span>
-          )}
-          {player.apps != null && (
-            <span className="ml-auto text-xs text-gray-500 tabular-nums shrink-0">
-              {player.apps} apps
-            </span>
-          )}
-        </div>
+        clickable ? (
+          <button
+            type="button"
+            onClick={() => showPlayer(player.footballerId!)}
+            className="text-lg font-bold text-gray-800 text-center hover:underline"
+          >
+            {player.name}
+          </button>
+        ) : (
+          <span className="text-lg font-bold text-gray-800 text-center">
+            {player.name}
+          </span>
+        )
       ) : (
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {player.position && <PositionBadge position={player.position} />}
-          <div className="h-px bg-gray-200 flex-1 rounded-full" />
-          {player.period && (
-            <span className="text-xs text-gray-400 tabular-nums shrink-0">
-              {player.period}
+        <div className="h-5 w-32 rounded-full bg-gray-200" />
+      )}
+
+      {/* position | apps | years */}
+      {meta.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-gray-500 tabular-nums">
+          {meta.map((m, i) => (
+            <span key={i} className="flex items-center gap-2">
+              {i > 0 && <span className="text-gray-300">|</span>}
+              {m}
             </span>
-          )}
+          ))}
         </div>
       )}
     </div>
@@ -460,20 +467,8 @@ export function OnlyPlayerPage() {
               />
             )}
             {currentRound && (
-              <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
-                {isDone && currentRound.player.photoUrl && (
-                  <div className="flex flex-col items-center gap-2 pt-2 pb-1 animate-rise">
-                    <img
-                      src={currentRound.player.photoUrl}
-                      alt={currentRound.player.name}
-                      className="w-32 h-32 rounded-full object-cover border-4 border-green-200 shadow-md bg-gray-100"
-                    />
-                    <span className="text-base font-bold text-gray-800">
-                      {currentRound.player.name}
-                    </span>
-                  </div>
-                )}
-                <AnswerSlot player={currentRound.player} solved={isDone} />
+              <div className="px-3 pt-6 pb-2 flex flex-col gap-3">
+                <PlayerCard player={currentRound.player} solved={isDone} />
               </div>
             )}
           </div>
