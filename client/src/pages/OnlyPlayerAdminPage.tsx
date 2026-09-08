@@ -27,6 +27,8 @@ import {
   type OnlyPlayerEntry,
 } from '@/api/only-player-admin'
 import { resolvePlayer, resolvePlayerByUrl } from '@/api/record-signings-admin'
+import { getFootballers, type Footballer } from '@/api/footballers'
+import { searchClubs } from '@/api/clubs'
 
 const PAGE_SIZE = 25
 
@@ -47,6 +49,8 @@ export function OnlyPlayerAdminPage() {
   const [newClub, setNewClub] = useState('')
   const [newPlayer, setNewPlayer] = useState('')
   const [saving, setSaving] = useState(false)
+  const [playerOpts, setPlayerOpts] = useState<Footballer[]>([])
+  const [clubOpts, setClubOpts] = useState<string[]>([])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -68,6 +72,36 @@ export function OnlyPlayerAdminPage() {
     const id = setTimeout(() => load(1, q), 250)
     return () => clearTimeout(id)
   }, [q, load])
+
+  // Add-form autocomplete: suggest player names (with nationalities) and clubs.
+  useEffect(() => {
+    if (!showAdd || newPlayer.trim().length < 2) { setPlayerOpts([]); return }
+    const id = setTimeout(() => {
+      getFootballers({ search: newPlayer.trim() }).then(setPlayerOpts).catch(() => {})
+    }, 200)
+    return () => clearTimeout(id)
+  }, [newPlayer, showAdd])
+
+  useEffect(() => {
+    if (!showAdd || newClub.trim().length < 2) { setClubOpts([]); return }
+    const id = setTimeout(() => {
+      searchClubs(newClub.trim()).then(cs => setClubOpts(cs.map(c => c.name))).catch(() => {})
+    }, 200)
+    return () => clearTimeout(id)
+  }, [newClub, showAdd])
+
+  // Picking a known player auto-fills their nationality.
+  useEffect(() => {
+    const match = playerOpts.find(f => f.name.toLowerCase() === newPlayer.trim().toLowerCase())
+    if (match?.nationality) setNewNat(match.nationality)
+  }, [newPlayer, playerOpts])
+
+  const natOpts = Array.from(
+    new Set([
+      ...(playerOpts.map(f => f.nationality).filter(Boolean) as string[]),
+      ...entries.map(e => e.nationality),
+    ]),
+  ).sort()
 
   function patchLocal(id: number, patch: Partial<OnlyPlayerEntry>) {
     setEntries(prev => prev.map(e => (e.id === id ? { ...e, ...patch } : e)))
@@ -163,12 +197,47 @@ export function OnlyPlayerAdminPage() {
 
       {showAdd && (
         <div className="mb-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 rounded-lg border bg-muted/30 p-3">
-          <Input value={newNat} onChange={e => setNewNat(e.target.value)} placeholder="Nationality" />
-          <Input value={newClub} onChange={e => setNewClub(e.target.value)} placeholder="Club" />
-          <Input value={newPlayer} onChange={e => setNewPlayer(e.target.value)} placeholder="Player name" />
+          <Input
+            list="op-player-list"
+            value={newPlayer}
+            onChange={e => setNewPlayer(e.target.value)}
+            placeholder="Player name"
+            autoComplete="off"
+          />
+          <Input
+            list="op-nat-list"
+            value={newNat}
+            onChange={e => setNewNat(e.target.value)}
+            placeholder="Nationality"
+            autoComplete="off"
+          />
+          <Input
+            list="op-club-list"
+            value={newClub}
+            onChange={e => setNewClub(e.target.value)}
+            placeholder="Club"
+            autoComplete="off"
+          />
           <Button size="sm" onClick={handleAdd} disabled={saving}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
           </Button>
+          <datalist id="op-player-list">
+            {playerOpts.map(f => (
+              <option key={f.id} value={f.name}>
+                {f.nationality ?? ''}
+              </option>
+            ))}
+          </datalist>
+          <datalist id="op-nat-list">
+            {natOpts.map(n => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+          <datalist id="op-club-list">
+            {clubOpts.map(c => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
       )}
 
