@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ImageDown, Loader2 } from 'lucide-react'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import {
@@ -31,6 +33,46 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
     render: (f) => f.height_cm ? `${f.height_cm} cm` : '—',
   },
 ]
+
+// Photo-only backfill for players missing a photo (SSE-driven, non-blocking).
+function BackfillPhotosButton() {
+  const [state, setState] = useState<'idle' | 'running' | 'done'>('idle')
+  const [progress, setProgress] = useState({ done: 0, total: 0, filled: 0 })
+  const esRef = useRef<EventSource | null>(null)
+
+  function start() {
+    if (state === 'running') return
+    setState('running')
+    setProgress({ done: 0, total: 0, filled: 0 })
+    const es = new EventSource('/api/footballers/backfill-photos')
+    esRef.current = es
+    es.onmessage = (ev) => {
+      const data = JSON.parse(ev.data)
+      if (data.type === 'init') setProgress(p => ({ ...p, total: data.total }))
+      else if (data.type === 'done') setProgress(p => ({ ...p, done: p.done + 1, filled: p.filled + (data.filled ? 1 : 0) }))
+      else if (data.type === 'failed') setProgress(p => ({ ...p, done: p.done + 1 }))
+      else if (data.type === 'complete') { es.close(); setState('done') }
+    }
+    es.onerror = () => { es.close(); setState('done') }
+  }
+
+  if (state === 'idle') {
+    return (
+      <Button variant="outline" size="sm" onClick={start} className="shrink-0">
+        <ImageDown className="h-3.5 w-3.5 mr-1.5" />
+        Backfill photos
+      </Button>
+    )
+  }
+  return (
+    <Button variant="outline" size="sm" disabled className="shrink-0">
+      {state === 'running' && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+      {state === 'running'
+        ? `Photos ${progress.done}/${progress.total} (${progress.filled} filled)`
+        : `Done — ${progress.filled} filled`}
+    </Button>
+  )
+}
 
 export function FootballersPage() {
   const [missingNationality, setMissingNationality] = useState(false)
@@ -126,6 +168,7 @@ export function FootballersPage() {
           />
           Single Defender/Midfielder
         </label>
+        <BackfillPhotosButton />
       </>
     ),
   }

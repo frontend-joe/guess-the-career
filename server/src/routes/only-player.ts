@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { sqlite } from "../db/client.ts";
 import { getClubVariants } from "../services/football.ts";
+import { normalizeClubAlias } from "../services/scraper.ts";
 import {
   dbFootballerByName,
   insertScrapedFootballer,
@@ -16,7 +17,7 @@ export const onlyPlayerRouter = new Hono();
 function clubWiki(club: string): string | null {
   const row = sqlite
     .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
-    .get(club) as { wikipedia_url: string | null } | undefined;
+    .get(normalizeClubAlias(club)) as { wikipedia_url: string | null } | undefined;
   return row?.wikipedia_url ?? null;
 }
 
@@ -69,7 +70,7 @@ function shapeEntry(r: EntryRow) {
   return {
     id: r.id,
     nationality: r.nationality,
-    club: r.club,
+    club: normalizeClubAlias(r.club),
     clubWikiUrl: clubWiki(r.club),
     playerName: r.player_name,
     footballerId: r.footballer_id,
@@ -244,8 +245,10 @@ onlyPlayerRouter.get("/schedule", (c) => {
        LEFT JOIN only_player_entries e ON e.id = s.entry_id
        ORDER BY s.date ASC`,
     )
-    .all();
-  return c.json(rows);
+    .all() as { club: string | null }[];
+  return c.json(
+    rows.map((r) => ({ ...r, club: r.club ? normalizeClubAlias(r.club) : r.club })),
+  );
 });
 
 onlyPlayerRouter.get("/schedule/rounds", (c) => {
@@ -275,7 +278,7 @@ onlyPlayerRouter.get("/schedule/rounds", (c) => {
       date: r.date,
       entryId: r.entry_id,
       nationality: r.nationality,
-      club: r.club,
+      club: normalizeClubAlias(r.club),
       clubWikiUrl: clubWiki(r.club),
       player: {
         name: r.player_name,

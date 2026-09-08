@@ -8,7 +8,7 @@ import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
 import { clubWikiUrl, rebuildClubs } from "../services/clubs.ts";
-import { applyScrapeResult } from "../services/footballers.ts";
+import { applyScrapeResult, fetchSportsDbPhoto } from "../services/footballers.ts";
 import { setAppMeta } from "../services/appMeta.ts";
 
 // Family relations that are footballers, from the curated (included) football
@@ -364,6 +364,57 @@ footballersRouter.get('/rescrape-all', async (c) => {
     }
 
     await stream.writeSSE({ data: JSON.stringify({ type: 'complete' }) })
+  })
+})
+
+// GET /api/footballers/backfill-photos — SSE stream. Photo-only backfill for
+// players missing a photo (e.g. scraped while Wikipedia's thumbnail host had
+// changed). Re-scrapes each missing-photo player, updates ONLY photo_url, and
+// leaves stints/fields untouched.
+footballersRouter.get('/backfill-photos', async (c) => {
+  const abortSignal = c.req.raw.signal
+  return streamSSE(c, async (stream) => {
+    const targets = await db
+      .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
+      .from(footballers)
+      .where(
+        and(
+          isNotNull(footballers.wikipedia_url),
+          sql`(${footballers.photo_url} IS NULL OR ${footballers.photo_url} = '')`,
+        ),
+      )
+      .orderBy(footballers.name)
+
+    await stream.writeSSE({
+      data: JSON.stringify({ type: 'init', total: targets.length, players: targets.map(p => ({ id: p.id, name: p.name })) }),
+    })
+
+    let filled = 0
+    for (const player of targets) {
+      if (abortSignal.aborted) break
+      await stream.writeSSE({ data: JSON.stringify({ type: 'start', id: player.id }) })
+
+      try {
+        const result = await scrapeWikipedia(player.url)
+        const photo = result.photo_url ?? (await fetchSportsDbPhoto(result.name))
+        if (photo) {
+          await db
+            .update(footballers)
+            .set({ photo_url: photo, updated_at: sql`(datetime('now'))` })
+            .where(eq(footballers.id, player.id))
+          filled++
+        }
+        await stream.writeSSE({ data: JSON.stringify({ type: 'done', id: player.id, filled: !!photo }) })
+      } catch (e) {
+        await stream.writeSSE({
+          data: JSON.stringify({ type: 'failed', id: player.id, error: e instanceof Error ? e.message : 'Unknown error' }),
+        })
+      }
+
+      await new Promise<void>(r => setTimeout(r, 800))
+    }
+
+    await stream.writeSSE({ data: JSON.stringify({ type: 'complete', filled }) })
   })
 })
 

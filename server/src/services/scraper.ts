@@ -7,6 +7,13 @@ export const CLUB_ALIASES: Record<string, string> = {
   "West Brom": "West Bromwich Albion",
   "West Bromwich": "West Bromwich Albion",
   WBA: "West Bromwich Albion",
+  // Common short names
+  Tottenham: "Tottenham Hotspur",
+  Spurs: "Tottenham Hotspur",
+  "West Ham": "West Ham United",
+  Wolves: "Wolverhampton Wanderers",
+  QPR: "Queens Park Rangers",
+  PSG: "Paris Saint-Germain",
   // Inter Milan
   Internazionale: "Inter Milan",
   "FC Internazionale": "Inter Milan",
@@ -523,8 +530,10 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     .find("td.infobox-image img, td.infobox-above img")
     .first();
   if (infoboxImg.length) {
+    // Wikipedia serves infobox thumbnails from upload.wikimedia.org and (more
+    // recently) thumb.wikimedia.org — accept either host.
     const src = infoboxImg.attr("src") ?? "";
-    if (src.includes("upload.wikimedia.org")) {
+    if (/(?:upload|thumb)\.wikimedia\.org/.test(src)) {
       const absolute = src.startsWith("//") ? `https:${src}` : src;
       // Bump thumbnail width to 330px for better quality
       photo_url = absolute.replace(/\/\d+px-/, "/330px-");
