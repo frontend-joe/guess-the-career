@@ -1,945 +1,314 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
-import { db, sqlite, normalizeName } from "../db/client.ts";
-import { footballers, career_stints } from "../db/schema.ts";
+import { sqlite } from "../db/client.ts";
+import { getClubVariants } from "../services/football.ts";
 import {
-  CLUB_ALIASES,
-  normalizeClubAlias,
-  scrapeWikipedia,
-} from "../services/scraper.ts";
-import { isEnglishClub } from "../services/football.ts";
+  dbFootballerByName,
+  insertScrapedFootballer,
+  resolveOrCreateFootballer,
+} from "../services/playerImport.ts";
+import { ONLY_PLAYER_SEED } from "../data/only-player-seed.ts";
 
 export const onlyPlayerRouter = new Hono();
 
-function getClubVariants(clubName: string): string[] {
-  const canonical = normalizeClubAlias(clubName);
-  const aliases = Object.entries(CLUB_ALIASES)
-    .filter(([, v]) => v === canonical)
-    .map(([k]) => k);
-  const base = [canonical, ...aliases];
-  return [...base, ...base.map((v) => `→ ${v}`)];
+// ── helpers ──────────────────────────────────────────────────────────────────
+function clubWiki(club: string): string | null {
+  const row = sqlite
+    .prepare(`SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`)
+    .get(club) as { wikipedia_url: string | null } | undefined;
+  return row?.wikipedia_url ?? null;
 }
 
-// Combine a player's stint "years" strings for one club into a single span,
-// e.g. "2004–2009|2011" -> "2004–2011".
-function yearsSpan(raw: string | null): string | null {
-  if (!raw) return null;
-  const nums = raw.match(/\d{4}/g);
-  if (!nums || nums.length === 0) return null;
-  const years = nums.map(Number);
-  const min = Math.min(...years);
-  const max = Math.max(...years);
-  return min === max ? String(min) : `${min}–${max}`;
-}
-
-// Full player payload for a verified guess so the revealed row keeps the same
-// position + club-years data the answers list has, without needing a refresh.
-function verifiedNational(
-  club: string,
-  id: number,
-  fallback: { name: string; photo_url: string | null },
-): {
-  id: number;
-  name: string;
-  photo_url: string | null;
-  position: string | null;
-  years: string | null;
-  apps: number;
-} {
+// Combined senior appearances at a club (loan spells included).
+function clubApps(footballerId: number, club: string): number {
   const variants = getClubVariants(club).map((v) => v.toLowerCase());
   const ph = variants.map(() => "?").join(", ");
   const row = sqlite
     .prepare(
-      `SELECT f.position, GROUP_CONCAT(cs.years, '|') as years_raw,
-              SUM(COALESCE(cs.apps, 0)) as club_apps
-       FROM footballers f
-       JOIN career_stints cs ON cs.footballer_id = f.id
-         AND cs.stint_type = 'senior'
-         AND LOWER(TRIM(REPLACE(REPLACE(cs.club, '→', ''), '(loan)', ''))) IN (${ph})
-       WHERE f.id = ?
-       GROUP BY f.id`,
+      `SELECT SUM(COALESCE(cs.apps, 0)) as a FROM career_stints cs
+       WHERE cs.footballer_id = ? AND cs.stint_type = 'senior'
+         AND LOWER(TRIM(REPLACE(REPLACE(cs.club, '→', ''), '(loan)', ''))) IN (${ph})`,
     )
-    .get(...variants, id) as
-    | { position: string | null; years_raw: string | null; club_apps: number }
-    | undefined;
+    .get(footballerId, ...variants) as { a: number } | undefined;
+  return row?.a ?? 0;
+}
+
+function seedIfEmpty() {
+  const n = (
+    sqlite.prepare(`SELECT COUNT(*) as n FROM only_player_entries`).get() as {
+      n: number;
+    }
+  ).n;
+  if (n > 0) return;
+  const insert = sqlite.prepare(
+    `INSERT OR IGNORE INTO only_player_entries (nationality, club, player_name, period, status, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const tx = sqlite.transaction(() => {
+    ONLY_PLAYER_SEED.forEach((e, i) =>
+      insert.run(e.nationality, e.club, e.player, e.period, e.status, i),
+    );
+  });
+  tx();
+}
+
+interface EntryRow {
+  id: number;
+  nationality: string;
+  club: string;
+  player_name: string;
+  footballer_id: number | null;
+  period: string | null;
+  status: string | null;
+  enabled: number;
+  footballer_photo: string | null;
+}
+
+function shapeEntry(r: EntryRow) {
   return {
-    id,
-    name: fallback.name,
-    photo_url: fallback.photo_url,
-    position: row?.position ?? null,
-    years: row ? yearsSpan(row.years_raw) : null,
-    apps: row?.club_apps ?? 0,
+    id: r.id,
+    nationality: r.nationality,
+    club: r.club,
+    clubWikiUrl: clubWiki(r.club),
+    playerName: r.player_name,
+    footballerId: r.footballer_id,
+    footballerPhoto: r.footballer_photo,
+    period: r.period,
+    status: r.status,
+    enabled: !!r.enabled,
   };
 }
 
-function hasClub(stintClubs: string[], targetClub: string): boolean {
-  const variants = getClubVariants(targetClub);
-  return stintClubs.some((c) => variants.includes(normalizeClubAlias(c)));
-}
-
-const reserveRe =
-  /\s(B|C|II|III|IV|reserves?|under[- ]?\d+|u\d+|youth|academy)$/i;
-
-// Nationality ISO map for equivalence checks (demonym + noun forms)
-const NATIONALITY_ISO: Record<string, string> = {
-  English: "GB-ENG",
-  England: "GB-ENG",
-  Scottish: "GB-SCT",
-  Scotland: "GB-SCT",
-  Welsh: "GB-WLS",
-  Wales: "GB-WLS",
-  "Northern Irish": "GB-NIR",
-  "Northern Ireland": "GB-NIR",
-  Dutch: "NL",
-  Netherlands: "NL",
-  German: "DE",
-  Germany: "DE",
-  "West Germany": "DE",
-  "East Germany": "DE",
-  French: "FR",
-  France: "FR",
-  Spanish: "ES",
-  Spain: "ES",
-  Italian: "IT",
-  Italy: "IT",
-  Portuguese: "PT",
-  Portugal: "PT",
-  Brazilian: "BR",
-  Brazil: "BR",
-  Argentine: "AR",
-  Argentinian: "AR",
-  Argentina: "AR",
-  Belgian: "BE",
-  Belgium: "BE",
-  Croatian: "HR",
-  Croatia: "HR",
-  Uruguayan: "UY",
-  Uruguay: "UY",
-  Colombian: "CO",
-  Colombia: "CO",
-  Chilean: "CL",
-  Chile: "CL",
-  Mexican: "MX",
-  Mexico: "MX",
-  American: "US",
-  "United States": "US",
-  Turkish: "TR",
-  Turkey: "TR",
-  Russian: "RU",
-  Russia: "RU",
-  Ukrainian: "UA",
-  Ukraine: "UA",
-  Polish: "PL",
-  Poland: "PL",
-  Czech: "CZ",
-  "Czech Republic": "CZ",
-  Slovak: "SK",
-  Slovakia: "SK",
-  Austrian: "AT",
-  Austria: "AT",
-  Swiss: "CH",
-  Switzerland: "CH",
-  Swedish: "SE",
-  Sweden: "SE",
-  Norwegian: "NO",
-  Norway: "NO",
-  Danish: "DK",
-  Denmark: "DK",
-  Finnish: "FI",
-  Finland: "FI",
-  Icelandic: "IS",
-  Iceland: "IS",
-  Serbian: "RS",
-  Serbia: "RS",
-  "Serbia and Montenegro": "RS",
-  Greek: "GR",
-  Greece: "GR",
-  Romanian: "RO",
-  Romania: "RO",
-  Hungarian: "HU",
-  Hungary: "HU",
-  Slovenian: "SI",
-  Slovenia: "SI",
-  Macedonian: "MK",
-  "North Macedonia": "MK",
-  Albanian: "AL",
-  Albania: "AL",
-  Bosnian: "BA",
-  "Bosnia and Herzegovina": "BA",
-  Montenegrin: "ME",
-  Montenegro: "ME",
-  Bulgarian: "BG",
-  Bulgaria: "BG",
-  Georgian: "GE",
-  Georgia: "GE",
-  Armenian: "AM",
-  Armenia: "AM",
-  Belarusian: "BY",
-  Belarus: "BY",
-  Azerbaijani: "AZ",
-  Azerbaijan: "AZ",
-  Israeli: "IL",
-  Israel: "IL",
-  Irish: "IE",
-  "Republic of Ireland": "IE",
-  Ireland: "IE",
-  Ecuadorian: "EC",
-  Ecuador: "EC",
-  Paraguayan: "PY",
-  Paraguay: "PY",
-  Bolivian: "BO",
-  Bolivia: "BO",
-  Peruvian: "PE",
-  Peru: "PE",
-  Venezuelan: "VE",
-  Venezuela: "VE",
-  Japanese: "JP",
-  Japan: "JP",
-  "South Korean": "KR",
-  "South Korea": "KR",
-  Australian: "AU",
-  Australia: "AU",
-  Moroccan: "MA",
-  Morocco: "MA",
-  Algerian: "DZ",
-  Algeria: "DZ",
-  Nigerian: "NG",
-  Nigeria: "NG",
-  Senegalese: "SN",
-  Senegal: "SN",
-  Ghanaian: "GH",
-  Ghana: "GH",
-  Ivorian: "CI",
-  "Ivory Coast": "CI",
-  Cameroonian: "CM",
-  Cameroon: "CM",
-  Egyptian: "EG",
-  Egypt: "EG",
-  Tunisian: "TN",
-  Tunisia: "TN",
-  Liberian: "LR",
-  Liberia: "LR",
-  Guinean: "GN",
-  Guinea: "GN",
-  Congolese: "CD",
-  "DR Congo": "CD",
-  Malian: "ML",
-  Mali: "ML",
-  "Saudi Arabian": "SA",
-  "Saudi Arabia": "SA",
-  Qatari: "QA",
-  Qatar: "QA",
-};
-
-function allNationalityIsos(nat: string | null | undefined): Set<string> {
-  if (!nat) return new Set();
-  const trimmed = nat.trim();
-  const direct = NATIONALITY_ISO[trimmed];
-  if (direct) return new Set([direct]);
-  // Handle multi-value strings like "Italy Australia"
-  const isos = new Set<string>();
-  for (const part of trimmed.split(/\s+/)) {
-    const partIso = NATIONALITY_ISO[part];
-    if (partIso) isos.add(partIso);
-  }
-  return isos;
-}
-
-function nationalitiesMatch(
-  playerNat: string | null | undefined,
-  targetNat: string,
-): boolean {
-  if (!playerNat) return false;
-  if (playerNat.toLowerCase().trim() === targetNat.toLowerCase().trim())
-    return true;
-  const targetIso = NATIONALITY_ISO[targetNat.trim()];
-  if (!targetIso) return false;
-  const playerIsos = allNationalityIsos(playerNat);
-  return playerIsos.has(targetIso);
-}
-
-interface NatStintRow {
-  nationality: string | null;
-  footballer_id: number;
-  name: string;
-  club: string;
-}
-
-export interface OnlyPlayerCombo {
-  nationality: string;
-  club: string;
-  playerId: number;
-  playerName: string;
-}
-
-// Nationality × English-club combos where EXACTLY ONE player of that nationality
-// played for the club — carrying that single player. English clubs only.
-function findOnlyPlayerCombos(): OnlyPlayerCombo[] {
-  const rows = sqlite
-    .prepare(
-      `
-    SELECT f.nationality, cs.footballer_id, f.name, cs.club
-    FROM footballers f
-    JOIN career_stints cs ON cs.footballer_id = f.id
-    WHERE cs.stint_type = 'senior' AND f.nationality IS NOT NULL AND f.nationality != ''
-  `,
-    )
-    .all() as NatStintRow[];
-
-  const natMap = new Map<string, Map<string, Map<number, string>>>();
-  for (const { nationality, footballer_id, name, club } of rows) {
-    if (!nationality) continue;
-    if (!isEnglishClub(club)) continue;
-    const nat = nationality.trim();
-    const canonical = normalizeClubAlias(club);
-    if (reserveRe.test(canonical.trim())) continue;
-
-    if (!natMap.has(nat)) natMap.set(nat, new Map());
-    const clubMap = natMap.get(nat)!;
-    if (!clubMap.has(canonical)) clubMap.set(canonical, new Map());
-    clubMap.get(canonical)!.set(footballer_id, name);
-  }
-
-  const combos: OnlyPlayerCombo[] = [];
-  for (const [nationality, clubMap] of natMap) {
-    for (const [club, players] of clubMap) {
-      if (players.size === 1) {
-        const [[playerId, playerName]] = players;
-        combos.push({ nationality, club, playerId, playerName });
-      }
-    }
-  }
-  return combos;
-}
-
-// GET /api/only-player/admin/combos
-onlyPlayerRouter.get("/admin/combos", (c) => {
-  const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
-  const pageSize = Math.min(
-    50,
-    Math.max(1, parseInt(c.req.query("pageSize") ?? "25", 10)),
+// ── Seed ─────────────────────────────────────────────────────────────────────
+onlyPlayerRouter.post("/admin/seed", (c) => {
+  const insert = sqlite.prepare(
+    `INSERT OR IGNORE INTO only_player_entries (nationality, club, player_name, period, status, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   );
-
-  const q = (c.req.query("q") ?? "").trim().toLowerCase();
-
-  let combos = findOnlyPlayerCombos();
-  if (q) {
-    combos = combos.filter(
-      (x) =>
-        x.club.toLowerCase().includes(q) ||
-        x.nationality.toLowerCase().includes(q) ||
-        x.playerName.toLowerCase().includes(q),
-    );
-  }
-
-  const enabledRows = sqlite
-    .prepare(`SELECT nationality, club FROM only_player_enabled_combos`)
-    .all() as { nationality: string; club: string }[];
-  const enabledSet = new Set(
-    enabledRows.map((r) => `${r.nationality}|||${r.club}`),
-  );
-
-  // Enabled first, then by club then nationality for stable browsing.
-  combos.sort(
-    (a, b) =>
-      Number(enabledSet.has(`${b.nationality}|||${b.club}`)) -
-        Number(enabledSet.has(`${a.nationality}|||${a.club}`)) ||
-      a.club.localeCompare(b.club) ||
-      a.nationality.localeCompare(b.nationality),
-  );
-
-  const total = combos.length;
-  const enabledCount = enabledRows.length;
-  const page_data = combos.slice((page - 1) * pageSize, page * pageSize);
-
-  const data = page_data.map((x) => {
-    const clubRow = sqlite
-      .prepare(
-        `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`,
-      )
-      .get(x.club) as { wikipedia_url: string | null } | undefined;
-    return {
-      nationality: x.nationality,
-      club: x.club,
-      clubWikiUrl: clubRow?.wikipedia_url ?? null,
-      playerName: x.playerName,
-      enabled: enabledSet.has(`${x.nationality}|||${x.club}`),
-    };
+  let added = 0;
+  const tx = sqlite.transaction(() => {
+    ONLY_PLAYER_SEED.forEach((e, i) => {
+      added += insert.run(e.nationality, e.club, e.player, e.period, e.status, i).changes;
+    });
   });
-
-  return c.json({ data, total, enabledCount, page, pageSize });
+  tx();
+  return c.json({ ok: true, added });
 });
 
-// POST /api/only-player/admin/combos/enable
+// ── Entries admin ────────────────────────────────────────────────────────────
+onlyPlayerRouter.get("/admin/entries", (c) => {
+  seedIfEmpty();
+  const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
+  const pageSize = Math.min(100, Math.max(1, parseInt(c.req.query("pageSize") ?? "25", 10)));
+  const q = (c.req.query("q") ?? "").trim().toLowerCase();
+
+  const like = `%${q}%`;
+  const where = q
+    ? `WHERE LOWER(e.club) LIKE ? OR LOWER(e.nationality) LIKE ? OR LOWER(e.player_name) LIKE ?`
+    : "";
+  const whereArgs = q ? [like, like, like] : [];
+
+  const total = (
+    sqlite
+      .prepare(`SELECT COUNT(*) as n FROM only_player_entries e ${where}`)
+      .get(...whereArgs) as { n: number }
+  ).n;
+  const enabledCount = (
+    sqlite
+      .prepare(`SELECT COUNT(*) as n FROM only_player_entries WHERE enabled = 1`)
+      .get() as { n: number }
+  ).n;
+
+  const rows = sqlite
+    .prepare(
+      `SELECT e.*, f.photo_url as footballer_photo
+       FROM only_player_entries e
+       LEFT JOIN footballers f ON f.id = e.footballer_id
+       ${where}
+       ORDER BY e.enabled DESC, e.club ASC, e.nationality ASC
+       LIMIT ? OFFSET ?`,
+    )
+    .all(...whereArgs, pageSize, (page - 1) * pageSize) as EntryRow[];
+
+  return c.json({ data: rows.map(shapeEntry), total, enabledCount, page, pageSize });
+});
+
 onlyPlayerRouter.post(
-  "/admin/combos/enable",
+  "/admin/entries",
   zValidator(
     "json",
-    z.object({ nationality: z.string().min(1), club: z.string().min(1) }),
+    z.object({
+      nationality: z.string().min(1),
+      club: z.string().min(1),
+      player_name: z.string().min(1),
+      period: z.string().nullish(),
+      status: z.string().nullish(),
+    }),
   ),
   (c) => {
-    const { nationality, club } = c.req.valid("json");
-    sqlite
+    const b = c.req.valid("json");
+    const info = sqlite
       .prepare(
-        `INSERT OR IGNORE INTO only_player_enabled_combos (nationality, club) VALUES (?, ?)`,
+        `INSERT OR IGNORE INTO only_player_entries (nationality, club, player_name, period, status) VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(nationality, normalizeClubAlias(club));
+      .run(b.nationality, b.club, b.player_name, b.period ?? null, b.status ?? null);
+    return c.json({ ok: true, id: info.lastInsertRowid });
+  },
+);
+
+onlyPlayerRouter.patch(
+  "/admin/entries/:id",
+  zValidator(
+    "json",
+    z.object({
+      nationality: z.string().min(1).optional(),
+      club: z.string().min(1).optional(),
+      player_name: z.string().min(1).optional(),
+      period: z.string().nullish(),
+      status: z.string().nullish(),
+      enabled: z.boolean().optional(),
+    }),
+  ),
+  (c) => {
+    const id = parseInt(c.req.param("id"), 10);
+    const b = c.req.valid("json");
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    for (const k of ["nationality", "club", "player_name", "period", "status"] as const) {
+      if (b[k] !== undefined) {
+        sets.push(`${k} = ?`);
+        vals.push(b[k]);
+      }
+    }
+    if (b.enabled !== undefined) {
+      sets.push(`enabled = ?`);
+      vals.push(b.enabled ? 1 : 0);
+    }
+    if (sets.length === 0) return c.json({ error: "Nothing to update" }, 400);
+    sqlite.prepare(`UPDATE only_player_entries SET ${sets.join(", ")} WHERE id = ?`).run(...vals, id);
     return c.json({ ok: true });
   },
 );
 
-// DELETE /api/only-player/admin/combos/enable
-onlyPlayerRouter.delete(
-  "/admin/combos/enable",
-  zValidator(
-    "json",
-    z.object({ nationality: z.string().min(1), club: z.string().min(1) }),
-  ),
-  (c) => {
-    const { nationality, club } = c.req.valid("json");
-    sqlite
-      .prepare(
-        `DELETE FROM only_player_enabled_combos WHERE LOWER(nationality) = LOWER(?) AND LOWER(club) = LOWER(?)`,
-      )
-      .run(nationality, normalizeClubAlias(club));
-    return c.json({ ok: true });
-  },
-);
+onlyPlayerRouter.delete("/admin/entries/:id", (c) => {
+  const id = parseInt(c.req.param("id"), 10);
+  sqlite.prepare(`DELETE FROM only_player_entries WHERE id = ?`).run(id);
+  return c.json({ ok: true });
+});
 
-// POST /api/only-player/invalidate — a player discovered in-game a SECOND
-// qualifying player for this combo, so it's no longer an "only". Remove it from
-// the schedule and disable the combo so it isn't re-assigned.
+// Link the answer player to a footballer (existing id, DB name, or Wikipedia scrape).
 onlyPlayerRouter.post(
-  "/invalidate",
+  "/admin/entries/:id/link",
   zValidator(
     "json",
-    z.object({ nationality: z.string().min(1), club: z.string().min(1) }),
+    z.object({
+      footballerId: z.number().int().optional(),
+      name: z.string().optional(),
+      wikipediaUrl: z.string().optional(),
+    }),
   ),
-  (c) => {
-    const { nationality, club } = c.req.valid("json");
-    sqlite
-      .prepare(
-        `DELETE FROM only_player_schedule WHERE LOWER(nationality) = LOWER(?) AND LOWER(club) = LOWER(?)`,
-      )
-      .run(nationality, club);
-    sqlite
-      .prepare(
-        `DELETE FROM only_player_enabled_combos WHERE LOWER(nationality) = LOWER(?) AND LOWER(club) = LOWER(?)`,
-      )
-      .run(nationality, club);
-    return c.json({ ok: true });
+  async (c) => {
+    const id = parseInt(c.req.param("id"), 10);
+    const entry = sqlite
+      .prepare(`SELECT club FROM only_player_entries WHERE id = ?`)
+      .get(id) as { club: string } | undefined;
+    if (!entry) return c.json({ error: "Not found" }, 404);
+    const { footballerId, name, wikipediaUrl } = c.req.valid("json");
+
+    let fid: number | null = footballerId ?? null;
+    try {
+      if (fid == null && wikipediaUrl) fid = await insertScrapedFootballer(wikipediaUrl);
+      else if (fid == null && name) {
+        fid = dbFootballerByName(name) ?? (await resolveOrCreateFootballer(name, entry.club)).id;
+      }
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : "Link failed" }, 400);
+    }
+    if (fid == null) return c.json({ error: "Could not resolve a footballer" }, 400);
+
+    sqlite.prepare(`UPDATE only_player_entries SET footballer_id = ? WHERE id = ?`).run(fid, id);
+    const f = sqlite
+      .prepare(`SELECT id, name, photo_url FROM footballers WHERE id = ?`)
+      .get(fid) as { id: number; name: string; photo_url: string | null };
+    return c.json({ ok: true, footballer: f });
   },
 );
 
-// GET /api/only-player/schedule — admin list
+// ── Schedule ─────────────────────────────────────────────────────────────────
 onlyPlayerRouter.get("/schedule", (c) => {
   const rows = sqlite
     .prepare(
-      `SELECT id, date, nationality, club, created_at FROM only_player_schedule ORDER BY date ASC`,
+      `SELECT s.id, s.date, s.entry_id, e.nationality, e.club, e.player_name
+       FROM only_player_schedule s
+       LEFT JOIN only_player_entries e ON e.id = s.entry_id
+       ORDER BY s.date ASC`,
     )
-    .all() as {
-    id: number;
-    date: string;
-    nationality: string;
-    club: string;
-    created_at: string;
-  }[];
+    .all();
   return c.json(rows);
 });
 
-// GET /api/only-player/schedule/rounds — game data with wiki URLs
 onlyPlayerRouter.get("/schedule/rounds", (c) => {
-  const scheduled = sqlite
-    .prepare(
-      `SELECT date, nationality, club FROM only_player_schedule ORDER BY date ASC`,
-    )
-    .all() as { date: string; nationality: string; club: string }[];
-
-  if (scheduled.length === 0) return c.json([]);
-
-  const countMap = new Map<string, number>();
-  for (const combo of findOnlyPlayerCombos()) {
-    countMap.set(`${combo.nationality}|||${combo.club}`, 1);
-  }
-
-  const rounds = scheduled.map((row) => {
-    const clubRow = sqlite
-      .prepare(
-        `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`,
-      )
-      .get(row.club) as { wikipedia_url: string | null } | undefined;
-    return {
-      date: row.date,
-      nationality: row.nationality,
-      club: row.club,
-      clubWikiUrl: clubRow?.wikipedia_url ?? null,
-      playerCount: countMap.get(`${row.nationality}|||${row.club}`) ?? 1,
-    };
-  });
-
-  return c.json(rounds);
-});
-
-// PUT /api/only-player/schedule/:date
-onlyPlayerRouter.put(
-  "/schedule/:date",
-  zValidator(
-    "json",
-    z.object({ nationality: z.string().min(1), club: z.string().min(1) }),
-  ),
-  (c) => {
-    const date = c.req.param("date");
-    const { nationality, club } = c.req.valid("json");
-    const existing = sqlite
-      .prepare(`SELECT id FROM only_player_schedule WHERE date = ?`)
-      .get(date);
-    if (existing) {
-      sqlite
-        .prepare(
-          `UPDATE only_player_schedule SET nationality = ?, club = ? WHERE date = ?`,
-        )
-        .run(nationality, club, date);
-    } else {
-      sqlite
-        .prepare(
-          `INSERT INTO only_player_schedule (date, nationality, club) VALUES (?, ?, ?)`,
-        )
-        .run(date, nationality, club);
-    }
-    return c.json({ ok: true });
-  },
-);
-
-// DELETE /api/only-player/schedule/:date
-onlyPlayerRouter.delete("/schedule/:date", (c) => {
-  const date = c.req.param("date");
-  sqlite.prepare(`DELETE FROM only_player_schedule WHERE date = ?`).run(date);
-  return c.json({ ok: true });
-});
-
-// DELETE /api/only-player/schedule
-onlyPlayerRouter.delete("/schedule", (c) => {
-  sqlite.prepare(`DELETE FROM only_player_schedule`).run();
-  return c.json({ ok: true });
-});
-
-// GET /api/only-player/answers?nationality=X&club=Y
-onlyPlayerRouter.get("/answers", (c) => {
-  const nationality = c.req.query("nationality") ?? "";
-  const club = c.req.query("club") ?? "";
-  if (!nationality || !club)
-    return c.json({ error: "nationality and club required" }, 400);
-
-  const variants = getClubVariants(club).map((v) => v.toLowerCase());
-  const ph = variants.map(() => "?").join(", ");
-
   const rows = sqlite
     .prepare(
-      `
-    SELECT f.id, f.name, f.photo_url, f.position,
-           GROUP_CONCAT(cs.years, '|') as years_raw,
-           SUM(COALESCE(cs.apps, 0)) as club_apps
-    FROM footballers f
-    JOIN career_stints cs ON cs.footballer_id = f.id
-      AND cs.stint_type = 'senior'
-      AND LOWER(TRIM(REPLACE(REPLACE(cs.club, '→', ''), '(loan)', ''))) IN (${ph})
-    WHERE LOWER(f.nationality) = LOWER(?)
-    GROUP BY f.id
-    ORDER BY club_apps DESC, f.name ASC
-  `,
+      `SELECT s.date, e.id as entry_id, e.nationality, e.club, e.player_name,
+              e.footballer_id, f.photo_url, f.position
+       FROM only_player_schedule s
+       JOIN only_player_entries e ON e.id = s.entry_id
+       LEFT JOIN footballers f ON f.id = e.footballer_id
+       ORDER BY s.date ASC`,
     )
-    .all(...variants, nationality) as {
-    id: number;
-    name: string;
+    .all() as {
+    date: string;
+    entry_id: number;
+    nationality: string;
+    club: string;
+    player_name: string;
+    footballer_id: number | null;
     photo_url: string | null;
     position: string | null;
-    years_raw: string | null;
-    club_apps: number;
   }[];
 
   return c.json(
     rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      photo_url: r.photo_url,
-      position: r.position,
-      years: yearsSpan(r.years_raw),
-      apps: r.club_apps,
+      date: r.date,
+      entryId: r.entry_id,
+      nationality: r.nationality,
+      club: r.club,
+      clubWikiUrl: clubWiki(r.club),
+      player: {
+        name: r.player_name,
+        footballerId: r.footballer_id,
+        photoUrl: r.photo_url,
+        position: r.position,
+        apps: r.footballer_id ? clubApps(r.footballer_id, r.club) : null,
+      },
     })),
   );
 });
 
-// POST /api/only-player/verify
-onlyPlayerRouter.post(
-  "/verify",
-  zValidator(
-    "json",
-    z.object({
-      footballerName: z.string().min(1),
-      footballerId: z.number().int().nullish(),
-      nationality: z.string().min(1),
-      club: z.string().min(1),
-    }),
-  ),
-  async (c) => {
-    const { footballerName, footballerId, nationality, club } =
-      c.req.valid("json");
-
-    function checkQualifies(
-      stintClubs: string[],
-      nat: string | null | undefined,
-    ): boolean {
-      return nationalitiesMatch(nat, nationality) && hasClub(stintClubs, club);
+onlyPlayerRouter.put(
+  "/schedule/:date",
+  zValidator("json", z.object({ entryId: z.number().int() })),
+  (c) => {
+    const date = c.req.param("date");
+    const { entryId } = c.req.valid("json");
+    const existing = sqlite.prepare(`SELECT id FROM only_player_schedule WHERE date = ?`).get(date);
+    if (existing) {
+      sqlite.prepare(`UPDATE only_player_schedule SET entry_id = ? WHERE date = ?`).run(entryId, date);
+    } else {
+      sqlite.prepare(`INSERT INTO only_player_schedule (date, entry_id) VALUES (?, ?)`).run(date, entryId);
     }
-
-    type FailReason = "wrong_nationality" | "wrong_club" | "wrong_both";
-    function failReason(
-      stintClubs: string[],
-      nat: string | null | undefined,
-    ): FailReason {
-      const natOk = nationalitiesMatch(nat, nationality);
-      const clubOk = hasClub(stintClubs, club);
-      if (!natOk && !clubOk) return "wrong_both";
-      if (!natOk) return "wrong_nationality";
-      return "wrong_club";
-    }
-    function invalidJson(
-      name: string,
-      nat: string | null | undefined,
-      stintClubs: string[],
-    ) {
-      const reason = failReason(stintClubs, nat);
-      return {
-        valid: false,
-        foundName: name,
-        foundNationality: reason === "wrong_nationality" ? (nat ?? null) : null,
-        imported: false,
-        reason,
-      };
-    }
-
-    // Step 1: resolve footballer from DB
-    let footballer:
-      | {
-          id: number;
-          name: string;
-          wikipedia_url: string;
-          photo_url: string | null;
-          nationality: string | null;
-        }
-      | undefined;
-
-    if (footballerId != null) {
-      footballer = await db
-        .select({
-          id: footballers.id,
-          name: footballers.name,
-          wikipedia_url: footballers.wikipedia_url,
-          photo_url: footballers.photo_url,
-          nationality: footballers.nationality,
-        })
-        .from(footballers)
-        .where(eq(footballers.id, footballerId))
-        .limit(1)
-        .then((r) => r[0]);
-    }
-
-    if (!footballer) {
-      const normalizedName = normalizeName(footballerName);
-      footballer = await db
-        .select({
-          id: footballers.id,
-          name: footballers.name,
-          wikipedia_url: footballers.wikipedia_url,
-          photo_url: footballers.photo_url,
-          nationality: footballers.nationality,
-        })
-        .from(footballers)
-        .where(
-          sql`LOWER(normalize(${footballers.name})) = LOWER(normalize(${footballerName}))`,
-        )
-        .limit(1)
-        .then((r) => r[0]);
-
-      if (!footballer) {
-        footballer = await db
-          .select({
-            id: footballers.id,
-            name: footballers.name,
-            wikipedia_url: footballers.wikipedia_url,
-            photo_url: footballers.photo_url,
-            nationality: footballers.nationality,
-          })
-          .from(footballers)
-          .where(sql`normalize(${footballers.name}) = ${normalizedName}`)
-          .limit(1)
-          .then((r) => r[0]);
-      }
-    }
-
-    // Step 2: if found, check stints + nationality
-    if (footballer) {
-      const stints = await db
-        .select({ club: career_stints.club })
-        .from(career_stints)
-        .where(
-          sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`,
-        );
-      const stintClubs = stints.map((s) => s.club);
-
-      if (checkQualifies(stintClubs, footballer.nationality)) {
-        return c.json({
-          valid: true,
-          footballer: verifiedNational(club, footballer.id, footballer),
-          imported: false,
-        });
-      }
-
-      // Stints might be stale — rescrape
-      if (footballer.wikipedia_url) {
-        try {
-          const scraped = await scrapeWikipedia(footballer.wikipedia_url);
-          const seniorStints = scraped.stints.filter(
-            (s) => s.stint_type === "senior",
-          );
-          for (const s of seniorStints) {
-            const existing = sqlite
-              .prepare(
-                `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`,
-              )
-              .get(footballer.id, s.years, s.club);
-            if (!existing) {
-              const maxOrder = sqlite
-                .prepare(
-                  `SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`,
-                )
-                .get(footballer.id) as { next: number };
-              await db.insert(career_stints).values({
-                footballer_id: footballer.id,
-                sort_order: maxOrder.next,
-                years: s.years,
-                club: s.club,
-                club_wikipedia_url: s.club_wikipedia_url ?? null,
-                apps: s.apps ?? null,
-                goals: s.goals ?? null,
-                stint_type: "senior",
-              });
-            }
-          }
-          const scraperNat = scraped.nationality ?? footballer.nationality;
-          const refreshed = await db
-            .select({ club: career_stints.club })
-            .from(career_stints)
-            .where(
-              sql`${career_stints.footballer_id} = ${footballer.id} AND ${career_stints.stint_type} = 'senior'`,
-            );
-          const refreshedClubs = refreshed.map((s) => s.club);
-          if (checkQualifies(refreshedClubs, scraperNat)) {
-            return c.json({
-              valid: true,
-              footballer: verifiedNational(club, footballer.id, footballer),
-              imported: true,
-            });
-          }
-        } catch {
-          // fall through to Wikipedia search
-        }
-      }
-    }
-
-    // Step 3: not in DB — try Wikipedia name search
-    try {
-      const wikiHeaders = { "User-Agent": "GuessTheCareer-Admin/1.0" };
-      const stripDiacritics = normalizeName;
-      const nameParts = stripDiacritics(footballerName)
-        .split(/\s+/)
-        .filter((p) => p.length > 2);
-      function titleMatchesName(title: string) {
-        const t = stripDiacritics(title);
-        return nameParts.length > 0 && nameParts.every((p) => t.includes(p));
-      }
-      async function wikiSearch(query: string): Promise<string[]> {
-        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=5`;
-        const res = await fetch(url, { headers: wikiHeaders });
-        if (!res.ok) return [];
-        const data = (await res.json()) as {
-          query?: { search?: { title: string }[] };
-        };
-        return (data.query?.search ?? []).map((s) => s.title);
-      }
-
-      // Gather candidate titles across queries. A name like "Javier Garrido"
-      // matches several Wikipedia people, so we can't trust the first hit —
-      // collect every name-matching candidate and later keep the one that
-      // actually qualifies for this nationality + club.
-      const candidateTitles: string[] = [];
-      for (const query of [
-        footballerName + " footballer",
-        footballerName + " " + club,
-        footballerName,
-      ]) {
-        for (const title of await wikiSearch(query)) {
-          if (titleMatchesName(title) && !candidateTitles.includes(title)) {
-            candidateTitles.push(title);
-          }
-        }
-      }
-
-      if (candidateTitles.length === 0)
-        return c.json({ valid: false, footballer: null, imported: false });
-
-      // Remember the first concrete "wrong" result so we can return a
-      // meaningful reason if no candidate ends up qualifying.
-      let fallbackInvalid: ReturnType<typeof invalidJson> | null = null;
-
-      for (const title of candidateTitles.slice(0, 6)) {
-        const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
-
-        const byUrl = await db
-          .select({
-            id: footballers.id,
-            name: footballers.name,
-            photo_url: footballers.photo_url,
-            nationality: footballers.nationality,
-          })
-          .from(footballers)
-          .where(eq(footballers.wikipedia_url, wikiUrl))
-          .limit(1)
-          .then((r) => r[0]);
-
-        if (byUrl) {
-          const stints = await db
-            .select({ club: career_stints.club })
-            .from(career_stints)
-            .where(
-              sql`${career_stints.footballer_id} = ${byUrl.id} AND ${career_stints.stint_type} = 'senior'`,
-            );
-          const stintClubs = stints.map((s) => s.club);
-          if (checkQualifies(stintClubs, byUrl.nationality)) {
-            return c.json({
-              valid: true,
-              footballer: verifiedNational(club, byUrl.id, byUrl),
-              imported: false,
-            });
-          }
-        }
-
-        await new Promise((r) => setTimeout(r, 300));
-        let scraped;
-        try {
-          scraped = await scrapeWikipedia(wikiUrl);
-        } catch {
-          // Disambiguation page / no infobox — try the next candidate.
-          continue;
-        }
-        const seniorStints = scraped.stints.filter(
-          (s) => s.stint_type === "senior",
-        );
-        const stintClubs = seniorStints.map((s) => s.club);
-
-        if (!checkQualifies(stintClubs, scraped.nationality)) {
-          // Wrong person for this combo — remember why, keep looking.
-          fallbackInvalid ??= invalidJson(
-            scraped.name,
-            scraped.nationality,
-            stintClubs,
-          );
-          continue;
-        }
-
-        const knownRecord = byUrl ?? footballer;
-        if (knownRecord) {
-          sqlite
-            .prepare(
-              `UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?), nationality = COALESCE(nationality, ?) WHERE id = ?`,
-            )
-            .run(
-              wikiUrl,
-              scraped.photo_url ?? null,
-              scraped.nationality ?? null,
-              knownRecord.id,
-            );
-          for (const s of seniorStints) {
-            const existing = sqlite
-              .prepare(
-                `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`,
-              )
-              .get(knownRecord.id, s.years, s.club);
-            if (!existing) {
-              const maxOrder = sqlite
-                .prepare(
-                  `SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`,
-                )
-                .get(knownRecord.id) as { next: number };
-              await db.insert(career_stints).values({
-                footballer_id: knownRecord.id,
-                sort_order: maxOrder.next,
-                years: s.years,
-                club: s.club,
-                club_wikipedia_url: s.club_wikipedia_url ?? null,
-                apps: s.apps ?? null,
-                goals: s.goals ?? null,
-                stint_type: "senior",
-              });
-            }
-          }
-          return c.json({
-            valid: true,
-            footballer: verifiedNational(club, knownRecord.id, {
-              name: knownRecord.name,
-              photo_url: scraped.photo_url ?? knownRecord.photo_url,
-            }),
-            imported: true,
-          });
-        }
-
-        // Truly new footballer — insert
-        const [newFootballer] = await db
-          .insert(footballers)
-          .values({
-            name: scraped.name,
-            wikipedia_url: scraped.wikipedia_url,
-            nationality: scraped.nationality,
-            position: scraped.position,
-            all_positions: scraped.all_positions ?? null,
-            born: scraped.born,
-            photo_url: scraped.photo_url ?? null,
-          })
-          .returning();
-
-        if (seniorStints.length > 0) {
-          await db.insert(career_stints).values(
-            seniorStints.map((s, i) => ({
-              footballer_id: newFootballer.id,
-              sort_order: i,
-              years: s.years,
-              club: s.club,
-              club_wikipedia_url: s.club_wikipedia_url ?? null,
-              apps: s.apps ?? null,
-              goals: s.goals ?? null,
-              stint_type: "senior" as const,
-            })),
-          );
-        }
-
-        return c.json({
-          valid: true,
-          footballer: verifiedNational(club, newFootballer.id, {
-            name: newFootballer.name,
-            photo_url: newFootballer.photo_url ?? null,
-          }),
-          imported: true,
-        });
-      }
-
-      // No candidate qualified — surface the first concrete mismatch if any.
-      return c.json(
-        fallbackInvalid ?? { valid: false, footballer: null, imported: false },
-      );
-    } catch {
-      return c.json({ valid: false, footballer: null, imported: false });
-    }
+    return c.json({ ok: true });
   },
 );
+
+onlyPlayerRouter.delete("/schedule/:date", (c) => {
+  sqlite.prepare(`DELETE FROM only_player_schedule WHERE date = ?`).run(c.req.param("date"));
+  return c.json({ ok: true });
+});
+
+onlyPlayerRouter.delete("/schedule", (c) => {
+  sqlite.prepare(`DELETE FROM only_player_schedule`).run();
+  return c.json({ ok: true });
+});

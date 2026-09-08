@@ -12,7 +12,6 @@ import {
 import { GameMenu } from "@/components/GameMenu";
 import {
   getOnlyPlayerScheduleRounds,
-  invalidateOnlyPlayer,
   type OnlyPlayerScheduleRound,
 } from "@/api/only-player-schedule";
 import {
@@ -28,110 +27,20 @@ import { useCompactMode } from "@/contexts/CompactModeContext";
 import GameHeader from "@/components/GameHeader";
 import CrestBadge from "@/components/CrestBadge";
 
-// Only Player: exactly one qualifying player per round.
+// Only Player: exactly one qualifying player per round — the curated answer.
 const ROUND_TARGET = 1;
-
-const COUNTRY_ADJECTIVE: Record<string, string> = {
-  England: "English",
-  Scotland: "Scottish",
-  Wales: "Welsh",
-  "Northern Ireland": "Northern Irish",
-  France: "French",
-  Germany: "German",
-  Spain: "Spanish",
-  Italy: "Italian",
-  Portugal: "Portuguese",
-  Netherlands: "Dutch",
-  Belgium: "Belgian",
-  Brazil: "Brazilian",
-  Argentina: "Argentine",
-  Croatia: "Croatian",
-  Uruguay: "Uruguayan",
-  Colombia: "Colombian",
-  Chile: "Chilean",
-  Mexico: "Mexican",
-  "United States": "American",
-  Turkey: "Turkish",
-  Russia: "Russian",
-  Ukraine: "Ukrainian",
-  Poland: "Polish",
-  "Czech Republic": "Czech",
-  Slovakia: "Slovak",
-  Austria: "Austrian",
-  Switzerland: "Swiss",
-  Sweden: "Swedish",
-  Norway: "Norwegian",
-  Denmark: "Danish",
-  Finland: "Finnish",
-  Iceland: "Icelandic",
-  Serbia: "Serbian",
-  Greece: "Greek",
-  Romania: "Romanian",
-  Hungary: "Hungarian",
-  Slovenia: "Slovenian",
-  "North Macedonia": "Macedonian",
-  Albania: "Albanian",
-  "Bosnia and Herzegovina": "Bosnian",
-  Montenegro: "Montenegrin",
-  Bulgaria: "Bulgarian",
-  Georgia: "Georgian",
-  Armenia: "Armenian",
-  Belarus: "Belarusian",
-  Azerbaijan: "Azerbaijani",
-  Ireland: "Irish",
-  "Republic of Ireland": "Irish",
-  Ecuador: "Ecuadorian",
-  Paraguay: "Paraguayan",
-  Bolivia: "Bolivian",
-  Peru: "Peruvian",
-  Venezuela: "Venezuelan",
-  Japan: "Japanese",
-  "South Korea": "South Korean",
-  Australia: "Australian",
-  Morocco: "Moroccan",
-  Algeria: "Algerian",
-  Nigeria: "Nigerian",
-  Senegal: "Senegalese",
-  Ghana: "Ghanaian",
-  "Ivory Coast": "Ivorian",
-  Cameroon: "Cameroonian",
-  Egypt: "Egyptian",
-  Tunisia: "Tunisian",
-  Liberia: "Liberian",
-  Mali: "Malian",
-  Guinea: "Guinean",
-  Yugoslavia: "Yugoslav",
-  "West Germany": "German",
-  Latvia: "Latvian",
-  Lithuania: "Lithuanian",
-  Estonia: "Estonian",
-  Israel: "Israeli",
-  "Saudi Arabia": "Saudi",
-  Qatar: "Qatari",
-  "Costa Rica": "Costa Rican",
-  Jamaica: "Jamaican",
-  "Trinidad and Tobago": "Trinidadian",
-  Zimbabwe: "Zimbabwean",
-  "DR Congo": "Congolese",
-  "South Africa": "South African",
-  Kosovo: "Kosovan",
-};
-
-function nationalityAdjective(nat: string): string {
-  return COUNTRY_ADJECTIVE[nat] ?? nat;
-}
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
 const PROGRESS_KEY = "op_progress";
 
 interface RoundProgress {
-  guessedIds: number[];
+  solved: boolean;
   wrongGuesses?: string[];
 }
 
 interface SavedProgress {
-  [comboKey: string]: RoundProgress;
+  [entryKey: string]: RoundProgress;
 }
 
 function loadProgress(): SavedProgress {
@@ -147,18 +56,14 @@ function saveProgress(progress: SavedProgress) {
   localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
 }
 
-function persistRound(
-  key: string,
-  guessedIds: Set<number>,
-  wrongGuesses: Set<string>,
-) {
+function persistRound(key: string, solved: boolean, wrongGuesses: Set<string>) {
   const saved = loadProgress();
-  saved[key] = { guessedIds: [...guessedIds], wrongGuesses: [...wrongGuesses] };
+  saved[key] = { solved, wrongGuesses: [...wrongGuesses] };
   saveProgress(saved);
 }
 
-function comboKey(nationality: string, club: string): string {
-  return `${nationality}|||${club}`;
+function roundKey(entryId: number): string {
+  return String(entryId);
 }
 
 // ─── Name matching ────────────────────────────────────────────────────────────
@@ -216,69 +121,58 @@ function matchesPlayer(guess: string, playerName: string): boolean {
   if (g === p) return true;
   const lastName = p.split(" ").at(-1) ?? "";
   if (lastName.length >= 4 && g === lastName) return true;
-  if (
-    lastName.length >= 4 &&
-    g.length >= 4 &&
-    damerauDistance(g, lastName) === 1
-  )
+  if (lastName.length >= 4 && g.length >= 4 && damerauDistance(g, lastName) === 1)
     return true;
   return false;
 }
 
-// ─── Player slot ──────────────────────────────────────────────────────────────
+// ─── Answer reveal row ──────────────────────────────────────────────────────────
 
-interface Player {
-  id: number;
-  name: string;
-  photo_url: string | null;
-  position?: string | null;
-  years?: string | null;
-  apps?: number;
-}
-
-function PlayerSlot({
-  index,
+function AnswerSlot({
   player,
-  hint,
+  solved,
 }: {
-  index: number;
-  player: Player | null;
-  hint?: Player | null;
+  player: OnlyPlayerScheduleRound["player"];
+  solved: boolean;
 }) {
   const showPlayer = useShowPlayer();
+  const clickable = player.footballerId != null;
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${player ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
+      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${solved ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
     >
       <span
-        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${player ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}
+        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${solved ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}
       >
-        {index + 1}
+        1
       </span>
-      {player ? (
+      {solved ? (
         <div className="flex items-center gap-2 min-w-0 flex-1">
+          {player.photoUrl && (
+            <img
+              src={player.photoUrl}
+              alt={player.name}
+              className="w-7 h-7 rounded-full object-cover shrink-0 bg-gray-100"
+            />
+          )}
           {player.position && <PositionBadge position={player.position} />}
-          <button
-            type="button"
-            onClick={() => showPlayer(player.id)}
-            className="text-sm font-semibold text-gray-800 truncate text-left hover:underline"
-          >
-            {player.name}
-          </button>
+          {clickable ? (
+            <button
+              type="button"
+              onClick={() => showPlayer(player.footballerId!)}
+              className="text-sm font-semibold text-gray-800 truncate text-left hover:underline"
+            >
+              {player.name}
+            </button>
+          ) : (
+            <span className="text-sm font-semibold text-gray-800 truncate">
+              {player.name}
+            </span>
+          )}
           {player.apps != null && (
             <span className="ml-auto text-xs text-gray-500 tabular-nums shrink-0">
               {player.apps} apps
-            </span>
-          )}
-        </div>
-      ) : hint ? (
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {hint.position && <PositionBadge position={hint.position} />}
-          <div className="h-px bg-gray-200 flex-1 rounded-full" />
-          {hint.years && (
-            <span className="text-xs text-gray-400 tabular-nums shrink-0">
-              {hint.years}
             </span>
           )}
         </div>
@@ -289,65 +183,11 @@ function PlayerSlot({
   );
 }
 
-// A fully-revealed player row (shown once the round is done to list everyone in the
-// database for the nationality × club). Green when it was one of the guesses.
-function RevealRow({ rank, player, guessed }: { rank: number; player: Player; guessed: boolean }) {
-  const showPlayer = useShowPlayer();
-  return (
-    <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors ${guessed ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
-      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${guessed ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}>
-        {rank}
-      </span>
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        {player.position && <PositionBadge position={player.position} />}
-        <button type="button" onClick={() => showPlayer(player.id)} className="text-sm font-semibold text-gray-800 truncate text-left hover:underline">{player.name}</button>
-        {player.apps != null && <span className="ml-auto text-xs text-gray-500 tabular-nums shrink-0">{player.apps} apps</span>}
-      </div>
-    </div>
-  );
-}
-
 // ─── Round state ──────────────────────────────────────────────────────────────
 
 interface RoundState {
-  round: OnlyPlayerScheduleRound;
-  players: Player[] | null;
-  guessedIds: Set<number>;
+  solved: boolean;
   wrongGuesses: Set<string>;
-}
-
-// ─── Verify ───────────────────────────────────────────────────────────────────
-
-interface VerifyResult {
-  valid: boolean;
-  footballer: Player | null;
-  foundName?: string;
-  foundNationality?: string | null;
-  imported: boolean;
-  reason?: "wrong_nationality" | "wrong_club" | "wrong_both";
-}
-
-async function verifyGuess(
-  footballerName: string,
-  footballerId: number | null,
-  nationality: string,
-  club: string,
-): Promise<VerifyResult> {
-  try {
-    const body: Record<string, unknown> = { footballerName, nationality, club };
-    if (footballerId != null) body.footballerId = footballerId;
-
-
-    const res = await fetch("/api/only-player/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return { valid: false, footballer: null, imported: false };
-    return await res.json();
-  } catch {
-    return { valid: false, footballer: null, imported: false };
-  }
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
@@ -356,16 +196,13 @@ export function OnlyPlayerPage() {
   const { compact } = useCompactMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rounds, setRounds] = useState<OnlyPlayerScheduleRound[]>([]);
-  const [roundStates, setRoundStates] = useState<Record<string, RoundState>>(
-    {},
-  );
+  const [roundStates, setRoundStates] = useState<Record<string, RoundState>>({});
   const [roundIndex, setRoundIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showProgress, setShowProgress] = useState(false);
   const [progressSearch, setProgressSearch] = useState("");
   const [wrongGuessMsg, setWrongGuessMsg] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
   const wrongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -378,12 +215,10 @@ export function OnlyPlayerPage() {
         const saved = loadProgress();
         const states: Record<string, RoundState> = {};
         data.forEach((r) => {
-          const key = comboKey(r.nationality, r.club);
+          const key = roundKey(r.entryId);
           const prog = saved[key];
           states[key] = {
-            round: r,
-            players: null,
-            guessedIds: new Set(prog?.guessedIds ?? []),
+            solved: prog?.solved ?? false,
             wrongGuesses: new Set(prog?.wrongGuesses ?? []),
           };
         });
@@ -417,28 +252,8 @@ export function OnlyPlayerPage() {
     setSearchParams({ round: String(roundIndex + 1) }, { replace: true });
   }, [roundIndex, currentRound]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Fetch players for current round ───────────────────────────────────────
-  const currentKey = currentRound
-    ? comboKey(currentRound.nationality, currentRound.club)
-    : null;
+  const currentKey = currentRound ? roundKey(currentRound.entryId) : null;
   const currentState = currentKey ? roundStates[currentKey] : null;
-
-  useEffect(() => {
-    if (!currentRound || !currentKey) return;
-    if (roundStates[currentKey]?.players !== null) return;
-
-    fetch(
-      `/api/only-player/answers?nationality=${encodeURIComponent(currentRound.nationality)}&club=${encodeURIComponent(currentRound.club)}`,
-    )
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((players: Player[]) => {
-        setRoundStates((prev) => ({
-          ...prev,
-          [currentKey]: { ...prev[currentKey], players },
-        }));
-      })
-      .catch(() => {});
-  }, [currentKey, currentRound]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!loading && !error && rounds.length > 0 && !showProgress) {
@@ -446,121 +261,37 @@ export function OnlyPlayerPage() {
     }
   }, [roundIndex, loading, error, rounds.length, showProgress]);
 
-  // ── Autocomplete ──────────────────────────────────────────────────────────
   // ── Submit guess ──────────────────────────────────────────────────────────
-  // Drop the current round: a second qualifying player was found so it's no longer
-  // an "only". Unschedules + disables the combo server-side, removes it locally.
-  function invalidateCurrentRound(extraName: string) {
-    if (!currentRound) return;
-    void invalidateOnlyPlayer(currentRound.nationality, currentRound.club);
-    const removeAt = roundIndex;
-    setRounds((prev) => prev.filter((_, i) => i !== removeAt));
-    setRoundIndex((idx) => Math.max(0, Math.min(idx, rounds.length - 2)));
-    if (wrongTimer.current) clearTimeout(wrongTimer.current);
-    setWrongGuessMsg(
-      `${extraName} also qualifies — not the only one! Round removed.`,
-    );
-    wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 4000);
-  }
+  function submitGuess(name: string) {
+    if (!currentState || !currentKey || !currentRound) return;
+    if (currentState.solved) return;
 
-  async function submitGuess(name: string, id: number | null = null) {
-    if (!currentState || !currentKey || !currentRound || verifying) return;
-    const players = currentState.players;
-    if (!players) return;
-    const activeGuesses = players.filter((p) =>
-      currentState.guessedIds.has(p.id),
-    ).length;
-    if (activeGuesses >= ROUND_TARGET) return;
-
-    const alreadyFound = players
-      .filter((p) => currentState.guessedIds.has(p.id))
-      .some((p) => matchesPlayer(name, p.name));
-    if (alreadyFound) return;
-
-    const matched = players.filter(
-      (p) => !currentState.guessedIds.has(p.id) && matchesPlayer(name, p.name),
-    );
-    if (matched.length > 0) {
-      const newGuessedIds = new Set([
-        ...currentState.guessedIds,
-        ...matched.map((p) => p.id),
-      ]);
+    if (matchesPlayer(name, currentRound.player.name)) {
       setRoundStates((prev) => ({
         ...prev,
-        [currentKey]: { ...prev[currentKey], guessedIds: newGuessedIds },
+        [currentKey]: { ...prev[currentKey], solved: true },
       }));
-      persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
-    } else {
-      setVerifying(true);
-      try {
-        const result = await verifyGuess(
-          name,
-          id,
-          currentRound.nationality,
-          currentRound.club,
-        );
-        if (result.valid && result.footballer) {
-          const f = result.footballer;
-          // A qualifying player NOT in our answer set means a SECOND player of this
-          // nationality played for the club (just scraped in by /verify) — so this
-          // is no longer an "only". Invalidate and drop the round.
-          if (!players.some((p) => p.id === f.id)) {
-            invalidateCurrentRound(f.name);
-          } else {
-            const newGuessedIds = new Set([...currentState.guessedIds, f.id]);
-            setRoundStates((prev) => {
-              const state = prev[currentKey];
-              if (!state) return prev;
-              const alreadyInList = state.players?.some((p) => p.id === f.id);
-              const newPlayers = alreadyInList
-                ? state.players!
-                : [...(state.players ?? []), f];
-              return {
-                ...prev,
-                [currentKey]: {
-                  ...state,
-                  players: newPlayers,
-                  guessedIds: new Set([...state.guessedIds, f.id]),
-                },
-              };
-            });
-            persistRound(currentKey, newGuessedIds, currentState.wrongGuesses);
-          }
-        } else {
-          if (wrongTimer.current) clearTimeout(wrongTimer.current);
-          const displayName = result.foundName ?? `"${name}"`;
-          const actualNat = result.foundNationality
-            ? nationalityAdjective(result.foundNationality) ||
-              result.foundNationality
-            : null;
-          const msg =
-            result.reason === "wrong_nationality" && actualNat
-                ? `${displayName} is actually ${actualNat}`
-                : result.reason === "wrong_club"
-                  ? `${displayName} didn't play for ${currentRound.club}`
-                  : result.reason === "wrong_both"
-                    ? `${displayName} wasn't either`
-                    : `${displayName} is not a valid answer`;
-          setWrongGuessMsg(msg);
-          wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
-
-          const newWrong = new Set(currentState.wrongGuesses);
-          newWrong.add(normalizeGuess(name));
-          setRoundStates((prev) => ({
-            ...prev,
-            [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong },
-          }));
-          persistRound(currentKey, currentState.guessedIds, newWrong);
-        }
-      } finally {
-        setVerifying(false);
-      }
+      persistRound(currentKey, true, currentState.wrongGuesses);
+      return;
     }
+
+    if (wrongTimer.current) clearTimeout(wrongTimer.current);
+    setWrongGuessMsg(`"${name}" isn't the one`);
+    wrongTimer.current = setTimeout(() => setWrongGuessMsg(null), 2500);
+
+    const newWrong = new Set(currentState.wrongGuesses);
+    newWrong.add(normalizeGuess(name));
+    setRoundStates((prev) => ({
+      ...prev,
+      [currentKey]: { ...prev[currentKey], wrongGuesses: newWrong },
+    }));
+    persistRound(currentKey, false, newWrong);
   }
 
   function guessStatus(s: { id: number; name: string }) {
     if (!currentState) return null;
-    if (currentState.guessedIds.has(s.id)) return "correct" as const;
+    if (currentState.solved && matchesPlayer(s.name, currentRound!.player.name))
+      return "correct" as const;
     if (currentState.wrongGuesses.has(normalizeGuess(s.name)))
       return "incorrect" as const;
     return null;
@@ -573,14 +304,8 @@ export function OnlyPlayerPage() {
 
   // ── Progress screen ───────────────────────────────────────────────────────
   const progressRounds: ProgressRound[] = rounds.map((r, i) => {
-    const key = comboKey(r.nationality, r.club);
-    const state = roundStates[key];
-    const statePlayers = state?.players;
-    const validIds = statePlayers
-      ? statePlayers.filter((p) => state!.guessedIds.has(p.id)).length
-      : (state?.guessedIds.size ?? 0);
-    const target = ROUND_TARGET;
-    const guessed = Math.min(validIds, target);
+    const state = roundStates[roundKey(r.entryId)];
+    const guessed = state?.solved ? 1 : 0;
     return {
       name: (
         <span className="text-xs font-medium">
@@ -605,15 +330,13 @@ export function OnlyPlayerPage() {
         </div>
       ),
       guessed,
-      total: target,
+      total: ROUND_TARGET,
     };
   });
 
-  const totalGuessed = rounds.filter((r) => {
-    const key = comboKey(r.nationality, r.club);
-    const state = roundStates[key];
-    return (state?.guessedIds.size ?? 0) >= ROUND_TARGET;
-  }).length;
+  const totalGuessed = rounds.filter(
+    (r) => roundStates[roundKey(r.entryId)]?.solved,
+  ).length;
   const totalPlayers = rounds.length;
 
   const filteredProgressData = progressRounds
@@ -623,43 +346,14 @@ export function OnlyPlayerPage() {
       const term = progressSearch.toLowerCase();
       return (
         rounds[i].nationality.toLowerCase().includes(term) ||
-        rounds[i].club.toLowerCase().includes(term)
+        rounds[i].club.toLowerCase().includes(term) ||
+        rounds[i].player.name.toLowerCase().includes(term)
       );
     });
   const filteredProgressRounds = filteredProgressData.map((d) => d.r);
   const filteredOriginalIndices = filteredProgressData.map((d) => d.i);
 
-  const players = currentState?.players ?? null;
-
-  // Only count IDs that exist in the loaded players list — guards against stale localStorage IDs
-  // from players that were deleted and re-imported with a new ID.
-  const passTarget = ROUND_TARGET;
-
-  const validGuessedIds = players
-    ? new Set(
-        players
-          .filter((p) => currentState!.guessedIds.has(p.id))
-          .map((p) => p.id),
-      )
-    : (currentState?.guessedIds ?? new Set<number>());
-  const guessedCount = validGuessedIds.size;
-  const isDone = guessedCount >= passTarget;
-
-  // Guessed players fill slots first; remaining slots show a position + years
-  // hint drawn from the top still-unguessed players.
-  const guessedList = players
-    ? players.filter((p) => validGuessedIds.has(p.id))
-    : [];
-  const unguessedList = players
-    ? players.filter((p) => !validGuessedIds.has(p.id))
-    : [];
-  const slots: { player: Player | null; hint: Player | null }[] = Array.from(
-    { length: passTarget },
-    (_, i) =>
-      i < guessedList.length
-        ? { player: guessedList[i], hint: null }
-        : { player: null, hint: unguessedList[i - guessedList.length] ?? null },
-  );
+  const isDone = currentState?.solved ?? false;
 
   if (loading) {
     return (
@@ -720,7 +414,7 @@ export function OnlyPlayerPage() {
               type="text"
               value={progressSearch}
               onChange={(e) => setProgressSearch(e.target.value)}
-              placeholder="Filter by nationality or club…"
+              placeholder="Filter by nationality, club or player…"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
@@ -751,36 +445,8 @@ export function OnlyPlayerPage() {
               />
             )}
             {currentRound && (
-              <div className={`px-3 pt-4 pb-2 flex flex-col gap-3`}>
-                {/* player slots (or full reveal once done) */}
-                {players === null ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="animate-spin text-gray-300" size={22} />
-                  </div>
-                ) : isDone ? (
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      {guessedList.map((p, i) => (
-                        <RevealRow key={p.id} rank={i + 1} player={p} guessed />
-                      ))}
-                    </div>
-                    {unguessedList.length > 0 && (
-                      <div className="flex flex-col gap-2">
-                        <p className="text-xs text-gray-400 uppercase tracking-wide text-center px-2">Others who played here</p>
-                        {unguessedList.map((p, i) => (
-                          <RevealRow key={p.id} rank={i + 1} player={p} guessed={false} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {slots.map((s, i) => (
-                      <PlayerSlot key={i} index={i} player={s.player} hint={s.hint} />
-                    ))}
-                  </div>
-                )}
-
+              <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
+                <AnswerSlot player={currentRound.player} solved={isDone} />
               </div>
             )}
           </div>
@@ -789,13 +455,9 @@ export function OnlyPlayerPage() {
           {currentRound && (
             <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
               <p
-                className={`text-xs mb-2 ${verifying ? "text-yellow-400" : guessedCount > 0 ? "text-green-400" : "text-white/50"}`}
+                className={`text-xs mb-2 ${isDone ? "text-green-400" : "text-white/50"}`}
               >
-                {verifying
-                  ? "Checking…"
-                  : isDone
-                    ? `All ${passTarget} found! ✓`
-                    : `${Math.min(guessedCount, passTarget)} / ${passTarget} found`}
+                {isDone ? "Found! ✓" : `0 / ${ROUND_TARGET} found`}
               </p>
 
               {wrongGuessMsg && (
@@ -806,13 +468,13 @@ export function OnlyPlayerPage() {
 
               {!isDone && (
                 <div className="mb-3">
-                  <GuessSearchInput autoScrape={true}
+                  <GuessSearchInput
+                    autoScrape={true}
                     inputRef={inputRef}
-                    disabled={verifying}
                     getKey={(f) => f.id}
                     getLabel={(f) => f.name}
                     getStatus={guessStatus}
-                    onSelect={(name, item) => submitGuess(name, item?.id ?? null)}
+                    onSelect={(name) => submitGuess(name)}
                   />
                 </div>
               )}

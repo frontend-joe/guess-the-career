@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import { ChevronLeft, ChevronRight, X, Wand2, Loader2, Trash2, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { getAdminCombos, type AdminCombo } from '@/api/only-player-admin'
+import { getEntries, type OnlyPlayerEntry } from '@/api/only-player-admin'
 import {
   getOnlyPlayerSchedule,
   assignOnlyPlayerDay,
@@ -39,31 +39,33 @@ type CleanupState = 'idle' | 'confirming' | 'running'
 
 interface AssignModalProps {
   date: string
-  combos: AdminCombo[]
-  onAssign: (date: string, nationality: string, club: string) => Promise<void>
+  entries: OnlyPlayerEntry[]
+  onAssign: (date: string, entryId: number) => Promise<void>
   onClose: () => void
 }
 
-function AssignModal({ date, combos, onAssign, onClose }: AssignModalProps) {
+function AssignModal({ date, entries, onAssign, onClose }: AssignModalProps) {
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const filtered = combos.filter(c => {
+  const filtered = entries.filter(e => {
     const q = search.toLowerCase()
-    return c.nationality.toLowerCase().includes(q) || c.club.toLowerCase().includes(q)
+    return (
+      e.nationality.toLowerCase().includes(q) ||
+      e.club.toLowerCase().includes(q) ||
+      e.playerName.toLowerCase().includes(q)
+    )
   })
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (a.enabled && !b.enabled) return -1
-    if (!a.enabled && b.enabled) return 1
-    return a.club.localeCompare(b.club) || a.nationality.localeCompare(b.nationality)
-  })
+  const sorted = [...filtered].sort(
+    (a, b) => a.club.localeCompare(b.club) || a.nationality.localeCompare(b.nationality),
+  )
 
-  async function handlePick(combo: AdminCombo) {
+  async function handlePick(entry: OnlyPlayerEntry) {
     if (saving) return
     setSaving(true)
     try {
-      await onAssign(date, combo.nationality, combo.club)
+      await onAssign(date, entry.id)
     } finally {
       setSaving(false)
     }
@@ -81,7 +83,7 @@ function AssignModal({ date, combos, onAssign, onClose }: AssignModalProps) {
         <div className="px-4 py-2 border-b shrink-0">
           <input
             type="text"
-            placeholder="Search nationality or club…"
+            placeholder="Search nationality, club or player…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full text-sm border border-input rounded-md px-3 py-1.5 outline-none focus:ring-2 focus:ring-ring"
@@ -90,23 +92,22 @@ function AssignModal({ date, combos, onAssign, onClose }: AssignModalProps) {
         </div>
         <div className="overflow-y-auto flex-1">
           {sorted.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No combos found</p>
+            <p className="text-sm text-muted-foreground text-center py-8">No enabled entries found</p>
           ) : (
-            sorted.map(combo => (
+            sorted.map(entry => (
               <button
-                key={`${combo.nationality}|||${combo.club}`}
-                onClick={() => handlePick(combo)}
+                key={entry.id}
+                onClick={() => handlePick(entry)}
                 disabled={saving}
                 className="w-full text-left px-4 py-3 hover:bg-muted/50 border-b last:border-0 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <NationalityFlag nationality={combo.nationality} size={16} />
-                  <span className="text-sm font-semibold">{combo.nationality}</span>
+                  <NationalityFlag nationality={entry.nationality} size={16} />
+                  <span className="text-sm font-semibold">{entry.nationality}</span>
                   <span className="text-xs text-muted-foreground">/</span>
-                  <MiniClubBadge club={combo.club} wikipediaUrl={combo.clubWikiUrl} />
-                  <span className="text-sm font-semibold">{combo.club}</span>
-                  <span className="ml-auto text-xs text-muted-foreground shrink-0 truncate max-w-32">{combo.playerName}</span>
-                  {combo.enabled && <span className="text-xs text-green-600 font-medium shrink-0">●</span>}
+                  <MiniClubBadge club={entry.club} wikipediaUrl={entry.clubWikiUrl} />
+                  <span className="text-sm font-semibold">{entry.club}</span>
+                  <span className="ml-auto text-xs text-muted-foreground shrink-0 truncate max-w-32">{entry.playerName}</span>
                 </div>
               </button>
             ))
@@ -122,8 +123,8 @@ export function OnlyPlayerSchedulePage() {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
-  const [entries, setEntries] = useState<OnlyPlayerScheduleAdminEntry[]>([])
-  const [combos, setCombos] = useState<AdminCombo[]>([])
+  const [schedule, setSchedule] = useState<OnlyPlayerScheduleAdminEntry[]>([])
+  const [enabledEntries, setEnabledEntries] = useState<OnlyPlayerEntry[]>([])
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [autoState, setAutoState] = useState<AutoState>('idle')
@@ -133,9 +134,9 @@ export function OnlyPlayerSchedulePage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [sched, comboResult] = await Promise.all([getOnlyPlayerSchedule(), getAdminCombos(1, 9999)])
-      setEntries(sched)
-      setCombos(comboResult.data)
+      const [sched, entryResult] = await Promise.all([getOnlyPlayerSchedule(), getEntries(1, 9999)])
+      setSchedule(sched)
+      setEnabledEntries(entryResult.data.filter(e => e.enabled))
     } finally {
       setLoading(false)
     }
@@ -152,8 +153,8 @@ export function OnlyPlayerSchedulePage() {
     else setMonth(m => m + 1)
   }
 
-  async function handleAssign(date: string, nationality: string, club: string) {
-    await assignOnlyPlayerDay(date, nationality, club)
+  async function handleAssign(date: string, entryId: number) {
+    await assignOnlyPlayerDay(date, entryId)
     await loadData()
     setSelectedDate(null)
   }
@@ -166,12 +167,10 @@ export function OnlyPlayerSchedulePage() {
   async function handleAutoAssign() {
     setAutoState('running')
     try {
-      const enabledCombos = combos.filter(c => c.enabled)
-      if (enabledCombos.length === 0) return
+      if (enabledEntries.length === 0) return
 
-      const scheduledKeys = new Set(entries.map(e => `${e.nationality}|||${e.club}`))
-      const unscheduled = enabledCombos.filter(c => !scheduledKeys.has(`${c.nationality}|||${c.club}`))
-
+      const scheduledIds = new Set(schedule.map(e => e.entry_id))
+      const unscheduled = enabledEntries.filter(e => !scheduledIds.has(e.id))
       if (unscheduled.length === 0) return
 
       for (let i = unscheduled.length - 1; i > 0; i--) {
@@ -180,18 +179,18 @@ export function OnlyPlayerSchedulePage() {
       }
 
       const todayIso = new Date().toISOString().split('T')[0]
-      const latestDate = entries.length
-        ? [...entries].sort((a, b) => b.date.localeCompare(a.date))[0].date
+      const latestDate = schedule.length
+        ? [...schedule].sort((a, b) => b.date.localeCompare(a.date))[0].date
         : todayIso
       const startDate = latestDate >= todayIso ? addDays(latestDate, 1) : addDays(todayIso, 1)
 
-      const assignedDates = new Set(entries.map(e => e.date))
+      const assignedDates = new Set(schedule.map(e => e.date))
       let offset = 0
-      for (const combo of unscheduled) {
+      for (const entry of unscheduled) {
         let date: string
         do { date = addDays(startDate, offset++) } while (assignedDates.has(date))
         assignedDates.add(date)
-        await assignOnlyPlayerDay(date, combo.nationality, combo.club)
+        await assignOnlyPlayerDay(date, entry.id)
       }
     } finally {
       setAutoState('idle')
@@ -212,8 +211,8 @@ export function OnlyPlayerSchedulePage() {
   async function handleCleanupConfirm() {
     setCleanupState('running')
     try {
-      const enabledKeys = new Set(combos.filter(c => c.enabled).map(c => `${c.nationality}|||${c.club}`))
-      const toRemove = entries.filter(e => !enabledKeys.has(`${e.nationality}|||${e.club}`))
+      const enabledIds = new Set(enabledEntries.map(e => e.id))
+      const toRemove = schedule.filter(e => e.entry_id == null || !enabledIds.has(e.entry_id))
       for (const entry of toRemove) {
         await deleteOnlyPlayerDay(entry.date)
       }
@@ -223,16 +222,13 @@ export function OnlyPlayerSchedulePage() {
     }
   }
 
-  const entryMap = Object.fromEntries(entries.map(e => [e.date, e]))
+  const entryMap = Object.fromEntries(schedule.map(e => [e.date, e]))
   const daysInMonth = getDaysInMonth(year, month)
   const firstDow = getFirstDayOfWeek(year, month)
   const todayIso = isoDate(today.getFullYear(), today.getMonth(), today.getDate())
-  const hasAnyAssigned = entries.length > 0
-  const hasEnabledCombos = combos.some(c => c.enabled)
-  const enabledKeys = new Set(combos.filter(c => c.enabled).map(c => `${c.nationality}|||${c.club}`))
-  const deactivatedEntries = hasEnabledCombos
-    ? entries.filter(e => !enabledKeys.has(`${e.nationality}|||${e.club}`))
-    : []
+  const hasAnyAssigned = schedule.length > 0
+  const enabledIds = new Set(enabledEntries.map(e => e.id))
+  const deactivatedEntries = schedule.filter(e => e.entry_id == null || !enabledIds.has(e.entry_id))
 
   return (
     <div className="p-4 md:p-6 max-w-4xl">
@@ -295,7 +291,7 @@ export function OnlyPlayerSchedulePage() {
 
       {cleanupState === 'confirming' && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
-          <span className="text-orange-700">Remove {deactivatedEntries.length} de-activated combo{deactivatedEntries.length !== 1 ? 's' : ''} from the schedule?</span>
+          <span className="text-orange-700">Remove {deactivatedEntries.length} de-activated entr{deactivatedEntries.length !== 1 ? 'ies' : 'y'} from the schedule?</span>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={() => setCleanupState('idle')}>Cancel</Button>
             <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white" onClick={handleCleanupConfirm}>Remove</Button>
@@ -353,8 +349,8 @@ export function OnlyPlayerSchedulePage() {
                 {assigned && (
                   <div className="mt-0.5 flex items-start gap-0.5">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] sm:text-xs leading-tight font-semibold truncate">{entry.nationality}</p>
-                      <p className="text-[9px] sm:text-[10px] leading-tight text-muted-foreground truncate hidden md:block">{entry.club}</p>
+                      <p className="text-[10px] sm:text-xs leading-tight font-semibold truncate">{entry.nationality ?? '—'}</p>
+                      <p className="text-[9px] sm:text-[10px] leading-tight text-muted-foreground truncate hidden md:block">{entry.club ?? ''}</p>
                     </div>
                     <button
                       onClick={e => { e.stopPropagation(); handleUnassign(date) }}
@@ -376,7 +372,7 @@ export function OnlyPlayerSchedulePage() {
       {selectedDate && (
         <AssignModal
           date={selectedDate}
-          combos={combos}
+          entries={enabledEntries}
           onAssign={handleAssign}
           onClose={() => setSelectedDate(null)}
         />

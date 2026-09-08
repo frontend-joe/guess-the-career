@@ -1,17 +1,27 @@
 export interface OnlyPlayerScheduleAdminEntry {
   id: number
   date: string
-  nationality: string
-  club: string
-  created_at: string
+  entry_id: number | null
+  nationality: string | null
+  club: string | null
+  player_name: string | null
+}
+
+export interface OnlyPlayerRoundPlayer {
+  name: string
+  footballerId: number | null
+  photoUrl: string | null
+  position: string | null
+  apps: number | null
 }
 
 export interface OnlyPlayerScheduleRound {
   date: string
+  entryId: number
   nationality: string
   club: string
   clubWikiUrl: string | null
-  playerCount: number
+  player: OnlyPlayerRoundPlayer
 }
 
 export async function getOnlyPlayerSchedule(): Promise<OnlyPlayerScheduleAdminEntry[]> {
@@ -26,11 +36,11 @@ export async function getOnlyPlayerScheduleRounds(): Promise<OnlyPlayerScheduleR
   return res.json()
 }
 
-export async function assignOnlyPlayerDay(date: string, nationality: string, club: string): Promise<void> {
+export async function assignOnlyPlayerDay(date: string, entryId: number): Promise<void> {
   const res = await fetch(`/api/only-player/schedule/${date}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nationality, club }),
+    body: JSON.stringify({ entryId }),
   })
   if (!res.ok) throw new Error('Failed to assign day')
 }
@@ -43,14 +53,4 @@ export async function deleteOnlyPlayerDay(date: string): Promise<void> {
 export async function clearOnlyPlayerSchedule(): Promise<void> {
   const res = await fetch('/api/only-player/schedule', { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to clear schedule')
-}
-
-// A second qualifying player was found in-game, so the combo is no longer "only":
-// remove it from the schedule and disable it.
-export async function invalidateOnlyPlayer(nationality: string, club: string): Promise<void> {
-  await fetch('/api/only-player/invalidate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nationality, club }),
-  }).catch(() => {})
 }

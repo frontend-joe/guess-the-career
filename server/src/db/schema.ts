@@ -412,24 +412,30 @@ export const nationals_schedule = sqliteTable('nationals_schedule', {
 export type NationalsEnabledCombo = typeof nationals_enabled_combos.$inferSelect
 export type NationalsScheduleEntry = typeof nationals_schedule.$inferSelect
 
-// Only Player game: nationality × English-club combos with exactly ONE qualifying
-// player. Mirrors the nationals pair; the admin curates which combos are enabled.
-export const only_player_enabled_combos = sqliteTable('only_player_enabled_combos', {
+// Only Player game: a curated list (the source of truth) of the single player of a
+// nationality to have played for a club. The admin edits entries + links the answer
+// player to a footballer; the schedule points at an entry.
+export const only_player_entries = sqliteTable('only_player_entries', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   nationality: text('nationality').notNull(),
   club: text('club').notNull(),
+  player_name: text('player_name').notNull(),
+  footballer_id: integer('footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  period: text('period'),
+  status: text('status'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  sort_order: integer('sort_order').notNull().default(0),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
 export const only_player_schedule = sqliteTable('only_player_schedule', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   date: text('date').notNull().unique(),
-  nationality: text('nationality').notNull(),
-  club: text('club').notNull(),
+  entry_id: integer('entry_id').references(() => only_player_entries.id, { onDelete: 'set null' }),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
-export type OnlyPlayerEnabledCombo = typeof only_player_enabled_combos.$inferSelect
+export type OnlyPlayerEntry = typeof only_player_entries.$inferSelect
 export type OnlyPlayerScheduleEntry = typeof only_player_schedule.$inferSelect
 
 export const club_legends_enabled_clubs = sqliteTable('club_legends_enabled_clubs', {
