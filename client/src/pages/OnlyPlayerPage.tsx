@@ -20,6 +20,7 @@ import {
   type ProgressRound,
 } from "@/components/OverallProgressScreen";
 import { MiniClubBadge } from "@/components/MiniClubBadge";
+import { PositionBadge } from "@/components/PositionBadge";
 import { GuessSearchInput } from "@/components/GuessSearchInput";
 import { useShowPlayer } from "@/contexts/PlayerModalContext";
 import { nationalityToFlagUrl } from "@/lib/flags";
@@ -145,9 +146,8 @@ function PlayerCard({
   const showPlayer = useShowPlayer();
   const clickable = solved && player.footballerId != null;
 
-  // Hints shown both before and after guessing.
+  // Text hints shown both before and after guessing (position is a chip below).
   const meta = [
-    player.position,
     player.apps != null ? `${player.apps} apps` : null,
     player.period,
   ].filter(Boolean) as string[];
@@ -190,9 +190,10 @@ function PlayerCard({
         <div className="h-5 w-32 rounded-full bg-gray-200" />
       )}
 
-      {/* position | apps | years */}
-      {meta.length > 0 && (
+      {/* [pos] apps | years */}
+      {(player.position || meta.length > 0) && (
         <div className="flex items-center gap-2 text-xs text-gray-500 tabular-nums">
+          {player.position && <PositionBadge position={player.position} />}
           {meta.map((m, i) => (
             <span key={i} className="flex items-center gap-2">
               {i > 0 && <span className="text-gray-300">|</span>}
