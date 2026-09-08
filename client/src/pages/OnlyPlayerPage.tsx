@@ -454,6 +454,18 @@ export function OnlyPlayerPage() {
             )}
             {currentRound && (
               <div className="px-3 pt-4 pb-2 flex flex-col gap-3">
+                {isDone && currentRound.player.photoUrl && (
+                  <div className="flex flex-col items-center gap-2 pt-2 pb-1 animate-rise">
+                    <img
+                      src={currentRound.player.photoUrl}
+                      alt={currentRound.player.name}
+                      className="w-32 h-32 rounded-full object-cover border-4 border-green-200 shadow-md bg-gray-100"
+                    />
+                    <span className="text-base font-bold text-gray-800">
+                      {currentRound.player.name}
+                    </span>
+                  </div>
+                )}
                 <AnswerSlot player={currentRound.player} solved={isDone} />
               </div>
             )}
