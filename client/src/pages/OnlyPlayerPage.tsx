@@ -139,9 +139,11 @@ function matchesPlayer(guess: string, playerName: string): boolean {
 function PlayerCard({
   player,
   solved,
+  question,
 }: {
   player: OnlyPlayerScheduleRound["player"];
   solved: boolean;
+  question: string;
 }) {
   const showPlayer = useShowPlayer();
   const clickable = solved && player.footballerId != null;
@@ -156,6 +158,11 @@ function PlayerCard({
     <div
       className={`mx-auto w-full max-w-xs rounded-2xl border p-6 flex flex-col items-center gap-3 shadow-sm transition-colors ${solved ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}
     >
+      {/* Question */}
+      <p className="text-center text-sm font-semibold text-gray-800 text-balance">
+        {question}
+      </p>
+
       {/* Avatar */}
       <div
         className={`w-28 h-28 rounded-full overflow-hidden flex items-center justify-center bg-gray-100 ${solved ? "border-4 border-green-200" : "border-2 border-gray-200"}`}
@@ -469,13 +476,17 @@ export function OnlyPlayerPage() {
                     />
                   </div>
                 }
-                title={`Who is the only ${currentRound.nationality} player for ${currentRound.club}?`}
+                title={`${currentRound.nationality} × ${currentRound.club}`}
                 subtitle="Name the only one"
               />
             )}
             {currentRound && (
               <div className="px-3 pt-6 pb-2 flex flex-col gap-3">
-                <PlayerCard player={currentRound.player} solved={isDone} />
+                <PlayerCard
+                  player={currentRound.player}
+                  solved={isDone}
+                  question={`Who is the only ${currentRound.nationality} player for ${currentRound.club}?`}
+                />
               </div>
             )}
           </div>
