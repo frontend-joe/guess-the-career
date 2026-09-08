@@ -190,16 +190,22 @@ function PlayerCard({
         <div className="h-5 w-32 rounded-full bg-gray-200" />
       )}
 
-      {/* [pos] apps | years */}
+      {/* [pos] | apps | years */}
       {(player.position || meta.length > 0) && (
         <div className="flex items-center gap-2 text-xs text-gray-500 tabular-nums">
-          {player.position && <PositionBadge position={player.position} />}
-          {meta.map((m, i) => (
-            <span key={i} className="flex items-center gap-2">
-              {i > 0 && <span className="text-gray-300">|</span>}
-              {m}
-            </span>
-          ))}
+          {[
+            player.position ? (
+              <PositionBadge key="pos" position={player.position} />
+            ) : null,
+            ...meta.map((m, i) => <span key={i}>{m}</span>),
+          ]
+            .filter(Boolean)
+            .map((node, i) => (
+              <span key={i} className="flex items-center gap-2">
+                {i > 0 && <span className="text-gray-300">|</span>}
+                {node}
+              </span>
+            ))}
         </div>
       )}
     </div>
