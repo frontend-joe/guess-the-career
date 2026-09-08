@@ -187,7 +187,7 @@ function PlayerCard({
           </span>
         )
       ) : (
-        <div className="h-5 w-32 rounded-full bg-gray-200" />
+        <div className="my-2 h-px w-32 rounded-full bg-gray-300" />
       )}
 
       {/* [pos] | apps | years */}
