@@ -196,8 +196,10 @@ const surnameInitial: TenableType = {
 // Letters only — spaces, hyphens and apostrophes don't count, so "Le Saux" is 6
 // and "O'Shea" is 6.
 const SURNAME_LETTERS = `LENGTH(REPLACE(REPLACE(REPLACE(f.surname, ' ', ''), '-', ''), '''', ''))`;
-// Only short surnames make a good round — longer buckets are large and vague.
-const SURNAME_LENGTHS = [3, 4];
+// Only 4-letter surnames make a good round: longer buckets are large and
+// vague, and 3-letter surnames are too rare to ever reach ten (the whole
+// Premier League has four — Lee, Obi, Flo, Foe).
+const SURNAME_LENGTHS = [4];
 
 const surnameLength: TenableType = {
   slug: "surname-length",
