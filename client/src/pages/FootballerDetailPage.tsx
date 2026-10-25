@@ -19,6 +19,9 @@ import {
 
 type EditMeta = {
   name: string
+  first_name: string
+  surname: string
+  full_name: string
   wikipedia_url: string
   nationality: string
   position: string
@@ -37,7 +40,7 @@ export function FootballerDetailPage() {
   const [footballer, setFootballer] = useState<FootballerWithStints | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingMeta, setEditingMeta] = useState(false)
-  const [meta, setMeta] = useState<EditMeta>({ name: '', wikipedia_url: '', nationality: '', position: '', all_positions: '', custom_position: '', born: '', height_cm: '', photo_url: '' })
+  const [meta, setMeta] = useState<EditMeta>({ name: '', first_name: '', surname: '', full_name: '', wikipedia_url: '', nationality: '', position: '', all_positions: '', custom_position: '', born: '', height_cm: '', photo_url: '' })
   const [savingMeta, setSavingMeta] = useState(false)
   const [editingCareer, setEditingCareer] = useState(false)
   const [statsKey, setStatsKey] = useState(0)
@@ -52,6 +55,9 @@ export function FootballerDetailPage() {
         setStints(f.stints.map(({ id: _id, footballer_id: _fid, ...rest }) => rest))
         setMeta({
           name: f.name,
+          first_name: f.first_name ?? '',
+          surname: f.surname ?? '',
+          full_name: f.full_name ?? '',
           wikipedia_url: f.wikipedia_url,
           nationality: f.nationality ?? '',
           position: f.position ?? '',
@@ -72,6 +78,9 @@ export function FootballerDetailPage() {
     try {
       const updated = await updateFootballer(footballer.id, {
         name: meta.name || undefined,
+        first_name: meta.first_name || null,
+        surname: meta.surname || null,
+        full_name: meta.full_name || null,
         wikipedia_url: meta.wikipedia_url || undefined,
         nationality: meta.nationality || null,
         position: meta.position || null,
@@ -143,7 +152,7 @@ export function FootballerDetailPage() {
               setStints(updatedStints.map(({ id: _id, footballer_id: _fid, ...rest }) => rest))
               // A rescrape replaces career_statistics too — refetch them.
               setStatsKey(k => k + 1)
-              setMeta({ name: updated.name, wikipedia_url: updated.wikipedia_url, nationality: updated.nationality ?? '', position: updated.position ?? '', all_positions: updated.all_positions ?? '', custom_position: updated.custom_position ?? '', born: updated.born ?? '', height_cm: updated.height_cm?.toString() ?? '', photo_url: updated.photo_url ?? '' })
+              setMeta({ name: updated.name, first_name: updated.first_name ?? '', surname: updated.surname ?? '', full_name: updated.full_name ?? '', wikipedia_url: updated.wikipedia_url, nationality: updated.nationality ?? '', position: updated.position ?? '', all_positions: updated.all_positions ?? '', custom_position: updated.custom_position ?? '', born: updated.born ?? '', height_cm: updated.height_cm?.toString() ?? '', photo_url: updated.photo_url ?? '' })
             }}
           />
           {!editingMeta && (
@@ -178,6 +187,9 @@ export function FootballerDetailPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {([
             { key: 'name', label: 'Name' },
+            { key: 'first_name', label: 'First name' },
+            { key: 'surname', label: 'Last name' },
+            { key: 'full_name', label: 'Full name' },
             { key: 'nationality', label: 'Nationality' },
             { key: 'position', label: 'Position' },
             { key: 'all_positions', label: 'All Positions' },
@@ -186,7 +198,7 @@ export function FootballerDetailPage() {
             { key: 'wikipedia_url', label: 'Wikipedia URL' },
             { key: 'photo_url', label: 'Photo URL' },
           ] as const).map(({ key, label }) => (
-            <div key={key} className={key === 'photo_url' || key === 'all_positions' || key === 'wikipedia_url' ? 'sm:col-span-2' : ''}>
+            <div key={key} className={key === 'photo_url' || key === 'all_positions' || key === 'wikipedia_url' || key === 'full_name' ? 'sm:col-span-2' : ''}>
               <label className="text-xs text-muted-foreground block mb-1">{label}</label>
               {editingMeta ? (
                 <Input

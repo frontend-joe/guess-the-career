@@ -634,16 +634,25 @@ footballersRouter.patch(
       born: z.string().nullable().optional(),
       height_cm: z.number().int().nullable().optional(),
       photo_url: z.string().nullable().optional(),
+      first_name: z.string().nullable().optional(),
+      surname: z.string().nullable().optional(),
+      full_name: z.string().nullable().optional(),
     })
   ),
   async (c) => {
     const id = parseInt(c.req.param('id'))
     const body = c.req.valid('json')
+    // Editing the name split by hand pins it, so recomputes/rescrapes keep it.
+    const pinsSplit = body.first_name !== undefined || body.surname !== undefined
     let updated
     try {
       ;[updated] = await db
         .update(footballers)
-        .set({ ...body, updated_at: sql`(datetime('now'))` })
+        .set({
+          ...body,
+          ...(pinsSplit ? { name_confirmed: 1, name_ambiguous: 0 } : {}),
+          updated_at: sql`(datetime('now'))`,
+        })
         .where(eq(footballers.id, id))
         .returning()
     } catch (e) {

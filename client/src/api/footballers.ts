@@ -10,6 +10,11 @@ export interface Footballer {
   born: string | null
   height_cm: number | null
   photo_url: string | null
+  first_name: string | null
+  surname: string | null
+  full_name: string | null
+  name_confirmed?: number
+  name_ambiguous?: number
   created_at: string
   updated_at: string
 }
@@ -154,7 +159,7 @@ export async function createFromScrape(data: ScrapeResult): Promise<Footballer> 
 
 export async function updateFootballer(
   id: number,
-  data: Partial<Pick<Footballer, 'name' | 'wikipedia_url' | 'nationality' | 'position' | 'all_positions' | 'custom_position' | 'born' | 'height_cm' | 'photo_url'>>
+  data: Partial<Pick<Footballer, 'name' | 'wikipedia_url' | 'nationality' | 'position' | 'all_positions' | 'custom_position' | 'born' | 'height_cm' | 'photo_url' | 'first_name' | 'surname' | 'full_name'>>
 ): Promise<Footballer> {
   const res = await fetch(`/api/footballers/${id}`, {
     method: 'PATCH',
