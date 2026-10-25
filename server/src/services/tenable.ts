@@ -13,11 +13,13 @@ export const ROUND_SIZE = 10;
 export type Metric = "goals" | "apps";
 
 export interface TenableAnswer {
-  footballer_id: number;
+  footballer_id: number | null;
   name: string;
   nationality: string | null;
   photo_url: string | null;
   value: number;
+  /** Shown next to the value, e.g. "apps", "goals", "£m", "#". */
+  unit?: string;
 }
 
 export interface Candidate {
@@ -27,6 +29,18 @@ export interface Candidate {
   title: string;
   answer_count: number;
 }
+
+// Reserve / youth sides pollute club rounds ("Bayern Munich and Bayern Munich II"),
+// so exclude them. Mirrors reserveRe in services/football.ts, which can't be used
+// here because SQLite has no REGEXP by default.
+export const NOT_RESERVE = (col: string) => `
+  ${col} NOT LIKE '% II'   AND ${col} NOT LIKE '% III' AND ${col} NOT LIKE '% IV'
+  AND ${col} NOT LIKE '% B' AND ${col} NOT LIKE '% C'
+  AND ${col} NOT LIKE '%Reserve'  AND ${col} NOT LIKE '%Reserves'
+  AND ${col} NOT LIKE '%Youth'    AND ${col} NOT LIKE '%Academy'
+  AND ${col} NOT LIKE '%Under-%'  AND ${col} NOT LIKE '%U2_'
+  AND ${col} NOT LIKE '%U1_'
+`;
 
 // Per-player, per-league totals — the base for most question types.
 const PLAYER_LEAGUE = `
@@ -46,8 +60,11 @@ const PLAYER_CLUB = `
          SUM(COALESCE(cs.league_apps, 0))  AS apps,
          SUM(COALESCE(cs.league_goals, 0)) AS goals
   FROM career_statistics cs
+  WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
+    AND ${NOT_RESERVE('cs.club')}
   GROUP BY cs.footballer_id, cs.club
 `;
+
 
 const metricCol = (m: Metric) => (m === "apps" ? "apps" : "goals");
 const metricWord = (m: Metric) => (m === "apps" ? "appearances" : "goals");
@@ -58,6 +75,14 @@ export interface TenableType {
   description: string;
   /** Example question, shown on the admin card. */
   example: string;
+  /**
+   * Ordered rounds are a ranked top ten — an answer reveals at its own rank.
+   * Unordered rounds ("name any 10 of the squad") have no meaningful ranking,
+   * so answers fill the board in the order the player finds them.
+   */
+  ordered?: boolean;
+  /** Unordered types ignore the metric; set this to run candidates once. */
+  metricless?: boolean;
   candidates(metric: Metric): Candidate[];
   answers(params: Record<string, string>, metric: Metric): TenableAnswer[];
   title(params: Record<string, string>, metric: Metric): string;
@@ -141,6 +166,50 @@ const surnameInitial: TenableType = {
        WHERE pl.league = ? AND UPPER(SUBSTR(f.surname,1,1)) = ? AND pl.${col} > 0
        ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
     ).all(p.league, p.letter.toUpperCase()) as TenableAnswer[];
+  },
+};
+
+// ── 2b. Surname length × league ──────────────────────────────────────────────
+// Letters only — spaces, hyphens and apostrophes don't count, so "Le Saux" is 6
+// and "O'Shea" is 6.
+const SURNAME_LETTERS = `LENGTH(REPLACE(REPLACE(REPLACE(f.surname, ' ', ''), '-', ''), '''', ''))`;
+
+const surnameLength: TenableType = {
+  slug: "surname-length",
+  label: "Surname length",
+  description: "Top of a league filtered to surnames of an exact letter count.",
+  example: "Most Premier League goals by players with a 4-letter surname",
+  title: (p, m) =>
+    `Most ${p.league} ${metricWord(m)} — players with a ${p.length}-letter surname`,
+  candidates(metric) {
+    const col = metricCol(metric);
+    const rows = sqlite.prepare(
+      `WITH pl AS (${PLAYER_LEAGUE})
+       SELECT pl.league AS league, ${SURNAME_LETTERS} AS len, COUNT(*) AS n
+       FROM pl JOIN footballers f ON f.id = pl.fid
+       WHERE f.surname IS NOT NULL AND f.surname <> '' AND pl.${col} > 0
+         AND ${SURNAME_LETTERS} BETWEEN 3 AND 12
+       GROUP BY pl.league, len
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { league: string; len: number; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { league: r.league, length: String(r.len) },
+      metric,
+      title: this.title({ league: r.league, length: String(r.len) }, metric),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, metric) {
+    const col = metricCol(metric);
+    return sqlite.prepare(
+      `WITH pl AS (${PLAYER_LEAGUE})
+       SELECT ${ANSWER_COLS}, pl.${col} AS value
+       FROM pl JOIN footballers f ON f.id = pl.fid
+       WHERE pl.league = ? AND ${SURNAME_LETTERS} = ? AND pl.${col} > 0
+       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+    ).all(p.league, parseInt(p.length, 10)) as TenableAnswer[];
   },
 };
 
@@ -303,11 +372,277 @@ const leagueAllTime: TenableType = {
   },
 };
 
+// ── 7. Two clubs ─────────────────────────────────────────────────────────────
+// Distinct player/club pairs, loans excluded, used by both two-clubs and
+// nationality-club.
+const PLAYER_CLUB_DISTINCT = `
+  SELECT DISTINCT cs.footballer_id AS fid, cs.club AS club
+  FROM career_statistics cs
+  WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
+    AND ${NOT_RESERVE('cs.club')}
+`;
+
+const twoClubs: TenableType = {
+  slug: "two-clubs",
+  label: "Two clubs",
+  description: "Players who turned out for both of a pair of clubs.",
+  example: "Name 10 players who played for both Liverpool and Chelsea",
+  title: (p, m) =>
+    `Name 10 players who turned out for both ${p.clubA} and ${p.clubB} (most ${metricWord(m)})`,
+  candidates(metric) {
+    const col = metricCol(metric);
+    const rows = sqlite.prepare(
+      `WITH pc AS (${PLAYER_CLUB_DISTINCT}),
+            tot AS (SELECT footballer_id fid, club,
+                           SUM(COALESCE(league_apps,0)) apps,
+                           SUM(COALESCE(league_goals,0)) goals
+                    FROM career_statistics
+                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    GROUP BY footballer_id, club)
+       SELECT a.club AS clubA, b.club AS clubB, COUNT(*) AS n
+       FROM pc a
+       JOIN pc b ON a.fid = b.fid AND a.club < b.club
+       JOIN tot ta ON ta.fid = a.fid AND ta.club = a.club
+       JOIN tot tb ON tb.fid = b.fid AND tb.club = b.club
+       WHERE ta.${col} + tb.${col} > 0
+       GROUP BY a.club, b.club
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { clubA: string; clubB: string; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { clubA: r.clubA, clubB: r.clubB },
+      metric,
+      title: this.title({ clubA: r.clubA, clubB: r.clubB }, metric),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, metric) {
+    const col = metricCol(metric);
+    return sqlite.prepare(
+      `WITH tot AS (SELECT footballer_id fid, club,
+                           SUM(COALESCE(league_apps,0)) apps,
+                           SUM(COALESCE(league_goals,0)) goals
+                    FROM career_statistics
+                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    GROUP BY footballer_id, club)
+       SELECT ${ANSWER_COLS}, (ta.${col} + tb.${col}) AS value
+       FROM tot ta
+       JOIN tot tb ON tb.fid = ta.fid AND tb.club = ?
+       JOIN footballers f ON f.id = ta.fid
+       WHERE ta.club = ? AND (ta.${col} + tb.${col}) > 0
+       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+    ).all(p.clubB, p.clubA) as TenableAnswer[];
+  },
+};
+
+// ── 8. Nationality at a club ─────────────────────────────────────────────────
+const nationalityClub: TenableType = {
+  slug: "nationality-club",
+  label: "Nationality at a club",
+  description: "Players of one nation who turned out for one club.",
+  example: "Name 10 French players who turned out for Arsenal",
+  title: (p, m) =>
+    `Name 10 ${p.nationality} players who turned out for ${p.club} (most ${metricWord(m)})`,
+  candidates(metric) {
+    const col = metricCol(metric);
+    const rows = sqlite.prepare(
+      `WITH tot AS (SELECT footballer_id fid, club,
+                           SUM(COALESCE(league_apps,0)) apps,
+                           SUM(COALESCE(league_goals,0)) goals
+                    FROM career_statistics
+                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    GROUP BY footballer_id, club)
+       SELECT tot.club AS club, f.nationality AS nationality, COUNT(*) AS n
+       FROM tot JOIN footballers f ON f.id = tot.fid
+       WHERE f.nationality IS NOT NULL AND f.nationality <> '' AND tot.${col} > 0
+       GROUP BY tot.club, f.nationality
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { club: string; nationality: string; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { club: r.club, nationality: r.nationality },
+      metric,
+      title: this.title({ club: r.club, nationality: r.nationality }, metric),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, metric) {
+    const col = metricCol(metric);
+    return sqlite.prepare(
+      `WITH tot AS (SELECT footballer_id fid, club,
+                           SUM(COALESCE(league_apps,0)) apps,
+                           SUM(COALESCE(league_goals,0)) goals
+                    FROM career_statistics
+                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    GROUP BY footballer_id, club)
+       SELECT ${ANSWER_COLS}, tot.${col} AS value
+       FROM tot JOIN footballers f ON f.id = tot.fid
+       WHERE tot.club = ? AND f.nationality = ? AND tot.${col} > 0
+       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+    ).all(p.club, p.nationality) as TenableAnswer[];
+  },
+};
+
+// ── 8b. Overseas players at an English club ──────────────────────────────────
+// Mirrors the Overseas Players game: any non-England nationality (so Scots and
+// Welsh count, as they do there) at one of the curated English clubs.
+// Derived from the career data rather than a hardcoded club list: a club counts
+// as English if it has league rows in an English division.
+const ENGLISH_DIVISIONS = [
+  "Premier League", "First Division", "Second Division", "Third Division",
+  "Fourth Division", "EFL Championship", "Championship",
+  "League One", "League Two", "Third Division North", "Third Division South",
+];
+const ENGLISH_CLUBS_SQL = `
+  SELECT DISTINCT club FROM career_statistics
+  WHERE COALESCE(league, division) IN (${ENGLISH_DIVISIONS.map((d) => `'${d}'`).join(", ")})
+`;
+
+const overseasClub: TenableType = {
+  slug: "overseas-club",
+  label: "Overseas at an English club",
+  description: "Non-English players who turned out for an English club.",
+  example: "Name 10 overseas players who turned out for Chelsea",
+  title: (p, m) =>
+    `Name 10 overseas players who turned out for ${p.club} (most ${metricWord(m)})`,
+  candidates(metric) {
+    const col = metricCol(metric);
+    const rows = sqlite.prepare(
+      `WITH tot AS (SELECT footballer_id fid, club,
+                           SUM(COALESCE(league_apps,0)) apps,
+                           SUM(COALESCE(league_goals,0)) goals
+                    FROM career_statistics
+                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE("club")}
+                    GROUP BY footballer_id, club)
+       SELECT tot.club AS club, COUNT(*) AS n
+       FROM tot JOIN footballers f ON f.id = tot.fid
+       WHERE tot.${col} > 0
+         AND tot.club IN (${ENGLISH_CLUBS_SQL})
+         AND f.nationality IS NOT NULL AND f.nationality <> ''
+         AND LOWER(f.nationality) NOT IN ('england')
+       GROUP BY tot.club
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { club: string; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { club: r.club },
+      metric,
+      title: this.title({ club: r.club }, metric),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, metric) {
+    const col = metricCol(metric);
+    return sqlite.prepare(
+      `WITH tot AS (SELECT footballer_id fid, club,
+                           SUM(COALESCE(league_apps,0)) apps,
+                           SUM(COALESCE(league_goals,0)) goals
+                    FROM career_statistics
+                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE("club")}
+                    GROUP BY footballer_id, club)
+       SELECT ${ANSWER_COLS}, tot.${col} AS value
+       FROM tot JOIN footballers f ON f.id = tot.fid
+       WHERE tot.club = ? AND tot.${col} > 0
+         AND f.nationality IS NOT NULL AND LOWER(f.nationality) NOT IN ('england')
+       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+    ).all(p.club) as TenableAnswer[];
+  },
+};
+
+// ── 9. Transfer window ───────────────────────────────────────────────────────
+// Naturally ranked by fee, so the metric is ignored.
+const transferWindow: TenableType = {
+  slug: "transfer-window",
+  label: "Transfer window",
+  description: "The biggest transfers of a single window, ranked by fee.",
+  example: "The 10 biggest Premier League transfers of 2003–04",
+  metricless: true,
+  title: (p) => `The 10 biggest ${p.league} transfers of ${p.season}`,
+  candidates() {
+    const rows = sqlite.prepare(
+      `SELECT w.id AS windowId, w.league AS league, w.season_label AS season, COUNT(*) AS n
+       FROM transfer_window_players p
+       JOIN transfer_windows w ON w.id = p.window_id
+       WHERE p.fee_value IS NOT NULL AND p.fee_value > 0
+       GROUP BY w.id
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { windowId: number; league: string; season: string; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { windowId: String(r.windowId), league: r.league, season: r.season },
+      metric: "goals" as Metric,
+      title: this.title({ league: r.league, season: r.season }, "goals"),
+      answer_count: r.n,
+    }));
+  },
+  answers(p) {
+    return sqlite.prepare(
+      `SELECT p.footballer_id AS footballer_id, p.player_name AS name,
+              p.nationality AS nationality, f.photo_url AS photo_url,
+              p.fee_value AS value, 'fee' AS unit
+       FROM transfer_window_players p
+       LEFT JOIN footballers f ON f.id = p.footballer_id
+       WHERE p.window_id = ? AND p.fee_value IS NOT NULL AND p.fee_value > 0
+       ORDER BY p.fee_value DESC, p.player_name ASC LIMIT ${ROUND_SIZE}`,
+    ).all(parseInt(p.windowId, 10)) as TenableAnswer[];
+  },
+};
+
+// ── 10. World Cup squad (unordered — name any 10) ────────────────────────────
+const worldCupSquad: TenableType = {
+  slug: "world-cup-squad",
+  label: "World Cup squad",
+  description: "Name any 10 players from a World Cup squad.",
+  example: "Name 10 players from Brazil's 2002 World Cup squad",
+  ordered: false,
+  metricless: true,
+  title: (p) => `Name 10 players from ${p.team}'s ${p.year} World Cup squad`,
+  candidates() {
+    const rows = sqlite.prepare(
+      `SELECT s.id AS squadId, s.team AS team, s.year AS year, COUNT(*) AS n
+       FROM world_cup_squad_players p
+       JOIN world_cup_squads s ON s.id = p.squad_id
+       GROUP BY s.id
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY s.year DESC, s.team ASC`,
+    ).all() as { squadId: number; team: string; year: number; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { squadId: String(r.squadId), team: r.team, year: String(r.year) },
+      metric: "goals" as Metric,
+      title: this.title({ team: r.team, year: String(r.year) }, "goals"),
+      answer_count: r.n,
+    }));
+  },
+  answers(p) {
+    // Returns the WHOLE squad — the player only needs any ten of them.
+    return sqlite.prepare(
+      `SELECT p.footballer_id AS footballer_id, p.name AS name,
+              p.nationality AS nationality, f.photo_url AS photo_url,
+              COALESCE(p.shirt_number, 0) AS value, 'shirt' AS unit
+       FROM world_cup_squad_players p
+       LEFT JOIN footballers f ON f.id = p.footballer_id
+       WHERE p.squad_id = ?
+       ORDER BY COALESCE(p.shirt_number, 99), p.name`,
+    ).all(parseInt(p.squadId, 10)) as TenableAnswer[];
+  },
+};
+
 export const TENABLE_TYPES: TenableType[] = [
   surnameInitial,
+  surnameLength,
   nationality,
   club,
   leagueAllTime,
+  twoClubs,
+  nationalityClub,
+  overseasClub,
+  transferWindow,
+  worldCupSquad,
   firstName,
   surname,
 ];
@@ -316,13 +651,19 @@ export function getType(slug: string): TenableType | undefined {
   return TENABLE_TYPES.find((t) => t.slug === slug);
 }
 
-// All candidates for a type, across both metrics.
+// All candidates for a type. Metricless types (transfers, World Cup squads)
+// have one natural ranking, so they're only enumerated once.
 export function candidatesForType(slug: string): Candidate[] {
   const t = getType(slug);
   if (!t) return [];
-  return [...t.candidates("goals"), ...t.candidates("apps")].sort(
-    (a, b) => b.answer_count - a.answer_count,
-  );
+  const list = t.metricless
+    ? t.candidates("goals")
+    : [...t.candidates("goals"), ...t.candidates("apps")];
+  return list.sort((a, b) => b.answer_count - a.answer_count);
+}
+
+export function isOrdered(slug: string): boolean {
+  return getType(slug)?.ordered !== false;
 }
 
 export function answersForRound(

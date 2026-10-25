@@ -98,6 +98,7 @@ export async function getFootballersPaginated(opts: {
   pageSize: number
   missingNationality?: boolean
   missingPhoto?: boolean
+  missingCareerStats?: boolean
   nonRetired?: boolean
   missingCaps?: boolean
 }): Promise<{ data: Footballer[]; total: number }> {
@@ -107,6 +108,7 @@ export async function getFootballersPaginated(opts: {
   if (opts.search) params.set('search', opts.search)
   if (opts.missingNationality) params.set('missingNationality', 'true')
   if (opts.missingPhoto) params.set('missingPhoto', 'true')
+  if (opts.missingCareerStats) params.set('missingCareerStats', 'true')
   if (opts.nonRetired) params.set('nonRetired', 'true')
   if (opts.missingCaps) params.set('missingCaps', 'true')
   const res = await fetch(`/api/footballers?${params.toString()}`)

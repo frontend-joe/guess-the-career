@@ -127,6 +127,7 @@ function BackfillControls() {
 export function FootballersPage() {
   const [missingNationality, setMissingNationality] = useState(false)
   const [missingPhoto, setMissingPhoto] = useState(false)
+  const [missingCareerStats, setMissingCareerStats] = useState(false)
   const [nonRetired, setNonRetired] = useState(false)
   const [missingCaps, setMissingCaps] = useState(false)
   const [singleGenericPosition, setSingleGenericPosition] = useState(false)
@@ -143,7 +144,7 @@ export function FootballersPage() {
     rescrapeUrl: '/api/footballers/rescrape-all',
     extraColumns: BASE_COLUMNS,
     getPeople: (opts) => getFootballers(opts),
-    getPeoplePaged: (opts) => getFootballersPaginated({ ...opts, missingNationality, missingPhoto, nonRetired, missingCaps }),
+    getPeoplePaged: (opts) => getFootballersPaginated({ ...opts, missingNationality, missingPhoto, missingCareerStats, nonRetired, missingCaps }),
     pageSize: 25,
     deletePerson: deleteFootballer,
     deleteAllPeople: deleteAllFootballers,
@@ -191,6 +192,15 @@ export function FootballersPage() {
             className="h-4 w-4 accent-primary"
           />
           Missing photo
+        </label>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={missingCareerStats}
+            onChange={e => setMissingCareerStats(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          Missing career stats
         </label>
         <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
           <input

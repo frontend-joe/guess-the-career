@@ -19,12 +19,13 @@ export interface TenableCandidate {
 }
 
 export interface TenableAnswer {
-  footballer_id: number
+  footballer_id: number | null
   name: string
   nationality: string | null
   photo_url: string | null
   value: number
-  rank?: number
+  unit?: string
+  rank?: number | null
 }
 
 export interface TenableRound {
@@ -52,6 +53,8 @@ export interface TenablePlayRound {
   type: string
   title: string
   metric: Metric
+  ordered: boolean
+  target: number
   answers: TenableAnswer[]
 }
 
@@ -132,5 +135,25 @@ export async function clearTenableSchedule(): Promise<void> {
 export async function getTenablePlayRounds(): Promise<TenablePlayRound[]> {
   const res = await fetch('/api/tenable/schedule/rounds')
   if (!res.ok) throw new Error('Failed to load rounds')
+  return res.json()
+}
+
+export interface TenableVerifyResult {
+  valid: boolean
+  footballerId?: number
+  footballer?: { id: number; name: string; photo_url: string | null }
+  answers?: TenableAnswer[]
+  reason?: string
+}
+
+// A guess that isn't on the board: the server resolves/scrapes the player and
+// recomputes the round, so a qualifying newcomer displaces the weakest answer.
+export async function verifyTenableGuess(roundId: number, name: string): Promise<TenableVerifyResult> {
+  const res = await fetch('/api/tenable/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roundId, name }),
+  })
+  if (!res.ok) return { valid: false, reason: 'request_failed' }
   return res.json()
 }

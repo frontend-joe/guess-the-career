@@ -2,12 +2,17 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { sqlite } from "../db/client.ts";
+import { dbFootballerByName, resolveOrCreateFootballer } from "../services/playerImport.ts";
+import { replaceCareerStatistics } from "../services/footballers.ts";
+import { scrapeWikipedia } from "../services/scraper.ts";
 import {
   TENABLE_TYPES,
   candidatesForType,
   answersForRound,
   getType,
+  isOrdered,
   MIN_ANSWERS,
+  ROUND_SIZE,
   type Metric,
 } from "../services/tenable.ts";
 
@@ -162,6 +167,72 @@ tenableRouter.delete("/schedule", (c) => {
   return c.json({ ok: true });
 });
 
+// POST /api/tenable/verify — a guess that isn't on the board yet.
+//
+// The player may be a genuine answer we simply haven't scraped. Resolve (or
+// scrape) them, make sure they have career statistics, then RECOMPUTE the
+// round. Because answers are derived live, a qualifying newcomer slots into
+// their rightful rank and pushes the weakest answer off the board on its own.
+tenableRouter.post(
+  "/verify",
+  zValidator("json", z.object({ roundId: z.number().int(), name: z.string().min(2) })),
+  async (c) => {
+    const { roundId, name } = c.req.valid("json");
+    const round = sqlite
+      .prepare(`SELECT type, params, metric FROM tenable_rounds WHERE id = ?`)
+      .get(roundId) as { type: string; params: string; metric: string } | undefined;
+    if (!round) return c.json({ error: "Unknown round" }, 404);
+
+    const params = JSON.parse(round.params) as Record<string, string>;
+    const metric = asMetric(round.metric);
+    const clubHint = params.club ?? params.clubA ?? "";
+
+    let fid: number | null = null;
+    try {
+      fid = dbFootballerByName(name);
+      if (fid == null) {
+        const resolved = await resolveOrCreateFootballer(name, clubHint);
+        fid = resolved.id;
+      }
+    } catch {
+      return c.json({ valid: false, reason: "lookup_failed" });
+    }
+    if (fid == null) return c.json({ valid: false, reason: "not_found" });
+
+    // A player can exist without career statistics (scraped before that landed,
+    // or their page had no table) — fill them in so they can qualify.
+    const hasStats = (sqlite
+      .prepare(`SELECT COUNT(*) AS n FROM career_statistics WHERE footballer_id = ?`)
+      .get(fid) as { n: number }).n;
+    if (!hasStats) {
+      const row = sqlite
+        .prepare(`SELECT wikipedia_url FROM footballers WHERE id = ?`)
+        .get(fid) as { wikipedia_url: string } | undefined;
+      if (row?.wikipedia_url) {
+        try {
+          const scraped = await scrapeWikipedia(row.wikipedia_url);
+          await replaceCareerStatistics(fid, scraped.league_stats ?? []);
+        } catch { /* fall through — they just won't qualify */ }
+      }
+    }
+
+    const answers = answersForRound(round.type, params, metric);
+    const ordered = isOrdered(round.type);
+    const valid = answers.some((a) => a.footballer_id === fid);
+    const footballer = sqlite
+      .prepare(`SELECT id, name, photo_url FROM footballers WHERE id = ?`)
+      .get(fid) as { id: number; name: string; photo_url: string | null } | undefined;
+
+    return c.json({
+      valid,
+      footballerId: fid,
+      footballer,
+      // The refreshed board, so the client can re-render after a displacement.
+      answers: answers.map((a, i) => ({ ...a, rank: ordered ? i + 1 : null })),
+    });
+  },
+);
+
 // ── Gameplay ─────────────────────────────────────────────────────────────────
 // GET /api/tenable/schedule/rounds — scheduled rounds with their 10 answers.
 tenableRouter.get("/schedule/rounds", (c) => {
@@ -185,13 +256,18 @@ tenableRouter.get("/schedule/rounds", (c) => {
     rows.map((r) => {
       const metric = asMetric(r.metric);
       const answers = answersForRound(r.type, JSON.parse(r.params), metric);
+      const ordered = isOrdered(r.type);
       return {
         date: r.date,
         roundId: r.round_id,
         type: r.type,
         title: r.title,
         metric,
-        answers: answers.map((a, i) => ({ ...a, rank: i + 1 })),
+        // Ordered rounds are a ranked top ten; unordered rounds return the whole
+        // pool (e.g. a 23-man squad) and the player needs any ten of them.
+        ordered,
+        target: ROUND_SIZE,
+        answers: answers.map((a, i) => ({ ...a, rank: ordered ? i + 1 : null })),
       };
     }),
   );

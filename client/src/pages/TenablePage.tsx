@@ -5,7 +5,7 @@ import { GameMenu } from '@/components/GameMenu'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { OverallProgressScreen, type ProgressRound } from '@/components/OverallProgressScreen'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
-import { getTenablePlayRounds, type TenablePlayRound } from '@/api/tenable'
+import { getTenablePlayRounds, verifyTenableGuess, type TenablePlayRound } from '@/api/tenable'
 
 const ROUND_SIZE = 10
 const PROGRESS_KEY = 'tenable_progress'
@@ -53,13 +53,22 @@ function matches(guess: string, name: string): boolean {
   return false
 }
 
+// Fees come through in whole pounds; squad numbers as a shirt number.
+function formatValue(a: { value: number; unit?: string }): string {
+  if (a.unit === 'fee') {
+    return a.value >= 1_000_000 ? `£${(a.value / 1_000_000).toFixed(1)}m` : `£${Math.round(a.value / 1000)}k`
+  }
+  if (a.unit === 'shirt') return a.value > 0 ? `#${a.value}` : '–'
+  return String(a.value)
+}
+
 // ─── the inverted pyramid ────────────────────────────────────────────────────
 // Row 1 is widest and they taper down, as in the show's board.
 function PyramidRow({
   rank, answer, metric,
 }: {
   rank: number
-  answer: { footballer_id: number; name: string; value: number } | null
+  answer: { footballer_id: number | null; name: string; value: number; unit?: string } | null
   metric: string
 }) {
   const showPlayer = useShowPlayer()
@@ -79,17 +88,18 @@ function PyramidRow({
         {answer ? (
           <button
             type="button"
-            onClick={() => showPlayer(answer.footballer_id)}
-            className="flex items-center gap-2 min-w-0 w-full justify-center"
+            onClick={() => answer.footballer_id && showPlayer(answer.footballer_id)}
+            disabled={!answer.footballer_id}
+            className="flex items-center gap-2 min-w-0 w-full justify-center disabled:cursor-default"
           >
             <span className="font-display text-sm sm:text-base uppercase tracking-wide text-white truncate drop-shadow">
               {answer.name}
             </span>
             <span
-              title={metric}
+              title={answer.unit ?? metric}
               className="shrink-0 min-w-6 h-6 px-1.5 rounded-full bg-black/35 text-white text-xs font-bold flex items-center justify-center tabular-nums"
             >
-              {answer.value}
+              {formatValue(answer)}
             </span>
           </button>
         ) : (
@@ -110,6 +120,7 @@ export function TenablePage() {
   const [error, setError] = useState<string | null>(null)
   const [showProgress, setShowProgress] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -150,14 +161,37 @@ export function TenablePage() {
   const key = round ? String(round.roundId) : ''
   const foundSet = found[key] ?? new Set<number>()
 
-  function submit(name: string) {
-    if (!round) return
-    const hit = round.answers.find(a => !foundSet.has(a.footballer_id) && matches(name, a.name))
-    if (hit) {
+  async function submit(name: string) {
+    if (!round || checking) return
+    const hit = round.answers.find(
+      a => a.footballer_id !== null && !foundSet.has(a.footballer_id) && matches(name, a.name),
+    )
+    if (hit && hit.footballer_id !== null) {
       const next = new Set(foundSet).add(hit.footballer_id)
       setFound(p => ({ ...p, [key]: next }))
       persist(key, next, wrong[key] ?? new Set())
-    } else {
+      return
+    }
+
+    // Not on the board — they may be a real answer we've never scraped.
+    setChecking(true)
+    try {
+      const res = await verifyTenableGuess(round.roundId, name)
+      if (res.valid && res.footballerId != null) {
+        // Recomputed board: the newcomer may have displaced the weakest answer.
+        if (res.answers) {
+          setRounds(rs => rs.map(r => (r.roundId === round.roundId ? { ...r, answers: res.answers! } : r)))
+        }
+        const next = new Set(foundSet).add(res.footballerId)
+        setFound(p => ({ ...p, [key]: next }))
+        persist(key, next, wrong[key] ?? new Set())
+        return
+      }
+    } finally {
+      setChecking(false)
+    }
+
+    {
       if (flashTimer.current) clearTimeout(flashTimer.current)
       setFlash(`"${name}" isn't on the list`)
       flashTimer.current = setTimeout(() => setFlash(null), 2200)
@@ -174,8 +208,8 @@ export function TenablePage() {
       </span>
     ),
     icon: <Trophy size={16} className="text-gray-400" />,
-    guessed: (found[String(r.roundId)] ?? new Set()).size,
-    total: r.answers.length || ROUND_SIZE,
+    guessed: Math.min((found[String(r.roundId)] ?? new Set()).size, r.target || ROUND_SIZE),
+    total: r.ordered ? (r.answers.length || ROUND_SIZE) : (r.target || ROUND_SIZE),
   }))
 
   if (loading) {
@@ -194,8 +228,16 @@ export function TenablePage() {
     )
   }
 
-  const total = round.answers.length || ROUND_SIZE
-  const done = foundSet.size >= total
+  // Ordered rounds show the ranked ten; unordered rounds need any `target` of
+  // a larger pool, filling the board in the order they're found.
+  const total = round.ordered ? (round.answers.length || ROUND_SIZE) : (round.target || ROUND_SIZE)
+  // Count only found players still on the board — a scraped newcomer can
+  // displace an answer the player had already found.
+  const foundList = [...foundSet]
+    .map(id => round.answers.find(a => a.footballer_id === id))
+    .filter(Boolean) as typeof round.answers
+  const foundOnBoard = foundList.length
+  const done = foundOnBoard >= total
 
   return (
     <div className="h-dvh flex flex-col w-full max-w-100 mx-auto font-sans bg-[#0b0c1a]">
@@ -212,7 +254,7 @@ export function TenablePage() {
       {showProgress ? (
         <div className="flex-1 overflow-y-auto bg-gray-50">
           <OverallProgressScreen
-            totalGuessed={rounds.filter(r => (found[String(r.roundId)] ?? new Set()).size >= r.answers.length).length}
+            totalGuessed={rounds.filter(r => (found[String(r.roundId)] ?? new Set()).size >= (r.ordered ? r.answers.length : r.target)).length}
             totalPlayers={rounds.length}
             rounds={progressRounds}
             onRoundClick={i => { setIdx(i); setShowProgress(false) }}
@@ -225,9 +267,9 @@ export function TenablePage() {
             {/* segmented progress, as on the show's board */}
             <div className="flex items-center gap-1 mb-3">
               {Array.from({ length: total }).map((_, i) => (
-                <div key={i} className={`h-2 flex-1 rounded-sm ${i < foundSet.size ? 'bg-green-500' : 'bg-white/15'}`} />
+                <div key={i} className={`h-2 flex-1 rounded-sm ${i < foundOnBoard ? 'bg-green-500' : 'bg-white/15'}`} />
               ))}
-              <span className="text-white text-xs font-bold tabular-nums ml-1.5">{foundSet.size}/{total}</span>
+              <span className="text-white text-xs font-bold tabular-nums ml-1.5">{foundOnBoard}/{total}</span>
             </div>
 
             <h1 className="text-center text-white font-display text-sm leading-snug mb-3 px-2">
@@ -235,20 +277,29 @@ export function TenablePage() {
             </h1>
 
             <div className="flex flex-col gap-1.5">
-              {round.answers.map(a => (
-                <PyramidRow
-                  key={a.rank}
-                  rank={a.rank ?? 0}
-                  metric={round.metric}
-                  answer={foundSet.has(a.footballer_id) ? a : null}
-                />
-              ))}
+              {round.ordered
+                ? round.answers.map(a => (
+                    <PyramidRow
+                      key={a.rank}
+                      rank={a.rank ?? 0}
+                      metric={round.metric}
+                      answer={a.footballer_id !== null && foundSet.has(a.footballer_id) ? a : null}
+                    />
+                  ))
+                : Array.from({ length: total }).map((_, i) => (
+                    <PyramidRow
+                      key={i}
+                      rank={i + 1}
+                      metric={round.metric}
+                      answer={foundList[i] ?? null}
+                    />
+                  ))}
             </div>
           </div>
 
           <div className="bg-[#1a1a2e] shrink-0 px-3 pt-3 pb-4">
-            <p className={`text-xs mb-2 ${done ? 'text-green-400' : 'text-white/50'}`}>
-              {done ? `All ${total} found! ✓` : `${foundSet.size} / ${total} found`}
+            <p className={`text-xs mb-2 ${checking ? 'text-yellow-400' : done ? 'text-green-400' : 'text-white/50'}`}>
+              {checking ? 'Checking…' : done ? `All ${total} found! ✓` : `${foundOnBoard} / ${total} found`}
             </p>
             {flash && (
               <div className="mb-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center">
@@ -260,10 +311,11 @@ export function TenablePage() {
                 <GuessSearchInput
                   autoScrape={false}
                   inputRef={inputRef}
+                  disabled={checking}
                   getKey={f => f.id}
                   getLabel={f => f.name}
                   getStatus={s => {
-                    if (round.answers.some(a => foundSet.has(a.footballer_id) && matches(s.name, a.name))) return 'correct'
+                    if (round.answers.some(a => a.footballer_id !== null && foundSet.has(a.footballer_id) && matches(s.name, a.name))) return 'correct'
                     if ((wrong[key] ?? new Set()).has(norm(s.name))) return 'incorrect'
                     return null
                   }}

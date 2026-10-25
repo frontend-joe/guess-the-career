@@ -123,6 +123,7 @@ footballersRouter.get('/', async (c) => {
   const missingPhoto = c.req.query('missingPhoto') === 'true'
   const nonRetired = c.req.query('nonRetired') === 'true'
   const missingCaps = c.req.query('missingCaps') === 'true'
+  const missingCareerStats = c.req.query('missingCareerStats') === 'true'
 
   const conditions = []
 
@@ -137,6 +138,14 @@ footballersRouter.get('/', async (c) => {
 
   if (missingPhoto) {
     conditions.push(sql`(${footballers.photo_url} IS NULL OR ${footballers.photo_url} = '')`)
+  }
+
+  // No per-league career statistics scraped. Surfaces players whose Wikipedia
+  // page has no "Career statistics" table as well as ones never backfilled.
+  if (missingCareerStats) {
+    conditions.push(sql`NOT EXISTS (
+      SELECT 1 FROM career_statistics cs WHERE cs.footballer_id = ${footballers.id}
+    )`)
   }
 
   // Admin filter: "non-retired" = has an active senior stint (years contains
