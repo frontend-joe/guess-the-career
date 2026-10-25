@@ -3,7 +3,7 @@ import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from './scraper.ts'
 import { clubWikiUrl } from './clubs.ts'
-import { replaceCareerStatistics } from './footballers.ts'
+import { replaceCareerStatistics, applyNameSplit } from './footballers.ts'
 
 // Shared player/club import helpers used by the Transfermarkt-scraping games
 // (Transfer History has its own in-file copies; Record Signings uses these).
@@ -202,6 +202,7 @@ export async function insertScrapedFootballer(wikiUrl: string): Promise<number |
   }
 
   await replaceCareerStatistics(created.id, scraped.league_stats ?? [])
+  await applyNameSplit(created.id, scraped.name, scraped.nationality)
   return created.id
 }
 

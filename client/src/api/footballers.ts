@@ -217,3 +217,57 @@ export async function getCareerStats(id: number): Promise<CareerStatRow[]> {
   if (!res.ok) throw new Error('Failed to load career statistics')
   return res.json()
 }
+
+// ── Name splitting (first name / surname) ───────────────────────────────────
+export interface NameReviewRow {
+  id: number
+  name: string
+  nationality: string | null
+  first_name: string | null
+  surname: string | null
+  name_confirmed: number
+  name_ambiguous: number
+  name_split_reason: string | null
+}
+
+export interface NameReviewResult {
+  data: NameReviewRow[]
+  total: number
+  page: number
+  pageSize: number
+  counts: { ambiguous: number; confirmed: number; total: number }
+}
+
+export async function getNameReview(opts: {
+  filter?: string
+  q?: string
+  page?: number
+  pageSize?: number
+} = {}): Promise<NameReviewResult> {
+  const params = new URLSearchParams()
+  if (opts.filter) params.set('filter', opts.filter)
+  if (opts.q) params.set('q', opts.q)
+  if (opts.page) params.set('page', String(opts.page))
+  if (opts.pageSize) params.set('pageSize', String(opts.pageSize))
+  const res = await fetch(`/api/footballers/names/review?${params}`)
+  if (!res.ok) throw new Error('Failed to load name review')
+  return res.json()
+}
+
+export async function saveNameSplit(
+  id: number,
+  body: { first_name: string | null; surname: string; confirmed?: boolean },
+): Promise<void> {
+  const res = await fetch(`/api/footballers/${id}/name-split`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to save name split')
+}
+
+export async function recomputeNameSplits(): Promise<{ updated: number; ambiguous: number }> {
+  const res = await fetch('/api/footballers/names/recompute', { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to recompute name splits')
+  return res.json()
+}

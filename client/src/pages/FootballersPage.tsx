@@ -136,6 +136,7 @@ export function FootballersPage() {
     scheduleButtons: [
       { label: 'GTC Schedule', path: '/admin/footballers/schedule' },
       { label: 'SOP Schedule', path: '/admin/footballers/sop-schedule' },
+      { label: 'Names', path: '/admin/footballers/names' },
     ],
     addPath: '/admin/footballers/add',
     detailPath: (id) => `/admin/footballers/${id}`,

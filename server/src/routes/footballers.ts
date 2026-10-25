@@ -10,6 +10,7 @@ import { reserveRe } from '../services/football.ts'
 import { clubWikiUrl, rebuildClubs } from "../services/clubs.ts";
 import { applyScrapeResult } from "../services/footballers.ts";
 import { startBackfill, stopBackfill, getBackfillStatus } from "../services/backfill.ts";
+import { splitName } from "../services/nameSplit.ts";
 import { setAppMeta } from "../services/appMeta.ts";
 
 // Family relations that are footballers, from the curated (included) football
@@ -393,6 +394,92 @@ footballersRouter.post('/backfill/stop', (c) => {
   return c.json({ stopped, status: getBackfillStatus() })
 })
 
+// ── Name splitting (first_name / surname) ───────────────────────────────────
+// POST /api/footballers/names/recompute — recompute splits for every player
+// whose split has NOT been confirmed by an admin. Pure computation, no scraping.
+footballersRouter.post('/names/recompute', (c) => {
+  const rows = sqlite.prepare(
+    `SELECT id, name, nationality FROM footballers WHERE name_confirmed = 0`,
+  ).all() as { id: number; name: string; nationality: string | null }[]
+
+  const update = sqlite.prepare(
+    `UPDATE footballers
+     SET first_name = ?, surname = ?, name_ambiguous = ?, name_split_reason = ?
+     WHERE id = ?`,
+  )
+  let ambiguous = 0
+  const tx = sqlite.transaction(() => {
+    for (const r of rows) {
+      const s = splitName(r.name, r.nationality)
+      if (s.ambiguous) ambiguous++
+      update.run(s.first_name, s.surname, s.ambiguous ? 1 : 0, s.reason, r.id)
+    }
+  })
+  tx()
+  return c.json({ updated: rows.length, ambiguous })
+})
+
+// GET /api/footballers/names/review?filter=ambiguous|unconfirmed|all&q=&page=
+// The admin review queue for debatable splits.
+footballersRouter.get('/names/review', (c) => {
+  const filter = c.req.query('filter') ?? 'ambiguous'
+  const q = (c.req.query('q') ?? '').trim().toLowerCase()
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1)
+  const pageSize = Math.min(200, Math.max(1, parseInt(c.req.query('pageSize') ?? '50', 10) || 50))
+
+  const clauses: string[] = []
+  const args: unknown[] = []
+  if (filter === 'ambiguous') clauses.push('name_ambiguous = 1 AND name_confirmed = 0')
+  else if (filter === 'unconfirmed') clauses.push('name_confirmed = 0')
+  else if (filter === 'confirmed') clauses.push('name_confirmed = 1')
+  if (q) {
+    clauses.push('LOWER(name) LIKE ?')
+    args.push(`%${q}%`)
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
+
+  const total = (sqlite.prepare(`SELECT COUNT(*) AS n FROM footballers ${where}`)
+    .get(...args) as { n: number }).n
+  const data = sqlite.prepare(
+    `SELECT id, name, nationality, first_name, surname, name_confirmed, name_ambiguous, name_split_reason
+     FROM footballers ${where}
+     ORDER BY name ASC LIMIT ? OFFSET ?`,
+  ).all(...args, pageSize, (page - 1) * pageSize)
+
+  const counts = sqlite.prepare(
+    `SELECT
+       SUM(CASE WHEN name_ambiguous = 1 AND name_confirmed = 0 THEN 1 ELSE 0 END) AS ambiguous,
+       SUM(CASE WHEN name_confirmed = 1 THEN 1 ELSE 0 END) AS confirmed,
+       COUNT(*) AS total
+     FROM footballers`,
+  ).get()
+
+  return c.json({ data, total, page, pageSize, counts })
+})
+
+// PATCH /api/footballers/:id/name-split — save a split. Saving marks it
+// confirmed, so recomputes leave it alone from then on.
+footballersRouter.patch(
+  '/:id/name-split',
+  zValidator('json', z.object({
+    first_name: z.string().nullable().optional(),
+    surname: z.string().min(1),
+    confirmed: z.boolean().optional(),
+  })),
+  (c) => {
+    const id = parseInt(c.req.param('id'), 10)
+    if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+    const b = c.req.valid('json')
+    const first = b.first_name?.trim() ? b.first_name.trim() : null
+    sqlite.prepare(
+      `UPDATE footballers
+       SET first_name = ?, surname = ?, name_confirmed = ?, name_ambiguous = 0
+       WHERE id = ?`,
+    ).run(first, b.surname.trim(), b.confirmed === false ? 0 : 1, id)
+    return c.json({ ok: true })
+  },
+)
+
 // GET /api/career-stats/leagues — distinct leagues with player/apps/goals totals.
 footballersRouter.get('/career-stats/leagues', (c) => {
   const rows = sqlite.prepare(
@@ -418,19 +505,29 @@ footballersRouter.get('/career-stats/leaders', (c) => {
   if (!league) return c.json({ error: 'league is required' }, 400)
 
   const col = metric === 'apps' ? 'league_apps' : 'league_goals'
+  // Optional surname filters — these use the stored, review-confirmed surname
+  // so "M" correctly includes Del Piero under D and Kim Min-jae under K.
+  const starts = (c.req.query('surnameStarts') ?? '').trim()
+  const ends = (c.req.query('surnameEnds') ?? '').trim()
+  const extra: string[] = []
+  const extraArgs: unknown[] = []
+  if (starts) { extra.push('f.surname LIKE ?'); extraArgs.push(`${starts}%`) }
+  if (ends) { extra.push('f.surname LIKE ?'); extraArgs.push(`%${ends}`) }
+  const extraSql = extra.length ? ` AND ${extra.join(' AND ')}` : ''
+
   const rows = sqlite.prepare(
-    `SELECT f.id AS footballer_id, f.name, f.nationality, f.photo_url,
+    `SELECT f.id AS footballer_id, f.name, f.first_name, f.surname, f.nationality, f.photo_url,
             SUM(COALESCE(cs.league_apps, 0)) AS apps,
             SUM(COALESCE(cs.league_goals, 0)) AS goals
      FROM career_statistics cs
      JOIN footballers f ON f.id = cs.footballer_id
-     WHERE COALESCE(cs.league, cs.division) = ?
+     WHERE COALESCE(cs.league, cs.division) = ?${extraSql}
      GROUP BY f.id
      HAVING SUM(COALESCE(cs.${col}, 0)) >= ?
      ORDER BY SUM(COALESCE(cs.${col}, 0)) DESC
      LIMIT ?`,
-  ).all(league, min, limit)
-  return c.json({ league, metric, min, data: rows })
+  ).all(league, ...extraArgs, min, limit)
+  return c.json({ league, metric, min, surnameStarts: starts || null, surnameEnds: ends || null, data: rows })
 })
 
 // GET /api/footballers/:id/career-stats — one player's per-league season rows.

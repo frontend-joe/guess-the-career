@@ -31,6 +31,7 @@ import { UncappedPlayersAdminPage } from '@/pages/UncappedPlayersAdminPage'
 import { UncappedPlayersSchedulePage } from '@/pages/UncappedPlayersSchedulePage'
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
+import { NameSplitPage } from '@/pages/NameSplitPage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
 import { FootballerDetailPage } from '@/pages/FootballerDetailPage'
 import { FootballerSchedulePage } from '@/pages/FootballerSchedulePage'
@@ -187,6 +188,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/admin/footballers" replace /> },
       { path: 'footballers', element: <FootballersPage /> },
       { path: 'footballers/add', element: <AddFootballerPage /> },
+      { path: 'footballers/names', element: <NameSplitPage /> },
       { path: 'footballers/schedule', element: <FootballerSchedulePage /> },
       { path: 'footballers/:id', element: <FootballerDetailPage /> },
       { path: 'days', element: <Navigate to="/admin/footballers/schedule" replace /> },
