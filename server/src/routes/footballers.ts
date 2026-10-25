@@ -8,7 +8,8 @@ import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
 import { clubWikiUrl, rebuildClubs } from "../services/clubs.ts";
-import { applyScrapeResult, fetchSportsDbPhoto, replaceCareerStatistics } from "../services/footballers.ts";
+import { applyScrapeResult } from "../services/footballers.ts";
+import { startBackfill, stopBackfill, getBackfillStatus } from "../services/backfill.ts";
 import { setAppMeta } from "../services/appMeta.ts";
 
 // Family relations that are footballers, from the curated (included) football
@@ -367,95 +368,29 @@ footballersRouter.get('/rescrape-all', async (c) => {
   })
 })
 
-// GET /api/footballers/backfill-photos — SSE stream. Photo-only backfill for
-// players missing a photo (e.g. scraped while Wikipedia's thumbnail host had
-// changed). Re-scrapes each missing-photo player, updates ONLY photo_url, and
-// leaves stints/fields untouched.
-footballersRouter.get('/backfill-photos', async (c) => {
-  const abortSignal = c.req.raw.signal
-  return streamSSE(c, async (stream) => {
-    const targets = await db
-      .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
-      .from(footballers)
-      .where(
-        and(
-          isNotNull(footballers.wikipedia_url),
-          sql`(${footballers.photo_url} IS NULL OR ${footballers.photo_url} = '')`,
-        ),
-      )
-      .orderBy(footballers.name)
-
-    await stream.writeSSE({
-      data: JSON.stringify({ type: 'init', total: targets.length, players: targets.map(p => ({ id: p.id, name: p.name })) }),
-    })
-
-    let filled = 0
-    for (const player of targets) {
-      if (abortSignal.aborted) break
-      await stream.writeSSE({ data: JSON.stringify({ type: 'start', id: player.id }) })
-
-      try {
-        const result = await scrapeWikipedia(player.url)
-        const photo = result.photo_url ?? (await fetchSportsDbPhoto(result.name))
-        if (photo) {
-          await db
-            .update(footballers)
-            .set({ photo_url: photo, updated_at: sql`(datetime('now'))` })
-            .where(eq(footballers.id, player.id))
-          filled++
-        }
-        await stream.writeSSE({ data: JSON.stringify({ type: 'done', id: player.id, filled: !!photo }) })
-      } catch (e) {
-        await stream.writeSSE({
-          data: JSON.stringify({ type: 'failed', id: player.id, error: e instanceof Error ? e.message : 'Unknown error' }),
-        })
-      }
-
-      await new Promise<void>(r => setTimeout(r, 800))
-    }
-
-    await stream.writeSSE({ data: JSON.stringify({ type: 'complete', filled }) })
-  })
+// Backfill jobs run server-side (independent of the request) so they survive the
+// Netlify proxy (which buffers/times out SSE), tab closes, and 40-minute runtimes.
+// The client starts a job with a short POST and polls GET /backfill/status.
+//   POST /api/footballers/backfill/:type/start  (type = photos | career-stats)
+//   GET  /api/footballers/backfill/status
+//   POST /api/footballers/backfill/stop
+footballersRouter.post('/backfill/:type/start', (c) => {
+  const type = c.req.param('type')
+  if (type !== 'photos' && type !== 'career-stats') {
+    return c.json({ error: 'Unknown backfill type' }, 400)
+  }
+  // onlyMissing (default true) resumes where a previous run left off.
+  const onlyMissing = c.req.query('all') !== 'true'
+  const started = startBackfill(type, onlyMissing)
+  if (!started) return c.json({ started: false, status: getBackfillStatus() }, 409)
+  return c.json({ started: true, status: getBackfillStatus() })
 })
 
-// GET /api/footballers/backfill-career-stats — SSE stream. Scrapes each player's
-// Wikipedia "Career statistics" table and replaces their per-league rows in
-// career_statistics. Leaves footballer fields/stints untouched.
-footballersRouter.get('/backfill-career-stats', async (c) => {
-  const abortSignal = c.req.raw.signal
-  return streamSSE(c, async (stream) => {
-    const targets = await db
-      .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
-      .from(footballers)
-      .where(isNotNull(footballers.wikipedia_url))
-      .orderBy(footballers.name)
+footballersRouter.get('/backfill/status', (c) => c.json(getBackfillStatus()))
 
-    await stream.writeSSE({
-      data: JSON.stringify({ type: 'init', total: targets.length, players: targets.map(p => ({ id: p.id, name: p.name })) }),
-    })
-
-    let withStats = 0
-    let totalRows = 0
-    for (const player of targets) {
-      if (abortSignal.aborted) break
-      await stream.writeSSE({ data: JSON.stringify({ type: 'start', id: player.id }) })
-      try {
-        const result = await scrapeWikipedia(player.url)
-        const rows = result.league_stats ?? []
-        await replaceCareerStatistics(player.id, rows)
-        if (rows.length > 0) withStats++
-        totalRows += rows.length
-        await stream.writeSSE({ data: JSON.stringify({ type: 'done', id: player.id, rows: rows.length }) })
-      } catch (e) {
-        await stream.writeSSE({
-          data: JSON.stringify({ type: 'failed', id: player.id, error: e instanceof Error ? e.message : 'Unknown error' }),
-        })
-      }
-      await new Promise<void>(r => setTimeout(r, 800))
-    }
-
-    await stream.writeSSE({ data: JSON.stringify({ type: 'complete', withStats, totalRows }) })
-  })
+footballersRouter.post('/backfill/stop', (c) => {
+  const stopped = stopBackfill()
+  return c.json({ stopped, status: getBackfillStatus() })
 })
 
 // GET /api/career-stats/leagues — distinct leagues with player/apps/goals totals.

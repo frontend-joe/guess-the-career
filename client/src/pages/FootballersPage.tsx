@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ImageDown, Loader2, BarChart3 } from 'lucide-react'
@@ -34,81 +34,87 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
   },
 ]
 
-// Photo-only backfill for players missing a photo (SSE-driven, non-blocking).
-function BackfillPhotosButton() {
-  const [state, setState] = useState<'idle' | 'running' | 'done'>('idle')
-  const [progress, setProgress] = useState({ done: 0, total: 0, filled: 0 })
-  const esRef = useRef<EventSource | null>(null)
+interface BackfillStatus {
+  type: 'photos' | 'career-stats' | null
+  running: boolean
+  total: number
+  done: number
+  updated: number
+  failed: number
+  currentName: string | null
+  finishedAt: string | null
+}
 
-  function start() {
-    if (state === 'running') return
-    setState('running')
-    setProgress({ done: 0, total: 0, filled: 0 })
-    const es = new EventSource('/api/footballers/backfill-photos')
-    esRef.current = es
-    es.onmessage = (ev) => {
-      const data = JSON.parse(ev.data)
-      if (data.type === 'init') setProgress(p => ({ ...p, total: data.total }))
-      else if (data.type === 'done') setProgress(p => ({ ...p, done: p.done + 1, filled: p.filled + (data.filled ? 1 : 0) }))
-      else if (data.type === 'failed') setProgress(p => ({ ...p, done: p.done + 1 }))
-      else if (data.type === 'complete') { es.close(); setState('done') }
-    }
-    es.onerror = () => { es.close(); setState('done') }
+// Server-side backfill jobs (run on the server, independent of this tab / the
+// Netlify proxy). Start with a POST, then poll status every 2s.
+function BackfillControls() {
+  const [status, setStatus] = useState<BackfillStatus | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const poll = useCallback(async () => {
+    try {
+      const r = await fetch('/api/footballers/backfill/status')
+      if (!r.ok) return
+      const s: BackfillStatus = await r.json()
+      setStatus(s)
+      if (!s.running && pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  const startPolling = useCallback(() => {
+    if (!pollRef.current) pollRef.current = setInterval(poll, 2000)
+  }, [poll])
+
+  useEffect(() => {
+    // Pick up a job already running (e.g. started from another tab).
+    poll().then(() => { if (pollRef.current === null) startPolling() })
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [poll, startPolling])
+
+  async function start(type: 'photos' | 'career-stats') {
+    try {
+      const r = await fetch(`/api/footballers/backfill/${type}/start`, { method: 'POST' })
+      const d = await r.json()
+      if (d.status) setStatus(d.status)
+      startPolling()
+    } catch { /* ignore */ }
   }
 
-  if (state === 'idle') {
-    return (
-      <Button variant="outline" size="sm" onClick={start} className="shrink-0">
+  async function stop() {
+    try { await fetch('/api/footballers/backfill/stop', { method: 'POST' }) } catch { /* ignore */ }
+    poll()
+  }
+
+  const running = !!status?.running
+  const label = status?.type === 'career-stats' ? 'Career stats' : 'Photos'
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => start('photos')} disabled={running} className="shrink-0">
         <ImageDown className="h-3.5 w-3.5 mr-1.5" />
         Backfill photos
       </Button>
-    )
-  }
-  return (
-    <Button variant="outline" size="sm" disabled className="shrink-0">
-      {state === 'running' && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-      {state === 'running'
-        ? `Photos ${progress.done}/${progress.total} (${progress.filled} filled)`
-        : `Done — ${progress.filled} filled`}
-    </Button>
-  )
-}
-
-// Scrape each player's Wikipedia "Career statistics" table into career_statistics.
-function BackfillCareerStatsButton() {
-  const [state, setState] = useState<'idle' | 'running' | 'done'>('idle')
-  const [progress, setProgress] = useState({ done: 0, total: 0, withStats: 0, rows: 0 })
-
-  function start() {
-    if (state === 'running') return
-    setState('running')
-    setProgress({ done: 0, total: 0, withStats: 0, rows: 0 })
-    const es = new EventSource('/api/footballers/backfill-career-stats')
-    es.onmessage = (ev) => {
-      const data = JSON.parse(ev.data)
-      if (data.type === 'init') setProgress(p => ({ ...p, total: data.total }))
-      else if (data.type === 'done') setProgress(p => ({ ...p, done: p.done + 1, withStats: p.withStats + (data.rows > 0 ? 1 : 0), rows: p.rows + (data.rows || 0) }))
-      else if (data.type === 'failed') setProgress(p => ({ ...p, done: p.done + 1 }))
-      else if (data.type === 'complete') { es.close(); setState('done') }
-    }
-    es.onerror = () => { es.close(); setState('done') }
-  }
-
-  if (state === 'idle') {
-    return (
-      <Button variant="outline" size="sm" onClick={start} className="shrink-0">
+      <Button variant="outline" size="sm" onClick={() => start('career-stats')} disabled={running} className="shrink-0">
         <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
         Backfill career stats
       </Button>
-    )
-  }
-  return (
-    <Button variant="outline" size="sm" disabled className="shrink-0">
-      {state === 'running' && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-      {state === 'running'
-        ? `Stats ${progress.done}/${progress.total} (${progress.withStats} players)`
-        : `Done — ${progress.withStats} players, ${progress.rows} rows`}
-    </Button>
+      {running && (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {label} {status!.done}/{status!.total} ({status!.updated} done)
+          {status!.currentName ? ` · ${status!.currentName}` : ''}
+          <button onClick={stop} className="underline ml-1">stop</button>
+        </span>
+      )}
+      {!running && status?.finishedAt && status.total > 0 && (
+        <span className="text-xs text-muted-foreground shrink-0">
+          {label} done — {status.updated}/{status.total}
+        </span>
+      )}
+    </>
   )
 }
 
@@ -206,8 +212,7 @@ export function FootballersPage() {
           />
           Single Defender/Midfielder
         </label>
-        <BackfillPhotosButton />
-        <BackfillCareerStatsButton />
+        <BackfillControls />
       </>
     ),
   }
