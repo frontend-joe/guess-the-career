@@ -45,12 +45,15 @@ export function OverallProgressScreen({
   rounds,
   onRoundClick,
   label = 'answered',
+  wrapNames = false,
 }: {
   totalGuessed: number;
   totalPlayers: number;
   rounds: ProgressRound[];
   onRoundClick?: (index: number) => void;
   label?: string;
+  /** Let long round names wrap over several lines instead of truncating. */
+  wrapNames?: boolean;
 }) {
   const pct =
     totalPlayers > 0 ? Math.round((totalGuessed / totalPlayers) * 100) : 0;
@@ -76,11 +79,15 @@ export function OverallProgressScreen({
             >
               {r.icon && <div className="shrink-0">{r.icon}</div>}
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-900 truncate">
+                <p
+                  className={`text-xs font-semibold text-gray-900 ${wrapNames ? "break-words" : "truncate"}`}
+                >
                   {r.name}
                 </p>
                 {r.subtitle && (
-                  <p className="text-xs text-gray-400 truncate">{r.subtitle}</p>
+                  <p className={`text-xs text-gray-400 ${wrapNames ? "break-words" : "truncate"}`}>
+                    {r.subtitle}
+                  </p>
                 )}
                 <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
                   <div

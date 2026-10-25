@@ -240,7 +240,7 @@ export function TenablePage() {
 
   const progressRounds: ProgressRound[] = rounds.map((r, i) => ({
     name: (
-      <span className="text-xs font-medium">
+      <span className="text-xs font-medium leading-snug">
         <span className="text-gray-400 mr-1">#{i + 1}</span>{r.title}
       </span>
     ),
@@ -312,6 +312,7 @@ export function TenablePage() {
               rounds={filteredProgress.map(d => d.r)}
               onRoundClick={i => { setIdx(filteredProgress[i].i); setShowProgress(false) }}
               label="completed"
+              wrapNames
             />
           </div>
           <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
