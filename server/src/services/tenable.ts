@@ -60,6 +60,11 @@ export const ALLOWED_LEAGUES = [
 ];
 const ALLOWED_LEAGUES_SQL = ALLOWED_LEAGUES.map((l) => `'${l}'`).join(", ");
 const IN_ALLOWED = `COALESCE(cs.league, cs.division) IN (${ALLOWED_LEAGUES_SQL})`;
+// Some sources spell leagues differently ("LaLiga" in the transfer windows), so
+// match on a squashed, lower-cased form.
+const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
+  (l) => `'${l.toLowerCase().replace(/ /g, "")}'`,
+).join(", ");
 
 const PLAYER_LEAGUE = `
   SELECT cs.footballer_id AS fid,
@@ -246,7 +251,9 @@ const surname: TenableType = {
          SELECT cs.footballer_id AS fid,
                 SUM(COALESCE(cs.league_apps,0))  AS apps,
                 SUM(COALESCE(cs.league_goals,0)) AS goals
-         FROM career_statistics cs GROUP BY cs.footballer_id)
+         FROM career_statistics cs
+         WHERE ${IN_ALLOWED}
+         GROUP BY cs.footballer_id)
        SELECT f.surname AS surname, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE f.surname IS NOT NULL AND f.surname <> '' AND tot.${col} > 0
@@ -269,7 +276,9 @@ const surname: TenableType = {
          SELECT cs.footballer_id AS fid,
                 SUM(COALESCE(cs.league_apps,0))  AS apps,
                 SUM(COALESCE(cs.league_goals,0)) AS goals
-         FROM career_statistics cs GROUP BY cs.footballer_id)
+         FROM career_statistics cs
+         WHERE ${IN_ALLOWED}
+         GROUP BY cs.footballer_id)
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE LOWER(f.surname) = LOWER(?) AND tot.${col} > 0
@@ -589,6 +598,7 @@ const transferWindow: TenableType = {
        FROM transfer_window_players p
        JOIN transfer_windows w ON w.id = p.window_id
        WHERE p.fee_value IS NOT NULL AND p.fee_value > 0
+         AND LOWER(REPLACE(w.league, ' ', '')) IN (${ALLOWED_LEAGUES_LOOSE})
        GROUP BY w.id
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
