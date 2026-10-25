@@ -2495,7 +2495,11 @@ const LEAGUE_CANON: { re: RegExp; name: string }[] = [
   { re: /^(efl |football league )?championship$/i, name: "EFL Championship" },
   { re: /^serie a$/i, name: "Serie A" },
   { re: /^serie b$/i, name: "Serie B" },
-  { re: /^(la liga|primera división|primera division)$/i, name: "La Liga" },
+  // NOT "Primera División": that's the name of the top flight in Argentina,
+  // Chile, Peru, Colombia, Uruguay and more, so folding it into La Liga
+  // credited South American league goals to Spain (Zanetti's Banfield seasons
+  // showed up as La Liga goals). Left verbatim — it's genuinely ambiguous.
+  { re: /^la ?liga$/i, name: "La Liga" },
   { re: /^(segunda división|segunda division|la liga 2)$/i, name: "Segunda División" },
   { re: /^(fußball-)?bundesliga$/i, name: "Bundesliga" },
   { re: /^2\.?\s*bundesliga$/i, name: "2. Bundesliga" },

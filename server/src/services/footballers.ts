@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { db } from "../db/client.ts";
+import { db, sqlite } from "../db/client.ts";
 import { footballers, career_stints, career_statistics } from "../db/schema.ts";
 import type { ScrapeResult, LeagueStatRow } from "./scraper.ts";
 import { splitName } from "./nameSplit.ts";
@@ -37,6 +37,25 @@ export async function replaceCareerStatistics(
   rows: LeagueStatRow[],
 ): Promise<void> {
   await db.delete(career_statistics).where(eq(career_statistics.footballer_id, footballerId));
+  if (rows.length > 0) {
+    // "Primera División" is the top flight in Argentina, Chile, Peru, Colombia
+    // and more as well as (historically) Spain, so the name alone can't decide
+    // the league. Resolve it by club: treat it as La Liga only if that club
+    // appears with a La Liga division elsewhere in the table.
+    for (const r of rows) {
+      if (r.division && /^primera divisi[oó]n$/i.test(r.division.trim())) {
+        const bare = r.club.replace(/ \(loan\)$/, "");
+        const spanish = sqlite
+          .prepare(
+            `SELECT 1 FROM career_statistics
+             WHERE REPLACE(club, ' (loan)', '') = ?
+               AND LOWER(REPLACE(division, ' ', '')) = 'laliga' LIMIT 1`,
+          )
+          .get(bare);
+        r.league = spanish ? "La Liga" : r.division;
+      }
+    }
+  }
   if (rows.length > 0) {
     await db.insert(career_statistics).values(
       rows.map((r) => ({
