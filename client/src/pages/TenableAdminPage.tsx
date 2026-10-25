@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { CalendarDays, ChevronRight, Loader2, ListChecks } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getTenableTypes, bulkSelectTenable, type TenableTypeCard } from '@/api/tenable'
+import { getTenableTypes, bulkSelectTenable, pruneTenableRounds, type TenableTypeCard } from '@/api/tenable'
 
 // Menu of Tenable question types. Each card opens a screen of every round of
 // that type that currently has 10+ answers.
@@ -15,6 +15,15 @@ export function TenableAdminPage() {
 
   function refresh() {
     return getTenableTypes().then(r => { setTypes(r.data); setMinAnswers(r.minAnswers) })
+  }
+
+  async function prune() {
+    setBulking(true)
+    try {
+      const r = await pruneTenableRounds()
+      await refresh()
+      alert(`Pruned ${r.pruned} invalid round(s); ${r.unscheduled} schedule entr${r.unscheduled === 1 ? 'y' : 'ies'} cleared.`)
+    } finally { setBulking(false) }
   }
 
   async function selectEverything(deselect = false) {
@@ -49,6 +58,10 @@ export function TenableAdminPage() {
           </Button>
           <Button variant="ghost" size="sm" onClick={() => selectEverything(true)} disabled={loading || bulking}>
             Clear all
+          </Button>
+          <Button variant="ghost" size="sm" onClick={prune} disabled={loading || bulking}
+            title="Remove selected rounds that no longer have 10+ answers">
+            Prune invalid
           </Button>
           <Button variant="outline" size="sm" onClick={() => navigate('/admin/tenable/schedule')}>
             <CalendarDays className="h-3.5 w-3.5 mr-1.5" />

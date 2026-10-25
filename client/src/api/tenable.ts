@@ -168,3 +168,11 @@ export async function bulkSelectTenable(opts: { type?: string; deselect?: boolea
   if (!res.ok) throw new Error('Failed to bulk select rounds')
   return res.json()
 }
+
+// Drop selected rounds that no longer have 10+ answers (e.g. after the league
+// allow-list changed), unscheduling them too.
+export async function pruneTenableRounds(): Promise<{ checked: number; pruned: number; unscheduled: number }> {
+  const res = await fetch('/api/tenable/admin/rounds/prune', { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to prune rounds')
+  return res.json()
+}

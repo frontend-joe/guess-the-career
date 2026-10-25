@@ -43,13 +43,31 @@ export const NOT_RESERVE = (col: string) => `
 `;
 
 // Per-player, per-league totals — the base for most question types.
+// Tenable is built from the Premier League and the Championship only.
+//
+// An allow-list rather than a deny-list: the data holds 100+ competitions whose
+// names collide across countries and eras ("Primera División" is five different
+// top flights; "First Division" is England's TOP flight pre-1992 and its SECOND
+// tier after), and every one of those is a wrong answer waiting to happen.
+// Both club and league rounds are restricted to these, so every round is drawn
+// from the same two competitions.
+export const ALLOWED_LEAGUES = [
+  "Premier League",
+  "EFL Championship",
+  "Serie A",
+  "La Liga",
+  "Bundesliga",
+];
+const ALLOWED_LEAGUES_SQL = ALLOWED_LEAGUES.map((l) => `'${l}'`).join(", ");
+const IN_ALLOWED = `COALESCE(cs.league, cs.division) IN (${ALLOWED_LEAGUES_SQL})`;
+
 const PLAYER_LEAGUE = `
   SELECT cs.footballer_id AS fid,
          COALESCE(cs.league, cs.division) AS league,
          SUM(COALESCE(cs.league_apps, 0))  AS apps,
          SUM(COALESCE(cs.league_goals, 0)) AS goals
   FROM career_statistics cs
-  WHERE COALESCE(cs.league, cs.division) IS NOT NULL
+  WHERE ${IN_ALLOWED}
   GROUP BY cs.footballer_id, COALESCE(cs.league, cs.division)
 `;
 
@@ -61,7 +79,7 @@ const PLAYER_CLUB = `
          SUM(COALESCE(cs.league_goals, 0)) AS goals
   FROM career_statistics cs
   WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
-    AND ${NOT_RESERVE('cs.club')}
+    AND ${NOT_RESERVE('cs.club')} AND ${IN_ALLOWED}
   GROUP BY cs.footballer_id, cs.club
 `;
 
@@ -379,7 +397,7 @@ const PLAYER_CLUB_DISTINCT = `
   SELECT DISTINCT cs.footballer_id AS fid, cs.club AS club
   FROM career_statistics cs
   WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
-    AND ${NOT_RESERVE('cs.club')}
+    AND ${NOT_RESERVE('cs.club')} AND ${IN_ALLOWED}
 `;
 
 const twoClubs: TenableType = {
@@ -398,6 +416,7 @@ const twoClubs: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
                     GROUP BY footballer_id, club)
        SELECT a.club AS clubA, b.club AS clubB, COUNT(*) AS n
        FROM pc a
@@ -425,6 +444,7 @@ const twoClubs: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
                     GROUP BY footballer_id, club)
        SELECT ${ANSWER_COLS}, (ta.${col} + tb.${col}) AS value
        FROM tot ta
@@ -452,6 +472,7 @@ const nationalityClub: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
                     GROUP BY footballer_id, club)
        SELECT tot.club AS club, f.nationality AS nationality, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
@@ -476,6 +497,7 @@ const nationalityClub: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
                     GROUP BY footballer_id, club)
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid

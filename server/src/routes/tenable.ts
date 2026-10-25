@@ -154,6 +154,38 @@ tenableRouter.post(
   },
 );
 
+// POST /api/tenable/admin/rounds/prune — drop selected rounds that are no
+// longer valid (fewer than MIN_ANSWERS answers), e.g. after the league
+// allow-list changed. Also clears any schedule entries pointing at them, so a
+// scheduled round can never serve an empty board.
+tenableRouter.post("/admin/rounds/prune", (c) => {
+  const rounds = sqlite
+    .prepare(`SELECT id, type, params, metric FROM tenable_rounds`)
+    .all() as { id: number; type: string; params: string; metric: string }[];
+
+  const dead: number[] = [];
+  for (const r of rounds) {
+    let n = 0;
+    try {
+      n = answersForRound(r.type, JSON.parse(r.params), asMetric(r.metric)).length;
+    } catch {
+      n = 0;
+    }
+    if (n < MIN_ANSWERS) dead.push(r.id);
+  }
+
+  let unscheduled = 0;
+  const tx = sqlite.transaction(() => {
+    for (const id of dead) {
+      unscheduled += sqlite.prepare(`DELETE FROM tenable_schedule WHERE round_id = ?`).run(id).changes;
+      sqlite.prepare(`DELETE FROM tenable_rounds WHERE id = ?`).run(id);
+    }
+  });
+  tx();
+
+  return c.json({ checked: rounds.length, pruned: dead.length, unscheduled });
+});
+
 tenableRouter.delete("/admin/rounds/:id", (c) => {
   sqlite.prepare(`DELETE FROM tenable_rounds WHERE id = ?`).run(parseInt(c.req.param("id"), 10));
   return c.json({ ok: true });
