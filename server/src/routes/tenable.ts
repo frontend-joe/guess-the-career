@@ -265,8 +265,11 @@ tenableRouter.post(
       dt.setUTCDate(dt.getUTCDate() + n);
       return dt.toISOString().slice(0, 10);
     };
+    // A fresh schedule starts TODAY, so there's something playable immediately
+    // (the gameplay endpoint only serves rounds dated today or earlier).
+    // Otherwise carry on the day after the last scheduled round.
     const start = c.req.valid("json")?.startDate
-      ?? addDays(latest >= today ? latest : today, 1);
+      ?? (scheduled.length === 0 ? today : addDays(latest >= today ? latest : today, 1));
 
     const insert = sqlite.prepare(
       `INSERT INTO tenable_schedule (date, round_id) VALUES (?, ?)`,
