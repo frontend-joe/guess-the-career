@@ -5,7 +5,7 @@ import { GameMenu } from '@/components/GameMenu'
 import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { OverallProgressScreen, type ProgressRound } from '@/components/OverallProgressScreen'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
-import { getTenablePlayRounds, verifyTenableGuess, type TenablePlayRound } from '@/api/tenable'
+import { getTenablePlayRounds, getTenableRoundAnswers, verifyTenableGuess, type TenablePlayRound, type TenableAnswer } from '@/api/tenable'
 
 const ROUND_SIZE = 10
 const PROGRESS_KEY = 'tenable_progress'
@@ -128,6 +128,7 @@ export function TenablePage() {
   const [showProgress, setShowProgress] = useState(false)
   const [flash, setFlash] = useState<{ text: string; near: boolean } | null>(null)
   const [checking, setChecking] = useState(false)
+  const [answersBy, setAnswersBy] = useState<Record<number, TenableAnswer[]>>({})
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -165,12 +166,24 @@ export function TenablePage() {
       setTimeout(() => inputRef.current?.focus(), 50)
   }, [idx, loading, error, rounds.length, showProgress])
 
+  // Answers load one round at a time — the full set was 40s and 3MB.
+  const currentRoundId = rounds[idx]?.roundId
+  useEffect(() => {
+    if (currentRoundId == null || answersBy[currentRoundId]) return
+    let active = true
+    getTenableRoundAnswers(currentRoundId)
+      .then(r => { if (active) setAnswersBy(p => ({ ...p, [currentRoundId]: r.answers })) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [currentRoundId, answersBy])
+
   const key = round ? String(round.roundId) : ''
+  const answers: TenableAnswer[] = (round && answersBy[round.roundId]) || []
   const foundSet = found[key] ?? new Set<number>()
 
   async function submit(name: string) {
     if (!round || checking) return
-    const hit = round.answers.find(
+    const hit = answers.find(
       a => a.footballer_id !== null && !foundSet.has(a.footballer_id) && matches(name, a.name),
     )
     if (hit && hit.footballer_id !== null) {
@@ -187,7 +200,7 @@ export function TenablePage() {
       if (res.valid && res.footballerId != null) {
         // Recomputed board: the newcomer may have displaced the weakest answer.
         if (res.answers) {
-          setRounds(rs => rs.map(r => (r.roundId === round.roundId ? { ...r, answers: res.answers! } : r)))
+          setAnswersBy(p => ({ ...p, [round.roundId]: res.answers! }))
         }
         const next = new Set(foundSet).add(res.footballerId)
         setFound(p => ({ ...p, [key]: next }))
@@ -232,7 +245,7 @@ export function TenablePage() {
     ),
     icon: <Trophy size={16} className="text-gray-400" />,
     guessed: Math.min((found[String(r.roundId)] ?? new Set()).size, r.target || ROUND_SIZE),
-    total: r.ordered ? (r.answers.length || ROUND_SIZE) : (r.target || ROUND_SIZE),
+    total: r.ordered ? Math.min(r.answerCount || ROUND_SIZE, ROUND_SIZE) : (r.target || ROUND_SIZE),
   }))
 
   if (loading) {
@@ -253,12 +266,12 @@ export function TenablePage() {
 
   // Ordered rounds show the ranked ten; unordered rounds need any `target` of
   // a larger pool, filling the board in the order they're found.
-  const total = round.ordered ? (round.answers.length || ROUND_SIZE) : (round.target || ROUND_SIZE)
+  const total = round.ordered ? (round.answerCount ? Math.min(round.answerCount, ROUND_SIZE) : ROUND_SIZE) : (round.target || ROUND_SIZE)
   // Count only found players still on the board — a scraped newcomer can
   // displace an answer the player had already found.
   const foundList = [...foundSet]
-    .map(id => round.answers.find(a => a.footballer_id === id))
-    .filter(Boolean) as typeof round.answers
+    .map(id => answers.find(a => a.footballer_id === id))
+    .filter(Boolean) as TenableAnswer[]
   const foundOnBoard = foundList.length
   const done = foundOnBoard >= total
 
@@ -277,7 +290,7 @@ export function TenablePage() {
       {showProgress ? (
         <div className="flex-1 overflow-y-auto bg-gray-50">
           <OverallProgressScreen
-            totalGuessed={rounds.filter(r => (found[String(r.roundId)] ?? new Set()).size >= (r.ordered ? r.answers.length : r.target)).length}
+            totalGuessed={rounds.filter(r => (found[String(r.roundId)] ?? new Set()).size >= ROUND_SIZE).length}
             totalPlayers={rounds.length}
             rounds={progressRounds}
             onRoundClick={i => { setIdx(i); setShowProgress(false) }}
@@ -300,8 +313,13 @@ export function TenablePage() {
             </h1>
 
             <div className="flex-1 min-h-0 flex flex-col gap-1.5">
-              {round.ordered
-                ? round.answers.map(a => (
+              {round.ordered && answers.length === 0
+                ? /* answers still loading — show the empty board straight away */
+                  Array.from({ length: total }).map((_, i) => (
+                    <PyramidRow key={i} rank={i + 1} metric={round.metric} answer={null} />
+                  ))
+                : round.ordered
+                ? answers.map(a => (
                     <PyramidRow
                       key={a.rank}
                       rank={a.rank ?? 0}
@@ -342,7 +360,7 @@ export function TenablePage() {
                   getKey={f => f.id}
                   getLabel={f => f.name}
                   getStatus={s => {
-                    if (round.answers.some(a => a.footballer_id !== null && foundSet.has(a.footballer_id) && matches(s.name, a.name))) return 'correct'
+                    if (answers.some(a => a.footballer_id !== null && foundSet.has(a.footballer_id) && matches(s.name, a.name))) return 'correct'
                     if ((wrong[key] ?? new Set()).has(norm(s.name))) return 'incorrect'
                     return null
                   }}

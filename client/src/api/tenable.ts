@@ -47,6 +47,7 @@ export interface TenableScheduleEntry {
   metric: string | null
 }
 
+// Metadata only — answers are fetched per round (see getTenableRoundAnswers).
 export interface TenablePlayRound {
   date: string
   roundId: number
@@ -55,7 +56,20 @@ export interface TenablePlayRound {
   metric: Metric
   ordered: boolean
   target: number
+  answerCount: number
+}
+
+export interface TenableRoundAnswers {
+  roundId: number
+  ordered: boolean
+  target: number
   answers: TenableAnswer[]
+}
+
+export async function getTenableRoundAnswers(roundId: number): Promise<TenableRoundAnswers> {
+  const res = await fetch(`/api/tenable/schedule/rounds/${roundId}/answers`)
+  if (!res.ok) throw new Error('Failed to load round')
+  return res.json()
 }
 
 export async function getTenableTypes(): Promise<{ data: TenableTypeCard[]; minAnswers: number }> {

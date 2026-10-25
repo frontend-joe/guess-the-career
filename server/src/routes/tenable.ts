@@ -376,41 +376,69 @@ tenableRouter.post(
 );
 
 // ── Gameplay ─────────────────────────────────────────────────────────────────
-// GET /api/tenable/schedule/rounds — scheduled rounds with their 10 answers.
+// GET /api/tenable/schedule/rounds — the rounds a player can actually play.
+//
+// Metadata only, and never past today: computing answers for every scheduled
+// round took 40s and 3MB, and shipped three years of future answers to anyone
+// who called it. Answers are fetched one round at a time below.
 tenableRouter.get("/schedule/rounds", (c) => {
+  const today = new Date().toISOString().slice(0, 10);
   const rows = sqlite
     .prepare(
-      `SELECT s.date, r.id AS round_id, r.type, r.params, r.metric, r.title
+      `SELECT s.date, r.id AS round_id, r.type, r.metric, r.title, r.answer_count
        FROM tenable_schedule s
        JOIN tenable_rounds r ON r.id = s.round_id
+       WHERE s.date <= ?
        ORDER BY s.date ASC`,
     )
-    .all() as {
+    .all(today) as {
     date: string;
     round_id: number;
     type: string;
-    params: string;
     metric: string;
     title: string;
+    answer_count: number;
   }[];
 
   return c.json(
-    rows.map((r) => {
-      const metric = asMetric(r.metric);
-      const answers = answersForRound(r.type, JSON.parse(r.params), metric);
-      const ordered = isOrdered(r.type);
-      return {
-        date: r.date,
-        roundId: r.round_id,
-        type: r.type,
-        title: r.title,
-        metric,
-        // Ordered rounds are a ranked top ten; unordered rounds return the whole
-        // pool (e.g. a 23-man squad) and the player needs any ten of them.
-        ordered,
-        target: ROUND_SIZE,
-        answers: answers.map((a, i) => ({ ...a, rank: ordered ? i + 1 : null })),
-      };
-    }),
+    rows.map((r) => ({
+      date: r.date,
+      roundId: r.round_id,
+      type: r.type,
+      title: r.title,
+      metric: asMetric(r.metric),
+      ordered: isOrdered(r.type),
+      target: ROUND_SIZE,
+      answerCount: r.answer_count,
+    })),
   );
+});
+
+// GET /api/tenable/schedule/rounds/:roundId/answers — one round's answers.
+// Refuses rounds dated in the future so the schedule can't be read ahead.
+tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
+  const roundId = parseInt(c.req.param("roundId"), 10);
+  if (isNaN(roundId)) return c.json({ error: "Invalid round" }, 400);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const row = sqlite
+    .prepare(
+      `SELECT r.type, r.params, r.metric, s.date
+       FROM tenable_rounds r
+       LEFT JOIN tenable_schedule s ON s.round_id = r.id
+       WHERE r.id = ?`,
+    )
+    .get(roundId) as { type: string; params: string; metric: string; date: string | null } | undefined;
+  if (!row) return c.json({ error: "Unknown round" }, 404);
+  if (row.date && row.date > today) return c.json({ error: "Not yet" }, 403);
+
+  const metric = asMetric(row.metric);
+  const ordered = isOrdered(row.type);
+  const answers = answersForRound(row.type, JSON.parse(row.params), metric);
+  return c.json({
+    roundId,
+    ordered,
+    target: ROUND_SIZE,
+    answers: answers.map((a, i) => ({ ...a, rank: ordered ? i + 1 : null })),
+  });
 });
