@@ -231,6 +231,63 @@ tenableRouter.put(
   },
 );
 
+// POST /api/tenable/schedule/auto-assign — schedule every selected round that
+// isn't already on the calendar, onto consecutive free days, in one
+// transaction. The client used to issue one request per round, which took
+// minutes through the proxy and aborted part-way on any blip or deploy.
+tenableRouter.post(
+  "/schedule/auto-assign",
+  zValidator("json", z.object({ startDate: z.string().optional() }).optional()),
+  (c) => {
+    const scheduled = sqlite
+      .prepare(`SELECT date, round_id FROM tenable_schedule`)
+      .all() as { date: string; round_id: number | null }[];
+    const takenDates = new Set(scheduled.map((s) => s.date));
+    const scheduledRounds = new Set(scheduled.map((s) => s.round_id));
+
+    const pool = (sqlite.prepare(`SELECT id FROM tenable_rounds`).all() as { id: number }[])
+      .filter((r) => !scheduledRounds.has(r.id));
+    if (pool.length === 0) return c.json({ assigned: 0, from: null, to: null });
+
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const latest = scheduled.length
+      ? scheduled.map((s) => s.date).sort().at(-1)!
+      : today;
+    const addDays = (d: string, n: number) => {
+      const dt = new Date(`${d}T00:00:00Z`);
+      dt.setUTCDate(dt.getUTCDate() + n);
+      return dt.toISOString().slice(0, 10);
+    };
+    const start = c.req.valid("json")?.startDate
+      ?? addDays(latest >= today ? latest : today, 1);
+
+    const insert = sqlite.prepare(
+      `INSERT INTO tenable_schedule (date, round_id) VALUES (?, ?)`,
+    );
+    let offset = 0;
+    let first: string | null = null;
+    let last: string | null = null;
+    const tx = sqlite.transaction(() => {
+      for (const r of pool) {
+        let date: string;
+        do { date = addDays(start, offset++); } while (takenDates.has(date));
+        takenDates.add(date);
+        insert.run(date, r.id);
+        first ??= date;
+        last = date;
+      }
+    });
+    tx();
+
+    return c.json({ assigned: pool.length, from: first, to: last });
+  },
+);
+
 tenableRouter.delete("/schedule/:date", (c) => {
   sqlite.prepare(`DELETE FROM tenable_schedule WHERE date = ?`).run(c.req.param("date"));
   return c.json({ ok: true });

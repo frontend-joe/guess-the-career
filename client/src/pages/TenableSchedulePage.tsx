@@ -9,6 +9,7 @@ import {
   assignTenableDay,
   deleteTenableDay,
   clearTenableSchedule,
+  autoAssignTenable,
   type TenableRound,
   type TenableScheduleEntry,
 } from '@/api/tenable'
@@ -21,12 +22,6 @@ function firstDow(y: number, m: number) {
   const d = new Date(y, m, 1).getDay()
   return d === 0 ? 6 : d - 1
 }
-function addDays(date: string, n: number) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
-
 function AssignModal({ date, rounds, onAssign, onClose }: {
   date: string
   rounds: TenableRound[]
@@ -109,29 +104,11 @@ export function TenableSchedulePage() {
   async function handleAutoAssign() {
     setAuto(true)
     try {
-      const scheduled = new Set(schedule.map(s => s.round_id))
-      const pool = rounds.filter(r => !scheduled.has(r.id))
-      if (pool.length === 0) return
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]]
-      }
-      const todayIso = new Date().toISOString().split('T')[0]
-      const latest = schedule.length
-        ? [...schedule].sort((a, b) => b.date.localeCompare(a.date))[0].date
-        : todayIso
-      const start = latest >= todayIso ? addDays(latest, 1) : addDays(todayIso, 1)
-      const taken = new Set(schedule.map(s => s.date))
-      let offset = 0
-      for (const r of pool) {
-        let date: string
-        do { date = addDays(start, offset++) } while (taken.has(date))
-        taken.add(date)
-        await assignTenableDay(date, r.id)
-      }
+      const r = await autoAssignTenable()
+      await loadData()
+      if (r.assigned) alert(`Scheduled ${r.assigned} rounds: ${r.from} → ${r.to}`)
     } finally {
       setAuto(false)
-      await loadData()
     }
   }
 

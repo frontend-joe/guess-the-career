@@ -176,3 +176,14 @@ export async function pruneTenableRounds(): Promise<{ checked: number; pruned: n
   if (!res.ok) throw new Error('Failed to prune rounds')
   return res.json()
 }
+
+// Schedule every unscheduled round server-side, in one transaction.
+export async function autoAssignTenable(): Promise<{ assigned: number; from: string | null; to: string | null }> {
+  const res = await fetch('/api/tenable/schedule/auto-assign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) throw new Error('Failed to auto-assign')
+  return res.json()
+}
