@@ -112,6 +112,48 @@ tenableRouter.post(
   },
 );
 
+// POST /api/tenable/admin/rounds/bulk — select every available round, for one
+// type or all of them. One transaction, because ticking 2000+ rounds one
+// request at a time is unusable (and would never survive the proxy).
+tenableRouter.post(
+  "/admin/rounds/bulk",
+  zValidator("json", z.object({ type: z.string().optional(), deselect: z.boolean().optional() })),
+  (c) => {
+    const { type, deselect } = c.req.valid("json");
+    const slugs = type ? [type] : TENABLE_TYPES.map((t) => t.slug);
+
+    if (deselect) {
+      let removed = 0;
+      const tx = sqlite.transaction(() => {
+        for (const slug of slugs) {
+          removed += sqlite.prepare(`DELETE FROM tenable_rounds WHERE type = ?`).run(slug).changes;
+        }
+      });
+      tx();
+      return c.json({ removed });
+    }
+
+    const insert = sqlite.prepare(
+      `INSERT OR IGNORE INTO tenable_rounds (type, params, metric, title, answer_count)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+    let added = 0;
+    let total = 0;
+    // Candidate discovery is the expensive part, so do it outside the write tx.
+    const all = slugs.flatMap((slug) => candidatesForType(slug));
+    const tx = sqlite.transaction(() => {
+      for (const cand of all) {
+        total++;
+        added += insert.run(
+          cand.type, JSON.stringify(cand.params), cand.metric, cand.title, cand.answer_count,
+        ).changes;
+      }
+    });
+    tx();
+    return c.json({ added, total });
+  },
+);
+
 tenableRouter.delete("/admin/rounds/:id", (c) => {
   sqlite.prepare(`DELETE FROM tenable_rounds WHERE id = ?`).run(parseInt(c.req.param("id"), 10));
   return c.json({ ok: true });

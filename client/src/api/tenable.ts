@@ -157,3 +157,14 @@ export async function verifyTenableGuess(roundId: number, name: string): Promise
   if (!res.ok) return { valid: false, reason: 'request_failed' }
   return res.json()
 }
+
+// Select (or clear) every available round — one type, or all of them.
+export async function bulkSelectTenable(opts: { type?: string; deselect?: boolean } = {}): Promise<{ added?: number; total?: number; removed?: number }> {
+  const res = await fetch('/api/tenable/admin/rounds/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+  })
+  if (!res.ok) throw new Error('Failed to bulk select rounds')
+  return res.json()
+}

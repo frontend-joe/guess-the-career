@@ -7,6 +7,7 @@ import {
   getTenableCandidates,
   selectTenableRound,
   deselectTenableRound,
+  bulkSelectTenable,
   previewTenableRound,
   type TenableCandidate,
   type TenableAnswer,
@@ -64,8 +65,13 @@ export function TenableTypePage() {
 
   const selectedCount = rows.filter(r => r.roundId).length
 
-  async function selectAllVisible() {
-    for (const c of rows.filter(r => !r.roundId)) await toggle(c)
+  const [bulking, setBulking] = useState(false)
+  async function selectAll(deselect = false) {
+    setBulking(true)
+    try {
+      await bulkSelectTenable({ type: slug, deselect })
+      load(q)
+    } finally { setBulking(false) }
   }
 
   return (
@@ -80,9 +86,15 @@ export function TenableTypePage() {
             {loading ? 'Loading…' : `${rows.length} rounds · ${selectedCount} selected`}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={selectAllVisible} disabled={loading || rows.every(r => r.roundId)}>
-          Select all shown
-        </Button>
+        <div className="flex gap-1.5 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => selectAll(false)} disabled={loading || bulking}>
+            {bulking ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+            Select all
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => selectAll(true)} disabled={loading || bulking}>
+            Clear
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4">

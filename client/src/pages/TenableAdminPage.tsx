@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { CalendarDays, ChevronRight, Loader2, ListChecks } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getTenableTypes, type TenableTypeCard } from '@/api/tenable'
+import { getTenableTypes, bulkSelectTenable, type TenableTypeCard } from '@/api/tenable'
 
 // Menu of Tenable question types. Each card opens a screen of every round of
 // that type that currently has 10+ answers.
@@ -11,6 +11,16 @@ export function TenableAdminPage() {
   const [types, setTypes] = useState<TenableTypeCard[]>([])
   const [minAnswers, setMinAnswers] = useState(10)
   const [loading, setLoading] = useState(true)
+  const [bulking, setBulking] = useState(false)
+
+  function refresh() {
+    return getTenableTypes().then(r => { setTypes(r.data); setMinAnswers(r.minAnswers) })
+  }
+
+  async function selectEverything(deselect = false) {
+    setBulking(true)
+    try { await bulkSelectTenable({ deselect }); await refresh() } finally { setBulking(false) }
+  }
 
   useEffect(() => {
     getTenableTypes()
@@ -32,10 +42,19 @@ export function TenableAdminPage() {
               : `${totalAvailable} rounds available with ${minAnswers}+ answers · ${totalSelected} selected`}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/admin/tenable/schedule')}>
-          <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-          Schedule
-        </Button>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => selectEverything(false)} disabled={loading || bulking}>
+            {bulking ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+            Select all rounds
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => selectEverything(true)} disabled={loading || bulking}>
+            Clear all
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/admin/tenable/schedule')}>
+            <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+            Schedule
+          </Button>
+        </div>
       </div>
 
       {loading ? (
