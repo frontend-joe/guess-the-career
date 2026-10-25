@@ -126,6 +126,7 @@ export function TenablePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showProgress, setShowProgress] = useState(false)
+  const [progressSearch, setProgressSearch] = useState('')
   const [flash, setFlash] = useState<{ text: string; near: boolean } | null>(null)
   const [checking, setChecking] = useState(false)
   const [answersBy, setAnswersBy] = useState<Record<number, TenableAnswer[]>>({})
@@ -248,6 +249,21 @@ export function TenablePage() {
     total: r.ordered ? Math.min(r.answerCount || ROUND_SIZE, ROUND_SIZE) : (r.target || ROUND_SIZE),
   }))
 
+  // History search — 1000+ rounds is unusable without it. Matches the round
+  // title, its type and its date.
+  const filteredProgress = progressRounds
+    .map((r, i) => ({ r, i }))
+    .filter(({ i }) => {
+      const term = progressSearch.trim().toLowerCase()
+      if (!term) return true
+      const rd = rounds[i]
+      return (
+        rd.title.toLowerCase().includes(term) ||
+        rd.type.toLowerCase().includes(term) ||
+        rd.date.includes(term)
+      )
+    })
+
   if (loading) {
     return <div className="h-dvh flex items-center justify-center bg-gray-50">
       <Loader2 className="animate-spin text-gray-400" size={28} />
@@ -288,14 +304,34 @@ export function TenablePage() {
       </div>
 
       {showProgress ? (
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <OverallProgressScreen
-            totalGuessed={rounds.filter(r => (found[String(r.roundId)] ?? new Set()).size >= ROUND_SIZE).length}
-            totalPlayers={rounds.length}
-            rounds={progressRounds}
-            onRoundClick={i => { setIdx(i); setShowProgress(false) }}
-            label="completed"
-          />
+        <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
+          <div className="flex-1 overflow-y-auto">
+            <OverallProgressScreen
+              totalGuessed={rounds.filter(r => (found[String(r.roundId)] ?? new Set()).size >= ROUND_SIZE).length}
+              totalPlayers={rounds.length}
+              rounds={filteredProgress.map(d => d.r)}
+              onRoundClick={i => { setIdx(filteredProgress[i].i); setShowProgress(false) }}
+              label="completed"
+            />
+          </div>
+          <div className="shrink-0 px-4 py-3 border-t border-gray-200 bg-white">
+            <input
+              type="text"
+              value={progressSearch}
+              onChange={e => setProgressSearch(e.target.value)}
+              placeholder="Search rounds — club, league, letter, date…"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400"
+              style={{ fontSize: '16px' }}
+            />
+            {progressSearch.trim() && (
+              <p className="text-xs text-gray-500 mt-1.5">
+                {filteredProgress.length} of {rounds.length} rounds
+              </p>
+            )}
+          </div>
         </div>
       ) : (
         <>
