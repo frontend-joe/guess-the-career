@@ -196,6 +196,8 @@ const surnameInitial: TenableType = {
 // Letters only — spaces, hyphens and apostrophes don't count, so "Le Saux" is 6
 // and "O'Shea" is 6.
 const SURNAME_LETTERS = `LENGTH(REPLACE(REPLACE(REPLACE(f.surname, ' ', ''), '-', ''), '''', ''))`;
+// Only short surnames make a good round — longer buckets are large and vague.
+const SURNAME_LENGTHS = [3, 4];
 
 const surnameLength: TenableType = {
   slug: "surname-length",
@@ -211,7 +213,7 @@ const surnameLength: TenableType = {
        SELECT pl.league AS league, ${SURNAME_LETTERS} AS len, COUNT(*) AS n
        FROM pl JOIN footballers f ON f.id = pl.fid
        WHERE f.surname IS NOT NULL AND f.surname <> '' AND pl.${col} > 0
-         AND ${SURNAME_LETTERS} BETWEEN 3 AND 12
+         AND ${SURNAME_LETTERS} IN (${SURNAME_LENGTHS.join(", ")})
        GROUP BY pl.league, len
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
