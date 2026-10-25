@@ -477,7 +477,7 @@ const nationalityClub: TenableType = {
   label: "Nationality at a club",
   description: "Players of one nation who turned out for one club.",
   example: "Name 10 French players who turned out for Arsenal",
-  title: (p, m) => `${p.nationality} players at ${p.club} (most ${metricWord(m)})`,
+  title: (p, m) => `${p.nationality} ${p.club} players (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
