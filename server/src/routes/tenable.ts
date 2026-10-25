@@ -379,22 +379,20 @@ tenableRouter.post(
 );
 
 // ── Gameplay ─────────────────────────────────────────────────────────────────
-// GET /api/tenable/schedule/rounds — the rounds a player can actually play.
+// GET /api/tenable/schedule/rounds — every scheduled round, metadata only.
 //
-// Metadata only, and never past today: computing answers for every scheduled
-// round took 40s and 3MB, and shipped three years of future answers to anyone
-// who called it. Answers are fetched one round at a time below.
+// Metadata only is the important part: computing answers for all of them took
+// 40s and 3MB and blew the proxy timeout. Answers are fetched one round at a
+// time below, so any day can be opened without paying for all of them.
 tenableRouter.get("/schedule/rounds", (c) => {
-  const today = new Date().toISOString().slice(0, 10);
   const rows = sqlite
     .prepare(
       `SELECT s.date, r.id AS round_id, r.type, r.metric, r.title, r.answer_count
        FROM tenable_schedule s
        JOIN tenable_rounds r ON r.id = s.round_id
-       WHERE s.date <= ?
        ORDER BY s.date ASC`,
     )
-    .all(today) as {
+    .all() as {
     date: string;
     round_id: number;
     type: string;
@@ -418,11 +416,9 @@ tenableRouter.get("/schedule/rounds", (c) => {
 });
 
 // GET /api/tenable/schedule/rounds/:roundId/answers — one round's answers.
-// Refuses rounds dated in the future so the schedule can't be read ahead.
 tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
   const roundId = parseInt(c.req.param("roundId"), 10);
   if (isNaN(roundId)) return c.json({ error: "Invalid round" }, 400);
-  const today = new Date().toISOString().slice(0, 10);
 
   const row = sqlite
     .prepare(
@@ -433,7 +429,6 @@ tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
     )
     .get(roundId) as { type: string; params: string; metric: string; date: string | null } | undefined;
   if (!row) return c.json({ error: "Unknown round" }, 404);
-  if (row.date && row.date > today) return c.json({ error: "Not yet" }, 403);
 
   const metric = asMetric(row.metric);
   const ordered = isOrdered(row.type);
