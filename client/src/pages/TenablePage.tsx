@@ -239,12 +239,12 @@ export function TenablePage() {
   }
 
   const progressRounds: ProgressRound[] = rounds.map((r, i) => ({
-    name: (
-      <span className="text-xs font-medium leading-snug">
-        <span className="text-gray-400 mr-1">#{i + 1}</span>{r.title}
+    name: <span className="text-xs font-medium leading-snug">{r.title}</span>,
+    icon: (
+      <span className="w-9 text-right text-xs font-bold tabular-nums text-gray-400">
+        #{i + 1}
       </span>
     ),
-    icon: <Trophy size={16} className="text-gray-400" />,
     guessed: Math.min((found[String(r.roundId)] ?? new Set()).size, r.target || ROUND_SIZE),
     total: r.ordered ? Math.min(r.answerCount || ROUND_SIZE, ROUND_SIZE) : (r.target || ROUND_SIZE),
   }))

@@ -11,6 +11,7 @@ import {
   answersForRound,
   getType,
   isOrdered,
+  titleFor,
   rankOf,
   NEAR_MISS_WINDOW,
   MIN_ANSWERS,
@@ -200,8 +201,13 @@ tenableRouter.get("/admin/rounds", (c) => {
       `SELECT id, type, params, metric, title, answer_count, enabled
        FROM tenable_rounds ORDER BY type, title`,
     )
-    .all() as { params: string }[];
-  return c.json(rows.map((r) => ({ ...r, params: JSON.parse(r.params) })));
+    .all() as { type: string; params: string; metric: string; title: string }[];
+  return c.json(
+    rows.map((r) => {
+      const params = JSON.parse(r.params);
+      return { ...r, params, title: titleFor(r.type, params, asMetric(r.metric), r.title) };
+    }),
+  );
 });
 
 // ── Schedule ─────────────────────────────────────────────────────────────────
@@ -387,7 +393,7 @@ tenableRouter.post(
 tenableRouter.get("/schedule/rounds", (c) => {
   const rows = sqlite
     .prepare(
-      `SELECT s.date, r.id AS round_id, r.type, r.metric, r.title, r.answer_count
+      `SELECT s.date, r.id AS round_id, r.type, r.params, r.metric, r.title, r.answer_count
        FROM tenable_schedule s
        JOIN tenable_rounds r ON r.id = s.round_id
        ORDER BY s.date ASC`,
@@ -396,6 +402,7 @@ tenableRouter.get("/schedule/rounds", (c) => {
     date: string;
     round_id: number;
     type: string;
+    params: string;
     metric: string;
     title: string;
     answer_count: number;
@@ -406,7 +413,7 @@ tenableRouter.get("/schedule/rounds", (c) => {
       date: r.date,
       roundId: r.round_id,
       type: r.type,
-      title: r.title,
+      title: titleFor(r.type, JSON.parse(r.params), asMetric(r.metric), r.title),
       metric: asMetric(r.metric),
       ordered: isOrdered(r.type),
       target: ROUND_SIZE,

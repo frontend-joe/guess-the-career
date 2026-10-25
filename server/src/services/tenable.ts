@@ -90,6 +90,14 @@ const PLAYER_CLUB = `
 
 
 const metricCol = (m: Metric) => (m === "apps" ? "apps" : "goals");
+
+// "in the Premier League" but "in Serie A" — the article is league-specific.
+const TAKES_THE = new Set(["Premier League", "EFL Championship", "Bundesliga"]);
+const inLeague = (league: string) =>
+  TAKES_THE.has(league) ? `the ${league}` : league;
+
+// "Wolverhampton Wanderers'" not "Wolverhampton Wanderers's".
+const possessive = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
 const metricWord = (m: Metric) => (m === "apps" ? "appearances" : "goals");
 
 export interface TenableType {
@@ -119,8 +127,7 @@ const firstName: TenableType = {
   label: "First name",
   description: "Players sharing a first name, ranked within one league.",
   example: "Players named James with the most Premier League goals",
-  title: (p, m) =>
-    `Players named ${p.firstName} with the most ${p.league} ${metricWord(m)}`,
+  title: (p, m) => `${p.league} players named ${p.firstName} (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -158,8 +165,7 @@ const surnameInitial: TenableType = {
   label: "Surname letter",
   description: "Top of a league filtered to one surname initial.",
   example: "Most Premier League goals by players whose surname begins with C",
-  title: (p, m) =>
-    `Most ${p.league} ${metricWord(m)} — surname beginning with ${p.letter}`,
+  title: (p, m) => `${p.league} players, surnames starting ${p.letter} (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -206,8 +212,7 @@ const surnameLength: TenableType = {
   label: "Surname length",
   description: "Top of a league filtered to surnames of an exact letter count.",
   example: "Most Premier League goals by players with a 4-letter surname",
-  title: (p, m) =>
-    `Most ${p.league} ${metricWord(m)} — players with a ${p.length}-letter surname`,
+  title: (p, m) => `${p.league} players with ${p.length}-letter surnames (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -246,8 +251,7 @@ const surname: TenableType = {
   label: "Common surname",
   description: "Players sharing a surname, ranked by career league totals.",
   example: "Name 10 players with the surname Silva",
-  title: (p, m) =>
-    `Name 10 players with the surname ${p.surname} (most career ${metricWord(m)})`,
+  title: (p, m) => `Players called ${p.surname} (most career ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -297,8 +301,7 @@ const nationality: TenableType = {
   label: "Nationality",
   description: "Top of a league filtered to one nationality.",
   example: "Most Premier League goals by Dutch players",
-  title: (p, m) =>
-    `Most ${p.league} ${metricWord(m)} by ${p.nationality} players`,
+  title: (p, m) => `${p.nationality} players in ${inLeague(p.league)} (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -336,7 +339,7 @@ const club: TenableType = {
   label: "Club",
   description: "A club's all-time leaders.",
   example: "Most league appearances for Liverpool",
-  title: (p, m) => `Most league ${metricWord(m)} for ${p.club}`,
+  title: (p, m) => `${p.club} players (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -374,7 +377,7 @@ const leagueAllTime: TenableType = {
   label: "League all-time",
   description: "The outright top ten of a league.",
   example: "Most Premier League goals of all time",
-  title: (p, m) => `Most ${p.league} ${metricWord(m)} of all time`,
+  title: (p, m) => `${p.league} players (most ${metricWord(m)} of all time)`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -418,8 +421,7 @@ const twoClubs: TenableType = {
   label: "Two clubs",
   description: "Players who turned out for both of a pair of clubs.",
   example: "Name 10 players who played for both Liverpool and Chelsea",
-  title: (p, m) =>
-    `Name 10 players who turned out for both ${p.clubA} and ${p.clubB} (most ${metricWord(m)})`,
+  title: (p, m) => `${p.clubA} and ${p.clubB} players (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -475,8 +477,7 @@ const nationalityClub: TenableType = {
   label: "Nationality at a club",
   description: "Players of one nation who turned out for one club.",
   example: "Name 10 French players who turned out for Arsenal",
-  title: (p, m) =>
-    `Name 10 ${p.nationality} players who turned out for ${p.club} (most ${metricWord(m)})`,
+  title: (p, m) => `${p.nationality} players at ${p.club} (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -540,8 +541,7 @@ const overseasClub: TenableType = {
   label: "Overseas at an English club",
   description: "Non-English players who turned out for an English club.",
   example: "Name 10 overseas players who turned out for Chelsea",
-  title: (p, m) =>
-    `Name 10 overseas players who turned out for ${p.club} (most ${metricWord(m)})`,
+  title: (p, m) => `${possessive(p.club)} overseas players (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
@@ -595,7 +595,7 @@ const transferWindow: TenableType = {
   description: "The biggest transfers of a single window, ranked by fee.",
   example: "The 10 biggest Premier League transfers of 2003–04",
   metricless: true,
-  title: (p) => `The 10 biggest ${p.league} transfers of ${p.season}`,
+  title: (p) => `Biggest ${p.league} transfers, ${p.season}`,
   candidates() {
     const rows = sqlite.prepare(
       `SELECT w.id AS windowId, w.league AS league, w.season_label AS season, COUNT(*) AS n
@@ -636,7 +636,7 @@ const worldCupSquad: TenableType = {
   example: "Name 10 players from Brazil's 2002 World Cup squad",
   ordered: false,
   metricless: true,
-  title: (p) => `Name 10 players from ${p.team}'s ${p.year} World Cup squad`,
+  title: (p) => `${possessive(p.team)} ${p.year} World Cup squad`,
   candidates() {
     const rows = sqlite.prepare(
       `SELECT s.id AS squadId, s.team AS team, s.year AS year, COUNT(*) AS n
@@ -696,6 +696,21 @@ export function candidatesForType(slug: string): Candidate[] {
     ? t.candidates("goals")
     : [...t.candidates("goals"), ...t.candidates("apps")];
   return list.sort((a, b) => b.answer_count - a.answer_count);
+}
+
+// Render a round's title from its type + params, so wording changes apply to
+// rounds already selected without having to re-pick them.
+export function titleFor(
+  type: string,
+  params: Record<string, string>,
+  metric: Metric,
+  fallback: string,
+): string {
+  try {
+    return getType(type)?.title(params, metric) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export function isOrdered(slug: string): boolean {
