@@ -198,3 +198,22 @@ export async function getDuplicates(): Promise<Footballer[][]> {
   if (!res.ok) throw new Error('Failed to fetch duplicates')
   return res.json()
 }
+
+// Per-club-season league breakdown from the Wikipedia "Career statistics" table.
+export interface CareerStatRow {
+  club: string
+  club_wikipedia_url: string | null
+  season: string
+  division: string | null
+  league: string | null
+  league_apps: number | null
+  league_goals: number | null
+  total_apps: number | null
+  total_goals: number | null
+}
+
+export async function getCareerStats(id: number): Promise<CareerStatRow[]> {
+  const res = await fetch(`/api/footballers/${id}/career-stats`)
+  if (!res.ok) throw new Error('Failed to load career statistics')
+  return res.json()
+}

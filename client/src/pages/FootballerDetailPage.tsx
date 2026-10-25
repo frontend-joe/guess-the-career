@@ -6,6 +6,7 @@ import { RescrapeButton } from '@/components/RescrapeButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CareerTable } from '@/components/CareerTable'
+import { CareerStatistics } from '@/components/CareerStatistics'
 import {
   getFootballer,
   updateFootballer,
@@ -39,6 +40,7 @@ export function FootballerDetailPage() {
   const [meta, setMeta] = useState<EditMeta>({ name: '', wikipedia_url: '', nationality: '', position: '', all_positions: '', custom_position: '', born: '', height_cm: '', photo_url: '' })
   const [savingMeta, setSavingMeta] = useState(false)
   const [editingCareer, setEditingCareer] = useState(false)
+  const [statsKey, setStatsKey] = useState(0)
   const [stints, setStints] = useState<Stint[]>([])
   const [savingStints, setSavingStints] = useState(false)
   useEffect(() => {
@@ -139,6 +141,8 @@ export function FootballerDetailPage() {
               const { footballer: updated, stints: updatedStints } = await rescrapeFootballer(footballer!.id)
               setFootballer({ ...updated, stints: updatedStints })
               setStints(updatedStints.map(({ id: _id, footballer_id: _fid, ...rest }) => rest))
+              // A rescrape replaces career_statistics too — refetch them.
+              setStatsKey(k => k + 1)
               setMeta({ name: updated.name, wikipedia_url: updated.wikipedia_url, nationality: updated.nationality ?? '', position: updated.position ?? '', all_positions: updated.all_positions ?? '', custom_position: updated.custom_position ?? '', born: updated.born ?? '', height_cm: updated.height_cm?.toString() ?? '', photo_url: updated.photo_url ?? '' })
             }}
           />
@@ -246,6 +250,14 @@ export function FootballerDetailPage() {
           editable={editingCareer}
           onChange={s => setStints(s as Stint[])}
         />
+      </div>
+
+      {/* Career statistics (per-league, from the Wikipedia career stats table) */}
+      <div className="border rounded-lg p-4">
+        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
+          Career statistics
+        </h2>
+        <CareerStatistics footballerId={footballer.id} reloadKey={statsKey} />
       </div>
     </div>
   )
