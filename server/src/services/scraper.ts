@@ -243,6 +243,20 @@ export interface ScrapeResult {
     goals: number | null;
     stint_type: "senior" | "international";
   }[];
+  league_stats: LeagueStatRow[];
+}
+
+export interface LeagueStatRow {
+  sort_order: number;
+  club: string;
+  club_wikipedia_url: string | null;
+  season: string;
+  division: string | null;
+  league: string | null;
+  league_apps: number | null;
+  league_goals: number | null;
+  total_apps: number | null;
+  total_goals: number | null;
 }
 
 interface HonoursData {
@@ -816,6 +830,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     photo_url,
     ...honours,
     stints,
+    league_stats: parseCareerStatistics($),
   };
 }
 
@@ -2328,6 +2343,171 @@ function parseNumber(raw: string): number | null {
   if (!cleaned || cleaned === "−" || cleaned === "-") return null;
   const n = parseInt(cleaned, 10);
   return isNaN(n) ? null : n;
+}
+
+// A number cell from the career-statistics table: strip footnote markers
+// ("6[b]") and em/en dashes ("–" = not applicable) before parsing.
+function parseStatCell(raw: string): number | null {
+  return parseNumber(stripCitations(raw).replace(/[–—]/g, "-").trim());
+}
+
+interface GridCell {
+  text: string;
+  href: string | null;
+}
+
+// Expand an HTML table into a dense 2D grid, honouring rowspan/colspan so every
+// logical column lines up even when Club and Division cells span many rows.
+function tableToGrid($: CheerioAPI, table: cheerio.Cheerio<AnyNode>): GridCell[][] {
+  const grid: GridCell[][] = [];
+  const occupied = new Map<number, { cell: GridCell; rowsLeft: number }>();
+  for (const tr of table.find("tr").toArray()) {
+    const row: GridCell[] = [];
+    const carriedCols: number[] = [];
+    for (const [col, o] of occupied) {
+      row[col] = o.cell;
+      carriedCols.push(col);
+    }
+    let col = 0;
+    for (const td of $(tr).children("th, td").toArray()) {
+      while (row[col] !== undefined || occupied.has(col)) col++;
+      const $td = $(td);
+      const colspan = Math.max(1, parseInt($td.attr("colspan") || "1", 10) || 1);
+      const rowspan = Math.max(1, parseInt($td.attr("rowspan") || "1", 10) || 1);
+      const text = stripCitations(
+        $td.clone().find("style, script, sup").remove().end().text().replace(/\s+/g, " ").trim(),
+      );
+      const href = $td.find("a").first().attr("href") || null;
+      const cell: GridCell = { text, href };
+      for (let k = 0; k < colspan; k++) {
+        const c = col + k;
+        row[c] = cell;
+        if (rowspan > 1) occupied.set(c, { cell, rowsLeft: rowspan - 1 });
+      }
+      col += colspan;
+    }
+    grid.push(row);
+    for (const c of carriedCols) {
+      const o = occupied.get(c);
+      if (!o) continue;
+      o.rowsLeft -= 1;
+      if (o.rowsLeft <= 0) occupied.delete(c);
+    }
+  }
+  return grid;
+}
+
+// Parse the Wikipedia "Career statistics" club table into per-club-season league
+// rows. Picks the club table (the one whose sub-header has a "Division" column),
+// not the international (National team / Year) table. Returns [] when absent.
+export function parseCareerStatistics($: CheerioAPI): LeagueStatRow[] {
+  const tables = $("table.wikitable").toArray();
+  for (const t of tables) {
+    const grid = tableToGrid($, $(t));
+    if (grid.length < 3) continue;
+
+    // Locate the two header rows: the sub-header carries "Division".
+    let subIdx = -1;
+    for (let r = 0; r < Math.min(3, grid.length); r++) {
+      if (grid[r].some((c) => c && /^division$/i.test(c.text))) {
+        subIdx = r;
+        break;
+      }
+    }
+    if (subIdx < 0) continue;
+    const groupIdx = subIdx - 1 >= 0 ? subIdx - 1 : subIdx;
+
+    const sub = grid[subIdx];
+    const group = grid[groupIdx];
+    const findCol = (pred: (top: string, bottom: string) => boolean): number => {
+      const n = Math.max(group.length, sub.length);
+      for (let c = 0; c < n; c++) {
+        if (pred((group[c]?.text ?? ""), (sub[c]?.text ?? ""))) return c;
+      }
+      return -1;
+    };
+
+    const clubCol = findCol((_t, b) => /^club$/i.test(b)) >= 0
+      ? findCol((_t, b) => /^club$/i.test(b))
+      : findCol((t) => /^club$/i.test(t));
+    const seasonCol = findCol((t, b) => /^season$/i.test(t) || /^season$/i.test(b));
+    const divCol = findCol((_t, b) => /^division$/i.test(b));
+    if (clubCol < 0 || seasonCol < 0 || divCol < 0) continue;
+    const leagueAppsCol = divCol + 1;
+    const leagueGoalsCol = divCol + 2;
+    let totalAppsCol = findCol((t, b) => /^total$/i.test(t) && /^apps$/i.test(b));
+    let totalGoalsCol = findCol((t, b) => /^total$/i.test(t) && /^goals$/i.test(b));
+    if (totalAppsCol < 0 || totalGoalsCol < 0) {
+      // Fall back to the last two columns.
+      const ncols = Math.max(...grid.map((r) => r.length));
+      totalGoalsCol = ncols - 1;
+      totalAppsCol = ncols - 2;
+    }
+
+    const rows: LeagueStatRow[] = [];
+    let sortOrder = 0;
+    for (let r = subIdx + 1; r < grid.length; r++) {
+      const row = grid[r];
+      const clubRaw = row[clubCol]?.text ?? "";
+      const season = (row[seasonCol]?.text ?? "").trim();
+      // Skip subtotal / career-total / per-competition summary rows.
+      if (!clubRaw || /total|career/i.test(clubRaw)) continue;
+      if (!season || /total|career/i.test(season)) continue;
+      if (!/\d/.test(season)) continue; // a real season always contains a year
+
+      const isLoan = /\(loan\)/i.test(clubRaw) || /^\s*→/.test(clubRaw);
+      const baseClub = normalizeClubAlias(
+        clubRaw.replace(/^\s*→\s*/, "").replace(/\s*\(loan\)\s*$/i, "").trim(),
+      );
+      const club = isLoan ? `${baseClub} (loan)` : baseClub;
+      const href = row[clubCol]?.href ?? null;
+      const clubWikiUrl = href && href.startsWith("/wiki/")
+        ? `https://en.wikipedia.org${href}`
+        : null;
+      const division = (row[divCol]?.text ?? "").trim() || null;
+
+      rows.push({
+        sort_order: sortOrder++,
+        club,
+        club_wikipedia_url: clubWikiUrl,
+        season,
+        division,
+        league: canonicalLeague(division),
+        league_apps: parseStatCell(row[leagueAppsCol]?.text ?? ""),
+        league_goals: parseStatCell(row[leagueGoalsCol]?.text ?? ""),
+        total_apps: parseStatCell(row[totalAppsCol]?.text ?? ""),
+        total_goals: parseStatCell(row[totalGoalsCol]?.text ?? ""),
+      });
+    }
+    if (rows.length > 0) return rows;
+  }
+  return [];
+}
+
+// Light canonicalisation of a division/league name for grouping across seasons.
+// Conservative: normalises a handful of well-known leagues, passes everything
+// else through verbatim so games can decide how to group eras themselves.
+const LEAGUE_CANON: { re: RegExp; name: string }[] = [
+  { re: /^premier league$/i, name: "Premier League" },
+  { re: /^(efl |football league )?championship$/i, name: "EFL Championship" },
+  { re: /^serie a$/i, name: "Serie A" },
+  { re: /^serie b$/i, name: "Serie B" },
+  { re: /^(la liga|primera división|primera division)$/i, name: "La Liga" },
+  { re: /^(segunda división|segunda division|la liga 2)$/i, name: "Segunda División" },
+  { re: /^(fußball-)?bundesliga$/i, name: "Bundesliga" },
+  { re: /^2\.?\s*bundesliga$/i, name: "2. Bundesliga" },
+  { re: /^ligue 1$/i, name: "Ligue 1" },
+  { re: /^ligue 2$/i, name: "Ligue 2" },
+  { re: /^eredivisie$/i, name: "Eredivisie" },
+  { re: /^primeira liga$/i, name: "Primeira Liga" },
+  { re: /^scottish premiership$|^scottish premier league$/i, name: "Scottish Premiership" },
+];
+
+export function canonicalLeague(division: string | null): string | null {
+  if (!division) return null;
+  const d = division.trim();
+  for (const { re, name } of LEAGUE_CANON) if (re.test(d)) return name;
+  return d;
 }
 
 export interface ClubKitColours {

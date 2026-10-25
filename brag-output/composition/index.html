@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Guess The List — brag</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Russo One";
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url("assets/fonts/russo-400.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Chakra Petch";
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url("assets/fonts/chakra-400.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Chakra Petch";
+        font-style: normal;
+        font-weight: 600;
+        font-display: block;
+        src: url("assets/fonts/chakra-600.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Chakra Petch";
+        font-style: normal;
+        font-weight: 700;
+        font-display: block;
+        src: url("assets/fonts/chakra-700.woff2") format("woff2");
+      }
+
+      :root {
+        --bg: #0b0c1a;
+        --green: #22c55e;
+        --green-hi: #4ade80;
+        --ink: #0b1020;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: #fff;
+        font-family: "Chakra Petch", system-ui, sans-serif;
+      }
+
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .font-display { font-family: "Russo One", system-ui, sans-serif; letter-spacing: 0.01em; }
+      .green { color: var(--green-hi); }
+      .glow { text-shadow: 0 0 34px rgba(34, 197, 94, 0.55); }
+
+      /* ---- shared background ---- */
+      #bg {
+        position: absolute;
+        inset: 0;
+        background: var(--bg);
+        overflow: hidden;
+      }
+      #pitch {
+        position: absolute;
+        inset: -2%;
+        background-image:
+          repeating-linear-gradient(0deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 108px),
+          repeating-linear-gradient(90deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 108px);
+        -webkit-mask-image: radial-gradient(130% 115% at 50% 42%, #000 55%, transparent 100%);
+        mask-image: radial-gradient(130% 115% at 50% 42%, #000 55%, transparent 100%);
+      }
+      #pitch::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 360px;
+        height: 360px;
+        transform: translate(-50%, -50%);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 50%;
+      }
+      .bloom {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(90px);
+        will-change: transform, opacity;
+      }
+      #bloom-a {
+        width: 760px; height: 760px;
+        left: -180px; top: -220px;
+        background: rgba(34, 197, 94, 0.22);
+      }
+      #bloom-b {
+        width: 680px; height: 680px;
+        right: -220px; bottom: -240px;
+        background: rgba(16, 185, 129, 0.16);
+      }
+
+      /* ---- scene scaffolding ---- */
+      .clip { position: absolute; inset: 0; }
+      .stage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        will-change: transform, opacity;
+      }
+
+      /* ---- wordmark ---- */
+      .wordmark {
+        font-size: 150px;
+        line-height: 0.98;
+        letter-spacing: 0.015em;
+      }
+      .kicker {
+        margin-top: 30px;
+        font-size: 36px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.72);
+        letter-spacing: 0.02em;
+      }
+
+      /* ---- glass ---- */
+      .glass {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        backdrop-filter: blur(14px) saturate(140%);
+      }
+
+      /* ---- scene 2: clue panel ---- */
+      #panel {
+        width: 1060px;
+        padding: 52px 56px 56px;
+        border-radius: 42px;
+        box-shadow: 0 0 0 1px rgba(34,197,94,0.14), 0 40px 90px -30px rgba(0,0,0,0.8);
+        will-change: transform, opacity;
+      }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        font-size: 40px;
+        margin-bottom: 40px;
+        color: rgba(255,255,255,0.92);
+      }
+      .panel-head .x { color: rgba(255,255,255,0.35); font-size: 30px; }
+      .chips {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        margin-bottom: 44px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 18px 26px;
+        border-radius: 999px;
+        font-size: 34px;
+        font-weight: 700;
+        will-change: transform, opacity;
+      }
+      .chip .lbl { letter-spacing: 0.04em; }
+      .pos { color: #7dd3fc; }
+      .yrs { color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums; }
+
+      /* fake flag (Argentina) */
+      .flag {
+        width: 58px; height: 40px; border-radius: 7px; overflow: hidden;
+        display: inline-block; position: relative;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        background: linear-gradient(#74ACDF 0 33.3%, #fff 33.3% 66.6%, #74ACDF 66.6% 100%);
+      }
+      .flag::after {
+        content: ""; position: absolute; left: 50%; top: 50%;
+        width: 13px; height: 13px; transform: translate(-50%, -50%);
+        border-radius: 50%; background: #F6B40E; box-shadow: 0 0 0 2px rgba(246,180,14,0.35);
+      }
+      /* fake club crest (Roma colours) */
+      .crest {
+        width: 46px; height: 46px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-family: "Russo One", sans-serif; font-size: 16px; color: #F0BC42;
+        background: radial-gradient(circle at 50% 35%, #a52736, #7a1420);
+        box-shadow: inset 0 0 0 2px rgba(240,188,66,0.65), 0 2px 8px rgba(0,0,0,0.45);
+        letter-spacing: 0.02em;
+      }
+
+      #guessField {
+        height: 92px;
+        border-radius: 20px;
+        display: flex; align-items: center;
+        padding: 0 30px;
+        font-size: 32px;
+        color: rgba(255,255,255,0.45);
+        font-weight: 600;
+        will-change: transform, opacity;
+      }
+      #correct {
+        position: absolute;
+        left: 56px; right: 56px; bottom: 56px;
+        height: 92px;
+        border-radius: 20px;
+        display: flex; align-items: center; gap: 22px;
+        padding: 0 28px;
+        background: linear-gradient(90deg, rgba(34,197,94,0.22), rgba(34,197,94,0.12));
+        border: 1px solid rgba(34,197,94,0.55);
+        box-shadow: 0 0 40px -8px rgba(34,197,94,0.5);
+        will-change: transform, opacity;
+      }
+      #correct .tick {
+        width: 52px; height: 52px; border-radius: 50%;
+        background: var(--green); color: var(--ink);
+        display: flex; align-items: center; justify-content: center;
+        flex: 0 0 auto;
+      }
+      #correct .nm {
+        font-family: "Russo One", sans-serif;
+        font-size: 40px; color: #fff; letter-spacing: 0.01em;
+      }
+      #correct .mini {
+        margin-left: auto; color: #7dd3fc; font-weight: 700; font-size: 28px;
+        letter-spacing: 0.06em;
+      }
+      .clicks {
+        margin-top: 34px;
+        font-size: 30px; font-weight: 600; color: rgba(255,255,255,0.6);
+        will-change: opacity, transform;
+      }
+
+      /* ---- scene 3: montage ---- */
+      .mont-head {
+        font-size: 84px; line-height: 1.02; margin-bottom: 46px;
+        will-change: transform, opacity;
+      }
+      .mont-head .sub { display:block; font-size: 40px; color: rgba(255,255,255,0.7); margin-top: 14px; letter-spacing:0.14em; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 420px);
+        gap: 26px;
+      }
+      .tile {
+        border-radius: 28px;
+        padding: 26px 28px;
+        text-align: left;
+        display: flex; flex-direction: column; gap: 14px;
+        will-change: transform, opacity;
+      }
+      .tile .well {
+        width: 74px; height: 74px; border-radius: 20px;
+        background: rgba(74, 222, 128, 0.12);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .tile .well img { width: 40px; height: 40px; display: block; }
+      .tile .nm { font-family: "Russo One", sans-serif; font-size: 30px; }
+      .tile .pt { font-size: 19px; color: rgba(255,255,255,0.5); line-height: 1.25; }
+
+      /* ---- scene 4 ---- */
+      .era {
+        font-size: 104px; line-height: 0.98;
+        will-change: transform, opacity;
+      }
+      .era .yr { display:block; color: var(--green-hi); margin-top: 8px; }
+      .pub {
+        margin-top: 40px; font-size: 42px; font-weight: 600;
+        color: rgba(255,255,255,0.78);
+        will-change: transform, opacity;
+      }
+      .driftL, .driftR {
+        position: absolute; display: inline-flex; align-items: center; gap: 14px;
+        padding: 18px 24px; border-radius: 999px; font-size: 30px; font-weight: 700;
+        will-change: transform;
+      }
+      .driftL { left: 150px; top: 250px; }
+      .driftR { right: 150px; bottom: 250px; }
+
+      /* ---- scene 5 ---- */
+      #trophyWrap {
+        width: 150px; height: 150px; border-radius: 34px;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(74,222,128,0.12);
+        box-shadow: 0 0 60px -10px rgba(34,197,94,0.6), inset 0 0 0 1px rgba(34,197,94,0.3);
+        margin-bottom: 40px;
+        will-change: transform, opacity;
+      }
+      #trophyWrap img { width: 84px; height: 84px; }
+      .promo { font-size: 72px; line-height: 1.05; will-change: transform, opacity; }
+      .promo .two { color: var(--green-hi); }
+      #outroMark {
+        margin-top: 46px; font-size: 64px;
+        will-change: transform, opacity;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="brag"
+      data-start="0"
+      data-width="1920"
+      data-height="1080"
+      data-duration="19"
+    >
+      <!-- shared background (untimed, always visible) -->
+      <div id="bg">
+        <div id="pitch" data-layout-allow-overflow></div>
+        <div id="bloom-a" class="bloom" data-layout-allow-overflow></div>
+        <div id="bloom-b" class="bloom" data-layout-allow-overflow></div>
+      </div>
+
+      <!-- SCENE 1 — wordmark hook -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.2">
+        <div class="stage" id="s1stage">
+          <div class="wordmark font-display">
+            <span>GUESS THE </span><span class="green glow">LIST</span>
+          </div>
+          <div class="kicker" id="s1kicker">The daily football guessing games.</div>
+        </div>
+      </section>
+
+      <!-- SCENE 2 — the clue drips in -->
+      <section id="s2" class="clip" data-start="3.2" data-duration="4.8">
+        <div class="stage" id="s2stage">
+          <div id="panel" class="glass">
+            <div class="panel-head font-display">
+              <span class="flag"></span>
+              <span>Argentina</span>
+              <span class="x">×</span>
+              <span class="crest">ASR</span>
+              <span>AS Roma</span>
+            </div>
+            <div class="chips">
+              <span class="chip glass pos" id="chip1"><span class="lbl">ST</span></span>
+              <span class="chip glass" id="chip2"><span class="flag"></span></span>
+              <span class="chip glass" id="chip3"><span class="crest">ASR</span></span>
+              <span class="chip glass yrs" id="chip4"><span class="lbl">2000–03</span></span>
+            </div>
+            <div id="guessField" class="glass">Name the only one…</div>
+            <div id="correct">
+              <span class="tick">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </span>
+              <span class="nm">Gabriel Batistuta</span>
+              <span class="mini">ST · 63 apps</span>
+            </div>
+          </div>
+          <div class="clicks" id="s2clicks">…until the name clicks.</div>
+        </div>
+      </section>
+
+      <!-- SCENE 3 — breadth montage -->
+      <section id="s3" class="clip" data-start="7.9" data-duration="5.3">
+        <div class="stage" id="s3stage">
+          <div class="mont-head font-display" id="montHead">
+            <span class="green glow">34 GAMES</span>
+            <span class="sub">ONE GOLDEN ERA</span>
+          </div>
+          <div class="grid" id="grid">
+            <div class="tile glass"><div class="well"><img src="assets/icons/shirt.svg" alt=""></div><div class="nm">Guess the XI</div><div class="pt">Name every player in a classic line-up.</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/link-2.svg" alt=""></div><div class="nm">Two Clubs</div><div class="pt">Who turned out for both?</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/gem.svg" alt=""></div><div class="nm">Record Signings</div><div class="pt">Name a club's priciest buys.</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/flag.svg" alt=""></div><div class="nm">Nationality Players</div><div class="pt">A flag and a club — name them.</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/fingerprint.svg" alt=""></div><div class="nm">Only Player</div><div class="pt">The only one of a nation at a club.</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/network.svg" alt=""></div><div class="nm">Football Families</div><div class="pt">Name the related footballers.</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/globe.svg" alt=""></div><div class="nm">Ballon d'Or</div><div class="pt">Everyone in the running.</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/trophy.svg" alt=""></div><div class="nm">World Cup</div><div class="pt">Recall the squads.</div></div>
+            <div class="tile glass"><div class="well"><img src="assets/icons/trending-up.svg" alt=""></div><div class="nm">Who Scored More</div><div class="pt">Two players, head-to-head.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCENE 4 — the era + the pub -->
+      <section id="s4" class="clip" data-start="13.2" data-duration="2.8">
+        <div class="stage" id="s4stage">
+          <div class="era font-display">
+            FOOTBALL'S GOLDEN ERA
+            <span class="yr">1990–2010</span>
+          </div>
+          <div class="pub" id="pubLine">Brilliant solo. Better down the pub.</div>
+          <span class="driftL glass" id="driftL"><span class="flag"></span><span class="crest">ASR</span></span>
+          <span class="driftR glass" id="driftR"><span class="pos" style="color:#7dd3fc">GK</span><span class="flag"></span></span>
+        </div>
+      </section>
+
+      <!-- SCENE 5 — payoff / outro -->
+      <section id="s5" class="clip" data-start="16.0" data-duration="3.0">
+        <div class="stage" id="s5stage">
+          <div id="trophyWrap"><img src="assets/icons/trophy-outro.svg" alt=""></div>
+          <div class="promo font-display" id="promo">Complete every game. <span class="two">Win a shirt.</span></div>
+          <div id="outroMark" class="wordmark font-display" style="font-size:72px">
+            <span>GUESS THE </span><span class="green glow">LIST</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== AUDIO ===================== -->
+      <audio
+        id="music"
+        src="assets/music/happy-beats-business-moves-vol-11-by-ende-dot-app.mp3"
+        data-start="0"
+        data-duration="19"
+        data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":0.5,"v":0.85},{"t":6.0,"v":0.85},{"t":6.15,"v":0.5},{"t":6.9,"v":0.5},{"t":7.1,"v":0.85},{"t":18.2,"v":0.85},{"t":19,"v":0}]}]}'
+      ></audio>
+
+      <audio id="sfxSlam" src="assets/sfx/hit.ogg" data-start="1.6" data-track-index="11" data-volume="0.5"></audio>
+
+      <audio id="sfxTick1" src="assets/sfx/tick.ogg" data-start="3.70" data-track-index="12" data-volume="0.35"></audio>
+      <audio id="sfxTick2" src="assets/sfx/tick.ogg" data-start="4.22" data-track-index="13" data-volume="0.35"></audio>
+      <audio id="sfxTick3" src="assets/sfx/tick.ogg" data-start="4.75" data-track-index="14" data-volume="0.35"></audio>
+      <audio id="sfxTick4" src="assets/sfx/tick.ogg" data-start="5.28" data-track-index="15" data-volume="0.35"></audio>
+
+      <audio id="sfxCorrect" src="assets/sfx/correct.ogg" data-start="6.34" data-track-index="16" data-volume="0.7"></audio>
+
+      <audio id="sfxTile1" src="assets/sfx/tile.ogg" data-start="8.44" data-track-index="17" data-volume="0.3"></audio>
+      <audio id="sfxTile2" src="assets/sfx/tile.ogg" data-start="9.50" data-track-index="18" data-volume="0.3"></audio>
+      <audio id="sfxTile3" src="assets/sfx/tile.ogg" data-start="10.54" data-track-index="19" data-volume="0.3"></audio>
+      <audio id="sfxTile4" src="assets/sfx/tile.ogg" data-start="11.60" data-track-index="20" data-volume="0.3"></audio>
+      <audio id="sfxTile5" src="assets/sfx/tile.ogg" data-start="12.65" data-track-index="21" data-volume="0.3"></audio>
+
+      <audio id="sfxLogo" src="assets/sfx/hit.ogg" data-start="16.86" data-track-index="22" data-volume="0.72"></audio>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      // --- shared background: gentle musical breathing on the glow blooms ---
+      gsap.set(["#bloom-a", "#bloom-b"], { transformOrigin: "50% 50%" });
+      tl.to("#bloom-a", { scale: 1.12, opacity: 0.85, duration: 1.05, ease: "sine.inOut", repeat: -1, yoyo: true }, 0);
+      tl.to("#bloom-b", { scale: 1.1, opacity: 0.8, duration: 1.3, ease: "sine.inOut", repeat: -1, yoyo: true }, 0.4);
+
+      // ===== SCENE 1 — wordmark hook =====
+      tl.set("#s1stage .wordmark", { opacity: 0, scale: 1.18, transformOrigin: "50% 50%" }, 0);
+      tl.set("#s1kicker", { opacity: 0, y: 18 }, 0);
+      // beat-locked: 1.60s (wordmark slam)
+      tl.to("#s1stage .wordmark", { opacity: 1, scale: 1, duration: 0.5, ease: "power4.out" }, 1.6);
+      tl.to("#s1kicker", { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.1);
+      tl.to("#s1stage", { opacity: 0, duration: 0.3, ease: "power2.in" }, 2.95);
+
+      // ===== SCENE 2 — clue panel =====
+      tl.set("#s2stage", { opacity: 0 }, 3.2);
+      tl.set("#panel", { opacity: 0, scale: 0.96, transformOrigin: "50% 50%" }, 3.2);
+      tl.set(["#chip1", "#chip2", "#chip3", "#chip4"], { opacity: 0, y: 16 }, 3.2);
+      tl.set("#correct", { opacity: 0, scale: 0.9, transformOrigin: "50% 50%" }, 3.2);
+      tl.set("#guessField", { opacity: 0, y: 12 }, 3.2);
+      tl.set("#s2clicks", { opacity: 0, y: 10 }, 3.2);
+
+      tl.to("#s2stage", { opacity: 1, duration: 0.25 }, 3.25);
+      tl.to("#panel", { opacity: 1, scale: 1, duration: 0.45, ease: "power3.out" }, 3.3);
+      // beat-grid: chip1 3.70, chip2 4.22, chip3 4.75, chip4 5.28
+      tl.to("#chip1", { opacity: 1, y: 0, duration: 0.3, ease: "back.out(2)" }, 3.70);
+      tl.to("#chip2", { opacity: 1, y: 0, duration: 0.3, ease: "back.out(2)" }, 4.22);
+      tl.to("#chip3", { opacity: 1, y: 0, duration: 0.3, ease: "back.out(2)" }, 4.75);
+      tl.to("#chip4", { opacity: 1, y: 0, duration: 0.3, ease: "back.out(2)" }, 5.28);
+      tl.to("#guessField", { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, 5.55);
+      // beat-locked: 6.34s (correct reveal)
+      tl.to("#guessField", { opacity: 0, duration: 0.2 }, 6.2);
+      tl.to("#correct", { opacity: 1, scale: 1, duration: 0.42, ease: "back.out(1.7)" }, 6.34);
+      tl.to("#s2clicks", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 6.6);
+      tl.to("#s2stage", { opacity: 0, duration: 0.25, ease: "power2.in" }, 7.75);
+
+      // ===== SCENE 3 — breadth montage =====
+      const tiles = gsap.utils.toArray("#grid .tile");
+      tl.set("#s3stage", { opacity: 0 }, 7.9);
+      tl.set("#montHead", { opacity: 0, y: 18 }, 7.9);
+      tl.set(tiles, { opacity: 0, y: 22, scale: 0.95, transformOrigin: "50% 50%" }, 7.9);
+      tl.to("#s3stage", { opacity: 1, duration: 0.25 }, 7.9);
+      tl.to("#montHead", { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 7.95);
+      // beat-grid cascade: 8.44 .. 12.65 (every ~0.52s), full grid holds after
+      const tileTimes = [8.44, 8.96, 9.50, 10.01, 10.54, 11.06, 11.60, 12.12, 12.65];
+      tiles.forEach((t, i) => {
+        tl.to(t, { opacity: 1, y: 0, scale: 1, duration: 0.34, ease: "power3.out" }, tileTimes[i]);
+      });
+      tl.to("#s3stage", { opacity: 0, duration: 0.28, ease: "power2.in" }, 12.95);
+
+      // ===== SCENE 4 — era + pub =====
+      tl.set("#s4stage", { opacity: 0 }, 13.2);
+      tl.set("#s4stage .era", { opacity: 0, scale: 1.1, transformOrigin: "50% 50%" }, 13.2);
+      tl.set("#pubLine", { opacity: 0, y: 16 }, 13.2);
+      tl.set("#driftL", { opacity: 0, x: -30 }, 13.2);
+      tl.set("#driftR", { opacity: 0, x: 30 }, 13.2);
+      tl.to("#s4stage", { opacity: 1, duration: 0.25 }, 13.25);
+      tl.to("#s4stage .era", { opacity: 1, scale: 1, duration: 0.5, ease: "power4.out" }, 13.35);
+      tl.to("#driftL", { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 13.5);
+      tl.to("#driftR", { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 13.6);
+      tl.to("#pubLine", { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 13.95);
+      // slow drift
+      tl.to("#driftL", { y: -18, duration: 2.2, ease: "sine.inOut" }, 13.6);
+      tl.to("#driftR", { y: 18, duration: 2.2, ease: "sine.inOut" }, 13.7);
+      tl.to("#s4stage", { opacity: 0, duration: 0.28, ease: "power2.in" }, 15.72);
+
+      // ===== SCENE 5 — payoff / outro =====
+      tl.set("#s5stage", { opacity: 0 }, 16.0);
+      tl.set("#trophyWrap", { opacity: 0, scale: 0.6, transformOrigin: "50% 50%" }, 16.0);
+      tl.set("#promo", { opacity: 0, y: 18 }, 16.0);
+      tl.set("#outroMark", { opacity: 0, scale: 1.1, transformOrigin: "50% 50%" }, 16.0);
+      tl.to("#s5stage", { opacity: 1, duration: 0.25 }, 16.05);
+      tl.to("#trophyWrap", { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, 16.1);
+      tl.to("#promo", { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 16.35);
+      // beat-locked: 16.86s (wordmark settle / logo hit)
+      tl.to("#outroMark", { opacity: 1, scale: 1, duration: 0.5, ease: "power4.out" }, 16.86);
+      tl.to("#trophyWrap", { boxShadow: "0 0 90px -6px rgba(34,197,94,0.85), inset 0 0 0 1px rgba(34,197,94,0.4)", duration: 0.6, ease: "sine.inOut", repeat: -1, yoyo: true }, 17.0);
+
+      window.__timelines["brag"] = tl;
+    </script>
+  </body>
+</html>

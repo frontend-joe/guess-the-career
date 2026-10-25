@@ -1,7 +1,33 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
-import { footballers, career_stints } from "../db/schema.ts";
-import type { ScrapeResult } from "./scraper.ts";
+import { footballers, career_stints, career_statistics } from "../db/schema.ts";
+import type { ScrapeResult, LeagueStatRow } from "./scraper.ts";
+
+// Replace a player's per-league career statistics (from the Wikipedia "Career
+// statistics" table). Shared by insertScrapedFootballer, rescrape, and backfill.
+export async function replaceCareerStatistics(
+  footballerId: number,
+  rows: LeagueStatRow[],
+): Promise<void> {
+  await db.delete(career_statistics).where(eq(career_statistics.footballer_id, footballerId));
+  if (rows.length > 0) {
+    await db.insert(career_statistics).values(
+      rows.map((r) => ({
+        footballer_id: footballerId,
+        sort_order: r.sort_order,
+        club: r.club,
+        club_wikipedia_url: r.club_wikipedia_url,
+        season: r.season,
+        division: r.division,
+        league: r.league,
+        league_apps: r.league_apps,
+        league_goals: r.league_goals,
+        total_apps: r.total_apps,
+        total_goals: r.total_goals,
+      })),
+    );
+  }
+}
 
 // Best-effort player thumbnail from TheSportsDB (used as a last-resort fallback
 // when Wikipedia has no photo and none is already stored).
@@ -64,4 +90,6 @@ export async function applyScrapeResult(
       result.stints.map((s, i) => ({ ...s, sort_order: i, footballer_id: id })),
     );
   }
+
+  await replaceCareerStatistics(id, result.league_stats ?? []);
 }

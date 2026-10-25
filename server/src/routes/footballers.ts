@@ -8,7 +8,7 @@ import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
 import { clubWikiUrl, rebuildClubs } from "../services/clubs.ts";
-import { applyScrapeResult, fetchSportsDbPhoto } from "../services/footballers.ts";
+import { applyScrapeResult, fetchSportsDbPhoto, replaceCareerStatistics } from "../services/footballers.ts";
 import { setAppMeta } from "../services/appMeta.ts";
 
 // Family relations that are footballers, from the curated (included) football
@@ -416,6 +416,98 @@ footballersRouter.get('/backfill-photos', async (c) => {
 
     await stream.writeSSE({ data: JSON.stringify({ type: 'complete', filled }) })
   })
+})
+
+// GET /api/footballers/backfill-career-stats — SSE stream. Scrapes each player's
+// Wikipedia "Career statistics" table and replaces their per-league rows in
+// career_statistics. Leaves footballer fields/stints untouched.
+footballersRouter.get('/backfill-career-stats', async (c) => {
+  const abortSignal = c.req.raw.signal
+  return streamSSE(c, async (stream) => {
+    const targets = await db
+      .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
+      .from(footballers)
+      .where(isNotNull(footballers.wikipedia_url))
+      .orderBy(footballers.name)
+
+    await stream.writeSSE({
+      data: JSON.stringify({ type: 'init', total: targets.length, players: targets.map(p => ({ id: p.id, name: p.name })) }),
+    })
+
+    let withStats = 0
+    let totalRows = 0
+    for (const player of targets) {
+      if (abortSignal.aborted) break
+      await stream.writeSSE({ data: JSON.stringify({ type: 'start', id: player.id }) })
+      try {
+        const result = await scrapeWikipedia(player.url)
+        const rows = result.league_stats ?? []
+        await replaceCareerStatistics(player.id, rows)
+        if (rows.length > 0) withStats++
+        totalRows += rows.length
+        await stream.writeSSE({ data: JSON.stringify({ type: 'done', id: player.id, rows: rows.length }) })
+      } catch (e) {
+        await stream.writeSSE({
+          data: JSON.stringify({ type: 'failed', id: player.id, error: e instanceof Error ? e.message : 'Unknown error' }),
+        })
+      }
+      await new Promise<void>(r => setTimeout(r, 800))
+    }
+
+    await stream.writeSSE({ data: JSON.stringify({ type: 'complete', withStats, totalRows }) })
+  })
+})
+
+// GET /api/career-stats/leagues — distinct leagues with player/apps/goals totals.
+footballersRouter.get('/career-stats/leagues', (c) => {
+  const rows = sqlite.prepare(
+    `SELECT COALESCE(league, division) AS league,
+            COUNT(DISTINCT footballer_id) AS players,
+            SUM(COALESCE(league_apps, 0)) AS apps,
+            SUM(COALESCE(league_goals, 0)) AS goals
+     FROM career_statistics
+     WHERE COALESCE(league, division) IS NOT NULL
+     GROUP BY COALESCE(league, division)
+     ORDER BY players DESC, apps DESC`,
+  ).all()
+  return c.json(rows)
+})
+
+// GET /api/career-stats/leaders?league=Premier League&metric=goals|apps&min=100&limit=50
+// Aggregated per-player league totals — the primary query for building new games.
+footballersRouter.get('/career-stats/leaders', (c) => {
+  const league = (c.req.query('league') ?? '').trim()
+  const metric = c.req.query('metric') === 'apps' ? 'apps' : 'goals'
+  const min = Math.max(0, parseInt(c.req.query('min') ?? '0', 10) || 0)
+  const limit = Math.min(500, Math.max(1, parseInt(c.req.query('limit') ?? '100', 10) || 100))
+  if (!league) return c.json({ error: 'league is required' }, 400)
+
+  const col = metric === 'apps' ? 'league_apps' : 'league_goals'
+  const rows = sqlite.prepare(
+    `SELECT f.id AS footballer_id, f.name, f.nationality, f.photo_url,
+            SUM(COALESCE(cs.league_apps, 0)) AS apps,
+            SUM(COALESCE(cs.league_goals, 0)) AS goals
+     FROM career_statistics cs
+     JOIN footballers f ON f.id = cs.footballer_id
+     WHERE COALESCE(cs.league, cs.division) = ?
+     GROUP BY f.id
+     HAVING SUM(COALESCE(cs.${col}, 0)) >= ?
+     ORDER BY SUM(COALESCE(cs.${col}, 0)) DESC
+     LIMIT ?`,
+  ).all(league, min, limit)
+  return c.json({ league, metric, min, data: rows })
+})
+
+// GET /api/footballers/:id/career-stats — one player's per-league season rows.
+footballersRouter.get('/:id/career-stats', (c) => {
+  const id = parseInt(c.req.param('id'), 10)
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  const rows = sqlite.prepare(
+    `SELECT club, club_wikipedia_url, season, division, league,
+            league_apps, league_goals, total_apps, total_goals
+     FROM career_statistics WHERE footballer_id = ? ORDER BY sort_order`,
+  ).all(id)
+  return c.json(rows)
 })
 
 // DELETE /api/footballers — delete all footballers (cascades to stints; days set null via schema)

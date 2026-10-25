@@ -40,6 +40,23 @@ export const career_stints = sqliteTable('career_stints', {
   stint_type: text('stint_type').notNull().default('senior'),
 })
 
+// Per-club-season league breakdown from the Wikipedia "Career statistics" table.
+// Additive to career_stints; powers league-based games.
+export const career_statistics = sqliteTable('career_statistics', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  footballer_id: integer('footballer_id').notNull().references(() => footballers.id, { onDelete: 'cascade' }),
+  sort_order: integer('sort_order').notNull().default(0),
+  club: text('club').notNull(),
+  club_wikipedia_url: text('club_wikipedia_url'),
+  season: text('season').notNull(),
+  division: text('division'),
+  league: text('league'),
+  league_apps: integer('league_apps'),
+  league_goals: integer('league_goals'),
+  total_apps: integer('total_apps'),
+  total_goals: integer('total_goals'),
+})
+
 export const days = sqliteTable('days', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   date: text('date').notNull().unique(),
@@ -264,6 +281,8 @@ export type Footballer = typeof footballers.$inferSelect
 export type NewFootballer = typeof footballers.$inferInsert
 export type CareerStint = typeof career_stints.$inferSelect
 export type NewCareerStint = typeof career_stints.$inferInsert
+export type CareerStatistic = typeof career_statistics.$inferSelect
+export type NewCareerStatistic = typeof career_statistics.$inferInsert
 export type Day = typeof days.$inferSelect
 export type Manager = typeof managers.$inferSelect
 export type NewManager = typeof managers.$inferInsert

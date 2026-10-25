@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ImageDown, Loader2 } from 'lucide-react'
+import { ImageDown, Loader2, BarChart3 } from 'lucide-react'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import {
@@ -70,6 +70,44 @@ function BackfillPhotosButton() {
       {state === 'running'
         ? `Photos ${progress.done}/${progress.total} (${progress.filled} filled)`
         : `Done — ${progress.filled} filled`}
+    </Button>
+  )
+}
+
+// Scrape each player's Wikipedia "Career statistics" table into career_statistics.
+function BackfillCareerStatsButton() {
+  const [state, setState] = useState<'idle' | 'running' | 'done'>('idle')
+  const [progress, setProgress] = useState({ done: 0, total: 0, withStats: 0, rows: 0 })
+
+  function start() {
+    if (state === 'running') return
+    setState('running')
+    setProgress({ done: 0, total: 0, withStats: 0, rows: 0 })
+    const es = new EventSource('/api/footballers/backfill-career-stats')
+    es.onmessage = (ev) => {
+      const data = JSON.parse(ev.data)
+      if (data.type === 'init') setProgress(p => ({ ...p, total: data.total }))
+      else if (data.type === 'done') setProgress(p => ({ ...p, done: p.done + 1, withStats: p.withStats + (data.rows > 0 ? 1 : 0), rows: p.rows + (data.rows || 0) }))
+      else if (data.type === 'failed') setProgress(p => ({ ...p, done: p.done + 1 }))
+      else if (data.type === 'complete') { es.close(); setState('done') }
+    }
+    es.onerror = () => { es.close(); setState('done') }
+  }
+
+  if (state === 'idle') {
+    return (
+      <Button variant="outline" size="sm" onClick={start} className="shrink-0">
+        <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+        Backfill career stats
+      </Button>
+    )
+  }
+  return (
+    <Button variant="outline" size="sm" disabled className="shrink-0">
+      {state === 'running' && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+      {state === 'running'
+        ? `Stats ${progress.done}/${progress.total} (${progress.withStats} players)`
+        : `Done — ${progress.withStats} players, ${progress.rows} rows`}
     </Button>
   )
 }
@@ -169,6 +207,7 @@ export function FootballersPage() {
           Single Defender/Midfielder
         </label>
         <BackfillPhotosButton />
+        <BackfillCareerStatsButton />
       </>
     ),
   }
