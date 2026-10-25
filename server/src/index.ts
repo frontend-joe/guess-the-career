@@ -39,6 +39,7 @@ import { worldCupSquadsRouter } from './routes/world-cup-squads.ts'
 import { worldCupScheduleRouter } from './routes/world-cup-schedule.ts'
 import { nationalsRouter } from './routes/nationals.ts'
 import { onlyPlayerRouter } from './routes/only-player.ts'
+import { tenableRouter } from './routes/tenable.ts'
 import { foreignersRouter } from './routes/foreigners.ts'
 import { serieARouter } from './routes/serie-a.ts'
 import { laLigaRouter } from './routes/la-liga.ts'
@@ -111,6 +112,7 @@ app.route('/api/world-cup-squads', worldCupSquadsRouter)
 app.route('/api/world-cup-schedule', worldCupScheduleRouter)
 app.route('/api/nationals', nationalsRouter)
 app.route('/api/only-player', onlyPlayerRouter)
+app.route('/api/tenable', tenableRouter)
 app.route('/api/foreigners', foreignersRouter)
 app.route('/api/serie-a', serieARouter)
 app.route('/api/la-liga', laLigaRouter)

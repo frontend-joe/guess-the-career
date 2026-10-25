@@ -1,0 +1,85 @@
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { CalendarDays, ChevronRight, Loader2, ListChecks } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { getTenableTypes, type TenableTypeCard } from '@/api/tenable'
+
+// Menu of Tenable question types. Each card opens a screen of every round of
+// that type that currently has 10+ answers.
+export function TenableAdminPage() {
+  const navigate = useNavigate()
+  const [types, setTypes] = useState<TenableTypeCard[]>([])
+  const [minAnswers, setMinAnswers] = useState(10)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getTenableTypes()
+      .then(r => { setTypes(r.data); setMinAnswers(r.minAnswers) })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const totalAvailable = types.reduce((n, t) => n + t.available, 0)
+  const totalSelected = types.reduce((n, t) => n + t.selected, 0)
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="flex items-start justify-between mb-5 flex-wrap gap-2">
+        <div>
+          <h1 className="text-xl font-semibold">Tenable</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {loading
+              ? 'Loading…'
+              : `${totalAvailable} rounds available with ${minAnswers}+ answers · ${totalSelected} selected`}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/tenable/schedule')}>
+          <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+          Schedule
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm py-12 justify-center">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Working out which rounds have enough answers…
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {types.map(t => (
+            <button
+              key={t.slug}
+              onClick={() => navigate(`/admin/tenable/${t.slug}`)}
+              disabled={t.available === 0}
+              className="group text-left rounded-xl border p-4 transition-colors hover:bg-muted/40 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="font-medium flex items-center gap-2">
+                    <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
+                    {t.label}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">{t.description}</p>
+                  <p className="text-xs text-muted-foreground/80 mt-2 italic truncate">
+                    e.g. “{t.example}”
+                  </p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+              <div className="flex items-center gap-3 mt-3 text-xs">
+                <span className={t.available === 0 ? 'text-muted-foreground' : 'font-medium'}>
+                  {t.available} available
+                </span>
+                {t.selected > 0 && (
+                  <span className="text-green-600 font-medium">{t.selected} selected</span>
+                )}
+                {t.available === 0 && (
+                  <span className="text-muted-foreground">— needs more data</span>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

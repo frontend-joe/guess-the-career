@@ -32,6 +32,10 @@ import { UncappedPlayersSchedulePage } from '@/pages/UncappedPlayersSchedulePage
 import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { NameSplitPage } from '@/pages/NameSplitPage'
+import { TenableAdminPage } from '@/pages/TenableAdminPage'
+import { TenableTypePage } from '@/pages/TenableTypePage'
+import { TenableSchedulePage } from '@/pages/TenableSchedulePage'
+import { TenablePage } from '@/pages/TenablePage'
 import { AddFootballerPage } from '@/pages/AddFootballerPage'
 import { FootballerDetailPage } from '@/pages/FootballerDetailPage'
 import { FootballerSchedulePage } from '@/pages/FootballerSchedulePage'
@@ -156,6 +160,7 @@ const router = createBrowserRouter([
   { path: '/play/world-cup', element: <WorldCupPage /> },
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
   { path: '/play/only-player', element: <OnlyPlayerPage /> },
+  { path: '/play/tenable', element: <TenablePage /> },
   { path: '/play/foreigners', element: <ForeignersPage /> },
   { path: '/play/serie-a', element: <SerieAPage /> },
   { path: '/play/la-liga', element: <LaLigaPage /> },
@@ -222,6 +227,9 @@ const router = createBrowserRouter([
       { path: 'nationals/schedule', element: <NationalsSchedulePage /> },
       { path: 'only-player', element: <OnlyPlayerAdminPage /> },
       { path: 'only-player/schedule', element: <OnlyPlayerSchedulePage /> },
+      { path: 'tenable', element: <TenableAdminPage /> },
+      { path: 'tenable/schedule', element: <TenableSchedulePage /> },
+      { path: 'tenable/:slug', element: <TenableTypePage /> },
       { path: 'foreigners', element: <ForeignersAdminPage /> },
       { path: 'foreigners/schedule', element: <ForeignersSchedulePage /> },
       { path: 'serie-a', element: <SerieAAdminPage /> },
