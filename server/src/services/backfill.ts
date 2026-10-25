@@ -2,7 +2,7 @@ import { and, eq, isNotNull, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { footballers, career_statistics } from "../db/schema.ts";
 import { scrapeWikipedia } from "./scraper.ts";
-import { replaceCareerStatistics, fetchSportsDbPhoto } from "./footballers.ts";
+import { replaceCareerStatistics, fetchSportsDbPhoto, applyScrapeResult } from "./footballers.ts";
 
 // Server-side background backfill jobs.
 //
@@ -11,7 +11,13 @@ import { replaceCareerStatistics, fetchSportsDbPhoto } from "./footballers.ts";
 // browser tab closes, and long runtimes. The client starts a job with a short
 // POST and polls a short GET for progress.
 
-export type BackfillType = "photos" | "career-stats";
+export type BackfillType = "photos" | "career-stats" | "repair";
+
+// A `position` this long is never a real position — it's the whole nested
+// infobox splatted in by the pre-fix descendant-scoped row parser. Real
+// multi-position lists top out around 60 chars ("Left-back, centre-back,
+// defensive midfielder, left midfielder"); the blobs were 400-1100.
+const BROKEN_POSITION_SQL = sql`length(${footballers.position}) > 100`;
 
 export interface BackfillStatus {
   type: BackfillType | null;
@@ -71,6 +77,15 @@ async function selectTargets(
       .orderBy(footballers.id) as Promise<{ id: number; name: string; url: string }[]>;
   }
 
+  if (type === "repair") {
+    // Full rescrape of players whose fields were mangled by the nested-infobox bug.
+    return db
+      .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
+      .from(footballers)
+      .where(and(isNotNull(footballers.wikipedia_url), BROKEN_POSITION_SQL))
+      .orderBy(footballers.id) as Promise<{ id: number; name: string; url: string }[]>;
+  }
+
   // career-stats
   if (onlyMissing) {
     const withStats = db
@@ -116,7 +131,17 @@ export function startBackfill(type: BackfillType, onlyMissing = true): boolean {
         job.currentName = player.name;
         try {
           const result = await scrapeWikipedia(player.url);
-          if (type === "photos") {
+          if (type === "repair") {
+            // Full refresh: fields (incl. position), stints and career stats.
+            // Keep any photo we already have rather than risking a null.
+            const [existing] = await db
+              .select({ photo_url: footballers.photo_url })
+              .from(footballers)
+              .where(eq(footballers.id, player.id))
+              .limit(1);
+            await applyScrapeResult(player.id, result, existing?.photo_url ?? null);
+            job.updated += 1;
+          } else if (type === "photos") {
             const photo = result.photo_url ?? (await fetchSportsDbPhoto(result.name));
             if (photo) {
               await db

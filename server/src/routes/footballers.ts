@@ -376,7 +376,7 @@ footballersRouter.get('/rescrape-all', async (c) => {
 //   POST /api/footballers/backfill/stop
 footballersRouter.post('/backfill/:type/start', (c) => {
   const type = c.req.param('type')
-  if (type !== 'photos' && type !== 'career-stats') {
+  if (type !== 'photos' && type !== 'career-stats' && type !== 'repair') {
     return c.json({ error: 'Unknown backfill type' }, 400)
   }
   // onlyMissing (default true) resumes where a previous run left off.

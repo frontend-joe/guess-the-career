@@ -571,11 +571,14 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   }
 
   infobox.find("tr").each((_, row) => {
-    // Only look at standard labeled rows (th.infobox-label + td); skip section headers
-    const labelEl = $(row).find("th.infobox-label").first();
+    // Only look at standard labeled rows (th.infobox-label + td); skip section headers.
+    // Scope to DIRECT children: some articles embed the football infobox inside an
+    // {{Infobox person}} (e.g. Adam Johnson), so a descendant search would match the
+    // outer wrapper row and splat the whole nested table's text into the field.
+    const labelEl = $(row).children("th.infobox-label").first();
     if (!labelEl.length) return;
     const label = labelEl.text().trim().toLowerCase();
-    const value = $(row).find("td").first();
+    const value = $(row).children("td").first();
     if (!value.length) return;
 
     if (label === "born" || label.includes("date of birth")) {
@@ -684,7 +687,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   let sortOrder = 0;
 
   infobox.find("tr").each((_, row) => {
-    const header = $(row).find("th.infobox-header");
+    const header = $(row).children("th.infobox-header");
     if (header.length) {
       const headerText = header.text().trim().toLowerCase();
       if (headerText.includes("senior career")) {
@@ -702,10 +705,10 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
 
     if (!currentSection) return;
 
-    const yearsEl = $(row).find("th.infobox-label");
-    const clubEl = $(row).find("td.infobox-data-a");
-    const appsEl = $(row).find("td.infobox-data-b");
-    const goalsEl = $(row).find("td.infobox-data-c");
+    const yearsEl = $(row).children("th.infobox-label");
+    const clubEl = $(row).children("td.infobox-data-a");
+    const appsEl = $(row).children("td.infobox-data-b");
+    const goalsEl = $(row).children("td.infobox-data-c");
 
     if (!yearsEl.length || !clubEl.length) return;
 
@@ -883,10 +886,10 @@ export async function scrapeManagerWikipedia(
   let born: string | null = null;
 
   infobox.find("tr").each((_, row) => {
-    const labelEl = $(row).find("th.infobox-label").first();
+    const labelEl = $(row).children("th.infobox-label").first();
     if (!labelEl.length) return;
     const label = labelEl.text().trim().toLowerCase();
-    const value = $(row).find("td").first();
+    const value = $(row).children("td").first();
     if (!value.length) return;
 
     if (label === "born" || label.includes("date of birth")) {
@@ -910,7 +913,7 @@ export async function scrapeManagerWikipedia(
   let sortOrder = 0;
 
   infobox.find("tr").each((_, row) => {
-    const header = $(row).find("th.infobox-header");
+    const header = $(row).children("th.infobox-header");
     if (header.length) {
       const headerText = header.text().trim().toLowerCase();
       inManagerialSection =
@@ -922,11 +925,11 @@ export async function scrapeManagerWikipedia(
 
     if (!inManagerialSection) return;
 
-    const yearsEl = $(row).find("th.infobox-label");
+    const yearsEl = $(row).children("th.infobox-label");
     // Manager infoboxes use td.infobox-data (colspan=3); footballer infoboxes use td.infobox-data-a/b/c
-    const clubEl = $(row).find("td.infobox-data-a, td.infobox-data").first();
-    const appsEl = $(row).find("td.infobox-data-b");
-    const goalsEl = $(row).find("td.infobox-data-c");
+    const clubEl = $(row).children("td.infobox-data-a, td.infobox-data").first();
+    const appsEl = $(row).children("td.infobox-data-b");
+    const goalsEl = $(row).children("td.infobox-data-c");
 
     if (!yearsEl.length || !clubEl.length) return;
 

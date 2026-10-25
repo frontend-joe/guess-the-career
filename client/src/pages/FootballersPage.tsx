@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ImageDown, Loader2, BarChart3 } from 'lucide-react'
+import { ImageDown, Loader2, BarChart3, Wrench } from 'lucide-react'
 import { PersonAdminPage, type PersonAdminConfig } from '@/components/PersonAdminPage'
 import { NationalityFlag } from '@/components/NationalityFlag'
 import {
@@ -35,7 +35,7 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
 ]
 
 interface BackfillStatus {
-  type: 'photos' | 'career-stats' | null
+  type: 'photos' | 'career-stats' | 'repair' | null
   running: boolean
   total: number
   done: number
@@ -74,7 +74,7 @@ function BackfillControls() {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [poll, startPolling])
 
-  async function start(type: 'photos' | 'career-stats') {
+  async function start(type: 'photos' | 'career-stats' | 'repair') {
     try {
       const r = await fetch(`/api/footballers/backfill/${type}/start`, { method: 'POST' })
       const d = await r.json()
@@ -89,7 +89,8 @@ function BackfillControls() {
   }
 
   const running = !!status?.running
-  const label = status?.type === 'career-stats' ? 'Career stats' : 'Photos'
+  const label = status?.type === 'career-stats' ? 'Career stats'
+    : status?.type === 'repair' ? 'Repair' : 'Photos'
 
   return (
     <>
@@ -100,6 +101,11 @@ function BackfillControls() {
       <Button variant="outline" size="sm" onClick={() => start('career-stats')} disabled={running} className="shrink-0">
         <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
         Backfill career stats
+      </Button>
+      <Button variant="outline" size="sm" onClick={() => start('repair')} disabled={running} className="shrink-0"
+        title="Rescrape players whose fields were mangled by the nested-infobox bug">
+        <Wrench className="h-3.5 w-3.5 mr-1.5" />
+        Repair fields
       </Button>
       {running && (
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
