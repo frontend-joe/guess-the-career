@@ -140,6 +140,11 @@ export async function getTenablePlayRounds(): Promise<TenablePlayRound[]> {
 
 export interface TenableVerifyResult {
   valid: boolean
+  rank?: number | null
+  value?: number | null
+  unit?: string | null
+  metric?: Metric
+  nearMiss?: boolean
   footballerId?: number
   footballer?: { id: number; name: string; photo_url: string | null }
   answers?: TenableAnswer[]

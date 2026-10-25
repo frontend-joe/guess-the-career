@@ -11,6 +11,8 @@ import {
   answersForRound,
   getType,
   isOrdered,
+  rankOf,
+  NEAR_MISS_WINDOW,
   MIN_ANSWERS,
   ROUND_SIZE,
   type Metric,
@@ -350,6 +352,10 @@ tenableRouter.post(
     const answers = answersForRound(round.type, params, metric);
     const ordered = isOrdered(round.type);
     const valid = answers.some((a) => a.footballer_id === fid);
+
+    // Where they actually sit, so a guess just off the board can be told how
+    // close it was ("12th, 54 goals") rather than a flat "not on the list".
+    const placing = valid ? null : rankOf(round.type, params, metric, fid);
     const footballer = sqlite
       .prepare(`SELECT id, name, photo_url FROM footballers WHERE id = ?`)
       .get(fid) as { id: number; name: string; photo_url: string | null } | undefined;
@@ -358,6 +364,11 @@ tenableRouter.post(
       valid,
       footballerId: fid,
       footballer,
+      rank: placing?.rank ?? null,
+      value: placing?.value ?? null,
+      unit: placing?.unit ?? null,
+      metric,
+      nearMiss: placing ? placing.rank <= NEAR_MISS_WINDOW : false,
       // The refreshed board, so the client can re-render after a displacement.
       answers: answers.map((a, i) => ({ ...a, rank: ordered ? i + 1 : null })),
     });

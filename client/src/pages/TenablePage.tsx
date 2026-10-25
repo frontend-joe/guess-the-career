@@ -53,6 +53,12 @@ function matches(guess: string, name: string): boolean {
   return false
 }
 
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0])
+}
+
 // Fees come through in whole pounds; squad numbers as a shirt number.
 function formatValue(a: { value: number; unit?: string }): string {
   if (a.unit === 'fee') {
@@ -72,14 +78,15 @@ function PyramidRow({
   metric: string
 }) {
   const showPlayer = useShowPlayer()
-  // 100% at rank 1 down to ~58% at rank 10.
-  const width = 100 - (rank - 1) * 4.6
+  // Narrowest at rank 1, widening to full width at rank 10 — the board widens
+  // as it descends, as on the show.
+  const width = 56 + (rank - 1) * 4.9
 
   return (
-    <div className="flex justify-center">
+    <div className="flex-1 min-h-0 flex justify-center items-stretch">
       <div
         style={{ width: `${width}%` }}
-        className={`relative h-11 rounded-full flex items-center justify-center px-4 transition-colors duration-300 ${
+        className={`relative h-full min-h-7 rounded-full flex items-center justify-center px-3 transition-colors duration-300 ${
           answer
             ? 'bg-gradient-to-b from-green-400 to-green-600 shadow-[0_0_18px_-4px_rgba(34,197,94,0.8)]'
             : 'bg-gradient-to-b from-violet-500 to-violet-700'
@@ -119,7 +126,7 @@ export function TenablePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showProgress, setShowProgress] = useState(false)
-  const [flash, setFlash] = useState<string | null>(null)
+  const [flash, setFlash] = useState<{ text: string; near: boolean } | null>(null)
   const [checking, setChecking] = useState(false)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -187,13 +194,29 @@ export function TenablePage() {
         persist(key, next, wrong[key] ?? new Set())
         return
       }
+      else if (res.rank) {
+        // Just off the board — tell them how close.
+        const who = res.footballer?.name ?? name
+        const stat = formatValue({ value: res.value ?? 0, unit: res.unit ?? undefined })
+        const unit = res.unit ? '' : ` ${res.metric === 'apps' ? 'apps' : 'goals'}`
+        if (flashTimer.current) clearTimeout(flashTimer.current)
+        setFlash({
+          text: `So close! ${who} is ${ordinal(res.rank)} — ${stat}${unit}`,
+          near: res.nearMiss ?? false,
+        })
+        flashTimer.current = setTimeout(() => setFlash(null), 3600)
+        const w = new Set(wrong[key] ?? new Set<string>()).add(norm(name))
+        setWrong(p => ({ ...p, [key]: w }))
+        persist(key, foundSet, w)
+        return
+      }
     } finally {
       setChecking(false)
     }
 
     {
       if (flashTimer.current) clearTimeout(flashTimer.current)
-      setFlash(`"${name}" isn't on the list`)
+      setFlash({ text: `"${name}" isn't on the list`, near: false })
       flashTimer.current = setTimeout(() => setFlash(null), 2200)
       const w = new Set(wrong[key] ?? new Set<string>()).add(norm(name))
       setWrong(p => ({ ...p, [key]: w }))
@@ -263,20 +286,20 @@ export function TenablePage() {
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto min-h-0 px-3 pt-2 pb-3">
+          <div className="flex-1 min-h-0 px-3 pt-2 pb-2 flex flex-col">
             {/* segmented progress, as on the show's board */}
-            <div className="flex items-center gap-1 mb-3">
+            <div className="shrink-0 flex items-center gap-1 mb-2">
               {Array.from({ length: total }).map((_, i) => (
                 <div key={i} className={`h-2 flex-1 rounded-sm ${i < foundOnBoard ? 'bg-green-500' : 'bg-white/15'}`} />
               ))}
               <span className="text-white text-xs font-bold tabular-nums ml-1.5">{foundOnBoard}/{total}</span>
             </div>
 
-            <h1 className="text-center text-white font-display text-sm leading-snug mb-3 px-2">
+            <h1 className="shrink-0 text-center text-white font-display text-[13px] leading-snug mb-2 px-1">
               {round.title}
             </h1>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex-1 min-h-0 flex flex-col gap-1.5">
               {round.ordered
                 ? round.answers.map(a => (
                     <PyramidRow
@@ -302,8 +325,12 @@ export function TenablePage() {
               {checking ? 'Checking…' : done ? `All ${total} found! ✓` : `${foundOnBoard} / ${total} found`}
             </p>
             {flash && (
-              <div className="mb-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-600 text-center">
-                {flash}
+              <div className={`mb-2 rounded-xl px-3 py-2 text-sm text-center font-semibold ${
+                flash.near
+                  ? 'bg-amber-100 border border-amber-300 text-amber-800'
+                  : 'bg-red-50 border border-red-200 text-red-600'
+              }`}>
+                {flash.text}
               </div>
             )}
             {!done && (

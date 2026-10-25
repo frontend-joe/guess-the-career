@@ -107,7 +107,7 @@ export interface TenableType {
   /** Unordered types ignore the metric; set this to run candidates once. */
   metricless?: boolean;
   candidates(metric: Metric): Candidate[];
-  answers(params: Record<string, string>, metric: Metric): TenableAnswer[];
+  answers(params: Record<string, string>, metric: Metric, limit?: number): TenableAnswer[];
   title(params: Record<string, string>, metric: Metric): string;
 }
 
@@ -140,14 +140,14 @@ const firstName: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH pl AS (${PLAYER_LEAGUE})
        SELECT ${ANSWER_COLS}, pl.${col} AS value
        FROM pl JOIN footballers f ON f.id = pl.fid
        WHERE pl.league = ? AND f.first_name = ? AND pl.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.league, p.firstName) as TenableAnswer[];
   },
 };
@@ -180,14 +180,14 @@ const surnameInitial: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH pl AS (${PLAYER_LEAGUE})
        SELECT ${ANSWER_COLS}, pl.${col} AS value
        FROM pl JOIN footballers f ON f.id = pl.fid
        WHERE pl.league = ? AND UPPER(SUBSTR(f.surname,1,1)) = ? AND pl.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.league, p.letter.toUpperCase()) as TenableAnswer[];
   },
 };
@@ -228,14 +228,14 @@ const surnameLength: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH pl AS (${PLAYER_LEAGUE})
        SELECT ${ANSWER_COLS}, pl.${col} AS value
        FROM pl JOIN footballers f ON f.id = pl.fid
        WHERE pl.league = ? AND ${SURNAME_LETTERS} = ? AND pl.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.league, parseInt(p.length, 10)) as TenableAnswer[];
   },
 };
@@ -273,7 +273,7 @@ const surname: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH tot AS (
@@ -286,7 +286,7 @@ const surname: TenableType = {
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE LOWER(f.surname) = LOWER(?) AND tot.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.surname) as TenableAnswer[];
   },
 };
@@ -318,14 +318,14 @@ const nationality: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH pl AS (${PLAYER_LEAGUE})
        SELECT ${ANSWER_COLS}, pl.${col} AS value
        FROM pl JOIN footballers f ON f.id = pl.fid
        WHERE pl.league = ? AND f.nationality = ? AND pl.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.league, p.nationality) as TenableAnswer[];
   },
 };
@@ -356,14 +356,14 @@ const club: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH pc AS (${PLAYER_CLUB})
        SELECT ${ANSWER_COLS}, pc.${col} AS value
        FROM pc JOIN footballers f ON f.id = pc.fid
        WHERE pc.club = ? AND pc.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.club) as TenableAnswer[];
   },
 };
@@ -391,14 +391,14 @@ const leagueAllTime: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH pl AS (${PLAYER_LEAGUE})
        SELECT ${ANSWER_COLS}, pl.${col} AS value
        FROM pl JOIN footballers f ON f.id = pl.fid
        WHERE pl.league = ? AND pl.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.league) as TenableAnswer[];
   },
 };
@@ -449,7 +449,7 @@ const twoClubs: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH tot AS (SELECT footballer_id fid, club,
@@ -464,7 +464,7 @@ const twoClubs: TenableType = {
        JOIN tot tb ON tb.fid = ta.fid AND tb.club = ?
        JOIN footballers f ON f.id = ta.fid
        WHERE ta.club = ? AND (ta.${col} + tb.${col}) > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.clubB, p.clubA) as TenableAnswer[];
   },
 };
@@ -502,7 +502,7 @@ const nationalityClub: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH tot AS (SELECT footballer_id fid, club,
@@ -515,7 +515,7 @@ const nationalityClub: TenableType = {
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.club = ? AND f.nationality = ? AND tot.${col} > 0
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.club, p.nationality) as TenableAnswer[];
   },
 };
@@ -569,7 +569,7 @@ const overseasClub: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p, metric) {
+  answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
       `WITH tot AS (SELECT footballer_id fid, club,
@@ -582,7 +582,7 @@ const overseasClub: TenableType = {
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.club = ? AND tot.${col} > 0
          AND f.nationality IS NOT NULL AND LOWER(f.nationality) NOT IN ('england')
-       ORDER BY value DESC, f.name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.club) as TenableAnswer[];
   },
 };
@@ -615,7 +615,7 @@ const transferWindow: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p) {
+  answers(p, _metric, limit = ROUND_SIZE) {
     return sqlite.prepare(
       `SELECT p.footballer_id AS footballer_id, p.player_name AS name,
               p.nationality AS nationality, f.photo_url AS photo_url,
@@ -623,7 +623,7 @@ const transferWindow: TenableType = {
        FROM transfer_window_players p
        LEFT JOIN footballers f ON f.id = p.footballer_id
        WHERE p.window_id = ? AND p.fee_value IS NOT NULL AND p.fee_value > 0
-       ORDER BY p.fee_value DESC, p.player_name ASC LIMIT ${ROUND_SIZE}`,
+       ORDER BY p.fee_value DESC, p.player_name ASC LIMIT ${limit}`,
     ).all(parseInt(p.windowId, 10)) as TenableAnswer[];
   },
 };
@@ -654,7 +654,7 @@ const worldCupSquad: TenableType = {
       answer_count: r.n,
     }));
   },
-  answers(p) {
+  answers(p, _metric, _limit = ROUND_SIZE) {
     // Returns the WHOLE squad — the player only needs any ten of them.
     return sqlite.prepare(
       `SELECT p.footballer_id AS footballer_id, p.name AS name,
@@ -706,6 +706,22 @@ export function answersForRound(
   type: string,
   params: Record<string, string>,
   metric: Metric,
+  limit = ROUND_SIZE,
 ): TenableAnswer[] {
-  return getType(type)?.answers(params, metric) ?? [];
+  return getType(type)?.answers(params, metric, limit) ?? [];
+}
+
+// Where a player actually sits in the full ordering, so a guess just off the
+// board can be told how close it was. Looks a long way past the top ten.
+export const NEAR_MISS_WINDOW = 15;
+export function rankOf(
+  type: string,
+  params: Record<string, string>,
+  metric: Metric,
+  footballerId: number,
+): { rank: number; value: number; unit?: string } | null {
+  const all = answersForRound(type, params, metric, 200);
+  const i = all.findIndex((a) => a.footballer_id === footballerId);
+  if (i < 0) return null;
+  return { rank: i + 1, value: all[i].value, unit: all[i].unit };
 }
