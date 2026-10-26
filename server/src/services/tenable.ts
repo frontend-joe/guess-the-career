@@ -68,31 +68,43 @@ const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
 
 
 // Roughly a quarter of players have no "Career statistics" table on Wikipedia
-// (Dede, for one) — but their infobox career IS scraped into career_stints,
-// with club totals. Recover those by inferring the league from the club, using
-// only clubs that appear in exactly ONE of our leagues. Clubs that yo-yo
-// between the Premier League and the Championship are deliberately skipped:
-// their stint totals can't be split between the two.
-const CLUB_LEAGUE = `
+// (Dede, Solano) — but their infobox career IS scraped into career_stints with
+// club totals. Recover those by working out which league the club was in
+// DURING that spell, from the seasons other players' career_statistics record
+// for the same club. Aston Villa is a Premier League club in 2004-05 and a
+// Championship club in 2016-17; the season is what settles it, not the club.
+const CLUB_SEASON_LEAGUE = `
   SELECT REPLACE(club, ' (loan)', '') AS club,
-         MIN(COALESCE(league, division)) AS league
+         CAST(SUBSTR(season, 1, 4) AS INTEGER) AS yr,
+         COALESCE(league, division) AS league
   FROM career_statistics
   WHERE COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
-  GROUP BY REPLACE(club, ' (loan)', '')
-  HAVING COUNT(DISTINCT COALESCE(league, division)) = 1
+  GROUP BY 1, 2, 3
 `;
 
-const STINT_CLUB = `
-  SELECT st.footballer_id AS fid,
-         REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
-         SUM(COALESCE(st.apps, 0))  AS apps,
-         SUM(COALESCE(st.goals, 0)) AS goals
-  FROM career_stints st
-  WHERE st.stint_type = 'senior'
-    AND NOT EXISTS (
-      SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
-    )
-  GROUP BY st.footballer_id, REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')
+// A stint's apps are a single total, so it can only be credited to a league if
+// EVERY season it spans was in that same league (HAVING COUNT(DISTINCT) = 1).
+// Spells straddling a promotion or relegation are dropped rather than guessed.
+const STINT_RESOLVED = `
+  SELECT s.fid AS fid, s.club AS club, s.apps AS apps, s.goals AS goals,
+         MIN(cs.league) AS league
+  FROM (
+    SELECT st.footballer_id AS fid,
+           REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
+           CAST(SUBSTR(st.years, 1, 4) AS INTEGER) AS y1,
+           CAST(SUBSTR(st.years, -4) AS INTEGER) AS y2,
+           COALESCE(st.apps, 0) AS apps,
+           COALESCE(st.goals, 0) AS goals
+    FROM career_stints st
+    WHERE st.stint_type = 'senior'
+      AND NOT EXISTS (
+        SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
+      )
+  ) s
+  JOIN (${CLUB_SEASON_LEAGUE}) cs
+    ON cs.club = s.club AND cs.yr BETWEEN s.y1 AND MAX(s.y2 - 1, s.y1)
+  GROUP BY s.fid, s.club, s.apps, s.goals
+  HAVING COUNT(DISTINCT cs.league) = 1
 `;
 
 const PLAYER_LEAGUE = `
@@ -105,9 +117,8 @@ const PLAYER_LEAGUE = `
     WHERE ${IN_ALLOWED}
     GROUP BY cs.footballer_id, COALESCE(cs.league, cs.division)
     UNION ALL
-    SELECT sc.fid, cl.league, sc.apps, sc.goals
-    FROM (${STINT_CLUB}) sc
-    JOIN (${CLUB_LEAGUE}) cl ON cl.club = sc.club
+    SELECT sr.fid, sr.league, sr.apps, sr.goals
+    FROM (${STINT_RESOLVED}) sr
   )
   GROUP BY fid, league
 `;
@@ -124,10 +135,9 @@ const PLAYER_CLUB = `
       AND ${NOT_RESERVE('cs.club')} AND ${IN_ALLOWED}
     GROUP BY cs.footballer_id, cs.club
     UNION ALL
-    SELECT sc.fid, sc.club, sc.apps, sc.goals
-    FROM (${STINT_CLUB}) sc
-    JOIN (${CLUB_LEAGUE}) cl ON cl.club = sc.club
-    WHERE ${NOT_RESERVE('sc.club')}
+    SELECT sr.fid, sr.club, sr.apps, sr.goals
+    FROM (${STINT_RESOLVED}) sr
+    WHERE ${NOT_RESERVE('sr.club')}
   )
   GROUP BY fid, club
 `;
