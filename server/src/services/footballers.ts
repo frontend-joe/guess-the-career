@@ -55,6 +55,33 @@ export async function replaceCareerStatistics(
         r.league = spanish ? "La Liga" : r.division;
       }
     }
+
+    // "First Division" is two different English competitions plus several
+    // foreign ones. Belgium (Anderlecht, Standard Liège, Mechelen, Charleroi),
+    // Scotland (Motherwell), Cyprus and Ireland all had a First Division, so
+    // resolve the country by club first — a club is English only if it also
+    // appears under a division no other country uses. Then split by season:
+    // until 1991–92 the First Division was England's top flight, and from
+    // 1992–93 (once the Premier League broke away) until 2003–04 it was the
+    // second tier, i.e. the Championship under its old name.
+    for (const r of rows) {
+      if (!r.division || !/^(the )?first division$/i.test(r.division.trim())) continue;
+      const year = Number(r.season?.slice(0, 4));
+      if (!Number.isInteger(year)) continue;
+      const bare = r.club.replace(/ \(loan\)$/, "");
+      const english = sqlite
+        .prepare(
+          `SELECT 1 FROM career_statistics
+           WHERE REPLACE(club, ' (loan)', '') = ?
+             AND division IN ('Premier League', 'Championship', 'Second Division',
+                              'Third Division', 'Fourth Division', 'League One',
+                              'League Two') LIMIT 1`,
+        )
+        .get(bare);
+      if (!english) continue;
+      if (year <= 1991) r.league = "First Division";
+      else if (year <= 2003) r.league = "EFL Championship";
+    }
   }
   if (rows.length > 0) {
     await db.insert(career_statistics).values(

@@ -51,9 +51,14 @@ export const NOT_RESERVE = (col: string) => `
 // tier after), and every one of those is a wrong answer waiting to happen.
 // Both club and league rounds are restricted to these, so every round is drawn
 // from the same two competitions.
+// "First Division" here means England's pre-1992 top flight only. The 1992-2004
+// First Division was the second tier and is stored as "EFL Championship", and
+// the Belgian, Scottish, Cypriot and Irish First Divisions are left under their
+// raw division name — see migration 0082.
 export const ALLOWED_LEAGUES = [
   "Premier League",
   "EFL Championship",
+  "First Division",
   "Serie A",
   "La Liga",
   "Bundesliga",
