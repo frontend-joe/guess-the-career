@@ -244,6 +244,8 @@ export interface ScrapeResult {
     stint_type: "senior" | "international";
   }[];
   league_stats: LeagueStatRow[];
+  /** What the article is actually about — see classifyPage. */
+  page_kind: PageKind;
 }
 
 export interface LeagueStatRow {
@@ -499,6 +501,57 @@ export async function scrapeFamilyLinks(url: string): Promise<FamilyLink[]> {
   });
 
   return [...found.values()];
+}
+
+
+/**
+ * What a Wikipedia article is actually about.
+ *
+ * A title containing a player's name is often not a person: searching "Puskas"
+ * returns "Puskás Akadémia FC" and "Ferenc Puskás Stadium" before the player.
+ * Those pages scrape without error — every player field is simply absent — so
+ * "it didn't throw" can't be the test for whether we may import someone.
+ *
+ * Decided positively from the infobox labels, which differ sharply by subject
+ * (a club has Founded/Ground/Capacity, a venue has Capacity/Opened, a person
+ * has Date of birth/Position), with the article's categories as a second
+ * opinion. Returns "unknown" when nothing matches, so an unusual player page
+ * isn't rejected for lacking a tidy infobox — the caller still applies its own
+ * is-this-a-person test.
+ */
+export type PageKind = "player" | "club" | "venue" | "competition" | "unknown";
+
+function classifyPage($: CheerioAPI): PageKind {
+  const labels = $("table.infobox th.infobox-label")
+    .map((_, e) => $(e).text().trim().toLowerCase())
+    .get();
+  const has = (...wanted: string[]) => wanted.some((w) => labels.includes(w));
+
+  // A person's page is the only one of these with a date of birth.
+  if (has("date of birth", "born")) return "player";
+
+  // Club first, but only on labels a ground never carries. A club's infobox
+  // embeds its stadium's details (Real Madrid lists Capacity and Opened), and
+  // a ground lists an Owner (Old Trafford's is Manchester United), so the
+  // shared labels can't separate them — Founded and Short name can.
+  if (has("founded", "short name", "head coach", "chairman", "president", "ground")) return "club";
+  if (has("opened", "record attendance", "field size", "broke ground", "built", "former names")) {
+    return "venue";
+  }
+  if (has("organising body", "number of teams", "most championships", "current champions")) {
+    return "competition";
+  }
+
+  const cats = $("#mw-normal-catlinks li a")
+    .map((_, e) => $(e).text().trim().toLowerCase())
+    .get()
+    .join(" | ");
+  if (/\b(births|footballers|managers)\b/.test(cats)) return "player";
+  if (/football (clubs|academies)|clubs established/.test(cats)) return "club";
+  if (/venues|stadiums|stadia|grounds/.test(cats)) return "venue";
+  if (/football leagues|competitions|seasons/.test(cats)) return "competition";
+
+  return "unknown";
 }
 
 export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
@@ -820,6 +873,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   return {
     name,
     wikipedia_url: url,
+    page_kind: classifyPage($),
     full_name: fullName,
     birthplace: birthplaceRaw
       ? (stripCitations(birthplaceRaw).replace(/\s+/g, " ").trim() || null)

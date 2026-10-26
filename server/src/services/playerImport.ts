@@ -166,6 +166,13 @@ export function dbFootballerByName(name: string): number | null {
 // through. Throwing (rather than returning null) is deliberate: the caller
 // already treats a throw as "try the next candidate".
 function assertIsFootballer(scraped: ScrapeResult, wikiUrl: string): void {
+  // Positively identified as something else. This is checked first and can't
+  // be overridden: a club's page listing its academy graduates, or a ground's
+  // listing tenant clubs, must never be importable as a person no matter what
+  // else the parser managed to pull off it.
+  if (scraped.page_kind !== 'player' && scraped.page_kind !== 'unknown') {
+    throw new Error(`Not a footballer page (${scraped.page_kind}): ${wikiUrl}`)
+  }
   if (scraped.stints.some((s) => s.stint_type === 'senior')) return
   // No career table is common enough on its own; pair two biographical facts a
   // club or ground never has.
