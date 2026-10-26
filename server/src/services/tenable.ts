@@ -707,11 +707,52 @@ const worldCupSquad: TenableType = {
   },
 };
 
+// ── 5b. Club × surname initial ───────────────────────────────────────────────
+const clubSurnameInitial: TenableType = {
+  slug: "club-surname-initial",
+  label: "Club + surname letter",
+  description: "One club's leaders, filtered to a surname initial.",
+  example: "Aston Villa players, surnames starting B (most appearances)",
+  title: (p, m) =>
+    `${p.club} players, surnames starting ${p.letter} (most ${metricWord(m)})`,
+  candidates(metric) {
+    const col = metricCol(metric);
+    const rows = sqlite.prepare(
+      `WITH pc AS (${PLAYER_CLUB})
+       SELECT pc.club AS club, UPPER(SUBSTR(f.surname, 1, 1)) AS letter, COUNT(*) AS n
+       FROM pc JOIN footballers f ON f.id = pc.fid
+       WHERE pc.${col} > 0 AND f.surname IS NOT NULL AND f.surname <> ''
+         AND UPPER(SUBSTR(f.surname, 1, 1)) BETWEEN 'A' AND 'Z'
+       GROUP BY pc.club, letter
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { club: string; letter: string; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { club: r.club, letter: r.letter },
+      metric,
+      title: this.title({ club: r.club, letter: r.letter }, metric),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, metric, limit = ROUND_SIZE) {
+    const col = metricCol(metric);
+    return sqlite.prepare(
+      `WITH pc AS (${PLAYER_CLUB})
+       SELECT ${ANSWER_COLS}, pc.${col} AS value
+       FROM pc JOIN footballers f ON f.id = pc.fid
+       WHERE pc.club = ? AND UPPER(SUBSTR(f.surname, 1, 1)) = ? AND pc.${col} > 0
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
+    ).all(p.club, p.letter.toUpperCase()) as TenableAnswer[];
+  },
+};
+
 export const TENABLE_TYPES: TenableType[] = [
   surnameInitial,
   surnameLength,
   nationality,
   club,
+  clubSurnameInitial,
   leagueAllTime,
   twoClubs,
   nationalityClub,

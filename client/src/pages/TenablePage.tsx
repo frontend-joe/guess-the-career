@@ -6,6 +6,7 @@ import { GuessSearchInput } from '@/components/GuessSearchInput'
 import { OverallProgressScreen, type ProgressRound } from '@/components/OverallProgressScreen'
 import { useShowPlayer } from '@/contexts/PlayerModalContext'
 import { getTenablePlayRounds, getTenableRoundAnswers, verifyTenableGuess, type TenablePlayRound, type TenableAnswer } from '@/api/tenable'
+import { TenableClueCard } from '@/components/TenableClueCard'
 
 const ROUND_SIZE = 10
 const PROGRESS_KEY = 'tenable_progress'
@@ -71,13 +72,23 @@ function formatValue(a: { value: number; unit?: string }): string {
 // ─── the inverted pyramid ────────────────────────────────────────────────────
 // Row 1 is widest and they taper down, as in the show's board.
 function PyramidRow({
-  rank, answer, metric,
+  rank, answer, metric, onLongPress,
 }: {
   rank: number
   answer: { footballer_id: number | null; name: string; value: number; unit?: string } | null
   metric: string
+  onLongPress?: () => void
 }) {
   const showPlayer = useShowPlayer()
+  // Press and hold a blank slot for a second to get a clue.
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startHold = () => {
+    if (answer || !onLongPress) return
+    holdRef.current = setTimeout(() => { onLongPress(); holdRef.current = null }, 1000)
+  }
+  const cancelHold = () => {
+    if (holdRef.current) { clearTimeout(holdRef.current); holdRef.current = null }
+  }
   // Narrowest at rank 1, widening to full width at rank 10 — the board widens
   // as it descends, as on the show.
   const width = 56 + (rank - 1) * 4.9
@@ -85,8 +96,13 @@ function PyramidRow({
   return (
     <div className="flex-1 min-h-0 flex justify-center items-stretch">
       <div
-        style={{ width: `${width}%` }}
-        className={`relative h-full min-h-7 rounded-full flex items-center justify-center px-3 transition-colors duration-300 ${
+        style={{ width: `${width}%`, touchAction: 'manipulation', WebkitTouchCallout: 'none' }}
+        onPointerDown={startHold}
+        onPointerUp={cancelHold}
+        onPointerLeave={cancelHold}
+        onPointerCancel={cancelHold}
+        onContextMenu={e => e.preventDefault()}
+        className={`relative h-full min-h-7 rounded-full select-none flex items-center justify-center px-3 transition-colors duration-300 ${
           answer
             ? 'bg-gradient-to-b from-green-400 to-green-600 shadow-[0_0_18px_-4px_rgba(34,197,94,0.8)]'
             : 'bg-gradient-to-b from-violet-500 to-violet-700'
@@ -130,6 +146,8 @@ export function TenablePage() {
   const [flash, setFlash] = useState<{ text: string; near: boolean } | null>(null)
   const [checking, setChecking] = useState(false)
   const [answersBy, setAnswersBy] = useState<Record<number, TenableAnswer[]>>({})
+  const [impliedBy, setImpliedBy] = useState<Record<number, string[]>>({})
+  const [clueFor, setClueFor] = useState<{ rank: number; answer: TenableAnswer | null } | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -173,7 +191,11 @@ export function TenablePage() {
     if (currentRoundId == null || answersBy[currentRoundId]) return
     let active = true
     getTenableRoundAnswers(currentRoundId)
-      .then(r => { if (active) setAnswersBy(p => ({ ...p, [currentRoundId]: r.answers })) })
+      .then(r => {
+        if (!active) return
+        setAnswersBy(p => ({ ...p, [currentRoundId]: r.answers }))
+        setImpliedBy(p => ({ ...p, [currentRoundId]: r.impliedClues ?? [] }))
+      })
       .catch(() => {})
     return () => { active = false }
   }, [currentRoundId, answersBy])
@@ -303,6 +325,15 @@ export function TenablePage() {
         </button>
       </div>
 
+      {clueFor && (
+        <TenableClueCard
+          rank={clueFor.rank}
+          clue={clueFor.answer?.clue ?? null}
+          implied={(round && impliedBy[round.roundId]) || []}
+          onClose={() => setClueFor(null)}
+        />
+      )}
+
       {showProgress ? (
         <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
           <div className="flex-1 overflow-y-auto">
@@ -362,6 +393,7 @@ export function TenablePage() {
                       rank={a.rank ?? 0}
                       metric={round.metric}
                       answer={a.footballer_id !== null && foundSet.has(a.footballer_id) ? a : null}
+                      onLongPress={() => setClueFor({ rank: a.rank ?? 0, answer: a })}
                     />
                   ))
                 : Array.from({ length: total }).map((_, i) => (
@@ -370,6 +402,13 @@ export function TenablePage() {
                       rank={i + 1}
                       metric={round.metric}
                       answer={foundList[i] ?? null}
+                      onLongPress={() => {
+                        // Unordered: hint an answer they haven't found yet.
+                        const next = answers.find(
+                          a => a.footballer_id !== null && !foundSet.has(a.footballer_id),
+                        )
+                        setClueFor({ rank: i + 1, answer: next ?? null })
+                      }}
                     />
                   ))}
             </div>

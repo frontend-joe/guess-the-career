@@ -4,7 +4,7 @@ import { z } from "zod";
 import { sqlite } from "../db/client.ts";
 import { dbFootballerByName, resolveOrCreateFootballer } from "../services/playerImport.ts";
 import { replaceCareerStatistics } from "../services/footballers.ts";
-import { scrapeWikipedia } from "../services/scraper.ts";
+import { scrapeWikipedia, normalizeClubAlias } from "../services/scraper.ts";
 import {
   TENABLE_TYPES,
   candidatesForType,
@@ -440,10 +440,73 @@ tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
   const metric = asMetric(row.metric);
   const ordered = isOrdered(row.type);
   const answers = answersForRound(row.type, JSON.parse(row.params), metric);
+
+  // Clues for the long-press hint. Anything the question already gives away is
+  // suppressed — no point "hinting" the nationality on a Norway round.
+  const implied: string[] = [];
+  if (["nationality", "nationality-club", "world-cup-squad"].includes(row.type)) implied.push("nationality");
+  if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial"].includes(row.type)) implied.push("club");
+  if (["surname-length", "surname-initial", "surname", "club-surname-initial"].includes(row.type)) implied.push("surname");
+
+  const ids = answers.map((a) => a.footballer_id).filter((x): x is number => x != null);
+  const clues = new Map<number, Record<string, unknown>>();
+  if (ids.length) {
+    const ph = ids.map(() => "?").join(", ");
+    const meta = sqlite.prepare(
+      `SELECT id, nationality, COALESCE(custom_position, position) AS position, born
+       FROM footballers WHERE id IN (${ph})`,
+    ).all(...ids) as { id: number; nationality: string | null; position: string | null; born: string | null }[];
+
+    // Career span and main club from the scraped infobox career.
+    const stints = sqlite.prepare(
+      `SELECT footballer_id, years, club, COALESCE(apps, 0) AS apps
+       FROM career_stints WHERE stint_type = 'senior' AND footballer_id IN (${ph})`,
+    ).all(...ids) as { footballer_id: number; years: string; club: string; apps: number }[];
+
+    // Shirt number: Guess the XI line-ups first, then World Cup squads.
+    const numbers = sqlite.prepare(
+      `SELECT footballer_id, squad_number AS n FROM xi_players
+       WHERE squad_number IS NOT NULL AND footballer_id IN (${ph})
+       UNION ALL
+       SELECT footballer_id, shirt_number AS n FROM world_cup_squad_players
+       WHERE shirt_number IS NOT NULL AND footballer_id IN (${ph})`,
+    ).all(...ids, ...ids) as { footballer_id: number; n: number }[];
+
+    // Crest for the club they played most for, so the hint can show a badge.
+    const clubCrest = sqlite.prepare(
+      `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+    );
+
+    for (const m of meta) {
+      const mine = stints.filter((s) => s.footballer_id === m.id);
+      const years = mine.flatMap((s) => (s.years.match(/\d{4}/g) ?? []).map(Number));
+      const main = mine.slice().sort((a, b) => b.apps - a.apps)[0];
+      const num = numbers.find((n) => n.footballer_id === m.id);
+      const club = main ? main.club.replace(/^→ /, "").replace(/ \(loan\)$/, "") : null;
+      const crest = club
+        ? (clubCrest.get(normalizeClubAlias(club)) as { wikipedia_url: string | null } | undefined)
+        : undefined;
+      clues.set(m.id, {
+        nationality: m.nationality,
+        position: m.position,
+        years: years.length ? `${Math.min(...years)}–${Math.max(...years)}` : null,
+        club,
+        clubWikiUrl: crest?.wikipedia_url ?? null,
+        squadNumber: num?.n ?? null,
+        born: m.born,
+      });
+    }
+  }
+
   return c.json({
     roundId,
     ordered,
     target: ROUND_SIZE,
-    answers: answers.map((a, i) => ({ ...a, rank: ordered ? i + 1 : null })),
+    impliedClues: implied,
+    answers: answers.map((a, i) => ({
+      ...a,
+      rank: ordered ? i + 1 : null,
+      clue: a.footballer_id != null ? clues.get(a.footballer_id) ?? null : null,
+    })),
   });
 });

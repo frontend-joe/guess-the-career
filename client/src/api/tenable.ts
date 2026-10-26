@@ -18,6 +18,16 @@ export interface TenableCandidate {
   roundId: number | null
 }
 
+export interface TenableClue {
+  nationality: string | null
+  position: string | null
+  years: string | null
+  club: string | null
+  clubWikiUrl: string | null
+  squadNumber: number | null
+  born: string | null
+}
+
 export interface TenableAnswer {
   footballer_id: number | null
   name: string
@@ -26,6 +36,7 @@ export interface TenableAnswer {
   value: number
   unit?: string
   rank?: number | null
+  clue?: TenableClue | null
 }
 
 export interface TenableRound {
@@ -63,6 +74,8 @@ export interface TenableRoundAnswers {
   roundId: number
   ordered: boolean
   target: number
+  /** Clue fields the question already gives away, so they aren't shown. */
+  impliedClues: string[]
   answers: TenableAnswer[]
 }
 
