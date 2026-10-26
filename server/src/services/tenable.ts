@@ -60,6 +60,18 @@ export const ALLOWED_LEAGUES = [
 ];
 const ALLOWED_LEAGUES_SQL = ALLOWED_LEAGUES.map((l) => `'${l}'`).join(", ");
 const IN_ALLOWED = `COALESCE(cs.league, cs.division) IN (${ALLOWED_LEAGUES_SQL})`;
+
+// Club rounds ask "most appearances FOR THIS CLUB", so they count every league
+// appearance for that club, not only the ones in our five leagues. Birmingham
+// City's second tier was called "First Division" until 2004, so filtering rows
+// by league threw away 200 of Bryan Hughes' 248 appearances. The allow-list
+// still decides WHICH CLUBS get rounds — a club qualifies if it ever played in
+// one of the five — but not which of its rows count.
+const ALLOWED_CLUBS = `
+  SELECT DISTINCT REPLACE(club, ' (loan)', '') AS club
+  FROM career_statistics
+  WHERE COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+`;
 // Some sources spell leagues differently ("LaLiga" in the transfer windows), so
 // match on a squashed, lower-cased form.
 const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
@@ -132,7 +144,8 @@ const PLAYER_CLUB = `
            SUM(COALESCE(cs.league_goals, 0)) AS goals
     FROM career_statistics cs
     WHERE cs.club IS NOT NULL
-      AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")} AND ${IN_ALLOWED}
+      AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")}
+      AND REPLACE(cs.club, ' (loan)', '') IN (${ALLOWED_CLUBS})
     GROUP BY cs.footballer_id, REPLACE(cs.club, ' (loan)', '')
     UNION ALL
     SELECT sr.fid, sr.club, sr.apps, sr.goals
@@ -462,7 +475,8 @@ const PLAYER_CLUB_DISTINCT = `
   SELECT DISTINCT cs.footballer_id AS fid, REPLACE(cs.club, ' (loan)', '') AS club
   FROM career_statistics cs
   WHERE cs.club IS NOT NULL
-    AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")} AND ${IN_ALLOWED}
+    AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")}
+    AND REPLACE(cs.club, ' (loan)', '') IN (${ALLOWED_CLUBS})
 `;
 
 const twoClubs: TenableType = {
@@ -480,7 +494,7 @@ const twoClubs: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
                     GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT a.club AS clubA, b.club AS clubB, COUNT(*) AS n
        FROM pc a
@@ -508,7 +522,7 @@ const twoClubs: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
                     GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT ${ANSWER_COLS}, (ta.${col} + tb.${col}) AS value
        FROM tot ta
@@ -535,7 +549,7 @@ const nationalityClub: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
                     GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT tot.club AS club, f.nationality AS nationality, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
@@ -560,7 +574,7 @@ const nationalityClub: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
                     GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
@@ -599,7 +613,7 @@ const overseasClub: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
                     GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT tot.club AS club, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
@@ -627,7 +641,7 @@ const overseasClub: TenableType = {
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
                     WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
                     GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
