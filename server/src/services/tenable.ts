@@ -85,12 +85,17 @@ const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
 // DURING that spell, from the seasons other players' career_statistics record
 // for the same club. Aston Villa is a Premier League club in 2004-05 and a
 // Championship club in 2016-17; the season is what settles it, not the club.
+// EVERY division, not just the five we build rounds from. The unanimity test
+// below has to see the divisions we don't use, or a spell that straddled them
+// looks unanimous: Birmingham City were in the First Division until 2002 and
+// the Premier League after, so judging by Premier League rows alone credited a
+// player's whole Birmingham career to the Premier League.
 const CLUB_SEASON_LEAGUE = `
   SELECT REPLACE(club, ' (loan)', '') AS club,
          CAST(SUBSTR(season, 1, 4) AS INTEGER) AS yr,
          COALESCE(league, division) AS league
   FROM career_statistics
-  WHERE COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+  WHERE COALESCE(league, division) IS NOT NULL
   GROUP BY 1, 2, 3
 `;
 
@@ -135,7 +140,9 @@ const STINT_RESOLVED = `
   JOIN (${CLUB_SEASON_LEAGUE}) cs
     ON cs.club = s.club AND cs.yr BETWEEN s.y1 AND MAX(s.y2 - 1, s.y1)
   GROUP BY s.fid, s.club, s.apps, s.goals
+  -- One division for the whole spell, and it has to be one we build rounds from.
   HAVING COUNT(DISTINCT cs.league) = 1
+     AND MIN(cs.league) IN (${ALLOWED_LEAGUES_SQL})
 `;
 
 const PLAYER_LEAGUE = `
