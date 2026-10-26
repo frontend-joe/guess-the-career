@@ -97,6 +97,25 @@ const CLUB_SEASON_LEAGUE = `
 // A stint's apps are a single total, so it can only be credited to a league if
 // EVERY season it spans was in that same league (HAVING COUNT(DISTINCT) = 1).
 // Spells straddling a promotion or relegation are dropped rather than guessed.
+// Club rounds don't need the league worked out — "total appearances for Leeds"
+// counts every division. So for club totals, take a missing-stats player's
+// stints at any qualifying club as they are. John Sheridan's 230 Leeds
+// appearances were in the old Second Division, which the league-resolved
+// version below (rightly) can't attribute, and he vanished from Leeds rounds.
+const STINT_CLUB_ANY = `
+  SELECT st.footballer_id AS fid,
+         REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
+         SUM(COALESCE(st.apps, 0))  AS apps,
+         SUM(COALESCE(st.goals, 0)) AS goals
+  FROM career_stints st
+  WHERE st.stint_type = 'senior'
+    AND NOT EXISTS (
+      SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
+    )
+    AND REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') IN (${ALLOWED_CLUBS})
+  GROUP BY st.footballer_id, REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')
+`;
+
 const STINT_RESOLVED = `
   SELECT s.fid AS fid, s.club AS club, s.apps AS apps, s.goals AS goals,
          MIN(cs.league) AS league
@@ -148,9 +167,9 @@ const PLAYER_CLUB = `
       AND REPLACE(cs.club, ' (loan)', '') IN (${ALLOWED_CLUBS})
     GROUP BY cs.footballer_id, REPLACE(cs.club, ' (loan)', '')
     UNION ALL
-    SELECT sr.fid, sr.club, sr.apps, sr.goals
-    FROM (${STINT_RESOLVED}) sr
-    WHERE ${NOT_RESERVE('sr.club')}
+    SELECT sc.fid, sc.club, sc.apps, sc.goals
+    FROM (${STINT_CLUB_ANY}) sc
+    WHERE ${NOT_RESERVE('sc.club')}
   )
   GROUP BY fid, club
 `;
@@ -489,13 +508,7 @@ const twoClubs: TenableType = {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
       `WITH pc AS (${PLAYER_CLUB_DISTINCT}),
-            tot AS (SELECT footballer_id fid, REPLACE(club, ' (loan)', '') club,
-                           SUM(COALESCE(league_apps,0)) apps,
-                           SUM(COALESCE(league_goals,0)) goals
-                    FROM career_statistics
-                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
-                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
+            tot AS (${PLAYER_CLUB})
        SELECT a.club AS clubA, b.club AS clubB, COUNT(*) AS n
        FROM pc a
        JOIN pc b ON a.fid = b.fid AND a.club < b.club
@@ -517,13 +530,7 @@ const twoClubs: TenableType = {
   answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
-      `WITH tot AS (SELECT footballer_id fid, club,
-                           SUM(COALESCE(league_apps,0)) apps,
-                           SUM(COALESCE(league_goals,0)) goals
-                    FROM career_statistics
-                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
-                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
+      `WITH tot AS (${PLAYER_CLUB})
        SELECT ${ANSWER_COLS}, (ta.${col} + tb.${col}) AS value
        FROM tot ta
        JOIN tot tb ON tb.fid = ta.fid AND tb.club = ?
@@ -544,13 +551,7 @@ const nationalityClub: TenableType = {
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
-      `WITH tot AS (SELECT footballer_id fid, club,
-                           SUM(COALESCE(league_apps,0)) apps,
-                           SUM(COALESCE(league_goals,0)) goals
-                    FROM career_statistics
-                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
-                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
+      `WITH tot AS (${PLAYER_CLUB})
        SELECT tot.club AS club, f.nationality AS nationality, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE f.nationality IS NOT NULL AND f.nationality <> '' AND tot.${col} > 0
@@ -569,13 +570,7 @@ const nationalityClub: TenableType = {
   answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
-      `WITH tot AS (SELECT footballer_id fid, club,
-                           SUM(COALESCE(league_apps,0)) apps,
-                           SUM(COALESCE(league_goals,0)) goals
-                    FROM career_statistics
-                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
-                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
+      `WITH tot AS (${PLAYER_CLUB})
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.club = ? AND f.nationality = ? AND tot.${col} > 0
@@ -608,13 +603,7 @@ const overseasClub: TenableType = {
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
-      `WITH tot AS (SELECT footballer_id fid, club,
-                           SUM(COALESCE(league_apps,0)) apps,
-                           SUM(COALESCE(league_goals,0)) goals
-                    FROM career_statistics
-                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
-                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
+      `WITH tot AS (${PLAYER_CLUB})
        SELECT tot.club AS club, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.${col} > 0
@@ -636,13 +625,7 @@ const overseasClub: TenableType = {
   answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
-      `WITH tot AS (SELECT footballer_id fid, club,
-                           SUM(COALESCE(league_apps,0)) apps,
-                           SUM(COALESCE(league_goals,0)) goals
-                    FROM career_statistics
-                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
-                      AND REPLACE(club, ' (loan)', '') IN (${ALLOWED_CLUBS})
-                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
+      `WITH tot AS (${PLAYER_CLUB})
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.club = ? AND tot.${col} > 0
