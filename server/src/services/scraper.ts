@@ -2409,10 +2409,14 @@ export function parseCareerStatistics($: CheerioAPI): LeagueStatRow[] {
     const grid = tableToGrid($, $(t));
     if (grid.length < 3) continue;
 
-    // Locate the two header rows: the sub-header carries "Division".
+    // Locate the sub-header row. Most tables label it "Division", but plenty
+    // (Granero, Riquelme) have no Division column at all and go straight to
+    // Apps/Goals, so identify it by those instead.
     let subIdx = -1;
     for (let r = 0; r < Math.min(3, grid.length); r++) {
-      if (grid[r].some((c) => c && /^division$/i.test(c.text))) {
+      const texts = grid[r].map((c) => c?.text ?? "");
+      if (texts.some((t) => /^division$/i.test(t))) { subIdx = r; break; }
+      if (texts.some((t) => /^apps$/i.test(t)) && texts.some((t) => /^goals$/i.test(t))) {
         subIdx = r;
         break;
       }
@@ -2430,14 +2434,26 @@ export function parseCareerStatistics($: CheerioAPI): LeagueStatRow[] {
       return -1;
     };
 
-    const clubCol = findCol((_t, b) => /^club$/i.test(b)) >= 0
-      ? findCol((_t, b) => /^club$/i.test(b))
-      : findCol((t) => /^club$/i.test(t));
+    const isClubHeader = (v: string) => /^(club|team)$/i.test(v);
+    const clubCol = findCol((_t, b) => isClubHeader(b)) >= 0
+      ? findCol((_t, b) => isClubHeader(b))
+      : findCol((t) => isClubHeader(t));
     const seasonCol = findCol((t, b) => /^season$/i.test(t) || /^season$/i.test(b));
     const divCol = findCol((_t, b) => /^division$/i.test(b));
-    if (clubCol < 0 || seasonCol < 0 || divCol < 0) continue;
-    const leagueAppsCol = divCol + 1;
-    const leagueGoalsCol = divCol + 2;
+    if (clubCol < 0 || seasonCol < 0) continue;
+
+    // With a Division column the league's Apps/Goals sit just after it;
+    // without one, take the Apps/Goals belonging to the "League" group.
+    let leagueAppsCol: number;
+    let leagueGoalsCol: number;
+    if (divCol >= 0) {
+      leagueAppsCol = divCol + 1;
+      leagueGoalsCol = divCol + 2;
+    } else {
+      leagueAppsCol = findCol((t, b) => /^league$/i.test(t) && /^apps$/i.test(b));
+      leagueGoalsCol = findCol((t, b) => /^league$/i.test(t) && /^goals$/i.test(b));
+      if (leagueAppsCol < 0 || leagueGoalsCol < 0) continue;
+    }
     let totalAppsCol = findCol((t, b) => /^total$/i.test(t) && /^apps$/i.test(b));
     let totalGoalsCol = findCol((t, b) => /^total$/i.test(t) && /^goals$/i.test(b));
     if (totalAppsCol < 0 || totalGoalsCol < 0) {
@@ -2447,12 +2463,25 @@ export function parseCareerStatistics($: CheerioAPI): LeagueStatRow[] {
       totalAppsCol = ncols - 2;
     }
 
+    // Some tables head the columns "Season | Club" but lay the rows out
+    // club-first (Morten Gamst Pedersen). Trust the data: if the season column
+    // holds no year while the club column does, they're the other way round.
+    let clubIdx = clubCol;
+    let seasonIdx = seasonCol;
+    const firstData = grid[subIdx + 1];
+    if (firstData) {
+      const seasonish = (v?: string) => !!v && /\b(19|20)\d{2}\b/.test(v);
+      if (!seasonish(firstData[seasonIdx]?.text) && seasonish(firstData[clubIdx]?.text)) {
+        [clubIdx, seasonIdx] = [seasonIdx, clubIdx];
+      }
+    }
+
     const rows: LeagueStatRow[] = [];
     let sortOrder = 0;
     for (let r = subIdx + 1; r < grid.length; r++) {
       const row = grid[r];
-      const clubRaw = row[clubCol]?.text ?? "";
-      const season = (row[seasonCol]?.text ?? "").trim();
+      const clubRaw = row[clubIdx]?.text ?? "";
+      const season = (row[seasonIdx]?.text ?? "").trim();
       // Skip subtotal / career-total / per-competition summary rows.
       if (!clubRaw || /total|career/i.test(clubRaw)) continue;
       if (!season || /total|career/i.test(season)) continue;
@@ -2463,11 +2492,11 @@ export function parseCareerStatistics($: CheerioAPI): LeagueStatRow[] {
         clubRaw.replace(/^\s*→\s*/, "").replace(/\s*\(loan\)\s*$/i, "").trim(),
       );
       const club = isLoan ? `${baseClub} (loan)` : baseClub;
-      const href = row[clubCol]?.href ?? null;
+      const href = row[clubIdx]?.href ?? null;
       const clubWikiUrl = href && href.startsWith("/wiki/")
         ? `https://en.wikipedia.org${href}`
         : null;
-      const division = (row[divCol]?.text ?? "").trim() || null;
+      const division = divCol >= 0 ? ((row[divCol]?.text ?? "").trim() || null) : null;
 
       rows.push({
         sort_order: sortOrder++,
@@ -2480,6 +2509,57 @@ export function parseCareerStatistics($: CheerioAPI): LeagueStatRow[] {
         league_goals: parseStatCell(row[leagueGoalsCol]?.text ?? ""),
         total_apps: parseStatCell(row[totalAppsCol]?.text ?? ""),
         total_goals: parseStatCell(row[totalGoalsCol]?.text ?? ""),
+      });
+    }
+    if (rows.length > 0) return rows;
+  }
+  // No per-season table — try the club-aggregate shape before giving up.
+  return parseClubAggregateStats($);
+}
+
+// A second, simpler career-statistics shape used on many older and non-English
+// articles: one row per CLUB with no Season or Division column, e.g.
+//   Club | League matches | League goals | Total matches | Total goals
+// There's no league to attribute, so `division` is left null — these rows still
+// power club-based rounds, and the league-aware ones correctly ignore them.
+function parseClubAggregateStats($: CheerioAPI): LeagueStatRow[] {
+  for (const t of $("table.wikitable").toArray()) {
+    const grid = tableToGrid($, $(t));
+    if (grid.length < 2) continue;
+    const head = grid[0];
+    const text = (c?: GridCell) => (c?.text ?? "").toLowerCase();
+
+    const clubCol = head.findIndex((c) => /^(club|team)$/i.test(c?.text ?? ""));
+    const appsCol = head.findIndex((c) => /^league (matches|apps|appearances)$/i.test(c?.text ?? ""));
+    const goalsCol = head.findIndex((c) => /^league goals$/i.test(c?.text ?? ""));
+    if (clubCol < 0 || appsCol < 0 || goalsCol < 0) continue;
+
+    const totalAppsCol = head.findIndex((c) => /^total (matches|apps|appearances)$/i.test(c?.text ?? ""));
+    const totalGoalsCol = head.findIndex((c) => /^total goals$/i.test(c?.text ?? ""));
+
+    const rows: LeagueStatRow[] = [];
+    let sortOrder = 0;
+    for (let r = 1; r < grid.length; r++) {
+      const clubRaw = grid[r][clubCol]?.text ?? "";
+      if (!clubRaw || /total|career/i.test(clubRaw)) continue;
+      if (text(grid[r][clubCol]) === "club" || text(grid[r][clubCol]) === "team") continue;
+
+      const isLoan = /\(loan\)/i.test(clubRaw);
+      const base = normalizeClubAlias(clubRaw.replace(/\s*\(loan\)\s*$/i, "").trim());
+      const href = grid[r][clubCol]?.href ?? null;
+      rows.push({
+        sort_order: sortOrder++,
+        club: isLoan ? `${base} (loan)` : base,
+        club_wikipedia_url: href?.startsWith("/wiki/") ? `https://en.wikipedia.org${href}` : null,
+        // No season or division in this shape — be honest about that rather
+        // than inventing one.
+        season: "",
+        division: null,
+        league: null,
+        league_apps: parseStatCell(grid[r][appsCol]?.text ?? ""),
+        league_goals: parseStatCell(grid[r][goalsCol]?.text ?? ""),
+        total_apps: totalAppsCol >= 0 ? parseStatCell(grid[r][totalAppsCol]?.text ?? "") : null,
+        total_goals: totalGoalsCol >= 0 ? parseStatCell(grid[r][totalGoalsCol]?.text ?? "") : null,
       });
     }
     if (rows.length > 0) return rows;
