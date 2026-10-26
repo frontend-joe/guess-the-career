@@ -183,10 +183,15 @@ const PLAYER_LEAGUE = `
 // Per-player, per-club totals (all competitions' league rows for that club).
 const PLAYER_CLUB = `
   SELECT fid, club, SUM(apps) AS apps, SUM(goals) AS goals FROM (
+    -- All competitions, not just the league: "most goals for Real Madrid"
+    -- means 242 for Puskás, not his 156 La Liga goals. Cup and European
+    -- scoring is part of what a player did for a club, and the league-only
+    -- figure reads as plain wrong against the number everyone knows.
+    -- COALESCE down to the league column for the ~1% of rows with no total.
     SELECT cs.footballer_id AS fid,
            REPLACE(cs.club, ' (loan)', '') AS club,
-           SUM(COALESCE(cs.league_apps, 0))  AS apps,
-           SUM(COALESCE(cs.league_goals, 0)) AS goals
+           SUM(COALESCE(cs.total_apps,  cs.league_apps,  0)) AS apps,
+           SUM(COALESCE(cs.total_goals, cs.league_goals, 0)) AS goals
     FROM career_statistics cs
     WHERE cs.club IS NOT NULL
       AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")}
