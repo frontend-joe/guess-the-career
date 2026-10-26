@@ -278,3 +278,30 @@ export async function recomputeNameSplits(): Promise<{ updated: number; ambiguou
   if (!res.ok) throw new Error('Failed to recompute name splits')
   return res.json()
 }
+
+export type DerivedSpellStatus = 'resolved' | 'straddled' | 'other_league' | 'no_club_data'
+
+export interface DerivedSpell {
+  years: string
+  club: string
+  apps: number
+  goals: number
+  is_loan: boolean
+  club_wikipedia_url: string | null
+  leagues: string[]
+  league: string | null
+  status: DerivedSpellStatus
+  source_url: string | null
+}
+
+export interface DerivedSpells {
+  /** True when this player has no scraped stats, so these spells are what the games actually use. */
+  usesStintFallback: boolean
+  spells: DerivedSpell[]
+}
+
+export async function getDerivedSpells(id: number): Promise<DerivedSpells> {
+  const res = await fetch(`/api/footballers/${id}/derived-spells`)
+  if (!res.ok) throw new Error('Failed to load derived spells')
+  return res.json()
+}

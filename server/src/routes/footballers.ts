@@ -10,6 +10,7 @@ import { reserveRe } from '../services/football.ts'
 import { clubWikiUrl, rebuildClubs } from "../services/clubs.ts";
 import { applyScrapeResult, replaceCareerStatistics, applyNameSplit } from "../services/footballers.ts";
 import { startBackfill, stopBackfill, getBackfillStatus } from "../services/backfill.ts";
+import { ALLOWED_LEAGUES, CLUB_SEASON_LEAGUE } from "../services/tenable.ts";
 import { splitName } from "../services/nameSplit.ts";
 import { setAppMeta } from "../services/appMeta.ts";
 
@@ -390,6 +391,80 @@ footballersRouter.get('/rescrape-all', async (c) => {
 
 // Backfill jobs run server-side (independent of the request) so they survive the
 // Netlify proxy (which buffers/times out SSE), tab closes, and 40-minute runtimes.
+
+// GET /api/footballers/:id/derived-spells
+//
+// How each senior spell is (or isn't) credited to a league, so a "why isn't
+// this player in that round?" question can be answered by looking rather than
+// by querying the database. A spell's apps are one career total, so it can
+// only be credited when the club stayed in a single league for the whole
+// spell — this returns the divisions the club actually played in during those
+// years as the evidence, alongside the verdict.
+footballersRouter.get('/:id/derived-spells', (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.json({ error: 'Bad id' }, 400)
+
+  // The stint fallback only runs for players with no scraped statistics at
+  // all; for everyone else these spells are informational, so say which case
+  // this player is in rather than implying the rows are in use.
+  const scraped = sqlite
+    .prepare(`SELECT COUNT(*) AS n FROM career_statistics WHERE footballer_id = ?`)
+    .get(id) as { n: number }
+
+  const rows = sqlite
+    .prepare(
+      `WITH src AS (${CLUB_SEASON_LEAGUE})
+       SELECT st.years AS years,
+              REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
+              COALESCE(st.apps, 0)  AS apps,
+              COALESCE(st.goals, 0) AS goals,
+              st.club LIKE '%(loan)%' AS is_loan,
+              st.club_wikipedia_url AS club_wikipedia_url,
+              (SELECT GROUP_CONCAT(x.league, ' | ') FROM (
+                 SELECT DISTINCT s.league AS league FROM src s
+                 WHERE s.club = REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')
+                   AND s.yr BETWEEN CAST(SUBSTR(st.years, 1, 4) AS INTEGER)
+                   AND MAX(CAST(SUBSTR(st.years, -4) AS INTEGER) - 1,
+                           CAST(SUBSTR(st.years, 1, 4) AS INTEGER))
+                 ORDER BY s.league
+               ) x) AS leagues,
+              (SELECT cs.source_url FROM club_seasons cs
+                WHERE cs.club = REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')
+                LIMIT 1) AS source_url
+         FROM career_stints st
+        WHERE st.footballer_id = ? AND st.stint_type = 'senior'
+        ORDER BY st.sort_order`,
+    )
+    .all(id) as {
+      years: string; club: string; apps: number; goals: number
+      is_loan: number; club_wikipedia_url: string | null
+      leagues: string | null; source_url: string | null
+    }[]
+
+  const spells = rows.map((r) => {
+    const leagues = r.leagues ? r.leagues.split(' | ') : []
+    const status =
+      leagues.length === 0 ? 'no_club_data'
+      : leagues.length > 1 ? 'straddled'
+      : ALLOWED_LEAGUES.includes(leagues[0]) ? 'resolved'
+      : 'other_league'
+    return {
+      years: r.years,
+      club: r.club,
+      apps: r.apps,
+      goals: r.goals,
+      is_loan: r.is_loan === 1,
+      club_wikipedia_url: r.club_wikipedia_url,
+      leagues,
+      league: status === 'resolved' ? leagues[0] : null,
+      status,
+      source_url: r.source_url,
+    }
+  })
+
+  return c.json({ usesStintFallback: scraped.n === 0, spells })
+})
+
 // The client starts a job with a short POST and polls GET /backfill/status.
 //   POST /api/footballers/backfill/:type/start
 //        (type = photos | career-stats | repair | club-seasons)

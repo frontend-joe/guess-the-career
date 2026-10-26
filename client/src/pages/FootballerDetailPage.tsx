@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CareerTable } from '@/components/CareerTable'
 import { CareerStatistics } from '@/components/CareerStatistics'
+import { DerivedSpells } from '@/components/DerivedSpells'
 import {
   getFootballer,
   updateFootballer,
@@ -270,6 +271,15 @@ export function FootballerDetailPage() {
           Career statistics
         </h2>
         <CareerStatistics footballerId={footballer.id} reloadKey={statsKey} />
+      </div>
+
+      {/* How each senior spell is credited to a league — the games' view of
+          this player, so a missing-from-a-round question can be checked here. */}
+      <div className="border rounded-lg p-4">
+        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
+          League attribution
+        </h2>
+        <DerivedSpells footballerId={footballer.id} reloadKey={statsKey} />
       </div>
     </div>
   )

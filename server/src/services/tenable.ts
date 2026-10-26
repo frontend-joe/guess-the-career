@@ -104,7 +104,7 @@ const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
 // sparse and occasionally mislabelled, and one stray row would add a second
 // distinct league to a club-season the article already settles — which the
 // unanimity test below reads as a straddled spell and throws away.
-const CLUB_SEASON_LEAGUE = `
+export const CLUB_SEASON_LEAGUE = `
   SELECT club, season_year AS yr, league
   FROM club_seasons
   GROUP BY 1, 2, 3
