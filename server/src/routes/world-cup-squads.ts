@@ -5,6 +5,7 @@ import { eq, asc, sql, and } from 'drizzle-orm'
 import { db } from '../db/client.ts'
 import { world_cup_squads, world_cup_squad_players, footballers, career_stints } from '../db/schema.ts'
 import { scrapeWorldCupSquadsPage, scrapeWikipedia } from '../services/scraper.ts'
+import { replaceCareerStatistics, applyNameSplit } from '../services/footballers.ts'
 
 function normalizeWikiTitle(url: string): string {
   const afterWiki = url.split('/wiki/').pop() ?? ''
@@ -56,6 +57,11 @@ async function resolveOrCreateFootballer(
       born: scraped.born,
       photo_url: scraped.photo_url ?? null,
     }).returning()
+
+    // Newly created players get their career statistics too, so they are
+    // immediately usable by league/club games rather than waiting for a backfill.
+    await replaceCareerStatistics(created.id, scraped.league_stats ?? []);
+    await applyNameSplit(created.id, scraped.name, scraped.nationality);
 
     const seniorStints = scraped.stints.filter(s => s.stint_type === 'senior')
     if (seniorStints.length > 0) {

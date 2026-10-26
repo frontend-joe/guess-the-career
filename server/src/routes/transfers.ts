@@ -9,6 +9,7 @@ import {
   scrapeWikipedia,
 } from "../services/scraper.ts";
 import { clubWikiUrl } from "../services/clubs.ts";
+import { replaceCareerStatistics, applyNameSplit } from '../services/footballers.ts'
 
 export const transfersRouter = new Hono();
 
@@ -654,6 +655,11 @@ transfersRouter.post(
             photo_url: scraped.photo_url ?? null,
           })
           .returning();
+
+    // Newly created players get their career statistics too, so they are
+    // immediately usable by league/club games rather than waiting for a backfill.
+    await replaceCareerStatistics(created.id, scraped.league_stats ?? []);
+    await applyNameSplit(created.id, scraped.name, scraped.nationality);
 
         if (seniors.length > 0) {
           await db.insert(career_stints).values(

@@ -6,6 +6,7 @@ import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
 import { CLUB_ALIASES, normalizeClubAlias, scrapeWikipedia } from '../services/scraper.ts'
 import { CAREER_SPAN_SELECT, formatCareerYears } from '../services/football.ts'
+import { replaceCareerStatistics, applyNameSplit } from '../services/footballers.ts'
 
 export const threeClubsRouter = new Hono()
 
@@ -467,6 +468,11 @@ threeClubsRouter.post(
         born: scraped.born,
         photo_url: scraped.photo_url ?? null,
       }).returning()
+
+    // Newly created players get their career statistics too, so they are
+    // immediately usable by league/club games rather than waiting for a backfill.
+    await replaceCareerStatistics(newFootballer.id, scraped.league_stats ?? []);
+    await applyNameSplit(newFootballer.id, scraped.name, scraped.nationality);
 
       if (seniorStints.length > 0) {
         await db.insert(career_stints).values(

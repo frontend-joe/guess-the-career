@@ -8,7 +8,7 @@ import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
 import { clubWikiUrl, rebuildClubs } from "../services/clubs.ts";
-import { applyScrapeResult } from "../services/footballers.ts";
+import { applyScrapeResult, replaceCareerStatistics, applyNameSplit } from "../services/footballers.ts";
 import { startBackfill, stopBackfill, getBackfillStatus } from "../services/backfill.ts";
 import { splitName } from "../services/nameSplit.ts";
 import { setAppMeta } from "../services/appMeta.ts";
@@ -307,6 +307,16 @@ footballersRouter.post(
         body.stints.map((s) => ({ ...s, footballer_id: footballer.id }))
       )
     }
+
+    // The admin add-player form posts the preview, which has no league_stats on
+    // it, so fetch them here — otherwise a hand-added player would be invisible
+    // to the league/club games until a backfill ran.
+    try {
+      const full = await scrapeWikipedia(body.wikipedia_url)
+      await replaceCareerStatistics(footballer.id, full.league_stats ?? [])
+    } catch { /* non-fatal: the backfill will pick them up */ }
+    await applyNameSplit(footballer.id, footballer.name, footballer.nationality)
+
     return c.json(footballer, 201)
   }
 )

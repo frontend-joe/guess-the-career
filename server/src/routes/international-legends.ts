@@ -11,6 +11,7 @@ import {
   baseNation,
 } from "../services/football.ts";
 import { clubWikiUrl } from "../services/clubs.ts";
+import { replaceCareerStatistics, applyNameSplit } from '../services/footballers.ts'
 
 export const internationalLegendsRouter = new Hono();
 
@@ -468,6 +469,11 @@ internationalLegendsRouter.post(
           return c.json({ valid: true, footballer: verified(known.id, { name: known.name, photo_url: scraped.photo_url ?? known.photo_url }), imported: true });
         }
         const [created] = await db.insert(footballers).values({ name: scraped.name, wikipedia_url: scraped.wikipedia_url, nationality: scraped.nationality, position: scraped.position, all_positions: scraped.all_positions ?? null, born: scraped.born, photo_url: scraped.photo_url ?? null }).returning();
+
+    // Newly created players get their career statistics too, so they are
+    // immediately usable by league/club games rather than waiting for a backfill.
+    await replaceCareerStatistics(created.id, scraped.league_stats ?? []);
+    await applyNameSplit(created.id, scraped.name, scraped.nationality);
         await importStints(created.id, scraped);
         return c.json({ valid: true, footballer: verified(created.id, { name: created.name, photo_url: created.photo_url ?? null }), imported: true });
       }

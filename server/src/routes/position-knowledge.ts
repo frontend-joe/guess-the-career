@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, sqlite } from "../db/client.ts";
 import { footballers, career_stints } from "../db/schema.ts";
 import { scrapeWikipedia } from "../services/scraper.ts";
+import { replaceCareerStatistics, applyNameSplit } from '../services/footballers.ts'
 
 export const positionKnowledgeRouter = new Hono();
 
@@ -362,6 +363,11 @@ positionKnowledgeRouter.post(
           photo_url: scraped.photo_url ?? null,
         })
         .returning();
+
+    // Newly created players get their career statistics too, so they are
+    // immediately usable by league/club games rather than waiting for a backfill.
+    await replaceCareerStatistics(newFootballer.id, scraped.league_stats ?? []);
+    await applyNameSplit(newFootballer.id, scraped.name, scraped.nationality);
 
       if (scraped.stints.length > 0) {
         await db.insert(career_stints).values(
