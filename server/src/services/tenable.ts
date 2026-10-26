@@ -127,13 +127,13 @@ const PLAYER_LEAGUE = `
 const PLAYER_CLUB = `
   SELECT fid, club, SUM(apps) AS apps, SUM(goals) AS goals FROM (
     SELECT cs.footballer_id AS fid,
-           cs.club AS club,
+           REPLACE(cs.club, ' (loan)', '') AS club,
            SUM(COALESCE(cs.league_apps, 0))  AS apps,
            SUM(COALESCE(cs.league_goals, 0)) AS goals
     FROM career_statistics cs
-    WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
-      AND ${NOT_RESERVE('cs.club')} AND ${IN_ALLOWED}
-    GROUP BY cs.footballer_id, cs.club
+    WHERE cs.club IS NOT NULL
+      AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")} AND ${IN_ALLOWED}
+    GROUP BY cs.footballer_id, REPLACE(cs.club, ' (loan)', '')
     UNION ALL
     SELECT sr.fid, sr.club, sr.apps, sr.goals
     FROM (${STINT_RESOLVED}) sr
@@ -395,7 +395,7 @@ const club: TenableType = {
       `WITH pc AS (${PLAYER_CLUB})
        SELECT pc.club AS club, COUNT(*) AS n
        FROM pc JOIN footballers f ON f.id = pc.fid
-       WHERE pc.${col} > 0 AND pc.club NOT LIKE '%(loan)%'
+       WHERE pc.${col} > 0
        GROUP BY pc.club
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
@@ -459,10 +459,10 @@ const leagueAllTime: TenableType = {
 // Distinct player/club pairs, loans excluded, used by both two-clubs and
 // nationality-club.
 const PLAYER_CLUB_DISTINCT = `
-  SELECT DISTINCT cs.footballer_id AS fid, cs.club AS club
+  SELECT DISTINCT cs.footballer_id AS fid, REPLACE(cs.club, ' (loan)', '') AS club
   FROM career_statistics cs
-  WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
-    AND ${NOT_RESERVE('cs.club')} AND ${IN_ALLOWED}
+  WHERE cs.club IS NOT NULL
+    AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")} AND ${IN_ALLOWED}
 `;
 
 const twoClubs: TenableType = {
@@ -475,13 +475,13 @@ const twoClubs: TenableType = {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
       `WITH pc AS (${PLAYER_CLUB_DISTINCT}),
-            tot AS (SELECT footballer_id fid, club,
+            tot AS (SELECT footballer_id fid, REPLACE(club, ' (loan)', '') club,
                            SUM(COALESCE(league_apps,0)) apps,
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
-                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
                       AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
-                    GROUP BY footballer_id, club)
+                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT a.club AS clubA, b.club AS clubB, COUNT(*) AS n
        FROM pc a
        JOIN pc b ON a.fid = b.fid AND a.club < b.club
@@ -507,9 +507,9 @@ const twoClubs: TenableType = {
                            SUM(COALESCE(league_apps,0)) apps,
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
-                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
                       AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
-                    GROUP BY footballer_id, club)
+                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT ${ANSWER_COLS}, (ta.${col} + tb.${col}) AS value
        FROM tot ta
        JOIN tot tb ON tb.fid = ta.fid AND tb.club = ?
@@ -534,9 +534,9 @@ const nationalityClub: TenableType = {
                            SUM(COALESCE(league_apps,0)) apps,
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
-                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
                       AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
-                    GROUP BY footballer_id, club)
+                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT tot.club AS club, f.nationality AS nationality, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE f.nationality IS NOT NULL AND f.nationality <> '' AND tot.${col} > 0
@@ -559,9 +559,9 @@ const nationalityClub: TenableType = {
                            SUM(COALESCE(league_apps,0)) apps,
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
-                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE('club')}
+                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
                       AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
-                    GROUP BY footballer_id, club)
+                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.club = ? AND f.nationality = ? AND tot.${col} > 0
@@ -598,8 +598,9 @@ const overseasClub: TenableType = {
                            SUM(COALESCE(league_apps,0)) apps,
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
-                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE("club")}
-                    GROUP BY footballer_id, club)
+                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
+                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT tot.club AS club, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.${col} > 0
@@ -625,8 +626,9 @@ const overseasClub: TenableType = {
                            SUM(COALESCE(league_apps,0)) apps,
                            SUM(COALESCE(league_goals,0)) goals
                     FROM career_statistics
-                    WHERE club NOT LIKE '%(loan)%' AND ${NOT_RESERVE("club")}
-                    GROUP BY footballer_id, club)
+                    WHERE ${NOT_RESERVE("REPLACE(club, ' (loan)', '')")}
+                      AND COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+                    GROUP BY footballer_id, REPLACE(club, ' (loan)', ''))
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE tot.club = ? AND tot.${col} > 0
