@@ -204,11 +204,18 @@ export function TenablePage() {
   const answers: TenableAnswer[] = (round && answersBy[round.roundId]) || []
   const foundSet = found[key] ?? new Set<number>()
 
-  async function submit(name: string) {
+  // `picked` is the suggestion the player tapped, when they tapped one. It has
+  // to win over the name: `matches` accepts a bare surname so "Taylor" can be
+  // typed as a guess, which means picking Bob Taylor would otherwise be
+  // credited as Ian Taylor. Free text still falls back to the loose match,
+  // since that's the whole point of allowing a surname on its own.
+  async function submit(name: string, picked?: { id: number } | null) {
     if (!round || checking) return
-    const hit = answers.find(
-      a => a.footballer_id !== null && !foundSet.has(a.footballer_id) && matches(name, a.name),
-    )
+    const hit = picked
+      ? answers.find(a => a.footballer_id === picked.id && !foundSet.has(a.footballer_id))
+      : answers.find(
+          a => a.footballer_id !== null && !foundSet.has(a.footballer_id) && matches(name, a.name),
+        )
     if (hit && hit.footballer_id !== null) {
       const next = new Set(foundSet).add(hit.footballer_id)
       setFound(p => ({ ...p, [key]: next }))
@@ -437,11 +444,15 @@ export function TenablePage() {
                   getKey={f => f.id}
                   getLabel={f => f.name}
                   getStatus={s => {
-                    if (answers.some(a => a.footballer_id !== null && foundSet.has(a.footballer_id) && matches(s.name, a.name))) return 'correct'
+                    // Match on id, never on name. `matches` deliberately
+                    // accepts a surname on its own so "Taylor" can be submitted
+                    // as a guess, but that makes every Taylor look found once
+                    // one of them is — and here we have the actual player.
+                    if (foundSet.has(s.id)) return 'correct'
                     if ((wrong[key] ?? new Set()).has(norm(s.name))) return 'incorrect'
                     return null
                   }}
-                  onSelect={name => submit(name)}
+                  onSelect={(name, item) => submit(name, item)}
                 />
               </div>
             )}
