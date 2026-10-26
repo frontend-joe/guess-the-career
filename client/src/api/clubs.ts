@@ -64,3 +64,38 @@ export async function updateClubKit(
   if (!res.ok) throw new Error('Failed to update club kit')
   return res.json()
 }
+
+export interface ClubSeason {
+  season: string
+  season_year: number
+  division_raw: string
+  league: string
+}
+
+export async function getClubSeasons(id: number): Promise<ClubSeason[]> {
+  const res = await fetch(`/api/clubs/${id}/seasons`)
+  if (!res.ok) throw new Error('Failed to load club seasons')
+  return res.json()
+}
+
+export interface BackfillStatus {
+  type: string | null
+  running: boolean
+  total: number
+  done: number
+  updated: number
+  failed: number
+  currentName: string | null
+  error: string | null
+}
+
+export async function startClubSeasonsBackfill(all = false): Promise<void> {
+  const res = await fetch(`/api/footballers/backfill/club-seasons/start${all ? '?all=true' : ''}`, { method: 'POST' })
+  if (!res.ok && res.status !== 409) throw new Error('Failed to start backfill')
+}
+
+export async function getBackfillStatus(): Promise<BackfillStatus> {
+  const res = await fetch('/api/footballers/backfill/status')
+  if (!res.ok) throw new Error('Failed to load backfill status')
+  return res.json()
+}

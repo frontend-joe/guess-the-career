@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Trash2, RefreshCw, Loader2, Shirt } from 'lucide-react'
+import { Search, Trash2, RefreshCw, Loader2, Shirt, ChevronRight, CalendarRange } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
 import { KitSvg } from '@/components/KitSvg'
-import { getAllClubs, deleteAllClubs, rebuildClubs, scrapeKits, updateClubKit, type Club } from '@/api/clubs'
+import { getAllClubs, deleteAllClubs, rebuildClubs, scrapeKits, updateClubKit, getClubSeasons, startClubSeasonsBackfill, getBackfillStatus, type Club, type ClubSeason, type BackfillStatus } from '@/api/clubs'
 
 const PATTERNS = [
   { value: '',         label: 'Solid' },
@@ -19,6 +19,81 @@ const PATTERNS = [
   { value: 'check',    label: 'Check' },
   { value: 'penguin',  label: 'Penguin' },
 ]
+
+// The leagues Tenable builds rounds from — worth picking out of a club's
+// history, since they're the seasons that decide whether a player's spell can
+// be credited to a league.
+const MAJOR_LEAGUES = new Set([
+  'Premier League', 'EFL Championship', 'First Division',
+  'Serie A', 'La Liga', 'Bundesliga', 'Ligue 1',
+])
+
+// Collapse a season-by-season list into spells, so a club that spent 24 years
+// in the same division reads as one row instead of 24. Seasons arrive newest
+// first; a gap in the years breaks the run as well as a change of league.
+function toSpells(seasons: ClubSeason[]) {
+  const asc = [...seasons].sort((a, b) => a.season_year - b.season_year)
+  const spells: { league: string; from: string; to: string; count: number }[] = []
+  for (const s of asc) {
+    const last = spells[spells.length - 1]
+    const prev = asc[asc.indexOf(s) - 1]
+    if (last && last.league === s.league && prev && s.season_year - prev.season_year === 1) {
+      last.to = s.season
+      last.count += 1
+    } else {
+      spells.push({ league: s.league, from: s.season, to: s.season, count: 1 })
+    }
+  }
+  return spells.reverse()
+}
+
+function ClubSeasonHistory({ clubId }: { clubId: number }) {
+  const [seasons, setSeasons] = useState<ClubSeason[] | null>(null)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    getClubSeasons(clubId)
+      .then(r => { if (!cancelled) setSeasons(r) })
+      .catch(() => { if (!cancelled) setError(true) })
+    return () => { cancelled = true }
+  }, [clubId])
+
+  if (error) return <p className="text-sm text-destructive py-3">Couldn’t load season history.</p>
+  if (!seasons) return <p className="text-sm text-muted-foreground py-3">Loading season history…</p>
+  if (seasons.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-3">
+        No season history yet — run the club seasons backfill, or this club has no
+        “List of seasons” article on Wikipedia.
+      </p>
+    )
+  }
+
+  const spells = toSpells(seasons)
+  return (
+    <div className="py-3">
+      <p className="text-xs text-muted-foreground mb-2">
+        {seasons.length} seasons · {spells.length} spells
+      </p>
+      <div className="flex flex-col gap-1">
+        {spells.map((s, i) => (
+          <div key={i} className="flex items-baseline gap-3 text-sm">
+            <span className="tabular-nums text-muted-foreground w-36 shrink-0">
+              {s.from === s.to ? s.from : `${s.from} – ${s.to}`}
+            </span>
+            <span className={MAJOR_LEAGUES.has(s.league) ? 'font-medium' : 'text-muted-foreground'}>
+              {s.league}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {s.count} {s.count === 1 ? 'season' : 'seasons'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function ClubLogo({ wikipediaUrl }: { wikipediaUrl: string | null }) {
   const [logoUrl, setLogoUrl] = useState<string | false | null>(null)
@@ -211,6 +286,9 @@ export function ClubsPage() {
   const [rebuilding, setRebuilding] = useState(false)
   const [scrapingKits, setScrapingKits] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  // One club's season history open at a time — these lists run to 130 rows.
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [seasonsJob, setSeasonsJob] = useState<BackfillStatus | null>(null)
 
   const debouncedSearch = useDebounce(search, 250)
 
@@ -231,6 +309,28 @@ export function ClubsPage() {
   // Clubs that are eligible for kit scraping (have a wikipedia_url)
   const scrapeableClubs = clubs.filter(c => c.wikipedia_url)
   const selectedScrapeableCount = scrapeableClubs.filter(c => selectedIds.has(c.id)).length
+  // The seasons backfill runs server-side and outlives this request, so poll
+  // for progress rather than holding a stream open — the production proxy
+  // buffers SSE.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null
+    const poll = async () => {
+      try {
+        const st = await getBackfillStatus()
+        setSeasonsJob(st.type === 'club-seasons' ? st : null)
+        if (!st.running && timer) { clearInterval(timer); timer = null }
+      } catch { /* transient — the next tick retries */ }
+    }
+    void poll()
+    timer = setInterval(poll, 3000)
+    return () => { if (timer) clearInterval(timer) }
+  }, [])
+
+  async function handleScrapeSeasons() {
+    await startClubSeasonsBackfill()
+    setSeasonsJob({ type: 'club-seasons', running: true, total: 0, done: 0, updated: 0, failed: 0, currentName: null, error: null })
+  }
+
   const allScrapeableSelected = scrapeableClubs.length > 0 && selectedScrapeableCount === scrapeableClubs.length
   const someScrapeableSelected = selectedScrapeableCount > 0 && !allScrapeableSelected
 
@@ -350,6 +450,23 @@ export function ClubsPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleScrapeSeasons}
+            disabled={busy || !!seasonsJob?.running}
+          >
+            {seasonsJob?.running
+              ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              : <CalendarRange className="h-4 w-4 mr-1.5" />
+            }
+            <span className="hidden sm:inline">
+              {seasonsJob?.running
+                ? `Seasons ${seasonsJob.done}/${seasonsJob.total}`
+                : 'Scrape seasons'}
+            </span>
+            <span className="sm:hidden">Seasons</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleScrapeKits}
             disabled={busy}
           >
@@ -413,6 +530,7 @@ export function ClubsPage() {
                       aria-label="Select all"
                     />
                   </TableHead>
+                  <TableHead className="w-8" />
                   <TableHead className="w-12">Logo</TableHead>
                   <TableHead className="w-16">Kit</TableHead>
                   <TableHead>Club name</TableHead>
@@ -421,8 +539,8 @@ export function ClubsPage() {
               </TableHeader>
               <TableBody>
                 {clubs.map((club) => (
+                  <Fragment key={club.id}>
                   <TableRow
-                    key={club.id}
                     className={selectedIds.has(club.id) ? 'bg-muted/40' : ''}
                     onClick={() => { if (club.wikipedia_url) toggleClub(club.id) }}
                     style={{ cursor: club.wikipedia_url ? 'pointer' : 'default' }}
@@ -435,6 +553,18 @@ export function ClubsPage() {
                           aria-label={`Select ${club.name}`}
                         />
                       )}
+                    </TableCell>
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setExpandedId(id => id === club.id ? null : club.id)}
+                        aria-label={`${expandedId === club.id ? 'Hide' : 'Show'} season history for ${club.name}`}
+                        aria-expanded={expandedId === club.id}
+                        className="p-1 -m-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                      >
+                        <ChevronRight
+                          className={`h-4 w-4 transition-transform duration-150 ${expandedId === club.id ? 'rotate-90' : ''}`}
+                        />
+                      </button>
                     </TableCell>
                     <TableCell>
                       <ClubLogo wikipediaUrl={club.wikipedia_url} />
@@ -450,6 +580,14 @@ export function ClubsPage() {
                       }
                     </TableCell>
                   </TableRow>
+                  {expandedId === club.id && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={6} className="bg-muted/20 pl-16">
+                        <ClubSeasonHistory clubId={club.id} />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>

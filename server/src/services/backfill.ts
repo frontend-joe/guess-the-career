@@ -1,8 +1,9 @@
 import { and, eq, isNotNull, notInArray, sql } from "drizzle-orm";
-import { db } from "../db/client.ts";
+import { db, sqlite } from "../db/client.ts";
 import { footballers, career_statistics } from "../db/schema.ts";
 import { scrapeWikipedia } from "./scraper.ts";
 import { replaceCareerStatistics, fetchSportsDbPhoto, applyScrapeResult } from "./footballers.ts";
+import { refreshClubSeasons } from "./clubSeasons.ts";
 
 // Server-side background backfill jobs.
 //
@@ -11,7 +12,7 @@ import { replaceCareerStatistics, fetchSportsDbPhoto, applyScrapeResult } from "
 // browser tab closes, and long runtimes. The client starts a job with a short
 // POST and polls a short GET for progress.
 
-export type BackfillType = "photos" | "career-stats" | "repair";
+export type BackfillType = "photos" | "career-stats" | "repair" | "club-seasons";
 
 // A `position` this long is never a real position — it's the whole nested
 // infobox splatted in by the pre-fix descendant-scoped row parser. Real
@@ -104,6 +105,24 @@ async function selectTargets(
     .orderBy(footballers.id) as Promise<{ id: number; name: string; url: string }[]>;
 }
 
+// Clubs worth a seasons scrape: the ones Tenable actually builds rounds for.
+// Plain SQL rather than a Drizzle NOT IN subquery — that form returned zero
+// targets against the production database.
+function selectClubSeasonTargets(onlyMissing: boolean): { name: string; url: string }[] {
+  return sqlite
+    .prepare(
+      `SELECT c.name AS name, c.wikipedia_url AS url
+       FROM clubs c
+       WHERE c.wikipedia_url IS NOT NULL
+         AND c.name IN (
+           SELECT DISTINCT REPLACE(club, ' (loan)', '') FROM career_statistics
+         )
+         ${onlyMissing ? `AND c.name NOT IN (SELECT DISTINCT club FROM club_seasons)` : ``}
+       ORDER BY c.name`,
+    )
+    .all() as { name: string; url: string }[];
+}
+
 // Start a backfill. Returns false if one is already running.
 export function startBackfill(type: BackfillType, onlyMissing = true): boolean {
   if (job.running) return false;
@@ -124,6 +143,27 @@ export function startBackfill(type: BackfillType, onlyMissing = true): boolean {
   // Fire-and-forget: runs independently of the request.
   void (async () => {
     try {
+      // Clubs, not players — different targets and a different unit of work,
+      // so it runs its own loop rather than threading a second shape through
+      // the player one.
+      if (type === "club-seasons") {
+        const clubs = await selectClubSeasonTargets(onlyMissing);
+        job.total = clubs.length;
+        for (const club of clubs) {
+          if (cancelRequested) break;
+          job.currentName = club.name;
+          try {
+            const n = await refreshClubSeasons(club.name, club.url);
+            if (n > 0) job.updated += 1;
+          } catch {
+            job.failed += 1;
+          }
+          job.done += 1;
+          await new Promise<void>((r) => setTimeout(r, 600));
+        }
+        return;
+      }
+
       const targets = await selectTargets(type, onlyMissing);
       job.total = targets.length;
       for (const player of targets) {

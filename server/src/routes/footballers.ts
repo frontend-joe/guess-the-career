@@ -391,12 +391,13 @@ footballersRouter.get('/rescrape-all', async (c) => {
 // Backfill jobs run server-side (independent of the request) so they survive the
 // Netlify proxy (which buffers/times out SSE), tab closes, and 40-minute runtimes.
 // The client starts a job with a short POST and polls GET /backfill/status.
-//   POST /api/footballers/backfill/:type/start  (type = photos | career-stats)
+//   POST /api/footballers/backfill/:type/start
+//        (type = photos | career-stats | repair | club-seasons)
 //   GET  /api/footballers/backfill/status
 //   POST /api/footballers/backfill/stop
 footballersRouter.post('/backfill/:type/start', (c) => {
   const type = c.req.param('type')
-  if (type !== 'photos' && type !== 'career-stats' && type !== 'repair') {
+  if (type !== 'photos' && type !== 'career-stats' && type !== 'repair' && type !== 'club-seasons') {
     return c.json({ error: 'Unknown backfill type' }, 400)
   }
   // onlyMissing (default true) resumes where a previous run left off.

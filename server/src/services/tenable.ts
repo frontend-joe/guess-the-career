@@ -95,12 +95,26 @@ const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
 // looks unanimous: Birmingham City were in the First Division until 2002 and
 // the Premier League after, so judging by Premier League rows alone credited a
 // player's whole Birmingham career to the Premier League.
+// Prefer club_seasons: it's scraped from the club's own "List of seasons"
+// article, so it states every season outright instead of inferring them from
+// whichever players happen to have career statistics. Fall back to that
+// inference only for clubs with no seasons article.
+//
+// The two sources are never mixed for the same club. Career statistics are
+// sparse and occasionally mislabelled, and one stray row would add a second
+// distinct league to a club-season the article already settles — which the
+// unanimity test below reads as a straddled spell and throws away.
 const CLUB_SEASON_LEAGUE = `
+  SELECT club, season_year AS yr, league
+  FROM club_seasons
+  GROUP BY 1, 2, 3
+  UNION
   SELECT REPLACE(club, ' (loan)', '') AS club,
          CAST(SUBSTR(season, 1, 4) AS INTEGER) AS yr,
          COALESCE(league, division) AS league
   FROM career_statistics
   WHERE COALESCE(league, division) IS NOT NULL
+    AND REPLACE(club, ' (loan)', '') NOT IN (SELECT club FROM club_seasons)
   GROUP BY 1, 2, 3
 `;
 

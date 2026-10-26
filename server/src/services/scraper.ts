@@ -3422,3 +3422,131 @@ export async function scrapeTransfermarktRecordSignings(
 // layout is identical to record signings — same table, same second-to-last club
 // column (here the buying club) — so the parser is reused verbatim.
 export const scrapeTransfermarktRecordSales = scrapeTransfermarktRecordSignings
+
+export interface ClubSeasonRow {
+  season: string
+  season_year: number
+  division_raw: string
+  league: string
+}
+
+// The five leagues we build Tenable rounds from, as the seasons pages spell
+// them. Continental pages write the competition out in full ("Serie A", "La
+// Liga", "Bundesliga"), so those are unambiguous. English pages abbreviate, and
+// "Prem"/"Premier League" is the one genuine collision: Scotland's top flight
+// was also called the Premier League from 1998 to 2013, so the caller has to
+// vouch for the club being English before we accept it.
+const SEASON_DIVISION_CANON: { re: RegExp; name: string; englishOnly?: boolean }[] = [
+  { re: /^prem(ier\s*league)?$/i, name: 'Premier League', englishOnly: true },
+  { re: /^serie\s*a$/i, name: 'Serie A' },
+  { re: /^la\s*liga$/i, name: 'La Liga' },
+  { re: /^(fu(ß|ss)ball-)?bundesliga$/i, name: 'Bundesliga' },
+  { re: /^ligue\s*1$/i, name: 'Ligue 1' },
+]
+
+// Seasons tables decorate the division cell with promotion/relegation arrows
+// and a bracketed tier ("Div 1 (1)", "Champ ↑"). Strip the decoration so the
+// competition name is all that's left; tableToGrid has already removed the
+// footnote markers along with the <sup> elements.
+function cleanDivisionCell(raw: string): string {
+  return raw
+    .replace(/[↑↓▲▼]/g, '')
+    .replace(/\((\d|tier\s*\d)\)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Which division a club played in each season, from its "List of <club>
+ * seasons" page. Returns one row per season, with `league` set to the canonical
+ * name for the five leagues we build rounds from and to the raw division text
+ * otherwise — never null, so a caller testing whether a spell stayed in one
+ * league can still see the seasons that fell outside those five.
+ *
+ * `isEnglish` vouches for the club's country, which is needed only to tell the
+ * English Premier League from the Scottish one.
+ */
+export async function scrapeClubSeasons(
+  wikiUrl: string,
+  isEnglish: boolean,
+): Promise<ClubSeasonRow[]> {
+  const title = wikiUrl.split('/wiki/')[1]
+  if (!title) throw new Error(`Invalid Wikipedia URL: ${wikiUrl}`)
+
+  const pageUrl = `https://en.wikipedia.org/wiki/List_of_${decodeURIComponent(title)}_seasons`
+  const res = await fetch(pageUrl, { headers: { 'User-Agent': 'GuessTheCareer-Admin/1.0' } })
+  // Plenty of clubs simply have no seasons article — that's not an error.
+  if (res.status === 404) return []
+  if (!res.ok) throw new Error(`Wikipedia error ${res.status} for ${pageUrl}`)
+
+  const $ = cheerio.load(await res.text())
+
+  let best: ClubSeasonRow[] = []
+  $('table.wikitable').each((_, table) => {
+    const grid = tableToGrid($, $(table))
+    if (grid.length < 2) return
+
+    // Header cells can be split over two rows when columns are grouped (the
+    // Forest page nests Pld/W/D/L under a "League" heading), which shifts the
+    // division column, so look for the labels across the first two rows rather
+    // than assuming row 0.
+    let seasonCol = -1
+    let divCol = -1
+    for (const row of grid.slice(0, 2)) {
+      row.forEach((cell, i) => {
+        const t = cell?.text?.trim() ?? ''
+        if (seasonCol < 0 && /^season$/i.test(t)) seasonCol = i
+        if (divCol < 0 && /^(division|league|tier|competition)$/i.test(t)) divCol = i
+      })
+    }
+    if (seasonCol < 0 || divCol < 0) return
+
+    const rows: ClubSeasonRow[] = []
+    for (const row of grid.slice(1)) {
+      const season = row[seasonCol]?.text?.trim() ?? ''
+      const year = parseInt(season.slice(0, 4), 10)
+      if (!/^\d{4}/.test(season) || isNaN(year)) continue
+
+      const division_raw = cleanDivisionCell(row[divCol]?.text ?? '')
+      if (!division_raw || /^(n\/a|—|-|all)$/i.test(division_raw)) continue
+      // Wartime and similar gaps put a whole sentence in the division cell.
+      if (division_raw.length > 40) continue
+
+      // English pages abbreviate, and "Div 1" means two different competitions:
+      // the top flight until 1991-92, then the second tier (today's
+      // Championship) once the Premier League broke away. Resolve it the same
+      // way migration 0082 resolves the career-statistics rows.
+      if (isEnglish) {
+        const english = /^div(ision)?\s*1$/i.test(division_raw)
+          ? year <= 1991
+            ? 'First Division'
+            : year <= 2003
+              ? 'EFL Championship'
+              : null
+          : /^champ(ionship)?$/i.test(division_raw)
+            ? 'EFL Championship'
+            : null
+        if (english) {
+          rows.push({ season, season_year: year, division_raw, league: english })
+          continue
+        }
+      }
+
+      const hit = SEASON_DIVISION_CANON.find((c) => c.re.test(division_raw))
+      // A vetoed match can't fall back to the raw text: Scotland's top flight
+      // was spelt "Premier League" too, so the raw string would collide with
+      // the canonical name we just refused to give it. Qualify it instead.
+      const league = !hit
+        ? division_raw
+        : !hit.englishOnly || isEnglish
+          ? hit.name
+          : `${division_raw} (non-English)`
+      rows.push({ season, season_year: year, division_raw, league })
+    }
+    // Some pages carry a second, smaller table (top scorers, honours); keep the
+    // one that actually looks like the season-by-season record.
+    if (rows.length > best.length) best = rows
+  })
+
+  return best
+}

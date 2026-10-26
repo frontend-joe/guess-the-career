@@ -644,3 +644,16 @@ export const record_sales_schedule = sqliteTable('record_sales_schedule', {
 
 export type RecordSalesClub = typeof record_sales_clubs.$inferSelect
 export type RecordSalesPlayer = typeof record_sales_players.$inferSelect
+
+export const club_seasons = sqliteTable('club_seasons', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  club: text('club').notNull(),
+  season: text('season').notNull(),
+  season_year: integer('season_year').notNull(),
+  division_raw: text('division_raw').notNull(),
+  league: text('league').notNull(),
+  source_url: text('source_url'),
+  scraped_at: text('scraped_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type ClubSeason = typeof club_seasons.$inferSelect

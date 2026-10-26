@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { asc, eq, sql, isNotNull } from 'drizzle-orm'
+import { asc, desc, eq, sql, isNotNull } from 'drizzle-orm'
 import { db } from '../db/client.ts'
-import { clubs } from '../db/schema.ts'
+import { clubs, club_seasons } from '../db/schema.ts'
 import { scrapeClubKitColours } from '../services/scraper.ts'
 import { rebuildClubs } from '../services/clubs.ts'
 
@@ -47,6 +47,28 @@ clubsRouter.get('/all', async (c) => {
         .select(cols)
         .from(clubs)
         .orderBy(asc(clubs.name))
+
+  return c.json(rows)
+})
+
+// GET /api/clubs/:id/seasons — season-by-season division history (admin)
+clubsRouter.get('/:id/seasons', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.json({ error: 'Bad id' }, 400)
+
+  const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, id)).limit(1)
+  if (!club) return c.json({ error: 'Not found' }, 404)
+
+  const rows = await db
+    .select({
+      season: club_seasons.season,
+      season_year: club_seasons.season_year,
+      division_raw: club_seasons.division_raw,
+      league: club_seasons.league,
+    })
+    .from(club_seasons)
+    .where(eq(club_seasons.club, club.name))
+    .orderBy(desc(club_seasons.season_year))
 
   return c.json(rows)
 })
