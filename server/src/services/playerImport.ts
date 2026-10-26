@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db, sqlite, normalizeName } from '../db/client.ts'
 import { footballers, career_stints } from '../db/schema.ts'
-import { scrapeWikipedia, normalizeClubAlias } from './scraper.ts'
+import { scrapeWikipedia, normalizeClubAlias, type ScrapeResult } from './scraper.ts'
 import { clubWikiUrl } from './clubs.ts'
 import { replaceCareerStatistics, applyNameSplit } from './footballers.ts'
 
@@ -155,6 +155,24 @@ export function dbFootballerByName(name: string): number | null {
   return row?.id ?? null
 }
 
+
+// A Wikipedia title can match a player's name without being a person at all.
+// Guessing "Puskas" surfaced "Puskás Akadémia FC" and "Ferenc Puskás Stadium";
+// both scraped without throwing — every field just came back null — so both
+// were inserted as footballers, and because the caller returns on the first
+// candidate that doesn't throw, the real Ferenc Puskás was never reached.
+//
+// Reject non-people here, at the one chokepoint every creation path goes
+// through. Throwing (rather than returning null) is deliberate: the caller
+// already treats a throw as "try the next candidate".
+function assertIsFootballer(scraped: ScrapeResult, wikiUrl: string): void {
+  if (scraped.stints.some((s) => s.stint_type === 'senior')) return
+  // No career table is common enough on its own; pair two biographical facts a
+  // club or ground never has.
+  if (scraped.born && scraped.position) return
+  throw new Error(`Not a footballer page: ${wikiUrl}`)
+}
+
 export async function insertScrapedFootballer(wikiUrl: string): Promise<number | null> {
   const [existing] = await db
     .select({ id: footballers.id })
@@ -164,6 +182,7 @@ export async function insertScrapedFootballer(wikiUrl: string): Promise<number |
   if (existing) return existing.id
 
   const scraped = await scrapeWikipedia(wikiUrl)
+  assertIsFootballer(scraped, wikiUrl)
 
   const [byScrapedUrl] = await db
     .select({ id: footballers.id })
