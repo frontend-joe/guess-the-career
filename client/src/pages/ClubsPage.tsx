@@ -328,7 +328,7 @@ export function ClubsPage() {
 
   async function handleScrapeSeasons() {
     await startClubSeasonsBackfill()
-    setSeasonsJob({ type: 'club-seasons', running: true, total: 0, done: 0, updated: 0, failed: 0, currentName: null, error: null })
+    setSeasonsJob({ type: 'club-seasons', running: true, total: 0, done: 0, updated: 0, failed: 0, currentName: null, error: null, failures: [] })
   }
 
   const allScrapeableSelected = scrapeableClubs.length > 0 && selectedScrapeableCount === scrapeableClubs.length
@@ -479,6 +479,30 @@ export function ClubsPage() {
           </Button>
         </div>
       </div>
+
+      {seasonsJob && (seasonsJob.failures.length > 0 || (!seasonsJob.running && seasonsJob.done > 0)) && (
+        <div className="mb-4 rounded-lg border px-4 py-3 text-sm">
+          <p className="text-muted-foreground">
+            {seasonsJob.running ? 'Scraping seasons' : 'Last seasons scrape'}:{' '}
+            <span className="text-foreground">{seasonsJob.done}</span> checked ·{' '}
+            <span className="text-foreground">{seasonsJob.updated}</span> with a season history ·{' '}
+            <span className={seasonsJob.failed > 0 ? 'text-destructive' : 'text-foreground'}>
+              {seasonsJob.failed}
+            </span>{' '}
+            failed
+          </p>
+          {seasonsJob.failures.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-0.5">
+              {seasonsJob.failures.map((f, i) => (
+                <li key={i} className="text-xs">
+                  <span className="font-medium">{f.name}</span>
+                  <span className="text-muted-foreground"> — {f.message}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

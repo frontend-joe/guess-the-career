@@ -87,6 +87,7 @@ export interface BackfillStatus {
   failed: number
   currentName: string | null
   error: string | null
+  failures: { name: string; message: string }[]
 }
 
 export async function startClubSeasonsBackfill(all = false): Promise<void> {

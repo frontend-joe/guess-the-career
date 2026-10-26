@@ -33,12 +33,37 @@ export function isEnglishClub(club: string): boolean {
  * for it. Returns the number of seasons stored — 0 means the club has no
  * "List of <club> seasons" article, which is common and not an error.
  */
+function recordCheck(club: string, seasonsFound: number, error: string | null): void {
+  sqlite
+    .prepare(
+      `INSERT INTO club_season_checks (club, checked_at, seasons_found, error)
+       VALUES (?, datetime('now'), ?, ?)
+       ON CONFLICT(club) DO UPDATE SET
+         checked_at    = excluded.checked_at,
+         seasons_found = excluded.seasons_found,
+         error         = excluded.error`,
+    )
+    .run(club, seasonsFound, error);
+}
+
 export async function refreshClubSeasons(
   club: string,
   wikiUrl: string,
 ): Promise<number> {
-  const rows = await scrapeClubSeasons(wikiUrl, isEnglishClub(club));
-  if (rows.length === 0) return 0;
+  let rows;
+  try {
+    rows = await scrapeClubSeasons(wikiUrl, isEnglishClub(club));
+  } catch (e) {
+    // Record the failure and rethrow: the caller counts it, and storing the
+    // error (rather than a zero count) keeps the club eligible for a retry.
+    recordCheck(club, 0, e instanceof Error ? e.message : "scrape failed");
+    throw e;
+  }
+
+  if (rows.length === 0) {
+    recordCheck(club, 0, null);
+    return 0;
+  }
 
   const sourceUrl = `https://en.wikipedia.org/wiki/List_of_${
     decodeURIComponent(wikiUrl.split("/wiki/")[1] ?? "")
@@ -56,6 +81,7 @@ export async function refreshClubSeasons(
     }
   });
   replace();
+  recordCheck(club, rows.length, null);
 
   return rows.length;
 }

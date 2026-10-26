@@ -31,6 +31,8 @@ export interface BackfillStatus {
   finishedAt: string | null;
   currentName: string | null;
   error: string | null;
+  /** The most recent failures, newest last, so "what failed?" has an answer. */
+  failures: { name: string; message: string }[];
 }
 
 let job: BackfillStatus = {
@@ -44,9 +46,23 @@ let job: BackfillStatus = {
   finishedAt: null,
   currentName: null,
   error: null,
+  failures: [],
 };
 
 let cancelRequested = false;
+
+// Keep only the tail: this is a debugging aid polled by the admin, not a log,
+// and a run that fails wholesale shouldn't grow the status payload unbounded.
+const MAX_FAILURES_KEPT = 20;
+
+function recordFailure(name: string, e: unknown): void {
+  job.failed += 1;
+  job.failures.push({
+    name,
+    message: e instanceof Error ? e.message : String(e),
+  });
+  if (job.failures.length > MAX_FAILURES_KEPT) job.failures.shift();
+}
 
 export function getBackfillStatus(): BackfillStatus {
   return { ...job };
@@ -105,9 +121,19 @@ async function selectTargets(
     .orderBy(footballers.id) as Promise<{ id: number; name: string; url: string }[]>;
 }
 
+// How long a "this club has no seasons article" result is trusted before we
+// look again. Articles do get written, so the answer shouldn't be permanent —
+// but it changes on the scale of years, not days.
+const NO_ARTICLE_TTL_DAYS = 90;
+
 // Clubs worth a seasons scrape: the ones Tenable actually builds rounds for.
 // Plain SQL rather than a Drizzle NOT IN subquery — that form returned zero
 // targets against the production database.
+//
+// A resume skips two groups: clubs whose seasons we already hold, and clubs we
+// recently checked and found no article for. Without the second group every
+// rerun refetches ~1,200 pageless clubs. A check that recorded an error is NOT
+// skipped, so a transient failure is always retried.
 function selectClubSeasonTargets(onlyMissing: boolean): { name: string; url: string }[] {
   return sqlite
     .prepare(
@@ -117,7 +143,16 @@ function selectClubSeasonTargets(onlyMissing: boolean): { name: string; url: str
          AND c.name IN (
            SELECT DISTINCT REPLACE(club, ' (loan)', '') FROM career_statistics
          )
-         ${onlyMissing ? `AND c.name NOT IN (SELECT DISTINCT club FROM club_seasons)` : ``}
+         ${
+           onlyMissing
+             ? `AND c.name NOT IN (SELECT DISTINCT club FROM club_seasons)
+                AND c.name NOT IN (
+                  SELECT club FROM club_season_checks
+                  WHERE seasons_found = 0 AND error IS NULL
+                    AND checked_at > datetime('now', '-${NO_ARTICLE_TTL_DAYS} days')
+                )`
+             : ``
+         }
        ORDER BY c.name`,
     )
     .all() as { name: string; url: string }[];
@@ -138,6 +173,7 @@ export function startBackfill(type: BackfillType, onlyMissing = true): boolean {
     finishedAt: null,
     currentName: null,
     error: null,
+    failures: [],
   };
 
   // Fire-and-forget: runs independently of the request.
@@ -155,8 +191,8 @@ export function startBackfill(type: BackfillType, onlyMissing = true): boolean {
           try {
             const n = await refreshClubSeasons(club.name, club.url);
             if (n > 0) job.updated += 1;
-          } catch {
-            job.failed += 1;
+          } catch (e) {
+            recordFailure(club.name, e);
           }
           job.done += 1;
           await new Promise<void>((r) => setTimeout(r, 600));
@@ -195,8 +231,8 @@ export function startBackfill(type: BackfillType, onlyMissing = true): boolean {
             await replaceCareerStatistics(player.id, rows);
             if (rows.length > 0) job.updated += 1;
           }
-        } catch {
-          job.failed += 1;
+        } catch (e) {
+          recordFailure(player.name, e);
         }
         job.done += 1;
         await new Promise<void>((r) => setTimeout(r, 600));
