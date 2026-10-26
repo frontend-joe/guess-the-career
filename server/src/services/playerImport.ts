@@ -225,6 +225,24 @@ export async function insertScrapedFootballer(wikiUrl: string): Promise<number |
   return created.id
 }
 
+
+// Whether a row we already hold actually looks like a person. The scrape-time
+// guard can't help here: insertScrapedFootballer returns an existing row by
+// URL before it scrapes anything, so junk created before that guard existed
+// (or by any other path) would still be handed back as a valid answer.
+function rowLooksLikeFootballer(id: number): boolean {
+  const row = sqlite
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM career_stints
+                WHERE footballer_id = f.id AND stint_type = 'senior') AS seniors,
+              f.born AS born, f.position AS position
+         FROM footballers f WHERE f.id = ?`,
+    )
+    .get(id) as { seniors: number; born: string | null; position: string | null } | undefined
+  if (!row) return false
+  return row.seniors > 0 || !!(row.born && row.position)
+}
+
 export async function resolveOrCreateFootballer(
   name: string,
   clubHint: string,
@@ -246,7 +264,9 @@ export async function resolveOrCreateFootballer(
     const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
     try {
       const id = await insertScrapedFootballer(wikiUrl)
-      if (id) return { id, created: true }
+      // Skip a candidate that resolved to something that isn't a person, so a
+      // stale "Ferenc Puskás Stadium" row can't stand in for the player.
+      if (id && rowLooksLikeFootballer(id)) return { id, created: true }
     } catch {
       // try the next candidate
     }
