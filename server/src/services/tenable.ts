@@ -66,26 +66,70 @@ const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
   (l) => `'${l.toLowerCase().replace(/ /g, "")}'`,
 ).join(", ");
 
+
+// Roughly a quarter of players have no "Career statistics" table on Wikipedia
+// (Dede, for one) — but their infobox career IS scraped into career_stints,
+// with club totals. Recover those by inferring the league from the club, using
+// only clubs that appear in exactly ONE of our leagues. Clubs that yo-yo
+// between the Premier League and the Championship are deliberately skipped:
+// their stint totals can't be split between the two.
+const CLUB_LEAGUE = `
+  SELECT REPLACE(club, ' (loan)', '') AS club,
+         MIN(COALESCE(league, division)) AS league
+  FROM career_statistics
+  WHERE COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
+  GROUP BY REPLACE(club, ' (loan)', '')
+  HAVING COUNT(DISTINCT COALESCE(league, division)) = 1
+`;
+
+const STINT_CLUB = `
+  SELECT st.footballer_id AS fid,
+         REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
+         SUM(COALESCE(st.apps, 0))  AS apps,
+         SUM(COALESCE(st.goals, 0)) AS goals
+  FROM career_stints st
+  WHERE st.stint_type = 'senior'
+    AND NOT EXISTS (
+      SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
+    )
+  GROUP BY st.footballer_id, REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')
+`;
+
 const PLAYER_LEAGUE = `
-  SELECT cs.footballer_id AS fid,
-         COALESCE(cs.league, cs.division) AS league,
-         SUM(COALESCE(cs.league_apps, 0))  AS apps,
-         SUM(COALESCE(cs.league_goals, 0)) AS goals
-  FROM career_statistics cs
-  WHERE ${IN_ALLOWED}
-  GROUP BY cs.footballer_id, COALESCE(cs.league, cs.division)
+  SELECT fid, league, SUM(apps) AS apps, SUM(goals) AS goals FROM (
+    SELECT cs.footballer_id AS fid,
+           COALESCE(cs.league, cs.division) AS league,
+           SUM(COALESCE(cs.league_apps, 0))  AS apps,
+           SUM(COALESCE(cs.league_goals, 0)) AS goals
+    FROM career_statistics cs
+    WHERE ${IN_ALLOWED}
+    GROUP BY cs.footballer_id, COALESCE(cs.league, cs.division)
+    UNION ALL
+    SELECT sc.fid, cl.league, sc.apps, sc.goals
+    FROM (${STINT_CLUB}) sc
+    JOIN (${CLUB_LEAGUE}) cl ON cl.club = sc.club
+  )
+  GROUP BY fid, league
 `;
 
 // Per-player, per-club totals (all competitions' league rows for that club).
 const PLAYER_CLUB = `
-  SELECT cs.footballer_id AS fid,
-         cs.club AS club,
-         SUM(COALESCE(cs.league_apps, 0))  AS apps,
-         SUM(COALESCE(cs.league_goals, 0)) AS goals
-  FROM career_statistics cs
-  WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
-    AND ${NOT_RESERVE('cs.club')} AND ${IN_ALLOWED}
-  GROUP BY cs.footballer_id, cs.club
+  SELECT fid, club, SUM(apps) AS apps, SUM(goals) AS goals FROM (
+    SELECT cs.footballer_id AS fid,
+           cs.club AS club,
+           SUM(COALESCE(cs.league_apps, 0))  AS apps,
+           SUM(COALESCE(cs.league_goals, 0)) AS goals
+    FROM career_statistics cs
+    WHERE cs.club IS NOT NULL AND cs.club NOT LIKE '%(loan)%'
+      AND ${NOT_RESERVE('cs.club')} AND ${IN_ALLOWED}
+    GROUP BY cs.footballer_id, cs.club
+    UNION ALL
+    SELECT sc.fid, sc.club, sc.apps, sc.goals
+    FROM (${STINT_CLUB}) sc
+    JOIN (${CLUB_LEAGUE}) cl ON cl.club = sc.club
+    WHERE ${NOT_RESERVE('sc.club')}
+  )
+  GROUP BY fid, club
 `;
 
 
