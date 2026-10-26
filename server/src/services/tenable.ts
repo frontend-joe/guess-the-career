@@ -135,11 +135,6 @@ const PLAYER_CLUB = `
 
 const metricCol = (m: Metric) => (m === "apps" ? "apps" : "goals");
 
-// "in the Premier League" but "in Serie A" — the article is league-specific.
-const TAKES_THE = new Set(["Premier League", "EFL Championship", "Bundesliga"]);
-const inLeague = (league: string) =>
-  TAKES_THE.has(league) ? `the ${league}` : league;
-
 // "Wolverhampton Wanderers'" not "Wolverhampton Wanderers's".
 const possessive = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
 const metricWord = (m: Metric) => (m === "apps" ? "appearances" : "goals");
@@ -345,7 +340,7 @@ const nationality: TenableType = {
   label: "Nationality",
   description: "Top of a league filtered to one nationality.",
   example: "Most Premier League goals by Dutch players",
-  title: (p, m) => `${p.nationality} players in ${inLeague(p.league)} (most ${metricWord(m)})`,
+  title: (p, m) => `${p.nationality} ${p.league} players (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
