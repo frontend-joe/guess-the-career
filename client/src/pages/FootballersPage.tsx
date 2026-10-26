@@ -229,9 +229,10 @@ export function FootballersPage() {
           />
           Single Defender/Midfielder
         </label>
-        <BackfillControls />
       </>
     ),
+    extraActions: <BackfillControls />,
+    activeFilterCount: [missingNationality, missingPhoto, missingCareerStats, nonRetired, missingCaps, singleGenericPosition].filter(Boolean).length,
   }
 
   return <PersonAdminPage config={config} />

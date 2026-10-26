@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { useNavigate } from 'react-router'
-import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, Trash2, Eye, Globe, RefreshCw, CheckCircle2, XCircle, Circle, Loader2, Copy, CalendarDays, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
 import { RescrapeButton } from '@/components/RescrapeButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -410,11 +410,49 @@ export interface PersonAdminConfig<T extends { id: number; name: string; wikiped
   deleteAllPeople: () => Promise<void>
   getDuplicates: () => Promise<T[][]>
   extraFilters?: React.ReactNode
+  /** Buttons that stay inline beside the search box, not tucked into Filters. */
+  extraActions?: React.ReactNode
+  /** How many filters are on, for the badge on the Filters button. */
+  activeFilterCount?: number
   filterPeople?: (people: T[]) => T[]
   rescrapePerson?: (id: number) => Promise<unknown>
   updatePhotoUrl?: (id: number, url: string | null) => Promise<void>
   updateCustomPosition?: (id: number, value: string | null) => Promise<void>
   customPositionOptions?: CustomPositionOption[]
+}
+
+// Filters live behind a button so the search box keeps its width — the bar had
+// six checkboxes and three actions competing with it.
+function FilterDropdown({ count, children }: { count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <Button variant="outline" size="sm" onClick={() => setOpen(v => !v)}>
+        <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+        Filters
+        {count > 0 && (
+          <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+            {count}
+          </span>
+        )}
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-50 mt-1 w-64 rounded-lg border bg-white p-3 shadow-lg">
+          <div className="flex flex-col gap-2.5">{children}</div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function PersonAdminPage<T extends { id: number; name: string; wikipedia_url: string; photo_url?: string | null; custom_position?: string | null }>({
@@ -646,8 +684,8 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-56">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={`Search by name…`}
@@ -656,7 +694,12 @@ export function PersonAdminPage<T extends { id: number; name: string; wikipedia_
             className="pl-9"
           />
         </div>
-        {config.extraFilters}
+        {config.extraFilters && (
+          <FilterDropdown count={config.activeFilterCount ?? 0}>
+            {config.extraFilters}
+          </FilterDropdown>
+        )}
+        {config.extraActions}
       </div>
 
       {error && <p className="text-destructive text-sm mb-4">{error}</p>}
