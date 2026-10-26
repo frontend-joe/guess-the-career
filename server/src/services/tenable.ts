@@ -140,11 +140,24 @@ const STINT_CLUB_ANY = `
   GROUP BY st.footballer_id, REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')
 `;
 
+// A spell's appearances are one career total from the infobox, so a spell that
+// straddled a promotion used to be dropped. That silently reported a partial
+// sum as a complete one: Paul Parker's Man Utd years (1991-96) were discarded
+// and his Premier League total came out as 8 — the four games each at Derby and
+// Chelsea — instead of the ~79 he actually played.
+//
+// Split it instead, pro-rata by season. club_seasons says exactly which league
+// the club was in each year, so the division is grounded in fact even though
+// the per-season apps are not: Parker's 105 Man Utd apps over one First
+// Division and four Premier League seasons give him 84, against a real 79.
+//
+// The denominator counts EVERY season of the spell, including leagues we build
+// no rounds from, so seasons spent outside them still dilute the share. Only
+// then are the allowed leagues kept.
 const STINT_RESOLVED = `
-  SELECT s.fid AS fid, s.club AS club, s.apps AS apps, s.goals AS goals,
-         MIN(cs.league) AS league
-  FROM (
-    SELECT st.footballer_id AS fid,
+  WITH spell AS (
+    SELECT st.id AS sid,
+           st.footballer_id AS fid,
            REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
            CAST(SUBSTR(st.years, 1, 4) AS INTEGER) AS y1,
            CAST(SUBSTR(st.years, -4) AS INTEGER) AS y2,
@@ -155,13 +168,24 @@ const STINT_RESOLVED = `
       AND NOT EXISTS (
         SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
       )
-  ) s
-  JOIN (${CLUB_SEASON_LEAGUE}) cs
-    ON cs.club = s.club AND cs.yr BETWEEN s.y1 AND MAX(s.y2 - 1, s.y1)
-  GROUP BY s.fid, s.club, s.apps, s.goals
-  -- One division for the whole spell, and it has to be one we build rounds from.
-  HAVING COUNT(DISTINCT cs.league) = 1
-     AND MIN(cs.league) IN (${ALLOWED_LEAGUES_SQL})
+  ),
+  per_league AS (
+    SELECT sp.sid, sp.fid, sp.club, sp.apps, sp.goals,
+           cs.league AS league, COUNT(*) AS seasons
+    FROM spell sp
+    JOIN (${CLUB_SEASON_LEAGUE}) cs
+      ON cs.club = sp.club AND cs.yr BETWEEN sp.y1 AND MAX(sp.y2 - 1, sp.y1)
+    GROUP BY sp.sid, cs.league
+  ),
+  spell_total AS (
+    SELECT sid, SUM(seasons) AS seasons FROM per_league GROUP BY sid
+  )
+  SELECT pl.fid AS fid, pl.club AS club, pl.league AS league,
+         CAST(ROUND(pl.apps  * 1.0 * pl.seasons / st.seasons) AS INTEGER) AS apps,
+         CAST(ROUND(pl.goals * 1.0 * pl.seasons / st.seasons) AS INTEGER) AS goals
+  FROM per_league pl
+  JOIN spell_total st ON st.sid = pl.sid
+  WHERE pl.league IN (${ALLOWED_LEAGUES_SQL})
 `;
 
 const PLAYER_LEAGUE = `
