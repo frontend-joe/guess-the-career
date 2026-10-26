@@ -113,6 +113,8 @@ interface Props<T> {
   /** When set, shows a help bubble above the input: true = "…can also add new
    * players (…that qualify)", false = database-only. Omit to hide the bubble. */
   autoScrape?: boolean
+  /** Override the Guessing Rules text (e.g. games with their own scrape flow). */
+  rulesText?: string
 }
 
 export function GuessSearchInput<T = Footballer>({
@@ -129,6 +131,7 @@ export function GuessSearchInput<T = Footballer>({
   inputClassName,
   inputRef: externalRef,
   autoScrape,
+  rulesText,
 }: Props<T>) {
   const internalRef = useRef<HTMLInputElement>(null)
   const inputRef = externalRef ?? internalRef
@@ -185,13 +188,14 @@ export function GuessSearchInput<T = Footballer>({
 
   return (
     <div className="relative">
-      {autoScrape !== undefined && (
+      {(autoScrape !== undefined || rulesText) && (
         <InfoBubble
           asOf={asOf}
           text={
-            autoScrape
+            rulesText ??
+            (autoScrape
               ? 'You can guess any player in our database, and can also add new players (as long as they qualify)'
-              : 'You can guess any player in our database'
+              : 'You can guess any player in our database')
           }
         />
       )}

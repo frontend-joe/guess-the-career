@@ -431,6 +431,7 @@ export function TenablePage() {
               <div className="mb-3">
                 <GuessSearchInput
                   autoScrape={false}
+                  rulesText="Name any player who qualifies — even if they're not in our database yet. We'll add them and they'll take their place on the board, bumping whoever is 10th." 
                   inputRef={inputRef}
                   disabled={checking}
                   getKey={f => f.id}
