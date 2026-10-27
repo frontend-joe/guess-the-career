@@ -217,7 +217,7 @@ fun RoomScreen(model: RoomViewModel) {
                     )
                 }
                 TextButton(onClick = { model.endGame() }) {
-                    Text("End", fontSize = 14.sp, color = Color(0xFFFF6B6B))
+                    Text("End game", fontSize = 14.sp, color = Color(0xFFFF6B6B))
                 }
             }
             TextButton(onClick = { model.leave() }) {

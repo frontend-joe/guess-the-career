@@ -206,7 +206,7 @@ struct RoomView: View {
                     .buttonStyle(GlassCircleButtonStyle())
                 }
                 if store.isHost {
-                    Button("End") { Task { await store.endGame() } }
+                    Button("End game") { Task { await store.endGame() } }
                         .font(.body(14, weight: .medium))
                         .foregroundStyle(.red)
                         .buttonStyle(GlassCapsuleButtonStyle())
