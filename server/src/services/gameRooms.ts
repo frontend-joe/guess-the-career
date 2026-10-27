@@ -566,6 +566,75 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   return { rank, clue, stateVersion, replayed: false }
 }
 
+// ── Giving up ───────────────────────────────────────────────────────────────
+
+export interface GiveUpResult {
+  revealed: { rank: number; name: string; value: number; unit: string | null }[]
+  stateVersion: number
+}
+
+// Show everyone what they missed and end the round.
+//
+// This is ONE event carrying every remaining answer, not one reveal event
+// each. That is deliberate: giving up is a single moment, and the recording
+// should show the board filling in at a stroke rather than ten answers
+// arriving in a row as though someone had guessed them very quickly.
+//
+// The answers are marked `missed` so every client can draw them differently.
+// Scoring reads found_at_ms, which stays null here, so giving up cannot be
+// mistaken for finding them.
+export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpResult {
+  const inst = sqlite
+    .prepare('SELECT * FROM game_round_instances WHERE id = ?')
+    .get(instanceId) as InstanceRow | undefined
+  if (!inst) throw new RoomError('Unknown round instance', 404)
+  if (inst.room_id !== participant.room_id) throw new RoomError('Wrong room', 403)
+  if (participant.role !== 'host') throw new RoomError('Only the host can give up', 403)
+  if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
+
+  const missed = sqlite
+    .prepare(
+      `SELECT rank, name, value, unit, nationality, photo_url FROM game_round_answers
+       WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL ORDER BY rank`,
+    )
+    .all(instanceId) as {
+      rank: number
+      name: string
+      value: number
+      unit: string | null
+      nationality: string | null
+      photo_url: string | null
+    }[]
+
+  const stateVersion = sqlite.transaction(() => {
+    const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
+    appendEvent(instanceId, tMs, 'give_up', participant.id, {
+      answers: missed.map((a) => ({
+        rank: a.rank,
+        name: a.name,
+        value: a.value,
+        unit: a.unit,
+        nationality: a.nationality,
+        photoUrl: a.photo_url,
+      })),
+    })
+    sqlite
+      .prepare("UPDATE game_round_instances SET status = 'complete', ended_at_ms = ? WHERE id = ?")
+      .run(tMs, instanceId)
+    appendEvent(instanceId, tMs, 'round_end', null, {
+      reason: 'gave_up',
+      found: inst.target - missed.length,
+      target: inst.target,
+    })
+    return bumpVersion(inst.room_id)
+  })()
+
+  return {
+    revealed: missed.map((a) => ({ rank: a.rank, name: a.name, value: a.value, unit: a.unit })),
+    stateVersion,
+  }
+}
+
 // ── Chat ────────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {

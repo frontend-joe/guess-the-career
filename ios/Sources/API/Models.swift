@@ -23,6 +23,12 @@ struct RevealedAnswer: Codable, Equatable {
     let nationality: String?
     let photoUrl: String?
     let tMs: Int
+    /// Revealed by giving up rather than guessed. Optional so a phone running
+    /// an older build than the server still decodes the board rather than
+    /// failing the whole round.
+    let missed: Bool?
+
+    var wasMissed: Bool { missed == true }
 }
 
 struct ReplayGuess: Codable, Equatable {
@@ -136,6 +142,11 @@ struct JoinedRoom: Codable {
             participants: participants, messages: messages, round: round
         )
     }
+}
+
+struct GiveUpResult: Codable {
+    let revealed: [RevealedAnswer]
+    let stateVersion: Int
 }
 
 struct ChatResult: Codable {

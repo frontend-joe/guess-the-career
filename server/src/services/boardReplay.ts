@@ -30,6 +30,9 @@ export interface RevealedAnswer {
   photoUrl: string | null
   tMs: number
   byParticipantId: number | null
+  /// Revealed by giving up rather than guessed. Every client draws these
+  /// differently, and scoring ignores them.
+  missed: boolean
 }
 
 export interface ReplayGuess {
@@ -123,8 +126,31 @@ export function reduceEvents(
           photoUrl: nullableStr(p.photoUrl),
           tMs: e.t_ms,
           byParticipantId: e.actor_participant_id,
+          missed: false,
         })
         break
+      // Giving up arrives as ONE event carrying every remaining answer, so
+      // the board fills in at a stroke — which is what giving up looks like —
+      // rather than as a run of reveals indistinguishable from fast guessing.
+      case 'give_up': {
+        const answers = Array.isArray(p.answers) ? p.answers : []
+        for (const raw of answers) {
+          if (!raw || typeof raw !== 'object') continue
+          const a = raw as Record<string, unknown>
+          state.revealed.push({
+            rank: num(a.rank),
+            name: str(a.name),
+            value: num(a.value),
+            unit: nullableStr(a.unit),
+            nationality: nullableStr(a.nationality),
+            photoUrl: nullableStr(a.photoUrl),
+            tMs: e.t_ms,
+            byParticipantId: null,
+            missed: true,
+          })
+        }
+        break
+      }
       case 'hint':
         state.hints.push({
           rank: num(p.rank),

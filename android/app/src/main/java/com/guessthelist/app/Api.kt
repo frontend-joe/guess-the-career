@@ -123,6 +123,9 @@ object Api {
         seat.token,
     )
 
+    suspend fun giveUp(seat: Seat, instanceId: Int): GiveUpResult =
+        post("api/rooms/${seat.code}/rounds/$instanceId/give-up", null, seat.token)
+
     suspend fun sendChat(seat: Seat, body: String): ChatResult = post(
         "api/rooms/${seat.code}/chat",
         buildJsonObject {

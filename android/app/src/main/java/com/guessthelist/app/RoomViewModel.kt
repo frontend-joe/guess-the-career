@@ -283,6 +283,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act { Api.sendChat(it, text) }
     }
 
+    // Irreversible, so the UI confirms first — see RoomScreen. The server is
+    // the one that decides what was missed; this does not guess at it.
+    fun giveUp() {
+        val instanceId = round?.instanceId ?: return
+        act { Api.giveUp(it, instanceId) }
+    }
+
     fun takeHint(rank: Int) {
         val instanceId = round?.instanceId ?: return
         act { Api.hint(it, instanceId, rank) }

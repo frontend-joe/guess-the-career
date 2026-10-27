@@ -16,6 +16,17 @@ enum BoardStyle {
         top: Color(red: 0.545, green: 0.361, blue: 0.965),     // violet-500
         bottom: Color(red: 0.427, green: 0.157, blue: 0.851)   // violet-700
     )
+    // Revealed by giving up. Deliberately colourless next to the green: the
+    // board should read at a glance as what you got and what you didn't, and
+    // a second bright colour would make a missed answer look like a prize.
+    static let missed = (
+        top: Color(red: 0.282, green: 0.333, blue: 0.408),     // slate-600
+        bottom: Color(red: 0.200, green: 0.255, blue: 0.333)   // slate-700
+    )
+
+    /// The app's base. Never #000000 — a true black makes every edge in a
+    /// dark UI read as a cut rather than a surface.
+    static let background = Color(red: 0.039, green: 0.047, blue: 0.063)
 
     /// 56% at rank 1, widening by 4.9 points a row — the web game's formula.
     static func widthFraction(rank: Int) -> CGFloat {
@@ -25,6 +36,7 @@ enum BoardStyle {
 
 struct BoardView: View {
     @Environment(RoomStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if let round = store.round {
@@ -42,6 +54,14 @@ struct BoardView: View {
                             )
                             .frame(width: geo.size.width * BoardStyle.widthFraction(rank: rank))
                             .frame(maxWidth: .infinity)
+                            // A row changing colour is the single most
+                            // important event on this screen, so it is a
+                            // spring rather than a cut. Critically damped:
+                            // nothing was thrown, so nothing should bounce.
+                            .animation(
+                                reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 1.0),
+                                value: round.board.revealed.count
+                            )
                         }
                     }
                     .frame(height: geo.size.height)
@@ -70,21 +90,27 @@ private struct PyramidRow: View {
     let canHint: Bool
     let onHint: () -> Void
 
+    @State private var pressed = false
+
+    private var colours: (top: Color, bottom: Color) {
+        guard let answer else { return BoardStyle.violet }
+        return answer.wasMissed ? BoardStyle.missed : BoardStyle.green
+    }
+
     var body: some View {
         ZStack {
             Capsule()
                 .fill(
                     LinearGradient(
-                        colors: answer != nil
-                            ? [BoardStyle.green.top, BoardStyle.green.bottom]
-                            : [BoardStyle.violet.top, BoardStyle.violet.bottom],
+                        colors: [colours.top, colours.bottom],
                         startPoint: .top, endPoint: .bottom
                     )
                 )
                 // The web row carries a green glow when it lands; without it a
-                // find reads as a colour swap rather than an event.
+                // find reads as a colour swap rather than an event. A missed
+                // answer gets none — it was not an achievement.
                 .shadow(
-                    color: answer != nil ? BoardStyle.green.top.opacity(0.55) : .clear,
+                    color: answer?.wasMissed == false ? BoardStyle.green.top.opacity(0.55) : .clear,
                     radius: 9, y: 2
                 )
 
@@ -92,7 +118,7 @@ private struct PyramidRow: View {
                 HStack(spacing: 7) {
                     Text(answer.name.uppercased())
                         .font(.display(14))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(answer.wasMissed ? .white.opacity(0.75) : .white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Text(valueText(answer))
@@ -121,10 +147,20 @@ private struct PyramidRow: View {
         }
         .frame(maxHeight: .infinity)
         .contentShape(Capsule())
+        // Feedback on press-down, not on release: a row you are holding for a
+        // clue has to acknowledge the hold while it is happening, or the
+        // second before the clue appears feels like nothing is working.
+        .scaleEffect(pressed ? 0.97 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 1.0), value: pressed)
         // Press and hold a blank slot for a clue, exactly as on the web.
         .onLongPressGesture(minimumDuration: 1.0) {
             guard answer == nil, hint == nil, canHint else { return }
+            // A clue arriving is a commit, so it earns a haptic — fired on the
+            // same event that changes the board, not before or after it.
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             onHint()
+        } onPressingChanged: { holding in
+            pressed = holding && answer == nil && hint == nil && canHint
         }
     }
 

@@ -10,6 +10,7 @@ import {
   leaveRoom,
   livekitCredentials,
   startRound,
+  giveUp,
   sendChat,
   submitGuess,
   takeHint,
@@ -505,11 +506,19 @@ export function RoomDevPage() {
                 return (
                   <li
                     key={rank}
-                    className={`rounded px-3 py-1.5 ${found ? 'bg-emerald-900/40' : 'bg-slate-900'}`}
+                    // A missed answer is shown, but colourless: the board
+                    // should read at a glance as what you got and what you
+                    // didn't, and a second bright colour would make a missed
+                    // answer look like a prize.
+                    className={`rounded px-3 py-1.5 transition-colors ${
+                      !found ? 'bg-slate-900' : found.missed ? 'bg-slate-700/50' : 'bg-emerald-900/40'
+                    }`}
                   >
                     <div className="flex items-baseline gap-3">
                       <span className="w-6 text-right text-sm text-slate-500">{rank}</span>
-                      <span className="flex-1">{found ? found.name : '— — —'}</span>
+                      <span className={`flex-1 ${found?.missed ? 'text-slate-400' : ''}`}>
+                        {found ? found.name : '— — —'}
+                      </span>
                       <span className="text-sm text-slate-400">
                         {found ? `${found.value}${found.unit ? ` ${found.unit}` : ''}` : ''}
                       </span>
@@ -550,7 +559,24 @@ export function RoomDevPage() {
 
         {/* Host controls. The server enforces all of this; hiding it here is
             only so the other tabs are not confusing to use. */}
-        {isHost && (
+        {isHost && round?.status === 'live' && (
+          <div className="mt-auto space-y-2 border-t border-slate-800 pt-3">
+            <button
+              className="rounded bg-slate-800 px-3 py-1.5 text-sm text-rose-300 hover:bg-slate-700"
+              onClick={() => {
+                // Irreversible and it ends the round for everybody, which is
+                // the one case that earns a confirmation.
+                if (!session || !round) return
+                if (!window.confirm('Give up and show the answers?')) return
+                void run(() => giveUp(session, round.instanceId))
+              }}
+            >
+              Give up
+            </button>
+          </div>
+        )}
+
+        {isHost && round?.status !== 'live' && (
           <div className="mt-auto space-y-2 border-t border-slate-800 pt-3">
             <div className="flex flex-wrap items-center gap-2">
               <input

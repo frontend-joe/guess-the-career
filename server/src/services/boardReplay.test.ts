@@ -100,3 +100,29 @@ test('round_start wins over the seed rather than being ignored', () => {
   assert.equal(out.title, 'Z surnames')
   assert.equal(out.target, 10)
 })
+
+test('giving up reveals the rest, marked as missed', () => {
+  const out = reduceEvents([
+    LOG[0],
+    ev(2, 1000, 'reveal', { rank: 3, name: 'Got This One' }),
+    ev(3, 5000, 'give_up', {
+      answers: [
+        { rank: 1, name: 'Never Got This', value: 9, unit: 'goals' },
+        { rank: 2, name: 'Nor This', value: 8, unit: 'goals' },
+      ],
+    }),
+    ev(4, 5000, 'round_end', { reason: 'gave_up' }),
+  ])
+  // Rank order, not reveal order, and the one that was guessed is not
+  // retroactively marked as missed.
+  assert.deepEqual(out.revealed.map((r) => [r.rank, r.missed]), [[1, true], [2, true], [3, false]])
+  assert.equal(out.ended?.reason, 'gave_up')
+})
+
+test('a give_up with a malformed answer list does not lose the round', () => {
+  const out = reduceEvents([
+    LOG[0],
+    ev(2, 1000, 'give_up', { answers: [null, 'nonsense', { rank: 4, name: 'Real' }] }),
+  ])
+  assert.deepEqual(out.revealed.map((r) => r.name), ['Real'])
+})

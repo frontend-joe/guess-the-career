@@ -30,6 +30,9 @@ data class RevealedAnswer(
     val nationality: String? = null,
     val photoUrl: String? = null,
     val tMs: Int = 0,
+    /// Revealed by giving up rather than guessed. Defaulted so a phone running
+    /// an older build than the server still decodes the board.
+    val missed: Boolean = false,
 )
 
 @Serializable
@@ -56,6 +59,12 @@ data class TakenHint(
         return text.ifEmpty { null }
     }
 }
+
+@Serializable
+data class GiveUpResult(
+    val revealed: List<RevealedAnswer> = emptyList(),
+    val stateVersion: Int = 0,
+)
 
 @Serializable
 data class BoardState(

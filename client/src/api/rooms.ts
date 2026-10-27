@@ -16,6 +16,8 @@ export interface RoomParticipant {
 }
 
 export interface RevealedAnswer {
+  /** Revealed by giving up rather than guessed. */
+  missed?: boolean
   rank: number
   name: string
   value: number
@@ -229,6 +231,17 @@ export async function sendChat(
       // retry on a bad connection posts once.
       body: JSON.stringify({ clientMessageId: crypto.randomUUID(), body }),
     }),
+  )
+  return unwrap(res)
+}
+
+export async function giveUp(
+  session: RoomSession,
+  instanceId: number,
+): Promise<{ revealed: RevealedAnswer[]; stateVersion: number }> {
+  const res = await fetch(
+    `/api/rooms/${session.code}/rounds/${instanceId}/give-up`,
+    asSeat(session, { method: 'POST' }),
   )
   return unwrap(res)
 }

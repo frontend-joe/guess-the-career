@@ -14,6 +14,7 @@ import {
   createRoom,
   endRoom,
   freezeRound,
+  giveUp,
   joinRoom,
   leaveRoom,
   participantsOf,
@@ -228,6 +229,20 @@ roomsRouter.post(
     }
   },
 )
+
+// POST /api/rooms/:code/rounds/:instanceId/give-up — show what was missed.
+roomsRouter.post('/:code/rounds/:instanceId/give-up', async (c) => {
+  const room = mustFindRoom(c.req.param('code'))
+  const me = await participantFor(c, room)
+  if (!me) return c.json({ error: 'Not in this room' }, 403)
+  try {
+    const result = giveUp(Number(c.req.param('instanceId')), me)
+    announce(room.code, 'gave_up')
+    return c.json(result)
+  } catch (err) {
+    return fail(err)
+  }
+})
 
 // POST /api/rooms/:code/chat — a typed message, for the player whose
 // microphone or camera is not working. Unlike guessing, anyone in the room

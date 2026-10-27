@@ -1,9 +1,13 @@
 package com.guessthelist.app
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,12 +20,16 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +45,12 @@ private val GreenTop = Color(0xFF4ADE80)    // tailwind green-400
 private val GreenBottom = Color(0xFF16A34A) // green-600
 private val VioletTop = Color(0xFF8B5CF6)   // violet-500
 private val VioletBottom = Color(0xFF6D28D9) // violet-700
+
+// Revealed by giving up. Deliberately colourless next to the green: the board
+// should read at a glance as what you got and what you didn't, and a second
+// bright colour would make a missed answer look like a prize.
+private val MissedTop = Color(0xFF475569)    // slate-600
+private val MissedBottom = Color(0xFF334155) // slate-700
 
 /** 56% at rank 1, widening by 4.9 points a row — the web game's formula. */
 private fun widthFraction(rank: Int): Float =
@@ -85,21 +99,43 @@ private fun PyramidRow(
     onHint: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val brush = if (answer != null) {
-        Brush.verticalGradient(listOf(GreenTop, GreenBottom))
-    } else {
-        Brush.verticalGradient(listOf(VioletTop, VioletBottom))
+    val brush = when {
+        answer == null -> Brush.verticalGradient(listOf(VioletTop, VioletBottom))
+        answer.missed -> Brush.verticalGradient(listOf(MissedTop, MissedBottom))
+        else -> Brush.verticalGradient(listOf(GreenTop, GreenBottom))
     }
+
+    val interaction = remember { MutableInteractionSource() }
+    val holding by interaction.collectIsPressedAsState()
+    val holdable = answer == null && hint == null && canHint
+    // Feedback on press-down, not on release: a row you are holding for a clue
+    // has to acknowledge the hold while it is happening, or the second before
+    // the clue appears feels like nothing is working. Critically damped —
+    // nothing was thrown, so nothing should bounce.
+    val scale by animateFloatAsState(
+        targetValue = if (holding && holdable) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "press",
+    )
+    val haptics = LocalHapticFeedback.current
 
     Box(
         modifier = modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(CircleShape)
             .background(brush)
             // Press and hold a blank slot for a clue, exactly as on the web.
             .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
-                onLongClick = { if (answer == null && hint == null && canHint) onHint() },
+                onLongClick = {
+                    if (holdable) {
+                        // Causality: fired on the event that changes the
+                        // board, not on the touch that requested it.
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onHint()
+                    }
+                },
                 onClick = {},
             ),
         contentAlignment = Alignment.Center,
@@ -114,7 +150,7 @@ private fun PyramidRow(
                     answer.name.uppercase(),
                     fontSize = 14.sp,
                     fontFamily = AppFonts.Display,
-                    color = Color.White,
+                    color = if (answer.missed) Color.White.copy(alpha = 0.75f) else Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),

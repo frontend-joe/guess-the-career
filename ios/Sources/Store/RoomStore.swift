@@ -348,6 +348,13 @@ final class RoomStore {
         await act { seat in _ = try await API.sendChat(seat: seat, body: text) }
     }
 
+    // Irreversible, so the UI confirms first — see RoomView. The server is
+    // the one that decides what was missed; this does not guess at it.
+    func giveUp() async {
+        guard let instanceId = round?.instanceId else { return }
+        await act { seat in _ = try await API.giveUp(seat: seat, instanceId: instanceId) }
+    }
+
     func takeHint(rank: Int) async {
         guard let instanceId = round?.instanceId else { return }
         await act { seat in _ = try await API.hint(seat: seat, instanceId: instanceId, rank: rank) }

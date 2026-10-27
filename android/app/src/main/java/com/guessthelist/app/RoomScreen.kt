@@ -58,6 +58,7 @@ fun RoomScreen(model: RoomViewModel) {
     var guess by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     var chatTab by remember { mutableStateOf(false) }
+    var confirmingGiveUp by remember { mutableStateOf(false) }
     // The newest message id already seen, so the Chat tab can say how many
     // arrived while you were watching faces.
     var seenMessageId by remember { mutableIntStateOf(0) }
@@ -107,11 +108,19 @@ fun RoomScreen(model: RoomViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Button(onClick = { picking = true }) { Text("Choose round") }
-                Button(
-                    onClick = { model.startRound() },
-                    enabled = model.round?.isPending == true,
-                ) { Text("Start") }
+                // One slot, two jobs, because they never apply at the same
+                // time: before kickoff you are choosing what to play, and
+                // during a round the only thing left to decide is whether to
+                // stop.
+                if (model.round?.isLive == true) {
+                    Button(onClick = { confirmingGiveUp = true }) { Text("Give up") }
+                } else {
+                    Button(onClick = { picking = true }) { Text("Choose round") }
+                    Button(
+                        onClick = { model.startRound() },
+                        enabled = model.round?.isPending == true,
+                    ) { Text("Start") }
+                }
                 Box(Modifier.weight(1f))
                 TextButton(onClick = { shareInvite(context, model.state?.code) }) { Text("Share") }
                 TextButton(onClick = { model.endGame() }) { Text("End") }
@@ -153,7 +162,7 @@ fun RoomScreen(model: RoomViewModel) {
         // Faces and chat share the bottom third rather than splitting it:
         // chat is there for the player whose camera or microphone has failed,
         // which is precisely when their tile is worth nothing anyway.
-        Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black)) {
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
             val messages = model.state?.messages.orEmpty()
             val unread = messages.count { it.id > seenMessageId }
             TabRow(selectedTabIndex = if (chatTab) 1 else 0, containerColor = Color(0xFF0A0A0C)) {
@@ -196,6 +205,24 @@ fun RoomScreen(model: RoomViewModel) {
             model.error?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFF6B6B)) }
             TextButton(onClick = { model.leave() }) { Text("Leave") }
         }
+    }
+
+    // Giving up cannot be undone and ends the round for everybody, which is
+    // the one case that earns a confirmation. Choosing a round does not, which
+    // is why they are not the same button by accident.
+    if (confirmingGiveUp) {
+        AlertDialog(
+            onDismissRequest = { confirmingGiveUp = false },
+            title = { Text("Give up and show the answers?") },
+            confirmButton = {
+                TextButton(onClick = { model.giveUp(); confirmingGiveUp = false }) {
+                    Text("Show the answers")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingGiveUp = false }) { Text("Keep playing") }
+            },
+        )
     }
 
     if (picking) {

@@ -134,6 +134,14 @@ enum API {
         let status: String
     }
 
+    static func giveUp(seat: Seat, instanceId: Int) async throws -> GiveUpResult {
+        try await post(
+            "api/rooms/\(seat.code)/rounds/\(instanceId)/give-up",
+            body: EmptyBody(),
+            bearer: seat.token
+        )
+    }
+
     static func sendChat(seat: Seat, body text: String) async throws -> ChatResult {
         try await post(
             "api/rooms/\(seat.code)/chat",
@@ -149,6 +157,8 @@ enum API {
         let clientGuessId: String
         let raw: String
     }
+
+    private struct EmptyBody: Encodable {}
 
     private struct ChatBody: Encodable {
         let clientMessageId: String
