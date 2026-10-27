@@ -144,68 +144,6 @@ fun RoomScreen(model: RoomViewModel) {
 }
 
 @Composable
-private fun BoardSection(model: RoomViewModel) {
-    val round = model.round
-    if (round == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                if (model.isHost) "Choose a round, then Start." else "No round yet",
-                color = Color.Gray,
-            )
-        }
-        return
-    }
-
-    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-        Text(round.board.title, style = MaterialTheme.typography.titleMedium)
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            items((1..round.board.target).toList()) { rank ->
-                val found = round.board.revealed.firstOrNull { it.rank == rank }
-                val hint = round.board.hints.firstOrNull { it.rank == rank }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (found == null) Color(0x14FFFFFF) else Color(0x3822C55E)
-                        )
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("$rank", color = Color.Gray, fontSize = 12.sp)
-                        Text(
-                            found?.name ?: "— — —",
-                            modifier = Modifier.weight(1f).padding(start = 10.dp),
-                        )
-                        found?.let {
-                            Text(
-                                it.value.toInt().toString() + (it.unit?.let { u -> " $u" } ?: ""),
-                                color = Color.Gray,
-                                fontSize = 12.sp,
-                            )
-                        }
-                        // A clue is a server action, not a local reveal: the
-                        // room never sends unfound answers to anyone, and the
-                        // hint has to land in the event log so the recording
-                        // shows it being taken.
-                        if (model.isHost && found == null && hint == null && round.isLive) {
-                            TextButton(onClick = { model.takeHint(rank) }) { Text("Clue") }
-                        }
-                    }
-                    hint?.let {
-                        Text(
-                            clueText(it, round.board.impliedClues),
-                            color = Color(0xFFFBBF24),
-                            fontSize = 11.sp,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun VideoGrid(model: RoomViewModel) {
     if (model.tiles.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -247,19 +185,6 @@ private fun VideoGrid(model: RoomViewModel) {
             }
         }
     }
-}
-
-// Minus whatever the question already gave away — being told the club on
-// "Birmingham City's overseas players" is not a hint.
-private fun clueText(hint: TakenHint, implied: List<String>): String {
-    val fields = listOf(
-        "nationality" to "Nationality", "position" to "Position", "years" to "Years",
-        "club" to "Club", "squadNumber" to "Shirt", "born" to "Born",
-    )
-    val parts = fields.mapNotNull { (key, label) ->
-        if (implied.contains(key)) null else hint.display(key)?.let { "$label: $it" }
-    }
-    return if (parts.isEmpty()) "Nothing to give away on this one" else parts.joinToString(" · ")
 }
 
 private fun verdictColour(verdict: String): Color = when (verdict) {
