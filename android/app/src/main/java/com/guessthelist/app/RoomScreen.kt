@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -31,10 +32,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Videocam
@@ -79,6 +86,7 @@ fun RoomScreen(model: RoomViewModel) {
     var guess by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     var confirmingGiveUp by remember { mutableStateOf(false) }
+    var showingActions by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -198,30 +206,45 @@ fun RoomScreen(model: RoomViewModel) {
             }
             Box(Modifier.weight(1f))
 
-            // One row for every action available at any moment of a game:
-            // your own microphone and camera on the left, then what you can do
-            // to the room, then the way out. Splitting these across two rows
-            // meant two places to look for a button and two rows of height to
-            // pay for it.
-            if (model.isHost && model.round?.isLive == true) {
-                TextButton(onClick = { confirmingGiveUp = true }) {
-                    Text("Give up", fontSize = 14.sp, color = Color.White)
-                }
-            }
-            if (model.isHost) {
-                IconButton(onClick = { shareInvite(context, model.state?.code) }) {
+            // Everything else is behind one button. Mute and camera are the
+            // two you reach for mid-sentence and they stay out here; the rest
+            // are things you do once a game, and four labelled buttons
+            // competing for a phone's width meant every one of them was
+            // cramped.
+            Box {
+                IconButton(onClick = { showingActions = true }) {
                     Icon(
-                        Icons.Filled.Share,
-                        contentDescription = "Share the invite",
+                        Icons.Filled.MoreVert,
+                        contentDescription = "More options",
                         tint = Color.White,
                     )
                 }
-                TextButton(onClick = { model.endGame() }) {
-                    Text("End game", fontSize = 14.sp, color = Color(0xFFFF6B6B))
+                DropdownMenu(
+                    expanded = showingActions,
+                    onDismissRequest = { showingActions = false },
+                    containerColor = Color(0xFF2C2C2E),
+                ) {
+                    if (model.isHost && model.round?.isLive == true) {
+                        ActionRow(Icons.Filled.Flag, "Give up") {
+                            confirmingGiveUp = true; showingActions = false
+                        }
+                    }
+                    if (model.isHost) {
+                        ActionRow(Icons.Filled.Share, "Share invite") {
+                            shareInvite(context, model.state?.code); showingActions = false
+                        }
+                    }
+                    ActionRow(Icons.AutoMirrored.Filled.Logout, "Leave") {
+                        model.leave(); showingActions = false
+                    }
+                    if (model.isHost) {
+                        // Destructive, and last: it closes the room for
+                        // everybody, not just whoever tapped it.
+                        ActionRow(Icons.Filled.Cancel, "End game", tint = Color(0xFFFF6B6B)) {
+                            model.endGame(); showingActions = false
+                        }
+                    }
                 }
-            }
-            TextButton(onClick = { model.leave() }) {
-                Text("Leave", fontSize = 14.sp, color = Color.White)
             }
         }
 
@@ -471,4 +494,21 @@ private fun shareInvite(context: Context, code: String?) {
         putExtra(Intent.EXTRA_TEXT, "Join my Tenable game: https://guessthelist.xyz/join/$code")
     }
     context.startActivity(Intent.createChooser(intent, "Share the invite"))
+}
+
+
+// A menu row with the icon in a fixed leading lane, so every label starts at
+// the same x however wide its icon happens to draw.
+@Composable
+private fun ActionRow(
+    icon: ImageVector,
+    label: String,
+    tint: Color = Color.White,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        leadingIcon = { Icon(icon, contentDescription = null, tint = tint) },
+        text = { Text(label, color = tint, fontSize = 16.sp) },
+        onClick = onClick,
+    )
 }

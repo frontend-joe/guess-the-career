@@ -138,3 +138,28 @@ struct GlassField<Content: View>: View {
         }
     }
 }
+
+
+/// The circle as a container rather than a button style, for the one control
+/// that is not a Button — a Menu, which styles its own label.
+struct GlassCircle<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            content()
+                .frame(width: GlassStyle.controlHeight, height: GlassStyle.controlHeight)
+                .background {
+                    Circle().fill(GlassStyle.disc)
+                        .glassEffect(.regular, in: .circle)
+                }
+        } else {
+            content()
+                .frame(width: GlassStyle.controlHeight, height: GlassStyle.controlHeight)
+                .background {
+                    Circle().fill(GlassStyle.disc)
+                        .overlay { Circle().strokeBorder(.white.opacity(0.12), lineWidth: 0.5) }
+                }
+        }
+    }
+}

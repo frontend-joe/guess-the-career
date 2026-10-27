@@ -10,6 +10,7 @@ struct RoomView: View {
     @State private var guess = ""
     @State private var showingRoundPicker = false
     @State private var confirmingGiveUp = false
+    @State private var showingActions = false
     /// Whether the guess field holds the keyboard. The layout changes shape
     /// while you type rather than trying to fit everything at once.
     @FocusState private var typing: Bool
@@ -191,36 +192,29 @@ struct RoomView: View {
 
                 Spacer(minLength: 8)
 
-                if store.isHost, store.round?.isLive == true {
-                    Button("Give up") { confirmingGiveUp = true }
-                        .font(.body(14, weight: .medium))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .buttonStyle(GlassCapsuleButtonStyle())
-                }
-                if store.isHost, let link = store.inviteLink {
-                    ShareLink(item: link, message: Text("Join my Tenable game")) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: GlassStyle.symbol))
+                // Everything else is behind one button. Mute and camera are
+                // the two you reach for mid-sentence and they stay out here;
+                // the rest are things you do once a game, and four labelled
+                // capsules competing for a phone's width meant every one of
+                // them was cramped and two of them wrapped onto a second line.
+                Button { showingActions = true } label: {
+                    GlassCircle {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: GlassStyle.symbol, weight: .semibold))
                             .foregroundStyle(.white)
                     }
-                    .buttonStyle(GlassCircleButtonStyle())
                 }
-                if store.isHost {
-                    Button("End game") { Task { await store.endGame() } }
-                        .font(.body(14, weight: .medium))
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .buttonStyle(GlassCapsuleButtonStyle())
+                .accessibilityLabel("More options")
+                // A popover, so it hangs off the button that opened it rather
+                // than sliding up from the bottom of the screen as a sheet —
+                // the action and the thing you tapped stay connected.
+                .popover(isPresented: $showingActions, arrowEdge: .bottom) {
+                    RoomActionsMenu(
+                        onGiveUp: { confirmingGiveUp = true },
+                        onDismiss: { showingActions = false }
+                    )
+                    .presentationCompactAdaptation(.popover)
                 }
-                Button("Leave") { Task { await store.exit() } }
-                    .font(.body(14, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .buttonStyle(GlassCapsuleButtonStyle())
             }
         }
         .padding(.horizontal, 14)
