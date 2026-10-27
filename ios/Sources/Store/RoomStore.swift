@@ -271,6 +271,15 @@ final class RoomStore {
         }
     }
 
+    // Posting bumps the room's version, so the message comes back through the
+    // same /state refresh everything else does. Nothing is appended locally:
+    // one path from the server's state to the screen, chat included.
+    func sendChat(_ body: String) async {
+        let text = body.trimmed
+        guard !text.isEmpty else { return }
+        await act { seat in _ = try await API.sendChat(seat: seat, body: text) }
+    }
+
     func takeHint(rank: Int) async {
         guard let instanceId = round?.instanceId else { return }
         await act { seat in _ = try await API.hint(seat: seat, instanceId: instanceId, rank: rank) }

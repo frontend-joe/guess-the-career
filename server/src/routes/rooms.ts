@@ -17,6 +17,7 @@ import {
   joinRoom,
   leaveRoom,
   participantsOf,
+  postMessage,
   roomByCode,
   roomState,
   startRound,
@@ -221,6 +222,30 @@ roomsRouter.post(
     try {
       const result = takeHint(instanceId, me, rank)
       if (!result.replayed) announce(room.code, 'hint')
+      return c.json(result)
+    } catch (err) {
+      return fail(err)
+    }
+  },
+)
+
+// POST /api/rooms/:code/chat — a typed message, for the player whose
+// microphone or camera is not working. Unlike guessing, anyone in the room
+// may post: that is the entire point of it.
+roomsRouter.post(
+  '/:code/chat',
+  zValidator('json', z.object({
+    clientMessageId: z.string().min(1).max(64),
+    body: z.string().trim().min(1).max(500),
+  })),
+  async (c) => {
+    const room = mustFindRoom(c.req.param('code'))
+    const me = await participantFor(c, room)
+    if (!me) return c.json({ error: 'Not in this room' }, 403)
+    const { clientMessageId, body } = c.req.valid('json')
+    try {
+      const result = postMessage(room, me, clientMessageId, body)
+      if (!result.replayed) announce(room.code, 'chat')
       return c.json(result)
     } catch (err) {
       return fail(err)

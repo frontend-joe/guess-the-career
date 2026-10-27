@@ -61,6 +61,17 @@ export interface RoomRound {
   blanks: number[]
 }
 
+// A typed message, for the player whose microphone or camera is not working.
+// The display name is the one the server snapshotted when it was sent, not the
+// sender's current one.
+export interface ChatMessage {
+  id: number
+  participantId: number | null
+  displayName: string
+  body: string
+  createdAt: string
+}
+
 export interface RoomState {
   code: string
   status: string
@@ -68,6 +79,7 @@ export interface RoomState {
   livekitRoom: string
   hostUserId: number
   participants: RoomParticipant[]
+  messages: ChatMessage[]
   round: RoomRound | null
 }
 
@@ -203,6 +215,22 @@ export async function takeHint(
     asSeat(session, { method: 'POST', body: JSON.stringify({ instanceId, rank }) }),
   )
   return unwrap<TakenHint & { replayed: boolean }>(res)
+}
+
+export async function sendChat(
+  session: RoomSession,
+  body: string,
+): Promise<{ message: ChatMessage; stateVersion: number; replayed: boolean }> {
+  const res = await fetch(
+    `/api/rooms/${session.code}/chat`,
+    asSeat(session, {
+      method: 'POST',
+      // The idempotency key is made here and travels with the attempt, so a
+      // retry on a bad connection posts once.
+      body: JSON.stringify({ clientMessageId: crypto.randomUUID(), body }),
+    }),
+  )
+  return unwrap(res)
 }
 
 export async function leaveRoom(session: RoomSession): Promise<void> {

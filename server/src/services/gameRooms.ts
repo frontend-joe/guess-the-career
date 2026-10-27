@@ -557,6 +557,111 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   return { rank, clue, stateVersion, replayed: false }
 }
 
+// ── Chat ────────────────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  id: number
+  participantId: number | null
+  displayName: string
+  body: string
+  createdAt: string
+}
+
+// The last of the room's chat. Capped because the whole log ships inside every
+// /state response, and /state is fetched on every version bump — an uncapped
+// history would make a long game's resync grow without bound.
+const CHAT_WINDOW = 100
+
+export function messagesOf(roomId: number): ChatMessage[] {
+  const rows = sqlite
+    .prepare(
+      `SELECT id, participant_id, display_name, body, created_at FROM game_messages
+       WHERE room_id = ? ORDER BY id DESC LIMIT ?`,
+    )
+    .all(roomId, CHAT_WINDOW) as {
+      id: number
+      participant_id: number | null
+      display_name: string
+      body: string
+      created_at: string
+    }[]
+  return rows.reverse().map((r) => ({
+    id: r.id,
+    participantId: r.participant_id,
+    displayName: r.display_name,
+    body: r.body,
+    createdAt: r.created_at,
+  }))
+}
+
+export interface PostMessageResult {
+  message: ChatMessage
+  stateVersion: number
+  replayed: boolean
+}
+
+// Anyone in the room may chat — unlike guessing, which is the host's alone.
+// The whole point is the player whose microphone or camera has failed, and a
+// mute button that also gagged them would defeat it.
+export function postMessage(
+  room: RoomRow,
+  participant: ParticipantRow,
+  clientMessageId: string,
+  body: string,
+): PostMessageResult {
+  const text = body.trim()
+  if (!text) throw new RoomError('An empty message is not a message', 400)
+
+  const existing = sqlite
+    .prepare('SELECT id, participant_id, display_name, body, created_at FROM game_messages WHERE room_id = ? AND client_message_id = ?')
+    .get(room.id, clientMessageId) as {
+      id: number
+      participant_id: number | null
+      display_name: string
+      body: string
+      created_at: string
+    } | undefined
+  if (existing) {
+    return {
+      message: {
+        id: existing.id,
+        participantId: existing.participant_id,
+        displayName: existing.display_name,
+        body: existing.body,
+        createdAt: existing.created_at,
+      },
+      stateVersion: room.state_version,
+      replayed: true,
+    }
+  }
+
+  const { id, stateVersion } = sqlite.transaction(() => {
+    const info = sqlite
+      .prepare(
+        `INSERT INTO game_messages (room_id, participant_id, display_name, client_message_id, body)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(room.id, participant.id, participant.display_name, clientMessageId, text)
+    return { id: Number(info.lastInsertRowid), stateVersion: bumpVersion(room.id) }
+  })()
+
+  const row = sqlite
+    .prepare('SELECT created_at FROM game_messages WHERE id = ?')
+    .get(id) as { created_at: string }
+
+  return {
+    message: {
+      id,
+      participantId: participant.id,
+      displayName: participant.display_name,
+      body: text,
+      createdAt: row.created_at,
+    },
+    stateVersion,
+    replayed: false,
+  }
+}
+
 // ── State ───────────────────────────────────────────────────────────────────
 
 export interface RoomState {
@@ -566,6 +671,7 @@ export interface RoomState {
   livekitRoom: string
   hostUserId: number
   participants: { id: number; displayName: string; role: string; slot: number; present: boolean }[]
+  messages: ChatMessage[]
   round: {
     instanceId: number
     seq: number
@@ -625,6 +731,7 @@ export function roomState(room: RoomRow): RoomState {
       slot: p.slot,
       present: p.left_at == null,
     })),
+    messages: messagesOf(room.id),
     round,
   }
 }

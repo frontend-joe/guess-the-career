@@ -82,6 +82,25 @@ data class RoomRound(
     val isPending: Boolean get() = status == "pending"
 }
 
+// A typed message, for the player whose microphone or camera is not working.
+// The display name is the one the server snapshotted when it was sent, not the
+// sender's current one.
+@Serializable
+data class ChatMessage(
+    val id: Int,
+    val participantId: Int? = null,
+    val displayName: String,
+    val body: String,
+    val createdAt: String = "",
+)
+
+@Serializable
+data class ChatResult(
+    val message: ChatMessage,
+    val stateVersion: Int = 0,
+    val replayed: Boolean = false,
+)
+
 @Serializable
 data class RoomState(
     val code: String,
@@ -90,6 +109,7 @@ data class RoomState(
     val livekitRoom: String,
     val hostUserId: Int,
     val participants: List<RoomParticipant> = emptyList(),
+    val messages: List<ChatMessage> = emptyList(),
     val round: RoomRound? = null,
 )
 
@@ -101,12 +121,13 @@ data class JoinedRoom(
     val livekitRoom: String,
     val hostUserId: Int,
     val participants: List<RoomParticipant> = emptyList(),
+    val messages: List<ChatMessage> = emptyList(),
     val round: RoomRound? = null,
     val participantId: Int,
     val participantToken: String,
 ) {
     val state: RoomState
-        get() = RoomState(code, status, stateVersion, livekitRoom, hostUserId, participants, round)
+        get() = RoomState(code, status, stateVersion, livekitRoom, hostUserId, participants, messages, round)
 }
 
 @Serializable

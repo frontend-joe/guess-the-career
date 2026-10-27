@@ -8,20 +8,25 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,6 +54,10 @@ import kotlinx.coroutines.launch
 fun RoomScreen(model: RoomViewModel) {
     var guess by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
+    var chatTab by remember { mutableStateOf(false) }
+    // The newest message id already seen, so the Chat tab can say how many
+    // arrived while you were watching faces.
+    var seenMessageId by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0C)).safeDrawingPadding()) {
@@ -138,8 +147,35 @@ fun RoomScreen(model: RoomViewModel) {
             }
         }
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black)) {
-            VideoGrid(model)
+        // Faces and chat share the bottom third rather than splitting it:
+        // chat is there for the player whose camera or microphone has failed,
+        // which is precisely when their tile is worth nothing anyway.
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black)) {
+            val messages = model.state?.messages.orEmpty()
+            val unread = messages.count { it.id > seenMessageId }
+            TabRow(selectedTabIndex = if (chatTab) 1 else 0, containerColor = Color(0xFF0A0A0C)) {
+                Tab(
+                    selected = !chatTab,
+                    onClick = { chatTab = false },
+                    text = { Text("Video", fontSize = 13.sp) },
+                )
+                Tab(
+                    selected = chatTab,
+                    onClick = {
+                        chatTab = true
+                        seenMessageId = messages.lastOrNull()?.id ?: seenMessageId
+                    },
+                    text = {
+                        Text(if (unread > 0) "Chat ($unread)" else "Chat", fontSize = 13.sp)
+                    },
+                )
+            }
+            LaunchedEffect(chatTab, messages.lastOrNull()?.id) {
+                if (chatTab) seenMessageId = messages.lastOrNull()?.id ?: seenMessageId
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (chatTab) ChatPanel(model, messages) else VideoGrid(model)
+            }
         }
 
         Row(
@@ -256,4 +292,77 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
             }
         },
     )
+}
+
+@Composable
+private fun ChatPanel(model: RoomViewModel, messages: List<ChatMessage>) {
+    var draft by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    // Follow the conversation, the way every chat does. Keyed on the last id
+    // rather than the count, so a resync that replaces the window still
+    // scrolls correctly.
+    LaunchedEffect(messages.lastOrNull()?.id) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        if (messages.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth().padding(12.dp)) {
+                Text(
+                    "No messages yet. Type here if your mic or camera isn't working.",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                )
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                items(messages, key = { it.id }) { message ->
+                    val mine = message.participantId == model.seat?.participantId
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
+                    ) {
+                        Text(
+                            message.displayName,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Gray,
+                        )
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (mine) Color(0xFF3B2E7A) else Color(0xFF2B2B2F))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Text(message.body, fontSize = 14.sp, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                placeholder = { Text("Message") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Button(
+                onClick = { model.sendChat(draft); draft = "" },
+                enabled = draft.isNotBlank(),
+            ) { Text("Send") }
+        }
+    }
 }

@@ -94,6 +94,17 @@ struct RoomRound: Codable, Equatable {
     var isPending: Bool { status == "pending" }
 }
 
+// A typed message, for the player whose microphone or camera is not working.
+// The display name is the one the server snapshotted when it was sent, not the
+// sender's current one.
+struct ChatMessage: Codable, Equatable, Identifiable {
+    let id: Int
+    let participantId: Int?
+    let displayName: String
+    let body: String
+    let createdAt: String
+}
+
 struct RoomState: Codable, Equatable {
     let code: String
     let status: String
@@ -101,6 +112,7 @@ struct RoomState: Codable, Equatable {
     let livekitRoom: String
     let hostUserId: Int
     let participants: [RoomParticipant]
+    let messages: [ChatMessage]
     let round: RoomRound?
 }
 
@@ -112,6 +124,7 @@ struct JoinedRoom: Codable {
     let livekitRoom: String
     let hostUserId: Int
     let participants: [RoomParticipant]
+    let messages: [ChatMessage]
     let round: RoomRound?
     let participantId: Int
     let participantToken: String
@@ -120,9 +133,15 @@ struct JoinedRoom: Codable {
         RoomState(
             code: code, status: status, stateVersion: stateVersion,
             livekitRoom: livekitRoom, hostUserId: hostUserId,
-            participants: participants, round: round
+            participants: participants, messages: messages, round: round
         )
     }
+}
+
+struct ChatResult: Codable {
+    let message: ChatMessage
+    let stateVersion: Int
+    let replayed: Bool
 }
 
 struct GuessResult: Codable {

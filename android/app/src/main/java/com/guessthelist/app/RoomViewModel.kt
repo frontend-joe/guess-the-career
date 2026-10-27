@@ -224,6 +224,15 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act { lastGuess = Api.guess(it, instanceId, raw) }
     }
 
+    // Posting bumps the room's version, so the message comes back through the
+    // same refresh everything else does. Nothing is appended locally: one path
+    // from the server's state to the screen, chat included.
+    fun sendChat(body: String) {
+        val text = body.trim()
+        if (text.isEmpty()) return
+        act { Api.sendChat(it, text) }
+    }
+
     fun takeHint(rank: Int) {
         val instanceId = round?.instanceId ?: return
         act { Api.hint(it, instanceId, rank) }

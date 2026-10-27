@@ -134,10 +134,25 @@ enum API {
         let status: String
     }
 
+    static func sendChat(seat: Seat, body text: String) async throws -> ChatResult {
+        try await post(
+            "api/rooms/\(seat.code)/chat",
+            // Same idempotency contract as a guess: the key is made here and
+            // travels with the attempt, so a retry posts once.
+            body: ChatBody(clientMessageId: UUID().uuidString, body: text),
+            bearer: seat.token
+        )
+    }
+
     private struct GuessBody: Encodable {
         let instanceId: Int
         let clientGuessId: String
         let raw: String
+    }
+
+    private struct ChatBody: Encodable {
+        let clientMessageId: String
+        let body: String
     }
 }
 

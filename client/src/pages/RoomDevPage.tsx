@@ -10,6 +10,7 @@ import {
   leaveRoom,
   livekitCredentials,
   startRound,
+  sendChat,
   submitGuess,
   takeHint,
   RoomApiError,
@@ -157,6 +158,11 @@ export function RoomDevPage() {
   const [roundId, setRoundId] = useState<number | ''>('')
   const [roundQuery, setRoundQuery] = useState('')
   const [guess, setGuess] = useState('')
+  const [tab, setTab] = useState<'video' | 'chat'>('video')
+  const [chatDraft, setChatDraft] = useState('')
+  // The newest message id already seen, so the Chat tab can say how many
+  // arrived while you were watching faces.
+  const [seenMessageId, setSeenMessageId] = useState(0)
 
   const roomRef = useRef<Room | null>(null)
   // The version we have already rendered. A broadcast carrying anything higher
@@ -319,6 +325,34 @@ export function RoomDevPage() {
       setError(err instanceof Error ? err.message : String(err))
     }
   }
+
+  // Chat rides the same /state refresh as everything else: posting bumps the
+  // room version, refresh() brings the message back. Nothing is appended
+  // locally, so there is one path from the server's state to the screen.
+  const messages = state?.messages ?? []
+  const unreadCount = messages.filter((m) => m.id > seenMessageId).length
+
+  const postChat = async () => {
+    const body = chatDraft.trim()
+    if (!session || !body) return
+    setChatDraft('')
+    await run(() => sendChat(session, body))
+  }
+
+  // Reading the tab is what marks it read, whether you switched to it or a
+  // message landed while you were already there.
+  const lastMessageId = messages.length ? messages[messages.length - 1].id : 0
+  useEffect(() => {
+    if (tab === 'chat') setSeenMessageId((seen) => Math.max(seen, lastMessageId))
+  }, [tab, lastMessageId])
+
+  // Follow the conversation, the way every chat does.
+  const chatScroll = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (tab !== 'chat') return
+    const el = chatScroll.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [tab, lastMessageId])
 
   // There are a couple of thousand rounds, so the picker needs a filter to be
   // usable at all. Capped because a select with everything in it is slow to
@@ -592,19 +626,82 @@ export function RoomDevPage() {
         )}
       </div>
 
-      {/* Faces — a third of the space either way: a column down the right on a
-          desktop, a band across the bottom when stacked.
+      {/* Faces and chat — a third of the space either way: a column down the
+          right on a desktop, a band across the bottom when stacked. They share
+          it rather than splitting it, because chat is for the player whose
+          camera or microphone has failed, which is exactly when their tile is
+          worth nothing.
           min-h-0/min-w-0 are load-bearing: a flex item defaults to
           min-height:auto, so without them the <video> elements' intrinsic size
           wins over the one-third share and this grows over the board and the
           controls, which is exactly what it did the first time. */}
-      <div className="flex min-h-0 min-w-0 flex-1 gap-2 border-t border-slate-800 bg-black p-2 lg:flex-col lg:border-l lg:border-t-0">
-        {tiles.length === 0 && (
-          <div className="grid flex-1 place-items-center text-sm text-slate-600">
-            {videoNote ?? 'connecting…'}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-slate-800 bg-black lg:border-l lg:border-t-0">
+        <div className="flex shrink-0 gap-1 border-b border-slate-800 p-1 text-xs">
+          {(['video', 'chat'] as const).map((name) => (
+            <button
+              key={name}
+              className={`flex-1 rounded px-2 py-1 capitalize ${
+                tab === name ? 'bg-slate-800 text-slate-100' : 'text-slate-500 hover:text-slate-300'
+              }`}
+              onClick={() => setTab(name)}
+            >
+              {name === 'chat' && unreadCount > 0 ? `chat (${unreadCount})` : name}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'video' ? (
+          <div className="flex min-h-0 min-w-0 flex-1 gap-2 p-2 lg:flex-col">
+            {tiles.length === 0 && (
+              <div className="grid flex-1 place-items-center text-sm text-slate-600">
+                {videoNote ?? 'connecting…'}
+              </div>
+            )}
+            {tiles.map((tile) => <VideoTile key={tile.identity} tile={tile} />)}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div ref={chatScroll} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+              {messages.length === 0 && (
+                <p className="text-xs text-slate-600">
+                  No messages yet. Type here if your mic or camera isn't working.
+                </p>
+              )}
+              {messages.map((message) => {
+                const mine = message.participantId === session?.participantId
+                return (
+                  <div key={message.id} className={mine ? 'text-right' : 'text-left'}>
+                    <div className="text-[10px] font-semibold text-slate-500">{message.displayName}</div>
+                    <div
+                      className={`inline-block max-w-[85%] rounded-xl px-2.5 py-1.5 text-sm text-slate-100 ${
+                        mine ? 'bg-violet-900/60' : 'bg-slate-800'
+                      }`}
+                    >
+                      {message.body}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <form
+              className="flex shrink-0 gap-2 border-t border-slate-800 p-2"
+              onSubmit={(e) => { e.preventDefault(); void postChat() }}
+            >
+              <input
+                className="min-w-0 flex-1 rounded bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none ring-1 ring-slate-700 focus:ring-violet-500"
+                placeholder="Message"
+                value={chatDraft}
+                onChange={(e) => setChatDraft(e.target.value)}
+              />
+              <button
+                className="rounded bg-violet-700 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+                disabled={!chatDraft.trim()}
+              >
+                Send
+              </button>
+            </form>
           </div>
         )}
-        {tiles.map((tile) => <VideoTile key={tile.identity} tile={tile} />)}
       </div>
       </div>
 

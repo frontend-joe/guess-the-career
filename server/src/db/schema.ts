@@ -776,7 +776,18 @@ export const game_events = sqliteTable('game_events', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const game_messages = sqliteTable('game_messages', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  room_id: integer('room_id').notNull().references(() => game_rooms.id, { onDelete: 'cascade' }),
+  participant_id: integer('participant_id').references(() => game_participants.id, { onDelete: 'set null' }),
+  display_name: text('display_name').notNull(),
+  client_message_id: text('client_message_id').notNull(),
+  body: text('body').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export type GameRoom = typeof game_rooms.$inferSelect
+export type GameMessage = typeof game_messages.$inferSelect
 export type GameParticipant = typeof game_participants.$inferSelect
 export type GameRoundInstance = typeof game_round_instances.$inferSelect
 export type GameRoundAnswer = typeof game_round_answers.$inferSelect

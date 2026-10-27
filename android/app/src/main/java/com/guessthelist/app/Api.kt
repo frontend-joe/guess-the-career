@@ -123,6 +123,17 @@ object Api {
         seat.token,
     )
 
+    suspend fun sendChat(seat: Seat, body: String): ChatResult = post(
+        "api/rooms/${seat.code}/chat",
+        buildJsonObject {
+            // Same idempotency contract as a guess: made here, carried with
+            // the attempt, so a retry posts once.
+            put("clientMessageId", UUID.randomUUID().toString())
+            put("body", body)
+        },
+        seat.token,
+    )
+
     suspend fun leave(seat: Seat) {
         call("POST", "api/rooms/${seat.code}/leave", bearer = seat.token)
     }

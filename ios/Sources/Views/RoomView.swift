@@ -9,6 +9,12 @@ struct RoomView: View {
 
     @State private var guess = ""
     @State private var showingRoundPicker = false
+    @State private var tab = Tab.video
+    /// The newest message id already seen, so the Chat tab can say how many
+    /// arrived while you were watching faces.
+    @State private var seenMessageId = 0
+
+    private enum Tab { case video, chat }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,7 +26,7 @@ struct RoomView: View {
 
             if store.isHost { hostControls }
 
-            VideoGridView(tiles: store.tiles)
+            bottomPanel
                 .frame(height: UIScreen.main.bounds.height / 3)
                 .background(.black)
 
@@ -49,6 +55,42 @@ struct RoomView: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
         }
+    }
+
+    // Faces and chat share the bottom third rather than splitting it: chat is
+    // there for the player whose camera or microphone has failed, which is
+    // precisely when their tile is worth nothing anyway.
+    private var bottomPanel: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $tab) {
+                Text("Video").tag(Tab.video)
+                Text(unread > 0 ? "Chat (\(unread))" : "Chat").tag(Tab.chat)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            switch tab {
+            case .video:
+                VideoGridView(tiles: store.tiles)
+            case .chat:
+                ChatView()
+            }
+        }
+        .onChange(of: tab) { _, now in
+            if now == .chat { markChatRead() }
+        }
+        .onChange(of: store.state?.messages.last?.id) { _, _ in
+            if tab == .chat { markChatRead() }
+        }
+    }
+
+    private var unread: Int {
+        (store.state?.messages ?? []).filter { $0.id > seenMessageId }.count
+    }
+
+    private func markChatRead() {
+        seenMessageId = max(seenMessageId, store.state?.messages.last?.id ?? 0)
     }
 
     private var header: some View {
