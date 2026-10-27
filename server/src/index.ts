@@ -64,6 +64,7 @@ import { progressRouter } from './routes/progress.ts'
 import { settingsRouter } from './routes/settings.ts'
 import { usersRouter } from './routes/users.ts'
 import { roomsRouter } from './routes/rooms.ts'
+import { livekitConfig } from './services/livekit.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
 runMigrations()
@@ -144,7 +145,11 @@ app.route('/api/rooms', roomsRouter)
 // a sudden drop in footballers, or existedAtBoot false, means the wrong file.
 app.get('/api/health', (c) => {
   const { path: _path, ...db } = databaseInfo()
-  return c.json({ ok: true, db })
+  // Whether video is wired up, as a plain boolean. Three environment
+  // variables set in a dashboard are otherwise invisible until someone starts
+  // a game and finds there is no call — and the only other way to ask is from
+  // inside a room you have already joined.
+  return c.json({ ok: true, db, video: livekitConfig() != null })
 })
 
 const port = parseInt(process.env.PORT ?? '3001')
