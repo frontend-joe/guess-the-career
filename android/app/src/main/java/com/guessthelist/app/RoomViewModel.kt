@@ -15,6 +15,9 @@ import io.livekit.android.events.RoomEvent
 import io.livekit.android.events.collect
 import io.livekit.android.room.Room
 import io.livekit.android.room.participant.Participant
+import io.livekit.android.room.track.VideoTrack
+import io.livekit.android.room.track.Track
+import io.livekit.android.room.participant.LocalParticipant
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -37,7 +40,7 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     var seat by mutableStateOf<Seat?>(null); private set
     var state by mutableStateOf<RoomState?>(null); private set
     var inRoom by mutableStateOf(false); private set
-    var tiles by mutableStateOf<List<Participant>>(emptyList()); private set
+    var tiles by mutableStateOf<List<Tile>>(emptyList()); private set
 
     var accessToken by mutableStateOf<String?>(null)
     var error by mutableStateOf<String?>(null)
@@ -185,7 +188,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                     is RoomEvent.TrackSubscribed,
                     is RoomEvent.TrackUnsubscribed,
                     is RoomEvent.TrackPublished,
-                    is RoomEvent.TrackUnpublished -> refreshTiles()
+                    is RoomEvent.TrackUnpublished,
+                    // Muting does not unpublish, so without these a muted
+                    // camera kept showing its last frame.
+                    is RoomEvent.TrackMuted,
+                    is RoomEvent.TrackUnmuted,
+                    is RoomEvent.LocalTrackSubscribed,
+                    is RoomEvent.TrackStreamStateChanged -> refreshTiles()
                     else -> Unit
                 }
             }
@@ -249,10 +258,40 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     private fun hasPermission(name: String): Boolean =
         ContextCompat.checkSelfPermission(getApplication(), name) == PackageManager.PERMISSION_GRANTED
 
+    // Tiles carry the TRACK, not just the participant.
+    //
+    // This used to assign `listOf(localParticipant) + remoteParticipants` —
+    // the same object references every time, so every rebuilt list was
+    // structurally EQUAL to the last one. mutableStateOf compares with
+    // structural equality by default, decided nothing had changed, and skipped
+    // recomposition. The camera really was publishing (the button said so),
+    // the grid simply never re-read it, so neither your own picture nor
+    // anybody else's ever appeared. It was hidden until now because the camera
+    // used to be switched on during connect, before the first composition.
+    //
+    // A Tile holding the track changes when the track does, which is exactly
+    // what structural equality should be comparing.
     private fun refreshTiles() {
         val current = room ?: run { tiles = emptyList(); return }
-        tiles = listOf<Participant>(current.localParticipant) + current.remoteParticipants.values
+        val participants = listOf<Participant>(current.localParticipant) + current.remoteParticipants.values
+        tiles = participants.map { p ->
+            Tile(
+                identity = p.identity?.value.orEmpty(),
+                name = p.name?.takeIf { it.isNotEmpty() } ?: p.identity?.value ?: "?",
+                isLocal = p is LocalParticipant,
+                track = p.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack,
+                participant = p,
+            )
+        }
     }
+
+    data class Tile(
+        val identity: String,
+        val name: String,
+        val isLocal: Boolean,
+        val track: VideoTrack?,
+        val participant: Participant,
+    )
 
     private fun handleBroadcast(text: String) {
         val message = Api.parseBroadcast(text) ?: return

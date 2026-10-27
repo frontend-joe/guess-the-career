@@ -19,6 +19,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
@@ -204,11 +211,24 @@ fun RoomScreen(model: RoomViewModel) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = { scope.launch { model.setMicrophone(!model.micOn) } }) {
-                Text(if (model.micOn) "Mute" else "Muted")
+            // The same two icons iOS shows, and for the same reason: a
+            // slashed icon reads as "this is off" at a glance, where the old
+            // labels did not even agree with each other — "Stop video" named
+            // the action while "Muted" named the state, so the same button
+            // row was telling you two different kinds of thing at once.
+            IconButton(onClick = { scope.launch { model.setMicrophone(!model.micOn) } }) {
+                Icon(
+                    if (model.micOn) Icons.Filled.Mic else Icons.Filled.MicOff,
+                    contentDescription = if (model.micOn) "Mute" else "Unmute",
+                    tint = if (model.micOn) Color(0xFF4ADE80) else Color(0xFFFF6B6B),
+                )
             }
-            TextButton(onClick = { scope.launch { model.setCamera(!model.cameraOn) } }) {
-                Text(if (model.cameraOn) "Stop video" else "Video off")
+            IconButton(onClick = { scope.launch { model.setCamera(!model.cameraOn) } }) {
+                Icon(
+                    if (model.cameraOn) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
+                    contentDescription = if (model.cameraOn) "Turn camera off" else "Turn camera on",
+                    tint = if (model.cameraOn) Color(0xFF4ADE80) else Color(0xFFFF6B6B),
+                )
             }
             Box(Modifier.weight(1f))
             model.error?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFF6B6B)) }
@@ -251,9 +271,8 @@ private fun VideoGrid(model: RoomViewModel) {
         return
     }
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        model.tiles.forEach { participant ->
-            val track = participant
-                .getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
+        model.tiles.forEach { tile ->
+            val track = tile.track
             Box(
                 Modifier
                     .weight(1f)
@@ -270,13 +289,13 @@ private fun VideoGrid(model: RoomViewModel) {
                         track,
                         Modifier.fillMaxSize(),
                         lkRoom,
-                        participant is LocalParticipant,
+                        tile.isLocal,
                     )
                 } else {
                     Text("camera off", fontSize = 11.sp, color = Color.Gray)
                 }
                 Text(
-                    participant.name ?: participant.identity?.value ?: "?",
+                    if (tile.isLocal) "${tile.name} (you)" else tile.name,
                     fontSize = 10.sp,
                     color = Color.White,
                     modifier = Modifier.align(Alignment.BottomStart).padding(4.dp),
