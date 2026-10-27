@@ -113,7 +113,7 @@ private fun PyramidRow(
                 Text(
                     answer.name.uppercase(),
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontFamily = AppFonts.Display,
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -130,7 +130,7 @@ private fun PyramidRow(
                     Text(
                         valueText(answer),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontFamily = AppFonts.Display,
                         color = Color.White,
                     )
                 }
@@ -140,6 +140,7 @@ private fun PyramidRow(
             hint != null -> Text(
                 clueText(hint, impliedClues),
                 fontSize = 11.sp,
+                fontFamily = AppFonts.Body,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White.copy(alpha = 0.95f),
                 maxLines = 2,
@@ -150,7 +151,7 @@ private fun PyramidRow(
             else -> Text(
                 "$rank",
                 fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
+                fontFamily = AppFonts.Display,
                 color = Color.White.copy(alpha = 0.95f),
             )
         }

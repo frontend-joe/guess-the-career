@@ -51,10 +51,10 @@ struct BoardView: View {
             .padding(.vertical, 6)
         } else {
             VStack(spacing: 6) {
-                Text("No round yet").foregroundStyle(.secondary)
+                Text("No round yet").font(.body(15)).foregroundStyle(.secondary)
                 if store.isHost {
                     Text("Choose a round, then Start.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.body(12)).foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -91,12 +91,12 @@ private struct PyramidRow: View {
             if let answer {
                 HStack(spacing: 7) {
                     Text(answer.name.uppercased())
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.display(14))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Text(valueText(answer))
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.display(11))
                         .monospacedDigit()
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6)
@@ -108,14 +108,14 @@ private struct PyramidRow: View {
                 // A taken clue replaces the rank number rather than adding a
                 // line, so the pyramid keeps its shape.
                 Text(clueText(hint))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.body(11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.95))
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
             } else {
                 Text("\(rank)")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.display(17))
                     .foregroundStyle(.white.opacity(0.95))
             }
         }

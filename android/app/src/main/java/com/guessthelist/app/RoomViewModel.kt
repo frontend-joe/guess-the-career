@@ -1,6 +1,9 @@
 package com.guessthelist.app
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -204,19 +207,47 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // A nil room is not "nothing happened" — it means the call never
+    // connected, and silently doing nothing is what made this look like a dead
+    // button rather than a failed connection. Same for a throw: runCatching
+    // used to swallow the reason, so a refused permission and a broken camera
+    // looked identical, which is to say they looked like nothing at all.
     suspend fun setCamera(on: Boolean) {
-        val current = room ?: return
+        val current = room
+        if (current == null) {
+            videoNote = videoNote ?: "Not connected to the call yet."
+            return
+        }
+        if (on && !hasPermission(Manifest.permission.CAMERA)) {
+            videoNote = "Camera is blocked — allow it for Tenable in Settings."
+            return
+        }
         runCatching { current.localParticipant.setCameraEnabled(on) }
+            .onSuccess { if (on) videoNote = null }
+            .onFailure { videoNote = "Could not start your camera: ${it.message}" }
         cameraOn = current.localParticipant.isCameraEnabled
         refreshTiles()
     }
 
     suspend fun setMicrophone(on: Boolean) {
-        val current = room ?: return
+        val current = room
+        if (current == null) {
+            videoNote = videoNote ?: "Not connected to the call yet."
+            return
+        }
+        if (on && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
+            videoNote = "Mic is blocked — allow it for Tenable in Settings."
+            return
+        }
         runCatching { current.localParticipant.setMicrophoneEnabled(on) }
+            .onSuccess { if (on) videoNote = null }
+            .onFailure { videoNote = "Could not unmute: ${it.message}" }
         micOn = current.localParticipant.isMicrophoneEnabled
         refreshTiles()
     }
+
+    private fun hasPermission(name: String): Boolean =
+        ContextCompat.checkSelfPermission(getApplication(), name) == PackageManager.PERMISSION_GRANTED
 
     private fun refreshTiles() {
         val current = room ?: run { tiles = emptyList(); return }

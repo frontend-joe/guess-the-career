@@ -42,17 +42,14 @@ struct RoomView: View {
     @ViewBuilder
     private var roundTitle: some View {
         if let round = store.round {
-            VStack(spacing: 2) {
-                Text(round.board.title)
-                    .font(.system(size: 15, weight: .bold))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("\(round.board.revealed.count) / \(round.board.target) found")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
+            // Just the question. The found count was telling you what the
+            // board already shows.
+            Text(round.board.title)
+                .font(.display(15))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
         }
@@ -100,7 +97,7 @@ struct RoomView: View {
     private var header: some View {
         HStack(spacing: 12) {
             Text(store.state?.code ?? "")
-                .font(.system(.title3, design: .monospaced))
+                .font(.display(20))
                 .tracking(4)
                 .foregroundStyle(.green)
             Spacer()

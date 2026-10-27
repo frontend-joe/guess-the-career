@@ -73,7 +73,7 @@ fun RoomScreen(model: RoomViewModel) {
         ) {
             Text(
                 model.state?.code.orEmpty(),
-                fontFamily = FontFamily.Monospace,
+                fontFamily = AppFonts.Display,
                 fontSize = 20.sp,
                 color = Color(0xFF4ADE80),
             )
@@ -86,24 +86,17 @@ fun RoomScreen(model: RoomViewModel) {
 
         // The question, where the web game puts it: across the top, above the
         // board, so it is readable without looking past the pyramid.
+        // Just the question. The found count was telling you what the board
+        // already shows.
         model.round?.let { round ->
-            Column(
+            Text(
+                round.board.title,
+                fontSize = 15.sp,
+                fontFamily = AppFonts.Display,
+                color = Color.White,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    round.board.title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    "${round.board.revealed.size} / ${round.board.target} found",
-                    fontSize = 11.sp,
-                    color = Color.Gray,
-                )
-            }
+            )
         }
 
         Box(modifier = Modifier.weight(2f).fillMaxWidth()) {

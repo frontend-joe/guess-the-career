@@ -200,35 +200,66 @@ final class RoomStore {
     }
 
     func setCamera(_ on: Bool) async {
-        guard let room else { return }
-        // Turning something back on can be the first time permission is
-        // needed, if it was refused when the room was joined.
-        if on, !(await AVCaptureDevice.requestAccess(for: .video)) {
-            videoNote = "Camera is off — turn it on in Settings."
+        // A nil room is not "nothing happened" — it means the call never
+        // connected, and silently doing nothing is what made this look like a
+        // dead button rather than a failed connection.
+        guard let room else {
+            videoNote = videoNote ?? "Not connected to the call yet."
             return
+        }
+        // Turning it on is the first time permission is needed, now that the
+        // app no longer asks at connect. Denied and not-yet-asked need
+        // different messages: one is a trip to Settings, the other is just a
+        // prompt that has not been answered.
+        if on {
+            switch AVCaptureDevice.authorizationStatus(for: .video) {
+            case .denied, .restricted:
+                videoNote = "Camera is blocked — allow it for Tenable in Settings."
+                return
+            case .notDetermined:
+                guard await AVCaptureDevice.requestAccess(for: .video) else {
+                    videoNote = "Camera is off — you declined the prompt."
+                    return
+                }
+            default:
+                break
+            }
         }
         do {
             try await room.localParticipant.setCamera(enabled: on)
+            if on { videoNote = nil }
         } catch {
             videoNote = "Could not \(on ? "start" : "stop") your camera: \(error.localizedDescription)"
         }
-        if on, videoNote?.hasPrefix("Camera") == true { videoNote = nil }
         syncMediaState()
         refreshTiles()
     }
 
     func setMicrophone(_ on: Bool) async {
-        guard let room else { return }
-        if on, !(await AVCaptureDevice.requestAccess(for: .audio)) {
-            videoNote = "Mic is off — turn it on in Settings."
+        guard let room else {
+            videoNote = videoNote ?? "Not connected to the call yet."
             return
+        }
+        if on {
+            switch AVCaptureDevice.authorizationStatus(for: .audio) {
+            case .denied, .restricted:
+                videoNote = "Mic is blocked — allow it for Tenable in Settings."
+                return
+            case .notDetermined:
+                guard await AVCaptureDevice.requestAccess(for: .audio) else {
+                    videoNote = "Mic is off — you declined the prompt."
+                    return
+                }
+            default:
+                break
+            }
         }
         do {
             try await room.localParticipant.setMicrophone(enabled: on)
+            if on { videoNote = nil }
         } catch {
             videoNote = "Could not \(on ? "unmute" : "mute"): \(error.localizedDescription)"
         }
-        if on, videoNote?.hasPrefix("Mic") == true { videoNote = nil }
         syncMediaState()
         refreshTiles()
     }

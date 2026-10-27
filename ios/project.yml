@@ -20,6 +20,12 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      # The .ttf files are resources, not code, so they are copied in rather
+      # than compiled. Without the UIAppFonts list below they ship inside the
+      # bundle and are never registered, and every Font.custom silently falls
+      # back to the system face.
+      - path: Sources/Resources/Fonts
+        buildPhase: resources
     dependencies:
       - package: LiveKit
         product: LiveKit
@@ -28,6 +34,17 @@ targets:
       properties:
         CFBundleDisplayName: Tenable
         UILaunchScreen: {}
+        # The same faces the web game loads from Google Fonts, bundled. These
+        # are file names; Font.custom takes the PostScript name instead, which
+        # is why Fonts.swift keeps the two in one place.
+        UIAppFonts:
+          - RussoOne-Regular.ttf
+          - NotoSans-Regular.ttf
+          - NotoSans-SemiBold.ttf
+          - NotoSans-Bold.ttf
+          - ChakraPetch-Regular.ttf
+          - ChakraPetch-SemiBold.ttf
+          - ChakraPetch-Bold.ttf
         # Both are required before the first capture call, and the strings are
         # shown to the person, so they say what the camera is actually for.
         NSCameraUsageDescription: Your camera is shared with the other players in your game.
