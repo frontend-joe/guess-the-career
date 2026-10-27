@@ -105,6 +105,7 @@ export function RoomDevPage() {
   const [joinCode, setJoinCode] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [roundId, setRoundId] = useState<number | ''>('')
+  const [roundQuery, setRoundQuery] = useState('')
   const [guess, setGuess] = useState('')
 
   const roomRef = useRef<Room | null>(null)
@@ -219,6 +220,15 @@ export function RoomDevPage() {
       setError(err instanceof Error ? err.message : String(err))
     }
   }
+
+  // There are a couple of thousand rounds, so the picker needs a filter to be
+  // usable at all. Capped because a select with everything in it is slow to
+  // open on a phone, and the count tells you when to type more.
+  const ROUND_OPTIONS = 200
+  const roundMatches = roundQuery.trim()
+    ? rounds.filter((r) => `${r.date} ${r.title}`.toLowerCase().includes(roundQuery.trim().toLowerCase()))
+    : rounds
+  const shownRounds = roundMatches.slice(0, ROUND_OPTIONS)
 
   const me = state?.participants.find((p) => p.id === session?.participantId) ?? null
   const isHost = me?.role === 'host'
@@ -344,17 +354,30 @@ export function RoomDevPage() {
             only so the other tabs are not confusing to use. */}
         {isHost && (
           <div className="mt-auto space-y-2 border-t border-slate-800 pt-3">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                className="w-44 rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm text-white placeholder:text-slate-500"
+                placeholder="Filter rounds…"
+                value={roundQuery}
+                onChange={(e) => setRoundQuery(e.target.value)}
+              />
               <select
-                className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm"
+                className="max-w-xs rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm"
                 value={roundId}
                 onChange={(e) => setRoundId(e.target.value ? Number(e.target.value) : '')}
               >
-                <option value="">Choose a round…</option>
-                {rounds.map((r) => (
+                <option value="">
+                  {roundMatches.length === 0 ? 'Nothing matches' : `Choose a round… (${roundMatches.length})`}
+                </option>
+                {shownRounds.map((r) => (
                   <option key={r.roundId} value={r.roundId}>{r.date} — {r.title}</option>
                 ))}
               </select>
+              {roundMatches.length > ROUND_OPTIONS && (
+                <span className="text-xs text-slate-500">
+                  showing {ROUND_OPTIONS} of {roundMatches.length} — keep typing
+                </span>
+              )}
               <button
                 className="rounded bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600 disabled:opacity-40"
                 disabled={roundId === ''}
