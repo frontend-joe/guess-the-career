@@ -12,11 +12,16 @@ import UIKit
 /// controls and the field each arrived at slightly different times, over a
 /// layout that was already the wrong size.
 ///
-/// Unlike Mearum's version, the top is pinned too rather than left as `>=`.
-/// Mearum hosts only its composer and lets the feed scroll behind it; here the
-/// whole room is hosted, so the content has to COMPRESS into the space above
-/// the keyboard. Pinning only the bottom would slide the board up out of the
-/// screen instead.
+/// The hosted content keeps its FULL height — the height it has with no
+/// keyboard — and only its bottom edge is pinned. So when the keyboard comes
+/// up the whole room slides up as one piece and the top runs off the screen,
+/// rather than everything being squashed into what is left.
+///
+/// Compressing was tried first and was wrong: there is simply not enough room
+/// above a keyboard for a ten-row board, a video strip and three rows of
+/// controls, so something had to be crushed or hidden, and both looked bad.
+/// Sliding keeps every part of the screen exactly the size and shape it
+/// already was.
 ///
 /// The caller must add `.ignoresSafeArea(.keyboard)` or SwiftUI will shift the
 /// container as well and everything moves twice.
@@ -44,6 +49,9 @@ struct KeyboardPinned<Content: View>: UIViewControllerRepresentable {
         override func viewDidLoad() {
             super.viewDidLoad()
             view.backgroundColor = .clear
+            // The content is taller than this container once it has slid, and
+            // the overflow must not draw over the status bar.
+            view.clipsToBounds = true
             host.view.backgroundColor = .clear
             host.view.translatesAutoresizingMaskIntoConstraints = false
             addChild(host)
@@ -53,10 +61,12 @@ struct KeyboardPinned<Content: View>: UIViewControllerRepresentable {
             NSLayoutConstraint.activate([
                 host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                 host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                host.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-                // At rest the guide sits on the safe area, so this is the
-                // ordinary layout; raised, it is the keyboard's top edge, and
-                // the content is re-laid-out into what is left.
+                // Always the full height, keyboard or no keyboard, so the
+                // layout inside never changes shape...
+                host.view.heightAnchor.constraint(equalTo: view.safeAreaLayoutGuide.heightAnchor),
+                // ...and only this moves. At rest the guide sits on the safe
+                // area; raised, it is the keyboard's top edge, and the whole
+                // thing travels up with it.
                 host.view.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
             ])
         }

@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,9 +49,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -54,6 +59,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import io.livekit.android.compose.ui.VideoTrackView
 import io.livekit.android.room.participant.LocalParticipant
@@ -71,9 +77,6 @@ fun RoomScreen(model: RoomViewModel) {
     var picking by remember { mutableStateOf(false) }
     var chatTab by remember { mutableStateOf(false) }
     var confirmingGiveUp by remember { mutableStateOf(false) }
-    // Whether the guess field holds the keyboard. The layout changes shape
-    // while you type rather than trying to fit everything at once.
-    var typing by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     // The newest message id already seen, so the Chat tab can say how many
     // arrived while you were watching faces.
@@ -81,7 +84,20 @@ fun RoomScreen(model: RoomViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0C)).safeDrawingPadding()) {
+    // Slide the whole room up by exactly the keyboard's height, keeping every
+    // part of it the size and shape it already was. Compose animates this inset
+    // in step with the IME, so the movement rides the keyboard's own animation
+    // rather than chasing it. systemBars rather than safeDrawing deliberately:
+    // safeDrawing includes the IME, which would pad and offset for the same
+    // keyboard twice.
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .offset { IntOffset(0, -imeBottom) }
+            .background(Color(0xFF0A0A0C))
+            .windowInsetsPadding(WindowInsets.systemBars),
+    ) {
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -147,10 +163,11 @@ fun RoomScreen(model: RoomViewModel) {
         // Faces and chat share the bottom third rather than splitting it:
         // chat is there for the player whose camera or microphone has failed,
         // which is precisely when their tile is worth nothing anyway.
-        // While you are typing a guess, faces and chat are the two things you
-        // are definitely not looking at, so they stand aside and give the
-        // board the room.
-        if (!typing) Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
+        // Always here. Hiding this while the guess field had focus was a bug
+        // twice over: Compose does not drop focus when the keyboard closes, so
+        // `typing` stayed true and the faces never came back at all — and
+        // hiding them was the wrong idea anyway. The whole screen slides now.
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
             val messages = model.state?.messages.orEmpty()
             val unread = messages.count { it.id > seenMessageId }
             TabRow(selectedTabIndex = if (chatTab) 1 else 0, containerColor = Color(0xFF0A0A0C)) {
@@ -234,9 +251,7 @@ fun RoomScreen(model: RoomViewModel) {
                 placeholder = { Text("Your guess…") },
                 singleLine = true,
                 enabled = model.round?.isLive == true,
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { typing = it.isFocused },
+                modifier = Modifier.weight(1f),
             )
             model.lastGuess?.let {
                 Text(it.verdict, color = verdictColour(it.verdict), fontSize = 12.sp)

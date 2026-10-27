@@ -29,7 +29,7 @@ private struct TileView: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let track = tile.participant.firstCameraVideoTrack {
+            if let track = tile.track {
                 SwiftUIVideoView(track, layoutMode: .fill, mirrorMode: tile.isLocal ? .mirror : .auto)
             } else {
                 Color(white: 0.1)

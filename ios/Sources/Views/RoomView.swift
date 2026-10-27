@@ -44,24 +44,14 @@ struct RoomView: View {
 
                     if store.isHost { hostControls }
 
-                    // The panel's height is a continuous function of the space
-                    // available, and nothing else. No conditional, no
-                    // transition, no animation of its own — those ran on
-                    // SwiftUI's clock while the container rode the keyboard's,
-                    // and two clocks is precisely what "not smooth" looks like.
-                    //
-                    // It also yields FIRST. Everything above it has somewhere
-                    // it has to be; the faces are the part of this screen you
-                    // can most afford to lose, so as the keyboard eats the
-                    // space the panel shrinks to nothing and the board keeps
-                    // its floor, instead of both being crushed together.
-                    let panelHeight = bottomPanelHeight(in: geo.size.height)
-                    if panelHeight > 1 {
-                        bottomPanel
-                            .frame(height: panelHeight)
-                            .background(BoardStyle.background)
-                            .clipped()
-                    }
+                    // A third of the screen, always. Nothing is hidden and
+                    // nothing is squeezed when the keyboard appears — the
+                    // whole stack keeps its shape and slides, which is what
+                    // KeyboardPinned is for.
+                    bottomPanel
+                        .frame(height: geo.size.height / 3)
+                        .background(BoardStyle.background)
+                        .clipped()
 
                     footer
 
@@ -92,20 +82,6 @@ struct RoomView: View {
         }
     }
 
-    /// How much room the faces and chat may have, given the height left.
-    ///
-    /// A third of it when there is plenty, nothing at all when the keyboard
-    /// has taken most of the screen, and every value in between — so the
-    /// transition between those two states IS the keyboard's animation rather
-    /// than a second one chasing it.
-    private func bottomPanelHeight(in available: CGFloat) -> CGFloat {
-        // What the rest of the screen needs before the board gets a look in.
-        // Measured against the real thing rather than guessed: header 44,
-        // title 46, footer 40, composer 60, plus the host's controls.
-        let chrome: CGFloat = store.isHost ? 234 : 190
-        let boardFloor: CGFloat = 170
-        return max(0, min(available / 3, available - chrome - boardFloor))
-    }
 
     // The question, where the web game puts it: across the top, above the
     // board, so it is readable without looking past the pyramid.
@@ -299,3 +275,5 @@ func verdictColour(_ verdict: String) -> Color {
     default: return .red
     }
 }
+
+

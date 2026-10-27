@@ -19,15 +19,17 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <!-- adjustResize, not adjustPan. Panning slides the whole window up as
-             one rigid block, pushing the board off the top and leaving the
-             controls behind the keyboard. Resizing re-lays-out the content into
-             what is left, which is what the root's safeDrawingPadding measures. -->
+        <!-- adjustNothing: the window does not move or resize, and the layout
+             handles the keyboard itself by sliding up exactly as far as the IME
+             inset reports, which is what RoomScreen does. Resizing was tried and
+             re-laid-out the content into what was left — squashing a ten-row
+             board, a video strip and three rows of controls into half a screen,
+             which there is simply no room for. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

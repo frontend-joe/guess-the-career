@@ -49,13 +49,27 @@ final class RoomStore {
     private var room: Room?
     private var poller: Task<Void, Never>?
 
+    // The tile carries the TRACK, not just the participant.
+    //
+    // It used to compare equal on id and name alone, while TileView read
+    // `participant.firstCameraVideoTrack` inside its body. SwiftUI uses
+    // Equatable to decide whether a body needs re-running at all, so when a
+    // camera started publishing the tiles still compared equal, the body was
+    // skipped, and the track that had just arrived was never read. Nothing
+    // ever appeared.
+    //
+    // Android had the identical bug for the identical reason — equality that
+    // ignored the one thing that changes.
     struct Tile: Identifiable, Equatable {
         let id: String
         let name: String
         let isLocal: Bool
+        let track: VideoTrack?
         let participant: Participant
 
-        static func == (a: Tile, b: Tile) -> Bool { a.id == b.id && a.name == b.name }
+        static func == (a: Tile, b: Tile) -> Bool {
+            a.id == b.id && a.name == b.name && a.track === b.track
+        }
     }
 
     var me: RoomParticipant? {
@@ -308,6 +322,7 @@ final class RoomStore {
                 id: $0.identity?.stringValue ?? UUID().uuidString,
                 name: ($0.name?.isEmpty == false ? $0.name : nil) ?? $0.identity?.stringValue ?? "?",
                 isLocal: $0 is LocalParticipant,
+                track: $0.firstCameraVideoTrack,
                 participant: $0
             )
         }
