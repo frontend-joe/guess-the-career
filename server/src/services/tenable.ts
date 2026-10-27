@@ -1,4 +1,5 @@
 import { sqlite } from "../db/client.ts";
+import { normalizeClubAlias } from "../services/scraper.ts";
 
 // Football Tenable — 10-answer list rounds.
 //
@@ -883,4 +884,82 @@ export function rankOf(
   const i = all.findIndex((a) => a.footballer_id === footballerId);
   if (i < 0) return null;
   return { rank: i + 1, value: all[i].value, unit: all[i].unit };
+}
+
+// ── Clues ────────────────────────────────────────────────────────────────────
+// The long-press hint behind a blank row. These live here rather than in the
+// route because a multiplayer round has to freeze its clues at kick-off, and
+// the frozen copy must be built by exactly the same code the solo game uses —
+// two implementations would drift and the two games would disagree.
+
+export interface TenableClue {
+  nationality: string | null;
+  position: string | null;
+  years: string | null;
+  club: string | null;
+  clubWikiUrl: string | null;
+  squadNumber: number | null;
+  born: string | null;
+}
+
+// Anything the question already gives away is suppressed — no point "hinting"
+// the nationality on a Norway round.
+export function impliedCluesFor(type: string): string[] {
+  const implied: string[] = [];
+  if (["nationality", "nationality-club", "world-cup-squad"].includes(type)) implied.push("nationality");
+  if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial"].includes(type)) implied.push("club");
+  if (["surname-length", "surname-initial", "surname", "club-surname-initial"].includes(type)) implied.push("surname");
+  return implied;
+}
+
+export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {
+  const clues = new Map<number, TenableClue>();
+  if (!ids.length) return clues;
+
+  const ph = ids.map(() => "?").join(", ");
+  const meta = sqlite.prepare(
+    `SELECT id, nationality, COALESCE(custom_position, position) AS position, born
+     FROM footballers WHERE id IN (${ph})`,
+  ).all(...ids) as { id: number; nationality: string | null; position: string | null; born: string | null }[];
+
+  // Career span and main club from the scraped infobox career.
+  const stints = sqlite.prepare(
+    `SELECT footballer_id, years, club, COALESCE(apps, 0) AS apps
+     FROM career_stints WHERE stint_type = 'senior' AND footballer_id IN (${ph})`,
+  ).all(...ids) as { footballer_id: number; years: string; club: string; apps: number }[];
+
+  // Shirt number: Guess the XI line-ups first, then World Cup squads.
+  const numbers = sqlite.prepare(
+    `SELECT footballer_id, squad_number AS n FROM xi_players
+     WHERE squad_number IS NOT NULL AND footballer_id IN (${ph})
+     UNION ALL
+     SELECT footballer_id, shirt_number AS n FROM world_cup_squad_players
+     WHERE shirt_number IS NOT NULL AND footballer_id IN (${ph})`,
+  ).all(...ids, ...ids) as { footballer_id: number; n: number }[];
+
+  // Crest for the club they played most for, so the hint can show a badge.
+  const clubCrest = sqlite.prepare(
+    `SELECT wikipedia_url FROM clubs WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+  );
+
+  for (const m of meta) {
+    const mine = stints.filter((s) => s.footballer_id === m.id);
+    const years = mine.flatMap((s) => (s.years.match(/\d{4}/g) ?? []).map(Number));
+    const main = mine.slice().sort((a, b) => b.apps - a.apps)[0];
+    const num = numbers.find((n) => n.footballer_id === m.id);
+    const club = main ? main.club.replace(/^→ /, "").replace(/ \(loan\)$/, "") : null;
+    const crest = club
+      ? (clubCrest.get(normalizeClubAlias(club)) as { wikipedia_url: string | null } | undefined)
+      : undefined;
+    clues.set(m.id, {
+      nationality: m.nationality,
+      position: m.position,
+      years: years.length ? `${Math.min(...years)}–${Math.max(...years)}` : null,
+      club,
+      clubWikiUrl: crest?.wikipedia_url ?? null,
+      squadNumber: num?.n ?? null,
+      born: m.born,
+    });
+  }
+  return clues;
 }
