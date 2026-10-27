@@ -230,6 +230,17 @@ export function RoomDevPage() {
     : rounds
   const shownRounds = roundMatches.slice(0, ROUND_OPTIONS)
 
+  // Freeze and Start are separate on purpose — freezing runs the derivation
+  // SQL, so starting can be the cheap, precise instant every recorded
+  // timestamp is measured from. Nothing about that is guessable from two
+  // buttons, so say which one is next.
+  const hostHint = (status: string | undefined): string => {
+    if (status === 'pending') return 'Answers locked. Start when everyone is ready — that starts the clock.'
+    if (status === 'live') return 'Live. Type what they shout.'
+    if (status === 'complete') return 'Round finished. Pick another and freeze it.'
+    return 'Pick a round, then Freeze to lock its answers to this room.'
+  }
+
   const me = state?.participants.find((p) => p.id === session?.participantId) ?? null
   const isHost = me?.role === 'host'
   const round = state?.round ?? null
@@ -383,8 +394,13 @@ export function RoomDevPage() {
                 </span>
               )}
               <button
-                className="rounded bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600 disabled:opacity-40"
+                className={`rounded px-3 py-1.5 text-sm disabled:opacity-40 ${
+                  round?.status === 'pending'
+                    ? 'bg-slate-700 hover:bg-slate-600'
+                    : 'bg-sky-600 hover:bg-sky-500'
+                }`}
                 disabled={roundId === ''}
+                title="Locks this round's answers to this room, so they cannot change mid-game"
                 onClick={() => run(() => freezeRound(session, Number(roundId)))}
               >
                 Freeze
@@ -392,6 +408,7 @@ export function RoomDevPage() {
               <button
                 className="rounded bg-emerald-600 px-3 py-1.5 text-sm hover:bg-emerald-500 disabled:opacity-40"
                 disabled={round?.status !== 'pending'}
+                title={round?.status === 'pending' ? 'Starts the clock' : 'Freeze a round first'}
                 onClick={() => run(() => startRound(session, round!.instanceId))}
               >
                 Start
@@ -403,6 +420,8 @@ export function RoomDevPage() {
                 End game
               </button>
             </div>
+
+            <p className="text-xs text-slate-400">{hostHint(round?.status)}</p>
 
             <form
               className="flex gap-2"
