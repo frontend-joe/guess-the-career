@@ -37,6 +37,18 @@ targets:
         UIBackgroundModes:
           - audio
           - voip
+        # Declares that the app uses no NON-EXEMPT encryption, which stops
+        # App Store Connect asking on every single upload.
+        #
+        # The basis: the only encryption here is HTTPS to the API and WebRTC's
+        # DTLS-SRTP for the call. Both are standard, published algorithms
+        # provided by the OS and the LiveKit SDK — nothing proprietary, and no
+        # encryption of the user's own data at rest. That is the exemption.
+        #
+        # It is a legal declaration. If the app ever gains its own crypto, or
+        # starts encrypting stored recordings with a key it manages, this has
+        # to be revisited.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         TARGETED_DEVICE_FAMILY: 1
