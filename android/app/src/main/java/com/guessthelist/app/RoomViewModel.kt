@@ -1,0 +1,256 @@
+package com.guessthelist.app
+
+import android.app.Application
+import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import io.livekit.android.LiveKit
+import io.livekit.android.events.RoomEvent
+import io.livekit.android.events.collect
+import io.livekit.android.room.Room
+import io.livekit.android.room.participant.Participant
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+
+/**
+ * Owns the room: the seat, the authoritative state, and the LiveKit
+ * connection that carries both the video and the server's state broadcasts.
+ *
+ * The contract is the same as iOS and the web harness, deliberately: a
+ * broadcast says only that the version moved, and the board on screen always
+ * came from GET /state. That keeps one code path from the event log to a
+ * board — the same fold the recorded video will be rendered from. A client
+ * applying broadcasts directly would be a second implementation of that fold,
+ * free to drift, and nobody would notice until a recording showed something
+ * the players never saw.
+ */
+class RoomViewModel(app: Application) : AndroidViewModel(app) {
+
+    var seat by mutableStateOf<Seat?>(null); private set
+    var state by mutableStateOf<RoomState?>(null); private set
+    var inRoom by mutableStateOf(false); private set
+    var tiles by mutableStateOf<List<Participant>>(emptyList()); private set
+
+    var accessToken by mutableStateOf<String?>(null)
+    var error by mutableStateOf<String?>(null)
+    var videoNote by mutableStateOf<String?>(null)
+    var lastGuess by mutableStateOf<GuessResult?>(null)
+    var cameraOn by mutableStateOf(false); private set
+    var micOn by mutableStateOf(false); private set
+
+    /** The version already on screen. Higher means we are behind; lower is an
+     *  out-of-order message to ignore. */
+    private var version = 0
+
+    /** Exposed so the grid can render tracks; nothing outside mutates it. */
+    var room by mutableStateOf<Room?>(null); private set
+    private var poller: Job? = null
+
+    private val prefs = app.getSharedPreferences("gtl", Context.MODE_PRIVATE)
+
+    val me: RoomParticipant?
+        get() = seat?.let { s -> state?.participants?.firstOrNull { it.id == s.participantId } }
+
+    val isHost: Boolean get() = me?.isHost == true
+    val round: RoomRound? get() = state?.round
+
+    init { restoreSeat() }
+
+    // MARK: Entering and leaving
+
+    fun enter(joined: JoinedRoom) {
+        val newSeat = Seat(joined.code, joined.participantId, joined.participantToken)
+        seat = newSeat
+        state = joined.state
+        version = joined.stateVersion
+        inRoom = true
+        saveSeat(newSeat)
+        startPolling()
+        viewModelScope.launch { connectMedia() }
+    }
+
+    fun leave(announce: Boolean = true) {
+        val current = seat
+        viewModelScope.launch {
+            if (announce && current != null) runCatching { Api.leave(current) }
+            poller?.cancel(); poller = null
+            room?.disconnect(); room = null
+            tiles = emptyList()
+            seat = null; state = null; version = 0; inRoom = false
+            prefs.edit().remove(SEAT_KEY).apply()
+        }
+    }
+
+    /** A seat outlives the process, so a kill does not cost a guest their slot
+     *  — and with it their tile position in whatever gets recorded. */
+    private fun restoreSeat() {
+        val raw = prefs.getString(SEAT_KEY, null) ?: return
+        val saved = runCatching { Json.decodeFromString<Seat>(raw) }.getOrNull() ?: return
+        viewModelScope.launch {
+            try {
+                val fresh = Api.roomState(saved)
+                seat = saved; state = fresh; version = fresh.stateVersion; inRoom = true
+                startPolling()
+                connectMedia()
+            } catch (failure: Api.Failure) {
+                if (failure.isGone) prefs.edit().remove(SEAT_KEY).apply()
+            } catch (_: Exception) {
+                // Probably the network; leave the stored seat for next time.
+            }
+        }
+    }
+
+    private fun saveSeat(value: Seat) {
+        prefs.edit().putString(SEAT_KEY, Json.encodeToString(Seat.serializer(), value)).apply()
+    }
+
+    // MARK: State
+
+    suspend fun refresh() {
+        val current = seat ?: return
+        try {
+            val next = Api.roomState(current)
+            if (next.stateVersion < version) return
+            version = next.stateVersion
+            state = next
+        } catch (failure: Api.Failure) {
+            if (failure.isGone) {
+                error = "That room is no longer available."
+                leave(announce = false)
+            } else {
+                error = failure.message
+            }
+        } catch (e: Exception) {
+            error = e.message
+        }
+    }
+
+    /** The backstop. If a broadcast is lost the game still advances, late. */
+    private fun startPolling() {
+        poller?.cancel()
+        poller = viewModelScope.launch {
+            while (true) {
+                refresh()
+                delay(10_000)
+            }
+        }
+    }
+
+    // MARK: Media
+
+    private suspend fun connectMedia() {
+        val current = seat ?: return
+        val credentials = try {
+            Api.livekitCredentials(current)
+        } catch (e: Exception) {
+            videoNote = "No video: ${e.message}"
+            return
+        }
+
+        val newRoom = LiveKit.create(appContext = getApplication())
+        room = newRoom
+
+        viewModelScope.launch {
+            newRoom.events.collect { event ->
+                when (event) {
+                    is RoomEvent.DataReceived -> {
+                        if (event.topic == STATE_TOPIC) handleBroadcast(String(event.data))
+                    }
+                    is RoomEvent.ParticipantConnected,
+                    is RoomEvent.ParticipantDisconnected,
+                    is RoomEvent.TrackSubscribed,
+                    is RoomEvent.TrackUnsubscribed,
+                    is RoomEvent.TrackPublished,
+                    is RoomEvent.TrackUnpublished -> refreshTiles()
+                    else -> Unit
+                }
+            }
+        }
+
+        try {
+            // Connect first. The data channel carries the state broadcasts, so
+            // the game has to keep working for someone who refuses the camera.
+            newRoom.connect(credentials.url, credentials.token)
+            setCamera(true)
+            setMicrophone(true)
+            videoNote = null
+            refreshTiles()
+        } catch (e: Exception) {
+            videoNote = "Video failed: ${e.message}"
+        }
+    }
+
+    suspend fun setCamera(on: Boolean) {
+        val current = room ?: return
+        runCatching { current.localParticipant.setCameraEnabled(on) }
+        cameraOn = current.localParticipant.isCameraEnabled
+        refreshTiles()
+    }
+
+    suspend fun setMicrophone(on: Boolean) {
+        val current = room ?: return
+        runCatching { current.localParticipant.setMicrophoneEnabled(on) }
+        micOn = current.localParticipant.isMicrophoneEnabled
+        refreshTiles()
+    }
+
+    private fun refreshTiles() {
+        val current = room ?: run { tiles = emptyList(); return }
+        tiles = listOf<Participant>(current.localParticipant) + current.remoteParticipants.values
+    }
+
+    private fun handleBroadcast(text: String) {
+        val message = Api.parseBroadcast(text) ?: return
+        if (message.stateVersion <= version) return
+        viewModelScope.launch { refresh() }
+    }
+
+    // MARK: Host actions
+
+    fun freezeRound(roundId: Int) = act { Api.freezeRound(it, roundId) }
+
+    fun startRound() {
+        val instanceId = round?.instanceId ?: return
+        act { Api.startRound(it, instanceId) }
+    }
+
+    fun guess(raw: String) {
+        val instanceId = round?.instanceId ?: return
+        act { lastGuess = Api.guess(it, instanceId, raw) }
+    }
+
+    fun takeHint(rank: Int) {
+        val instanceId = round?.instanceId ?: return
+        act { Api.hint(it, instanceId, rank) }
+    }
+
+    fun endGame() = act { Api.endRoom(it) }
+
+    private fun act(body: suspend (Seat) -> Unit) {
+        val current = seat ?: return
+        error = null
+        viewModelScope.launch {
+            try {
+                body(current)
+                refresh()
+            } catch (e: Exception) {
+                error = e.message
+            }
+        }
+    }
+
+    override fun onCleared() {
+        room?.disconnect()
+        super.onCleared()
+    }
+
+    private companion object {
+        const val SEAT_KEY = "seat"
+        const val STATE_TOPIC = "gtl-state"
+    }
+}

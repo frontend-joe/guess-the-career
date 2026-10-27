@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Colours come from Compose's MaterialTheme; this only needs to give the
+     window a dark background and no action bar, so it extends the platform
+     theme rather than pulling in the Material Components library. -->
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar" />
+</resources>
