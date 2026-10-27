@@ -41,3 +41,8 @@ targets:
       base:
         TARGETED_DEVICE_FAMILY: 1
         SWIFT_VERSION: 5.0
+        # The only team with provisioning profiles on this machine. Not a
+        # secret — it ships inside every signed binary — and without it every
+        # device build needs the flag passing by hand.
+        DEVELOPMENT_TEAM: QZA66MATSN
+        CODE_SIGN_STYLE: Automatic
