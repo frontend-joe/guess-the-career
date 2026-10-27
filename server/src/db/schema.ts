@@ -175,6 +175,8 @@ export const users = sqliteTable('users', {
   google_id: text('google_id').unique(),
   is_admin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
   settings: text('settings').notNull().default('{}'),
+  display_name: text('display_name'),
+  avatar_url: text('avatar_url'),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
@@ -657,3 +659,19 @@ export const club_seasons = sqliteTable('club_seasons', {
 })
 
 export type ClubSeason = typeof club_seasons.$inferSelect
+
+// Native-app sessions. Only the SHA-256 of a refresh token is ever stored; see
+// migrations/0086_auth_refresh_tokens.sql for the rotation/replay rules.
+export const auth_refresh_tokens = sqliteTable('auth_refresh_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  user_id: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token_hash: text('token_hash').notNull().unique(),
+  device_label: text('device_label'),
+  platform: text('platform'),
+  last_used_at: text('last_used_at'),
+  revoked_at: text('revoked_at'),
+  expires_at: text('expires_at').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type AuthRefreshToken = typeof auth_refresh_tokens.$inferSelect

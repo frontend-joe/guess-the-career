@@ -1,13 +1,16 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { sign, verify } from 'hono/jwt'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../db/client.ts'
-import { users } from '../db/schema.ts'
+import { users, auth_refresh_tokens } from '../db/schema.ts'
 
 const COOKIE_NAME = 'gtl_session'
 const THIRTY_DAYS = 60 * 60 * 24 * 30
+// Native clients hold a short-lived bearer token and refresh it. Keep it short:
+// revoking a refresh token should take effect in about an hour, not a month.
+const ACCESS_TOKEN_TTL = 60 * 60
 
 function authSecret(): string {
   return process.env.AUTH_SECRET ?? 'dev-insecure-secret-change-me'
@@ -68,11 +71,21 @@ export interface AuthUser {
   id: number
   email: string
   is_admin: boolean
+  display_name: string | null
+  avatar_url: string | null
 }
 
-// Resolve the current user from the session cookie, or null.
+// Native clients send `Authorization: Bearer <jwt>`; the web client sends the
+// cookie. Both carry the same signed SessionPayload, so everything downstream
+// is unchanged — this is the whole native-auth integration.
+function bearerToken(c: Context): string | null {
+  const header = c.req.header('authorization') ?? ''
+  return header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null
+}
+
+// Resolve the current user from a bearer token or the session cookie, or null.
 export async function getCurrentUser(c: Context): Promise<AuthUser | null> {
-  const token = getCookie(c, COOKIE_NAME)
+  const token = bearerToken(c) ?? getCookie(c, COOKIE_NAME)
   if (!token) return null
   let payload: SessionPayload
   try {
@@ -81,7 +94,13 @@ export async function getCurrentUser(c: Context): Promise<AuthUser | null> {
     return null
   }
   const [row] = await db
-    .select({ id: users.id, email: users.email, is_admin: users.is_admin })
+    .select({
+      id: users.id,
+      email: users.email,
+      is_admin: users.is_admin,
+      display_name: users.display_name,
+      avatar_url: users.avatar_url,
+    })
     .from(users)
     .where(eq(users.id, payload.uid))
     .limit(1)
@@ -93,6 +112,93 @@ export const requireAdmin: MiddlewareHandler = async (c, next) => {
   const user = await getCurrentUser(c)
   if (!user || !user.is_admin) return c.json({ error: 'Unauthorized' }, 401)
   await next()
+}
+
+// Middleware: require any logged-in user. Multiplayer rooms are the first
+// feature where every endpoint is authenticated — the older game routers are
+// all public, and nothing in /api/rooms should follow that precedent.
+export const requireUser: MiddlewareHandler = async (c, next) => {
+  const user = await getCurrentUser(c)
+  if (!user) return c.json({ error: 'Unauthorized' }, 401)
+  c.set('user', user)
+  await next()
+}
+
+// ── Bearer tokens for native clients ────────────────────────────────────────
+
+export interface TokenPair {
+  accessToken: string
+  refreshToken: string
+  expiresIn: number
+}
+
+function sha256(s: string): string {
+  return createHash('sha256').update(s).digest('hex')
+}
+
+export async function signAccessToken(user: { id: number; is_admin: boolean }): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL
+  return sign({ uid: user.id, is_admin: user.is_admin, exp }, authSecret())
+}
+
+export async function issueTokenPair(
+  user: { id: number; is_admin: boolean },
+  device: { deviceLabel?: string | null; platform?: string | null } = {},
+): Promise<TokenPair> {
+  const refreshToken = randomBytes(32).toString('base64url')
+  const expiresAt = new Date(Date.now() + THIRTY_DAYS * 1000).toISOString()
+  await db.insert(auth_refresh_tokens).values({
+    user_id: user.id,
+    token_hash: sha256(refreshToken),
+    device_label: device.deviceLabel ?? null,
+    platform: device.platform ?? null,
+    expires_at: expiresAt,
+  })
+  return { accessToken: await signAccessToken(user), refreshToken, expiresIn: ACCESS_TOKEN_TTL }
+}
+
+// Rotate: the presented token is spent, a new one takes its place. Presenting
+// an already-revoked token means it leaked, so every session for that user is
+// torn down rather than just refusing this one request.
+export async function rotateRefreshToken(presented: string): Promise<TokenPair | null> {
+  const hash = sha256(presented)
+  const [row] = await db
+    .select()
+    .from(auth_refresh_tokens)
+    .where(eq(auth_refresh_tokens.token_hash, hash))
+    .limit(1)
+  if (!row) return null
+
+  const now = new Date()
+  if (row.revoked_at) {
+    await db
+      .update(auth_refresh_tokens)
+      .set({ revoked_at: now.toISOString() })
+      .where(and(eq(auth_refresh_tokens.user_id, row.user_id), isNull(auth_refresh_tokens.revoked_at)))
+    return null
+  }
+  if (new Date(row.expires_at) < now) return null
+
+  const [user] = await db
+    .select({ id: users.id, is_admin: users.is_admin })
+    .from(users)
+    .where(eq(users.id, row.user_id))
+    .limit(1)
+  if (!user) return null
+
+  await db
+    .update(auth_refresh_tokens)
+    .set({ revoked_at: now.toISOString(), last_used_at: now.toISOString() })
+    .where(eq(auth_refresh_tokens.id, row.id))
+
+  return issueTokenPair(user, { deviceLabel: row.device_label, platform: row.platform })
+}
+
+export async function revokeRefreshToken(presented: string): Promise<void> {
+  await db
+    .update(auth_refresh_tokens)
+    .set({ revoked_at: new Date().toISOString() })
+    .where(eq(auth_refresh_tokens.token_hash, sha256(presented)))
 }
 
 // On startup, create an admin user from env if it doesn't exist yet.
