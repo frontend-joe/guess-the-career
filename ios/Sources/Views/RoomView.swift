@@ -27,36 +27,48 @@ struct RoomView: View {
         // panel went on claiming a third of the WHOLE screen when only half
         // the screen was left, the board was squeezed into what remained, and
         // the pyramid drew straight over the controls and the status bar.
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                header
-                roundTitle
+        // Pinned between the top safe area and the keyboard, so the whole
+        // screen moves as one thing inside the keyboard's own animation
+        // rather than each part arriving a frame late.
+        KeyboardPinned {
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    header
+                    roundTitle
 
-                BoardView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    // However tight it gets, the board stays inside its own
-                    // slot rather than drawing over its neighbours.
-                    .clipped()
+                    BoardView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // However tight it gets, the board stays inside its
+                        // own slot rather than drawing over its neighbours.
+                        .clipped()
 
-                if store.isHost { hostControls }
-                guessBar
+                    if store.isHost { hostControls }
 
-                // While you are typing a guess, faces and chat are the two
-                // things you are definitely not looking at, so they stand
-                // aside and give the board the room. This is also what stops
-                // the layout having to fit everything at once.
-                if !typing {
-                    bottomPanel
-                        .frame(height: max(140, geo.size.height / 3))
-                        .background(BoardStyle.background)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // While you are typing a guess, faces and chat are the two
+                    // things you are definitely not looking at, so they stand
+                    // aside and give the board the room.
+                    if !typing {
+                        bottomPanel
+                            .frame(height: max(140, geo.size.height / 3))
+                            .background(BoardStyle.background)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+
+                    footer
+
+                    // Last, so it sits on the very bottom edge — and therefore
+                    // directly on top of the keyboard when one is up. It is a
+                    // composer, and a composer belongs where your thumbs are.
+                    guessBar
                 }
-
-                footer
+                .frame(width: geo.size.width, height: geo.size.height)
+                .animation(.spring(response: 0.35, dampingFraction: 1.0), value: typing)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .animation(.spring(response: 0.35, dampingFraction: 1.0), value: typing)
+            .background(BoardStyle.background)
         }
+        // Without this SwiftUI's own avoidance shifts the container too, and
+        // everything moves twice.
+        .ignoresSafeArea(.keyboard)
         .background(BoardStyle.background)
         .sheet(isPresented: $showingRoundPicker) { RoundPickerView() }
         // Giving up cannot be undone and ends the round for everybody, which
@@ -204,7 +216,11 @@ struct RoomView: View {
         }
         .animation(.spring(response: 0.3, dampingFraction: 1.0), value: store.lastGuess?.verdict)
         .padding(.horizontal)
-        .padding(.bottom, 8)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.063, green: 0.071, blue: 0.090))
+        // Swipe down on the composer to put the keyboard away, without having
+        // to find a Done button or tap some neutral patch of screen.
+        .swipeDownToDismissKeyboard()
     }
 
     private var footer: some View {

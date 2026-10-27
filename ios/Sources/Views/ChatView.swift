@@ -58,6 +58,7 @@ struct ChatView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color(red: 0.063, green: 0.071, blue: 0.090))
+            .swipeDownToDismissKeyboard()
         }
         .background(BoardStyle.background)
     }

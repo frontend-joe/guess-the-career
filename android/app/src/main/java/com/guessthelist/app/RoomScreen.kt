@@ -3,6 +3,7 @@ package com.guessthelist.app
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Videocam
@@ -43,7 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -70,6 +74,7 @@ fun RoomScreen(model: RoomViewModel) {
     // Whether the guess field holds the keyboard. The layout changes shape
     // while you type rather than trying to fit everything at once.
     var typing by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
     // The newest message id already seen, so the Chat tab can say how many
     // arrived while you were watching faces.
     var seenMessageId by remember { mutableIntStateOf(0) }
@@ -138,39 +143,6 @@ fun RoomScreen(model: RoomViewModel) {
             }
         }
 
-        // Everyone types. You can still shout, and mostly will, but a player
-        // whose microphone has failed can now play rather than watch.
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            OutlinedTextField(
-                value = guess,
-                onValueChange = { guess = it },
-                label = { Text("Your guess…") },
-                singleLine = true,
-                enabled = model.round?.isLive == true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { typing = it.isFocused },
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = {
-                        val raw = guess.trim()
-                        if (raw.isNotEmpty()) { model.guess(raw); guess = "" }
-                    },
-                    enabled = model.round?.isLive == true && guess.isNotBlank(),
-                ) { Text("Guess") }
-                model.lastGuess?.let {
-                    Text(
-                        it.verdict,
-                        color = verdictColour(it.verdict),
-                        modifier = Modifier.align(Alignment.CenterVertically),
-                    )
-                }
-            }
-        }
 
         // Faces and chat share the bottom third rather than splitting it:
         // chat is there for the player whose camera or microphone has failed,
@@ -233,6 +205,55 @@ fun RoomScreen(model: RoomViewModel) {
             Box(Modifier.weight(1f))
             model.error?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFF6B6B)) }
             TextButton(onClick = { model.leave() }) { Text("Leave") }
+        }
+
+        // Everyone types. You can still shout, and mostly will, but a player
+        // whose microphone has failed can now play rather than watch.
+        //
+        // Last, so it sits on the very bottom edge — and therefore directly on
+        // top of the keyboard when one is up. It is a composer, and a composer
+        // belongs where your thumbs are.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF10121A))
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                // Swipe down on the composer to put the keyboard away, without
+                // having to find a Done key or tap some neutral patch.
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { _, dragAmount ->
+                        if (dragAmount > 6f) keyboard?.hide()
+                    }
+                },
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = guess,
+                onValueChange = { guess = it },
+                placeholder = { Text("Your guess…") },
+                singleLine = true,
+                enabled = model.round?.isLive == true,
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { typing = it.isFocused },
+            )
+            model.lastGuess?.let {
+                Text(it.verdict, color = verdictColour(it.verdict), fontSize = 12.sp)
+            }
+            IconButton(
+                onClick = {
+                    val raw = guess.trim()
+                    if (raw.isNotEmpty()) { model.guess(raw); guess = "" }
+                },
+                enabled = model.round?.isLive == true && guess.isNotBlank(),
+            ) {
+                Icon(
+                    Icons.Filled.ArrowUpward,
+                    contentDescription = "Submit guess",
+                    tint = if (guess.isNotBlank()) Color(0xFF4ADE80) else Color.DarkGray,
+                )
+            }
         }
     }
 

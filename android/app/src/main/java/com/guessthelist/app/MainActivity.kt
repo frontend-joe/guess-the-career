@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +34,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Edge to edge, so the IME inset is actually reported to Compose
+        // rather than being consumed by the decor view. safeDrawingPadding on
+        // the root includes that inset, which is what makes the layout
+        // compress as the keyboard comes up instead of hiding behind it.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         permissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
         pendingInvite.value = inviteCode(intent)
 
