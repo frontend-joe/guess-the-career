@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import LiveKit
 import Observation
@@ -144,25 +145,63 @@ final class RoomStore {
         let room = Room(delegate: self)
         self.room = room
         do {
+            // Connect first, permissions second. The data channel carries the
+            // state broadcasts, so the game has to keep working for someone
+            // who says no to the camera — or who is still reading the prompt.
             try await room.connect(url: credentials.url, token: credentials.token)
-            try await room.localParticipant.setCamera(enabled: true)
-            try await room.localParticipant.setMicrophone(enabled: true)
-            videoNote = nil
-            refreshTiles()
         } catch {
             videoNote = "Video failed: \(error.localizedDescription)"
+            return
+        }
+
+        // Ask iOS and wait for the answer. Calling setCamera straight after
+        // connecting throws on a first launch, because the prompt has not been
+        // answered yet — and then looks fine ever after, since the second
+        // launch is already authorised. A bug only a new user ever meets.
+        let camera = await AVCaptureDevice.requestAccess(for: .video)
+        let microphone = await AVCaptureDevice.requestAccess(for: .audio)
+
+        do {
+            if camera { try await room.localParticipant.setCamera(enabled: true) }
+            if microphone { try await room.localParticipant.setMicrophone(enabled: true) }
+        } catch {
+            videoNote = "Could not start your camera: \(error.localizedDescription)"
+        }
+
+        videoNote = permissionNote(camera: camera, microphone: microphone) ?? videoNote
+        refreshTiles()
+    }
+
+    private func permissionNote(camera: Bool, microphone: Bool) -> String? {
+        switch (camera, microphone) {
+        case (true, true): return nil
+        case (false, false): return "Camera and mic are off — turn them on in Settings."
+        case (false, true): return "Camera is off — turn it on in Settings."
+        case (true, false): return "Mic is off — turn it on in Settings."
         }
     }
 
     func setCamera(_ on: Bool) async {
         guard let room else { return }
+        // Turning something back on can be the first time permission is
+        // needed, if it was refused when the room was joined.
+        if on, !(await AVCaptureDevice.requestAccess(for: .video)) {
+            videoNote = "Camera is off — turn it on in Settings."
+            return
+        }
         try? await room.localParticipant.setCamera(enabled: on)
+        if on { videoNote = nil }
         refreshTiles()
     }
 
     func setMicrophone(_ on: Bool) async {
         guard let room else { return }
+        if on, !(await AVCaptureDevice.requestAccess(for: .audio)) {
+            videoNote = "Mic is off — turn it on in Settings."
+            return
+        }
         try? await room.localParticipant.setMicrophone(enabled: on)
+        if on { videoNote = nil }
         refreshTiles()
     }
 
