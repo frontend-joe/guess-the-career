@@ -49,12 +49,10 @@ struct RoomView: View {
                         .background(BoardStyle.background)
                         .clipped()
 
+                    // One row: your own controls, the field, and the menu. It
+                    // sits on the very bottom edge, and therefore directly on
+                    // top of the keyboard when one is up.
                     footer
-
-                    // Last, so it sits on the very bottom edge — and therefore
-                    // directly on top of the keyboard when one is up. It is a
-                    // composer, and a composer belongs where your thumbs are.
-                    guessBar
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
             }
@@ -161,12 +159,22 @@ struct RoomView: View {
             // The error gets its own line rather than competing for width
             // with six controls, where it was truncated to a few characters
             // exactly when it had something to say.
+            // One thin line for whatever the room is telling you: an error
+            // if there is one, otherwise how the last guess went. Neither is
+            // a control, and both were being squeezed between things that are.
             if let error = store.error {
                 Text(error)
                     .font(.body(11))
                     .foregroundStyle(.red)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let last = store.lastGuess {
+                Text(verdictLine(last))
+                    .font(.body(11, weight: .semibold))
+                    .foregroundStyle(verdictColour(last.verdict))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
             }
 
             HStack(spacing: 8) {
@@ -190,13 +198,13 @@ struct RoomView: View {
                 .buttonStyle(GlassCircleButtonStyle())
                 .accessibilityLabel(store.cameraOn ? "Turn camera off" : "Turn camera on")
 
-                Spacer(minLength: 8)
+                // The field takes the space the controls do not, instead of
+                // sitting on a row of its own under an empty one.
+                guessField
 
                 // Everything else is behind one button. Mute and camera are
                 // the two you reach for mid-sentence and they stay out here;
-                // the rest are things you do once a game, and four labelled
-                // capsules competing for a phone's width meant every one of
-                // them was cramped and two of them wrapped onto a second line.
+                // the rest are things you do once a game.
                 Button { showingActions = true } label: {
                     GlassCircle {
                         Image(systemName: "ellipsis")
@@ -205,9 +213,6 @@ struct RoomView: View {
                     }
                 }
                 .accessibilityLabel("More options")
-                // A popover, so it hangs off the button that opened it rather
-                // than sliding up from the bottom of the screen as a sheet —
-                // the action and the thing you tapped stay connected.
                 .popover(isPresented: $showingActions, arrowEdge: .bottom) {
                     RoomActionsMenu(
                         onGiveUp: { confirmingGiveUp = true },
@@ -218,24 +223,32 @@ struct RoomView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.top, 6)
+        // Clear of the home indicator, which the content now runs underneath.
+        .padding(.bottom, typing ? 8 : 26)
+        .animation(.spring(response: 0.3, dampingFraction: 1.0), value: store.lastGuess?.verdict)
+    }
+
+    /// "hit · 4 Dennis Bergkamp", or just the verdict when there is no rank.
+    private func verdictLine(_ result: GuessResult) -> String {
+        guard let rank = result.rank else { return result.verdict }
+        return "\(result.verdict) · \(rank) \(result.name ?? "")".trimmed
     }
 
     // Everyone types. You can still shout, and mostly will, but a player whose
     // microphone has failed can now play rather than watch.
     //
-    // The field IS the bottom section — one full-width well with the send
-    // button floating inside it, rather than a box with controls parked
-    // alongside eating width the words need.
-    private var guessBar: some View {
+    // It sits IN the control row, taking the width the buttons do not, rather
+    // than on a row of its own beneath an almost-empty one.
+    private var guessField: some View {
         let live = store.round?.isLive == true
         let canSend = live && !guess.trimmed.isEmpty
 
         return GlassField {
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 TextField("Your guess…", text: $guess)
                     .textFieldStyle(.plain)
-                    .font(.body(16))
+                    .font(.body(15))
                     .autocorrectionDisabled()
                     // The keyboard's blue key says Send and sends. Leaving it
                     // as Return meant the most obvious button did nothing.
@@ -243,37 +256,25 @@ struct RoomView: View {
                     .focused($typing)
                     .onSubmit(submit)
                     .disabled(!live)
-                    .padding(.leading, 18)
-
-                if let last = store.lastGuess {
-                    Text(last.verdict)
-                        .font(.body(12, weight: .semibold))
-                        .foregroundStyle(verdictColour(last.verdict))
-                        .transition(.opacity)
-                }
+                    .padding(.leading, 14)
 
                 Button(action: submit) {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(canSend ? Color.black : Color.white.opacity(0.35))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 28, height: 28)
                         .background(
                             Circle().fill(canSend ? Color.white : Color.white.opacity(0.12))
                         )
                 }
                 .disabled(!canSend)
-                .padding(.trailing, 6)
+                .padding(.trailing, 5)
                 .animation(.spring(response: 0.25, dampingFraction: 1.0), value: canSend)
             }
-            .frame(height: 50)
+            .frame(height: GlassStyle.controlHeight)
         }
-        .animation(.spring(response: 0.3, dampingFraction: 1.0), value: store.lastGuess?.verdict)
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-        // Clear of the home indicator, which the content now runs underneath.
-        .padding(.bottom, typing ? 10 : 26)
-        // Swipe down on the composer to put the keyboard away, without having
-        // to find a Done button or tap some neutral patch of screen.
+        // Swipe down on the field to put the keyboard away, without having to
+        // find a Done button or tap some neutral patch of screen.
         .swipeDownToDismissKeyboard()
     }
 

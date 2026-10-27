@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -172,12 +173,19 @@ fun RoomScreen(model: RoomViewModel) {
             VideoGrid(model)
         }
 
-        model.error?.let {
+        // One thin line for whatever the room is telling you: an error if
+        // there is one, otherwise how the last guess went. Neither is a
+        // control, and both were being squeezed between things that are.
+        val status = model.error ?: model.lastGuess?.let { g ->
+            g.rank?.let { r -> "${g.verdict} · $r ${g.name.orEmpty()}".trim() } ?: g.verdict
+        }
+        status?.let {
             Text(
                 it,
                 fontSize = 11.sp,
-                color = Color(0xFFFF6B6B),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                color = if (model.error != null) Color(0xFFFF6B6B)
+                        else verdictColour(model.lastGuess?.verdict.orEmpty()),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
             )
         }
 
@@ -204,7 +212,58 @@ fun RoomScreen(model: RoomViewModel) {
                     tint = if (model.cameraOn) Color.White else Color(0xFFFF6B6B),
                 )
             }
-            Box(Modifier.weight(1f))
+            // Everyone types, and the field takes the space the controls do
+            // not — instead of sitting on a row of its own under an
+            // almost-empty one.
+            val live = model.round?.isLive == true
+            val canSend = live && guess.isNotBlank()
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    // Swipe down on the field to put the keyboard away.
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures { _, dragAmount ->
+                            if (dragAmount > 6f) keyboard?.hide()
+                        }
+                    },
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicTextField(
+                    value = guess,
+                    onValueChange = { guess = it },
+                    enabled = live,
+                    singleLine = true,
+                    textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                    cursorBrush = SolidColor(Color.White),
+                    modifier = Modifier.weight(1f).padding(start = 14.dp),
+                    decorationBox = { inner ->
+                        if (guess.isEmpty()) {
+                            Text("Your guess…", color = Color.Gray, fontSize = 15.sp)
+                        }
+                        inner()
+                    },
+                )
+                IconButton(
+                    onClick = { val raw = guess.trim(); if (raw.isNotEmpty()) { model.guess(raw); guess = "" } },
+                    enabled = canSend,
+                    modifier = Modifier
+                        .padding(end = 5.dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(if (canSend) Color.White else Color.White.copy(alpha = 0.12f)),
+                ) {
+                    Icon(
+                        Icons.Filled.ArrowUpward,
+                        contentDescription = "Submit guess",
+                        tint = if (canSend) Color.Black else Color.White.copy(alpha = 0.35f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
 
             // Everything else is behind one button. Mute and camera are the
             // two you reach for mid-sentence and they stay out here; the rest
@@ -248,64 +307,6 @@ fun RoomScreen(model: RoomViewModel) {
             }
         }
 
-        // Everyone types. You can still shout, and mostly will, but a player
-        // whose microphone has failed can now play rather than watch.
-        //
-        // The field IS the bottom section — one full-width well with the send
-        // button floating inside it, rather than a box with controls parked
-        // alongside eating width the words need.
-        val live = model.round?.isLive == true
-        val canSend = live && guess.isNotBlank()
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Color.White.copy(alpha = 0.08f))
-                .padding(start = 6.dp, end = 6.dp)
-                // Swipe down on the composer to put the keyboard away.
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures { _, dragAmount ->
-                        if (dragAmount > 6f) keyboard?.hide()
-                    }
-                },
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicTextField(
-                value = guess,
-                onValueChange = { guess = it },
-                enabled = live,
-                singleLine = true,
-                textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-                cursorBrush = SolidColor(Color.White),
-                modifier = Modifier.weight(1f).padding(start = 12.dp),
-                decorationBox = { inner ->
-                    if (guess.isEmpty()) {
-                        Text("Your guess…", color = Color.Gray, fontSize = 16.sp)
-                    }
-                    inner()
-                },
-            )
-            model.lastGuess?.let {
-                Text(it.verdict, color = verdictColour(it.verdict), fontSize = 12.sp)
-            }
-            IconButton(
-                onClick = { val raw = guess.trim(); if (raw.isNotEmpty()) { model.guess(raw); guess = "" } },
-                enabled = canSend,
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(if (canSend) Color.White else Color.White.copy(alpha = 0.12f)),
-            ) {
-                Icon(
-                    Icons.Filled.ArrowUpward,
-                    contentDescription = "Submit guess",
-                    tint = if (canSend) Color.Black else Color.White.copy(alpha = 0.35f),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
     }
 
     if (picking) {
