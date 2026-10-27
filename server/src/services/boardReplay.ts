@@ -75,7 +75,17 @@ const num = (v: unknown, fallback = 0): number => (typeof v === 'number' ? v : f
 const nullableStr = (v: unknown): string | null => (typeof v === 'string' ? v : null)
 const nullableNum = (v: unknown): number | null => (typeof v === 'number' ? v : null)
 
-export function reduceEvents(events: ReplayEvent[], untilMs = Number.POSITIVE_INFINITY): BoardState {
+// `seed` carries the frozen round metadata from game_round_instances. Without
+// it a round that has been frozen but not started folds to an empty title,
+// because the only event carrying the title is round_start. Seeding cannot
+// make the live and replayed boards disagree: round_start copies those same
+// columns, so for a started round the fold overwrites the seed with equal
+// values.
+export function reduceEvents(
+  events: ReplayEvent[],
+  untilMs = Number.POSITIVE_INFINITY,
+  seed: Partial<BoardState> = {},
+): BoardState {
   const state: BoardState = {
     title: '',
     target: 10,
@@ -86,6 +96,7 @@ export function reduceEvents(events: ReplayEvent[], untilMs = Number.POSITIVE_IN
     hints: [],
     guesses: [],
     ended: null,
+    ...seed,
   }
 
   const ordered = [...events]

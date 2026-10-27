@@ -85,3 +85,18 @@ test('unknown event types and bad payloads are survivable', () => {
   assert.equal(out.revealed.length, 2)
   assert.equal(out.title, 'Z surnames')
 })
+
+test('a frozen round with no round_start still knows its title', () => {
+  // A round is frozen during the lobby and started later, so between those two
+  // moments the log is empty and the title can only come from the seed. The
+  // apps draw the board in that window.
+  const out = reduceEvents([], Number.POSITIVE_INFINITY, { title: 'Z surnames', target: 10 })
+  assert.equal(out.title, 'Z surnames')
+  assert.equal(out.target, 10)
+})
+
+test('round_start wins over the seed rather than being ignored', () => {
+  const out = reduceEvents(LOG, Number.POSITIVE_INFINITY, { title: 'stale', target: 3 })
+  assert.equal(out.title, 'Z surnames')
+  assert.equal(out.target, 10)
+})

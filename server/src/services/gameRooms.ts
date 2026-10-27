@@ -592,7 +592,13 @@ export function roomState(room: RoomRow): RoomState {
     const events = sqlite
       .prepare('SELECT seq, t_ms, type, actor_participant_id, payload FROM game_events WHERE instance_id = ? ORDER BY t_ms, seq')
       .all(inst.id) as ReplayEvent[]
-    const board = reduceEvents(events)
+    const board = reduceEvents(events, Number.POSITIVE_INFINITY, {
+      title: inst.title,
+      target: inst.target,
+      ordered: !!inst.ordered,
+      metric: inst.metric,
+      impliedClues: JSON.parse(inst.implied_clues),
+    })
     const found = new Set(board.revealed.map((r) => r.rank))
     round = {
       instanceId: inst.id,
