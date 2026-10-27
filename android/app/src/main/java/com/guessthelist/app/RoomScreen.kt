@@ -159,7 +159,7 @@ fun RoomScreen(model: RoomViewModel) {
             // The near miss lands ON the question, which is the line everyone
             // is already looking at between guesses — and it covers the one
             // thing it is safe to cover for three seconds.
-            NearMissToast(model.nearMiss?.text, Modifier.align(Alignment.Center))
+            GuessToastView(model.guessToast, Modifier.align(Alignment.Center))
         }
 
         // Choosing, starting and ending a round are the host's calls.
@@ -544,34 +544,40 @@ private fun ActionRow(
 // Its own composable so AnimatedVisibility resolves to the plain overload:
 // called inside a Box that sits in a Column, Kotlin picks ColumnScope's and
 // refuses the implicit receiver.
+//
+// A near miss shouts; everything else murmurs. Being close is news, and amber
+// against a green-and-violet board with dark text on a filled capsule is
+// readable across a room on a video call. Being wrong is just an answer, and a
+// quiet slate pill says it without stopping the game.
 @Composable
-private fun NearMissToast(text: String?, modifier: Modifier = Modifier) {
-    // Remembered so the words do not vanish a frame before the toast does,
-    // which turns a fade-out into a flicker of empty pill.
-    var lastText by remember { mutableStateOf("") }
-    text?.let { lastText = it }
+private fun GuessToastView(toast: RoomViewModel.GuessToast?, modifier: Modifier = Modifier) {
+    // Remembered so the words do not vanish a frame before the pill does,
+    // which turns a fade-out into a flicker of empty capsule.
+    var last by remember { mutableStateOf<RoomViewModel.GuessToast?>(null) }
+    toast?.let { last = it }
+    val shown = last
 
     AnimatedVisibility(
-        visible = text != null,
+        visible = toast != null,
         enter = fadeIn() + scaleIn(initialScale = 0.88f),
         exit = fadeOut(),
         modifier = modifier,
     ) {
-        // Loud on purpose. A near miss is the only thing the game ever tells
-        // you that the board cannot: amber against a green-and-violet board,
-        // dark text on a filled capsule rather than light text on a dark one,
-        // and big enough to read from across a room on a video call.
+        val loud = shown?.emphatic == true
         Text(
-            lastText,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1C1705),
+            shown?.text.orEmpty(),
+            fontSize = if (loud) 16.sp else 14.sp,
+            fontWeight = if (loud) FontWeight.Bold else FontWeight.SemiBold,
+            color = if (loud) Color(0xFF1C1705) else Color.White.copy(alpha = 0.92f),
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .padding(horizontal = 16.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFFABF24))
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .background(if (loud) Color(0xFFFABF24) else Color(0xFF333945))
+                .padding(
+                    horizontal = if (loud) 20.dp else 16.dp,
+                    vertical = if (loud) 14.dp else 11.dp,
+                ),
         )
     }
 }

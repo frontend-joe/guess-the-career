@@ -46,7 +46,7 @@ struct RoomView: View {
                         // line everyone is already looking at between
                         // guesses — and it covers the one thing it is safe to
                         // cover for three seconds.
-                        .overlay { nearMissToast }
+                        .overlay { guessToast }
                         // Later siblings draw over earlier ones, so without
                         // this the faces would clip a toast taller than the
                         // band it sits in.
@@ -91,27 +91,35 @@ struct RoomView: View {
     }
 
 
-    // Loud on purpose. A near miss is the only thing the game ever tells you
-    // that the board cannot: amber against a green-and-violet board, dark
-    // text on a filled capsule rather than light text on a dark one, and big
-    // enough to read from across a room on a video call.
+    // A near miss shouts; everything else murmurs. Being close is news, and
+    // amber against a green-and-violet board with dark text on a filled
+    // capsule is readable across a room on a video call. Being wrong is just
+    // an answer, and a quiet slate pill says it without stopping the game.
     @ViewBuilder
-    private var nearMissToast: some View {
-        if let near = store.nearMiss {
-            Text(near.text)
-                .font(.body(16, weight: .bold))
-                .foregroundStyle(Color(red: 0.11, green: 0.09, blue: 0.02))
+    private var guessToast: some View {
+        if let toast = store.guessToast {
+            Text(toast.text)
+                .font(.body(toast.emphatic ? 16 : 14, weight: toast.emphatic ? .bold : .semibold))
+                .foregroundStyle(
+                    toast.emphatic
+                        ? Color(red: 0.11, green: 0.09, blue: 0.02)
+                        : Color.white.opacity(0.92)
+                )
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 14)
+                .padding(.horizontal, toast.emphatic ? 20 : 16)
+                .padding(.vertical, toast.emphatic ? 14 : 11)
                 .background(
                     Capsule()
-                        .fill(Color(red: 0.98, green: 0.75, blue: 0.14))
-                        .shadow(color: .black.opacity(0.55), radius: 16, y: 5)
+                        .fill(
+                            toast.emphatic
+                                ? Color(red: 0.98, green: 0.75, blue: 0.14)
+                                : Color(red: 0.20, green: 0.22, blue: 0.26)
+                        )
+                        .shadow(color: .black.opacity(toast.emphatic ? 0.55 : 0.4),
+                                radius: toast.emphatic ? 16 : 10, y: 5)
                 )
                 .padding(.horizontal, 16)
-                .scaleEffect(reduceMotion ? 1 : 1)
                 .transition(
                     reduceMotion
                         ? .opacity
@@ -120,7 +128,7 @@ struct RoomView: View {
                 .animation(
                     reduceMotion ? .easeOut(duration: 0.2)
                                  : .spring(response: 0.32, dampingFraction: 0.78),
-                    value: store.nearMiss
+                    value: store.guessToast
                 )
         }
     }

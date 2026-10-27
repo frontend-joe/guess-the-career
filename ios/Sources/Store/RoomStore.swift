@@ -36,16 +36,22 @@ final class RoomStore {
     var videoNote: String?
     var lastGuess: GuessResult?
 
-    /// A guess that was a real player, just not on the board — "16th, 54
-    /// goals". The one verdict with no feedback anywhere else: a hit turns a
-    /// row green, a duplicate is already green, and a miss is nothing to say.
-    /// This is the only one worth interrupting anybody for.
-    private(set) var nearMiss: NearMiss?
-    private var nearMissCount = 0
+    /// What to say about the last guess, when the board cannot say it.
+    ///
+    /// A hit needs nothing — a row turns green. Everything else does: a near
+    /// miss where they placed, a duplicate that it is already up there, and a
+    /// miss that the name was not recognised AT ALL. That last one was silent
+    /// until now, which is indistinguishable from the app being broken: you
+    /// type a name, feel a buzz, and nothing happens.
+    private(set) var guessToast: GuessToast?
+    private var guessToastCount = 0
 
-    struct NearMiss: Equatable, Identifiable {
+    struct GuessToast: Equatable, Identifiable {
         let id: Int
         let text: String
+        /// Near misses shout; the rest murmur. Being close is news, being
+        /// wrong is just an answer.
+        let emphatic: Bool
     }
 
     // Stored, not computed from LiveKit. @Observable tracks this object's own
@@ -367,33 +373,51 @@ final class RoomStore {
         guard let instanceId = round?.instanceId else { return }
         await act { [weak self] seat in
             let result = try await API.guess(seat: seat, instanceId: instanceId, raw: raw)
-            await MainActor.run { self?.lastGuess = result; self?.showNearMiss(result) }
+            await MainActor.run { self?.lastGuess = result; self?.showGuessToast(result, raw: raw) }
         }
     }
 
-    private func showNearMiss(_ result: GuessResult) {
-        guard result.verdict == "near", let rank = result.rank else { return }
-        var parts = [result.name ?? "That one"]
-        var placing = "\(ordinal(rank))"
-        if let value = result.value {
-            placing += ", \(Int(value))"
-            // `unit` is only set for the odd metrics — a fee, a shirt number.
-            // An ordinary round sends nothing, because the metric IS the
-            // unit, which is how the toast ended up reading "11th, 294".
-            let unit = result.unit?.isEmpty == false ? result.unit! : (round?.board.metric ?? "")
-            if !unit.isEmpty { placing += " \(unit)" }
-        }
-        parts.append(placing)
+    private func showGuessToast(_ result: GuessResult, raw: String) {
+        let text: String
+        let emphatic: Bool
 
-        nearMissCount += 1
-        let shown = NearMiss(id: nearMissCount, text: parts.joined(separator: " · "))
-        nearMiss = shown
+        switch result.verdict {
+        case "hit":
+            // The board just turned a row green. Nothing to add.
+            return
+        case "near":
+            guard let rank = result.rank else { return }
+            var placing = ordinal(rank)
+            if let value = result.value {
+                placing += ", \(Int(value))"
+                // `unit` is only set for the odd metrics — a fee, a shirt
+                // number. An ordinary round sends nothing, because the metric
+                // IS the unit, which is how this read "11th, 294".
+                let unit = result.unit?.isEmpty == false ? result.unit! : (round?.board.metric ?? "")
+                if !unit.isEmpty { placing += " \(unit)" }
+            }
+            text = "\(result.name ?? "That one") · \(placing)"
+            emphatic = true
+        case "duplicate":
+            text = "\(result.name ?? raw) · already up there"
+            emphatic = false
+        default:
+            // Not "wrong" — unrecognised. The two are worth telling apart,
+            // because this one usually means the database has never heard of
+            // them rather than that they do not belong on the list.
+            text = "No player called \u{201C}\(raw)\u{201D}"
+            emphatic = false
+        }
+
+        guessToastCount += 1
+        let shown = GuessToast(id: guessToastCount, text: text, emphatic: emphatic)
+        guessToast = shown
         // Long enough to read a name and a number, short enough not to sit
         // over the board while the next guess is being shouted.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(3.5))
-            guard let self, self.nearMiss?.id == shown.id else { return }
-            self.nearMiss = nil
+            guard let self, self.guessToast?.id == shown.id else { return }
+            self.guessToast = nil
         }
     }
 

@@ -313,48 +313,76 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act { Api.startRound(it, instanceId) }
     }
 
-    /// A guess that was a real player, just not on the board — "16th, 54
-    /// goals". The one verdict with no feedback anywhere else: a hit turns a
-    /// row green, a duplicate is already green, and a miss is nothing to say.
-    data class NearMiss(val id: Int, val text: String)
+    /// What to say about the last guess, when the board cannot say it.
+    ///
+    /// A hit needs nothing — a row turns green. Everything else does: a near
+    /// miss where they placed, a duplicate that it is already up there, and a
+    /// miss that the name was not recognised AT ALL. That last one was silent
+    /// until now, which is indistinguishable from the app being broken: you
+    /// type a name, feel a buzz, and nothing happens.
+    ///
+    /// [emphatic] near misses shout; the rest murmur. Being close is news,
+    /// being wrong is just an answer.
+    data class GuessToast(val id: Int, val text: String, val emphatic: Boolean)
 
-    var nearMiss by mutableStateOf<NearMiss?>(null); private set
-    private var nearMissCount = 0
+    var guessToast by mutableStateOf<GuessToast?>(null); private set
+    private var guessToastCount = 0
 
     fun guess(raw: String) {
         val instanceId = round?.instanceId ?: return
         act {
             val result = Api.guess(it, instanceId, raw)
             lastGuess = result
-            showNearMiss(result)
+            showGuessToast(result, raw)
         }
     }
 
-    private fun showNearMiss(result: GuessResult) {
-        val rank = result.rank
-        if (result.verdict != "near" || rank == null) return
+    private fun showGuessToast(result: GuessResult, raw: String) {
+        val text: String
+        val emphatic: Boolean
 
-        val placing = buildString {
-            append(ordinal(rank))
-            result.value?.let { v ->
-                append(", ${v.toInt()}")
-                // `unit` is only set for the odd metrics — a fee, a shirt
-                // number. An ordinary round sends nothing, because the metric
-                // IS the unit, which is how the toast ended up reading
-                // "11th, 294".
-                val unit = result.unit?.takeIf { u -> u.isNotEmpty() }
-                    ?: round?.board?.metric.orEmpty()
-                if (unit.isNotEmpty()) append(" $unit")
+        when (result.verdict) {
+            // The board just turned a row green. Nothing to add.
+            "hit" -> return
+            "near" -> {
+                val rank = result.rank ?: return
+                text = buildString {
+                    append(result.name ?: "That one")
+                    append(" · ")
+                    append(ordinal(rank))
+                    result.value?.let { v ->
+                        append(", ${v.toInt()}")
+                        // `unit` is only set for the odd metrics — a fee, a
+                        // shirt number. An ordinary round sends nothing,
+                        // because the metric IS the unit.
+                        val unit = result.unit?.takeIf { u -> u.isNotEmpty() }
+                            ?: round?.board?.metric.orEmpty()
+                        if (unit.isNotEmpty()) append(" $unit")
+                    }
+                }
+                emphatic = true
+            }
+            "duplicate" -> {
+                text = "${result.name ?: raw} · already up there"
+                emphatic = false
+            }
+            // Not "wrong" — unrecognised. The two are worth telling apart,
+            // because this one usually means the database has never heard of
+            // them rather than that they do not belong on the list.
+            else -> {
+                text = "No player called \u201C$raw\u201D"
+                emphatic = false
             }
         }
-        nearMissCount += 1
-        val shown = NearMiss(nearMissCount, "${result.name ?: "That one"} · $placing")
-        nearMiss = shown
+
+        guessToastCount += 1
+        val shown = GuessToast(guessToastCount, text, emphatic)
+        guessToast = shown
         // Long enough to read a name and a number, short enough not to sit
         // over the board while the next guess is being shouted.
         viewModelScope.launch {
             delay(3_500)
-            if (nearMiss?.id == shown.id) nearMiss = null
+            if (guessToast?.id == shown.id) guessToast = null
         }
     }
 
