@@ -29,12 +29,6 @@ struct BoardView: View {
     var body: some View {
         if let round = store.round {
             VStack(spacing: 6) {
-                Text(round.board.title)
-                    .font(.system(.subheadline, weight: .bold))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-
                 GeometryReader { geo in
                     VStack(spacing: 5) {
                         ForEach(1...max(round.board.target, 1), id: \.self) { rank in

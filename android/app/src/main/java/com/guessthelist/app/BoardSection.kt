@@ -60,13 +60,6 @@ fun BoardSection(model: RoomViewModel) {
         verticalArrangement = Arrangement.spacedBy(5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            round.board.title,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-        )
         for (rank in 1..round.board.target) {
             PyramidRow(
                 rank = rank,

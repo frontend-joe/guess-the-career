@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.livekit.android.compose.ui.VideoTrackView
@@ -65,6 +67,28 @@ fun RoomScreen(model: RoomViewModel) {
             Box(Modifier.weight(1f))
             model.videoNote?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFBBF24)) }
             Text("v${model.state?.stateVersion ?: 0}", fontSize = 11.sp, color = Color.Gray)
+        }
+
+        // The question, where the web game puts it: across the top, above the
+        // board, so it is readable without looking past the pyramid.
+        model.round?.let { round ->
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    round.board.title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    "${round.board.revealed.size} / ${round.board.target} found",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                )
+            }
         }
 
         Box(modifier = Modifier.weight(2f).fillMaxWidth()) {

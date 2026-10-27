@@ -13,6 +13,7 @@ struct RoomView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            roundTitle
 
             BoardView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -27,6 +28,27 @@ struct RoomView: View {
         }
         .background(Color(white: 0.04))
         .sheet(isPresented: $showingRoundPicker) { RoundPickerView() }
+    }
+
+    // The question, where the web game puts it: across the top, above the
+    // board, so it is readable without looking past the pyramid.
+    @ViewBuilder
+    private var roundTitle: some View {
+        if let round = store.round {
+            VStack(spacing: 2) {
+                Text(round.board.title)
+                    .font(.system(size: 15, weight: .bold))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(round.board.revealed.count) / \(round.board.target) found")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
+        }
     }
 
     private var header: some View {
