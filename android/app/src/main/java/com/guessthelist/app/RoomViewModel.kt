@@ -413,6 +413,27 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act { Api.giveUp(it, instanceId) }
     }
 
+    /** Look up the names this room did not recognise and add them, so the
+     *  next game knows them. Explicitly asked for, never automatic: it
+     *  fetches Wikipedia and writes new players into the database. */
+    fun resolveReviews() = act { reportReviews(Api.resolveReviews(it)) }
+
+    private fun reportReviews(result: ReviewResolution) {
+        val text = when {
+            result.added.isNotEmpty() -> "Added ${result.added.joinToString(", ")}"
+            result.failed.isNotEmpty() -> "Could not find ${result.failed.joinToString(", ")}"
+            result.alreadyKnown.isNotEmpty() -> "Already known: ${result.alreadyKnown.joinToString(", ")}"
+            else -> "No unknown names to look up"
+        }
+        guessToastCount += 1
+        val shown = GuessToast(guessToastCount, text, result.added.isNotEmpty())
+        guessToast = shown
+        viewModelScope.launch {
+            delay(4_500)
+            if (guessToast?.id == shown.id) guessToast = null
+        }
+    }
+
     fun takeHint(rank: Int) {
         val instanceId = round?.instanceId ?: return
         act { Api.hint(it, instanceId, rank) }

@@ -103,6 +103,14 @@ data class ChatMessage(
     val createdAt: String = "",
 )
 
+/** What came of looking up the names the game did not recognise. */
+@Serializable
+data class ReviewResolution(
+    val added: List<String> = emptyList(),
+    val alreadyKnown: List<String> = emptyList(),
+    val failed: List<String> = emptyList(),
+)
+
 @Serializable
 data class ChatResult(
     val message: ChatMessage,

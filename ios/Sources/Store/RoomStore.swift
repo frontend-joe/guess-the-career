@@ -449,6 +449,37 @@ final class RoomStore {
         await act { seat in _ = try await API.giveUp(seat: seat, instanceId: instanceId) }
     }
 
+    /// Look up the names this room did not recognise and add them, so the
+    /// next game knows them. Explicitly asked for, never automatic: it
+    /// fetches Wikipedia and writes new players into the database.
+    func resolveReviews() async {
+        await act { [weak self] seat in
+            let result = try await API.resolveReviews(seat: seat)
+            await MainActor.run { self?.reportReviews(result) }
+        }
+    }
+
+    private func reportReviews(_ result: ReviewResolution) {
+        let text: String
+        if !result.added.isEmpty {
+            text = "Added \(result.added.joined(separator: ", "))"
+        } else if !result.failed.isEmpty {
+            text = "Could not find \(result.failed.joined(separator: ", "))"
+        } else if !result.alreadyKnown.isEmpty {
+            text = "Already known: \(result.alreadyKnown.joined(separator: ", "))"
+        } else {
+            text = "No unknown names to look up"
+        }
+        guessToastCount += 1
+        let shown = GuessToast(id: guessToastCount, text: text, emphatic: !result.added.isEmpty)
+        guessToast = shown
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4.5))
+            guard let self, self.guessToast?.id == shown.id else { return }
+            self.guessToast = nil
+        }
+    }
+
     func takeHint(rank: Int) async {
         guard let instanceId = round?.instanceId else { return }
         await act { seat in _ = try await API.hint(seat: seat, instanceId: instanceId, rank: rank) }

@@ -177,6 +177,13 @@ struct GiveUpResult: Codable {
     let stateVersion: Int
 }
 
+/// What came of looking up the names the game did not recognise.
+struct ReviewResolution: Codable {
+    let added: [String]
+    let alreadyKnown: [String]
+    let failed: [String]
+}
+
 struct ChatResult: Codable {
     let message: ChatMessage
     let stateVersion: Int

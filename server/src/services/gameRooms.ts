@@ -11,6 +11,7 @@ import {
 } from './tenable.ts'
 import { matchesName, norm, surnameOf } from './nameMatch.ts'
 import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.ts'
+import { resolveOrCreateFootballer } from './playerImport.ts'
 
 // Private multiplayer rooms. See migrations 0087-0089 for the data model and
 // the invariants; this file enforces them.
@@ -593,6 +594,70 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   })()
 
   return { rank, clue, stateVersion, replayed: false }
+}
+
+// ── Unknown names ───────────────────────────────────────────────────────────
+
+export interface ReviewResolution {
+  added: string[]
+  alreadyKnown: string[]
+  failed: string[]
+}
+
+// Turn the names the game did not recognise into players it does.
+//
+// Every unrecognised guess has been recorded in game_guess_reviews since the
+// room code was written, and nothing has ever read it. This is what it was
+// for: a guess the database has never heard of is not a bug report, it is a
+// gap, and the person who found it has just told us exactly which one.
+//
+// AFTER the round, never during it. Resolving means fetching Wikipedia, which
+// is unbounded, and the round's answers are frozen anyway — a player added
+// mid-round could not appear on a board that was settled at kickoff. What it
+// buys is the NEXT time somebody says that name.
+//
+// Bounded per call, because each name is a handful of network round trips and
+// this runs inside a request.
+const REVIEW_BATCH = 8
+
+export async function resolvePendingReviews(roomId: number): Promise<ReviewResolution> {
+  const pending = sqlite
+    .prepare(
+      `SELECT r.id, r.raw FROM game_guess_reviews r
+       JOIN game_round_instances i ON i.id = r.instance_id
+       WHERE i.room_id = ? AND r.status = 'pending'
+       ORDER BY r.id LIMIT ?`,
+    )
+    .all(roomId, REVIEW_BATCH) as { id: number; raw: string }[]
+
+  const out: ReviewResolution = { added: [], alreadyKnown: [], failed: [] }
+
+  for (const review of pending) {
+    let id: number | null = null
+    let created = false
+    try {
+      // No club hint: the guess was a bare name, which is the whole reason it
+      // did not match anything.
+      ;({ id, created } = await resolveOrCreateFootballer(review.raw, ''))
+    } catch {
+      // A scrape that throws is a name we could not resolve, not a reason to
+      // abandon the rest of the batch.
+      id = null
+    }
+
+    if (id == null) {
+      out.failed.push(review.raw)
+      sqlite.prepare("UPDATE game_guess_reviews SET status = 'unresolved' WHERE id = ?").run(review.id)
+      continue
+    }
+
+    ;(created ? out.added : out.alreadyKnown).push(review.raw)
+    sqlite
+      .prepare("UPDATE game_guess_reviews SET status = 'resolved', resolved_footballer_id = ? WHERE id = ?")
+      .run(id, review.id)
+  }
+
+  return out
 }
 
 // ── Giving up ───────────────────────────────────────────────────────────────

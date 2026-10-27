@@ -19,6 +19,7 @@ import {
   leaveRoom,
   participantsOf,
   postMessage,
+  resolvePendingReviews,
   roomByCode,
   roomState,
   startRound,
@@ -239,6 +240,24 @@ roomsRouter.post('/:code/rounds/:instanceId/give-up', async (c) => {
     const result = giveUp(Number(c.req.param('instanceId')), me)
     announce(room.code, 'gave_up')
     return c.json(result)
+  } catch (err) {
+    return fail(err)
+  }
+})
+
+// POST /api/rooms/:code/reviews/resolve — look up the names the game did not
+// recognise and add them, so the next game knows them.
+//
+// Host only, and explicitly asked for rather than run on its own: it fetches
+// Wikipedia and writes new players into the database, which is not something
+// to do behind somebody's back.
+roomsRouter.post('/:code/reviews/resolve', async (c) => {
+  const room = mustFindRoom(c.req.param('code'))
+  const me = await participantFor(c, room)
+  if (!me) return c.json({ error: 'Not in this room' }, 403)
+  if (me.role !== 'host') return c.json({ error: 'Only the host can do that' }, 403)
+  try {
+    return c.json(await resolvePendingReviews(room.id))
   } catch (err) {
     return fail(err)
   }

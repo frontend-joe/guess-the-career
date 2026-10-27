@@ -142,6 +142,14 @@ enum API {
         )
     }
 
+    static func resolveReviews(seat: Seat) async throws -> ReviewResolution {
+        try await post(
+            "api/rooms/\(seat.code)/reviews/resolve",
+            body: EmptyBody(),
+            bearer: seat.token
+        )
+    }
+
     static func sendChat(seat: Seat, body text: String) async throws -> ChatResult {
         try await post(
             "api/rooms/\(seat.code)/chat",
