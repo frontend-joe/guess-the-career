@@ -29,14 +29,6 @@ struct RoomActionsMenu: View {
                 .simultaneousGesture(TapGesture().onEnded { onDismiss() })
             }
 
-            if store.isHost {
-                // The game not knowing a real player is a gap, and whoever
-                // just shouted his name has told us exactly which one.
-                row("person.crop.circle.badge.plus", "Find missing players") {
-                    Task { await store.resolveReviews() }
-                }
-            }
-
             row("rectangle.portrait.and.arrow.right", "Leave") {
                 Task { await store.exit() }
             }

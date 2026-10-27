@@ -518,7 +518,9 @@ export function submitGuess(
       }
     }
 
-    // An unrecognised name is parked for review, never scraped mid-round.
+    // An unrecognised name is parked for review, and looked up in the
+    // background once the answer has already gone back — see
+    // learnUnknownName, which is fired after this transaction commits.
     if (verdict === 'miss') {
       sqlite
         .prepare(
@@ -535,9 +537,17 @@ export function submitGuess(
     .prepare('SELECT status FROM game_round_instances WHERE id = ?')
     .get(instanceId) as { status: string }
 
+  const known = match ? null : knownPlayerNamed(raw)
+
+  // A name nobody recognises gets looked up on its own, in the background,
+  // after this answer has gone back. Nothing waits on it and the board cannot
+  // change because of it — the answers were frozen at kickoff — so the only
+  // thing it affects is the next round.
+  if (verdict === 'miss' && known == null) learnUnknownName(raw)
+
   return {
     verdict,
-    known: match ? null : knownPlayerNamed(raw),
+    known,
     rank: match?.rank ?? null,
     value: match?.value ?? null,
     unit: match?.unit ?? null,
@@ -626,6 +636,48 @@ function knownPlayerNamed(raw: string): string | null {
 }
 
 // ── Unknown names ───────────────────────────────────────────────────────────
+
+// Look a name up in the background, once ever, and never make anyone wait.
+//
+// This fires AFTER the guess has been answered, so nothing in the round waits
+// on Wikipedia — the thing the plan rightly forbids is BLOCKING on a scrape
+// mid-round, not learning from one. It cannot disturb the game either: the
+// round's answers were frozen at kickoff, so a player added now can only ever
+// show up in the NEXT round.
+//
+// Deduped across the whole database by normalised name, so a name is attempted
+// once and never again — including the ones that turn out not to be players.
+// Otherwise every repetition of a nonsense guess is another Wikipedia search.
+export function learnUnknownName(raw: string): void {
+  const normalized = norm(raw)
+  // Not worth a network round trip: a couple of characters cannot identify
+  // anybody, and the resolver would only guess.
+  if (normalized.length < 4) return
+
+  const triedBefore = sqlite
+    .prepare("SELECT 1 FROM game_guess_reviews WHERE raw_norm = ? AND status != 'pending' LIMIT 1")
+    .get(normalized)
+  if (triedBefore) return
+
+  void (async () => {
+    let id: number | null = null
+    try {
+      ;({ id } = await resolveOrCreateFootballer(raw, ''))
+    } catch {
+      id = null
+    }
+    // Mark every pending row for this name, in whatever room it was said, so
+    // the next attempt is skipped whether it worked or not.
+    sqlite
+      .prepare(
+        `UPDATE game_guess_reviews
+         SET status = ?, resolved_footballer_id = ?
+         WHERE raw_norm = ? AND status = 'pending'`,
+      )
+      .run(id == null ? 'unresolved' : 'resolved', id, normalized)
+    if (id != null) console.log(`[reviews] learned "${raw}" -> footballer ${id}`)
+  })()
+}
 
 export interface ReviewResolution {
   added: string[]

@@ -242,7 +242,8 @@ private struct PyramidRow: View {
     let onLongPress: () -> Void
 
     @State private var pressed = false
-    @State private var shimmer = false
+    /// 0 at rest, 1 at the top of this row's part of the wave.
+    @State private var lift: CGFloat = 0
 
     private var colours: (top: Color, bottom: Color) {
         guard let answer else { return BoardStyle.violet }
@@ -293,39 +294,29 @@ private struct PyramidRow: View {
                     .minimumScaleFactor(0.4)
             }
         }
-        // A band of light crossing the row, clipped to the capsule so it
-        // never leaks past the shape. Masked by the capsule rather than drawn
-        // as a second one, so it rides whatever gradient is underneath.
-        .overlay {
-            Capsule()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, .white.opacity(0.55), .clear],
-                        startPoint: .leading, endPoint: .trailing
-                    )
-                )
-                .scaleEffect(x: 0.35, anchor: .center)
-                .offset(x: shimmer ? 260 : -260)
-                .opacity(shimmer ? 1 : 0)
-                .clipShape(Capsule())
-                .allowsHitTesting(false)
-        }
-        .onChange(of: waveTick) { _, _ in
-            Task {
-                try? await Task.sleep(for: .seconds(waveDelay))
-                // Across in a fifth of a second: the point is a flicker
-                // travelling up the board, not a row being highlighted.
-                withAnimation(.easeOut(duration: 0.22)) { shimmer = true }
-                try? await Task.sleep(for: .seconds(0.22))
-                shimmer = false
-            }
-        }
+        // The row stands up and sits back down, like someone in the wave:
+        // a little bigger and a little brighter, then back. A band of light
+        // sliding across was tried first and read as a sheen ON the row
+        // rather than the row itself moving.
+        .brightness(0.16 * lift)
         .contentShape(Capsule())
         // Feedback on press-down, not on release: a row you are holding for a
         // clue has to acknowledge the hold while it is happening, or the
         // second before the clue appears feels like nothing is working.
-        .scaleEffect(pressed ? 0.97 : 1.0)
+        .scaleEffect(pressed ? 0.97 : 1 + 0.055 * lift)
         .animation(.spring(response: 0.25, dampingFraction: 1.0), value: pressed)
+        .onChange(of: waveTick) { _, tick in
+            guard tick > 0 else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(waveDelay))
+                // Up fast, down a little slower, so it reads as a flick
+                // rather than a pulse. Both short: the wave has nine more
+                // rows to get through.
+                withAnimation(.easeOut(duration: 0.13)) { lift = 1 }
+                try? await Task.sleep(for: .seconds(0.13))
+                withAnimation(.easeIn(duration: 0.2)) { lift = 0 }
+            }
+        }
         // Press and hold a blank slot for a clue, exactly as on the web.
         .onLongPressGesture(minimumDuration: 0.5) {
             guard answer == nil, canHint || hasClue else { return }

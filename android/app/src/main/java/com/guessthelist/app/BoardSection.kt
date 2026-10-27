@@ -218,15 +218,15 @@ private fun PyramidRow(
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // -1 parks the band off the leading edge, +1 off the trailing edge.
-    val sweep = remember { Animatable(-1f) }
+    // 0 at rest, 1 at the top of this row's part of the wave.
+    val lift = remember { Animatable(0f) }
     LaunchedEffect(waveTick) {
         if (waveTick == 0) return@LaunchedEffect
         delay(waveDelayMs)
-        // Across in a fifth of a second: the point is a flicker travelling up
-        // the board, not a row being highlighted.
-        sweep.animateTo(1f, tween(220, easing = LinearEasing))
-        sweep.snapTo(-1f)
+        // Up fast, down a little slower, so it reads as a flick rather than a
+        // pulse. Both short: the wave has nine more rows to get through.
+        lift.animateTo(1f, tween(130, easing = LinearEasing))
+        lift.animateTo(0f, tween(200, easing = LinearEasing))
     }
     val brush = when {
         answer == null -> Brush.verticalGradient(listOf(VioletTop, VioletBottom))
@@ -250,7 +250,10 @@ private fun PyramidRow(
 
     Box(
         modifier = modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .graphicsLayer {
+                val s = if (holding && holdable) scale else scale * (1f + 0.055f * lift.value)
+                scaleX = s; scaleY = s
+            }
             .clip(CircleShape)
             .background(brush)
             // Press and hold a blank slot for a clue, exactly as on the web.
@@ -269,22 +272,12 @@ private fun PyramidRow(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        // A band of light crossing the row. Drawn inside the clipped Box so
-        // it never leaks past the capsule, and over whatever gradient is
-        // underneath rather than replacing it.
-        if (sweep.value > -1f && sweep.value < 1f) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .graphicsLayer { translationX = sweep.value * size.width }
-                    .background(
-                        Brush.horizontalGradient(
-                            0f to Color.Transparent,
-                            0.5f to Color.White.copy(alpha = 0.45f),
-                            1f to Color.Transparent,
-                        )
-                    )
-            )
+        // The row stands up and sits back down, like someone in the wave: a
+        // little bigger and a little brighter, then back. A band of light
+        // sliding across was tried first and read as a sheen ON the row
+        // rather than the row itself moving.
+        if (lift.value > 0f) {
+            Box(Modifier.matchParentSize().background(Color.White.copy(alpha = 0.16f * lift.value)))
         }
 
         when {

@@ -43,7 +43,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Flag
@@ -318,13 +317,6 @@ fun RoomScreen(model: RoomViewModel) {
                     if (model.isHost) {
                         ActionRow(Icons.Filled.Share, "Share invite") {
                             shareInvite(context, model.state?.code); showingActions = false
-                        }
-                    }
-                    if (model.isHost) {
-                        // The game not knowing a real player is a gap, and
-                        // whoever just shouted his name has told us which one.
-                        ActionRow(Icons.Filled.PersonAdd, "Find missing players") {
-                            model.resolveReviews(); showingActions = false
                         }
                     }
                     ActionRow(Icons.AutoMirrored.Filled.Logout, "Leave") {
