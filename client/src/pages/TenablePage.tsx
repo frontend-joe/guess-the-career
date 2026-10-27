@@ -213,6 +213,16 @@ export function TenablePage() {
     if (!round || checking) return
     const hit = picked
       ? answers.find(a => a.footballer_id === picked.id && !foundSet.has(a.footballer_id))
+        // Two players can share a display name exactly — there are two
+        // Marcelos, and only one of them played for Birmingham. The dropdown
+        // collapses same-name players into a single row, so the id that comes
+        // back is whichever the search ranked first, which may not be the one
+        // on the board. Falling back on an exact full-name match rescues that
+        // without reopening the Taylor bug: "Bob Taylor" is not "Ian Taylor",
+        // so it still cannot be credited to him.
+        ?? answers.find(
+          a => a.footballer_id !== null && !foundSet.has(a.footballer_id) && norm(a.name) === norm(name),
+        )
       : answers.find(
           a => a.footballer_id !== null && !foundSet.has(a.footballer_id) && matches(name, a.name),
         )
@@ -449,6 +459,12 @@ export function TenablePage() {
                     // as a guess, but that makes every Taylor look found once
                     // one of them is — and here we have the actual player.
                     if (foundSet.has(s.id)) return 'correct'
+                    // …but a collapsed same-name row carries only one of the
+                    // ids, so check the name exactly too, or the Marcelo you
+                    // just found still looks unguessed in the dropdown.
+                    if (answers.some(a =>
+                      a.footballer_id !== null && foundSet.has(a.footballer_id) && norm(a.name) === norm(s.name),
+                    )) return 'correct'
                     if ((wrong[key] ?? new Set()).has(norm(s.name))) return 'incorrect'
                     return null
                   }}
