@@ -42,6 +42,15 @@ struct RoomView: View {
                     // board is an answer to, and reading downwards from the
                     // pyramid to the words puts them in that order.
                     roundTitle
+                        // The near miss lands ON the question, which is the
+                        // line everyone is already looking at between
+                        // guesses — and it covers the one thing it is safe to
+                        // cover for three seconds.
+                        .overlay { nearMissToast }
+                        // Later siblings draw over earlier ones, so without
+                        // this the faces would clip a toast taller than the
+                        // band it sits in.
+                        .zIndex(1)
 
                     if store.isHost { hostControls }
 
@@ -60,37 +69,6 @@ struct RoomView: View {
                     footer
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
-                // Floating over the board rather than taking a line of its
-                // own: it is a remark, not part of the layout, and it should
-                // not move anything when it arrives or leaves.
-                .overlay(alignment: .bottom) {
-                    if let near = store.nearMiss {
-                        Text(near.text)
-                            .font(.body(13, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(
-                                Capsule().fill(Color(red: 0.16, green: 0.16, blue: 0.18))
-                                    .shadow(color: .black.opacity(0.5), radius: 12, y: 4)
-                            )
-                            .overlay(Capsule().strokeBorder(.white.opacity(0.10), lineWidth: 0.5))
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 92)
-                            .transition(
-                                reduceMotion
-                                    ? .opacity
-                                    : .move(edge: .bottom).combined(with: .opacity)
-                            )
-                    }
-                }
-                .animation(
-                    reduceMotion ? .easeOut(duration: 0.2)
-                                 : .spring(response: 0.35, dampingFraction: 0.85),
-                    value: store.nearMiss
-                )
             }
             .background(BoardStyle.background)
         }
@@ -112,6 +90,40 @@ struct RoomView: View {
         }
     }
 
+
+    // Loud on purpose. A near miss is the only thing the game ever tells you
+    // that the board cannot: amber against a green-and-violet board, dark
+    // text on a filled capsule rather than light text on a dark one, and big
+    // enough to read from across a room on a video call.
+    @ViewBuilder
+    private var nearMissToast: some View {
+        if let near = store.nearMiss {
+            Text(near.text)
+                .font(.body(16, weight: .bold))
+                .foregroundStyle(Color(red: 0.11, green: 0.09, blue: 0.02))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(
+                    Capsule()
+                        .fill(Color(red: 0.98, green: 0.75, blue: 0.14))
+                        .shadow(color: .black.opacity(0.55), radius: 16, y: 5)
+                )
+                .padding(.horizontal, 16)
+                .scaleEffect(reduceMotion ? 1 : 1)
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .scale(scale: 0.88).combined(with: .opacity)
+                )
+                .animation(
+                    reduceMotion ? .easeOut(duration: 0.2)
+                                 : .spring(response: 0.32, dampingFraction: 0.78),
+                    value: store.nearMiss
+                )
+        }
+    }
 
     // The question the board is answering.
     @ViewBuilder

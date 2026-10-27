@@ -6,7 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.SolidColor
@@ -76,6 +76,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import io.livekit.android.compose.ui.VideoTrackView
 import io.livekit.android.room.participant.LocalParticipant
 import io.livekit.android.room.track.Track
@@ -129,18 +130,14 @@ fun RoomScreen(model: RoomViewModel) {
         Box(modifier = Modifier.weight(2f).fillMaxWidth()) {
             BoardSection(model)
 
-            // Floating over the board rather than taking a line of its own:
-            // it is a remark, not part of the layout, and it should not move
-            // anything when it arrives or leaves.
-            NearMissToast(
-                model.nearMiss?.text,
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-            )
         }
 
         // Under the board, not over it: the question is what the board is an
         // answer to, and reading downwards from the pyramid to the words puts
         // them in that order.
+        // Later siblings draw over earlier ones, so the zIndex keeps a toast
+        // taller than the band from being clipped by the faces below it.
+        Box(Modifier.fillMaxWidth().zIndex(1f)) {
         model.round?.let { round ->
             Text(
                 round.board.title,
@@ -157,6 +154,12 @@ fun RoomScreen(model: RoomViewModel) {
                     .background(Color(0xFF191C23))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             )
+        }
+
+            // The near miss lands ON the question, which is the line everyone
+            // is already looking at between guesses — and it covers the one
+            // thing it is safe to cover for three seconds.
+            NearMissToast(model.nearMiss?.text, Modifier.align(Alignment.Center))
         }
 
         // Choosing, starting and ending a round are the host's calls.
@@ -550,21 +553,25 @@ private fun NearMissToast(text: String?, modifier: Modifier = Modifier) {
 
     AnimatedVisibility(
         visible = text != null,
-        enter = fadeIn() + slideInVertically { it / 2 },
+        enter = fadeIn() + scaleIn(initialScale = 0.88f),
         exit = fadeOut(),
         modifier = modifier,
     ) {
+        // Loud on purpose. A near miss is the only thing the game ever tells
+        // you that the board cannot: amber against a green-and-violet board,
+        // dark text on a filled capsule rather than light text on a dark one,
+        // and big enough to read from across a room on a video call.
         Text(
             lastText,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1C1705),
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF2A2A2E))
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .background(Color(0xFFFABF24))
+                .padding(horizontal = 20.dp, vertical = 14.dp),
         )
     }
 }
