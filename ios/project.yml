@@ -46,3 +46,9 @@ targets:
         # device build needs the flag passing by hand.
         DEVELOPMENT_TEAM: QZA66MATSN
         CODE_SIGN_STYLE: Automatic
+        # TestFlight rejects a build whose version it has seen before, so
+        # MARKETING_VERSION is what people read and CURRENT_PROJECT_VERSION is
+        # what must go up on every single upload. scripts/testflight.sh stamps
+        # the latter from the clock so it cannot be forgotten.
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"

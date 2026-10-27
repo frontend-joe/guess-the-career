@@ -1,5 +1,10 @@
 # Machine-specific SDK path, written by Gradle or Android Studio.
 local.properties
+# The upload key and its passwords. Never committed, and worth backing up
+# somewhere off this machine — Play ties your app to it.
+keystore.properties
+*.jks
+*.keystore
 .gradle/
 build/
 app/build/
