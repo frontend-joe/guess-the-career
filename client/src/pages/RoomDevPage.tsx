@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Eye } from 'lucide-react'
+import { Eye, Mic, MicOff, Video, VideoOff } from 'lucide-react'
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room } from 'livekit-client'
 import {
   createRoom,
@@ -146,7 +146,13 @@ export function RoomDevPage() {
   const [joinCode, setJoinCode] = useState(
     () => new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '',
   )
+  // Whether we got here from a share link rather than by typing a code.
+  const [invited] = useState(() => new URLSearchParams(window.location.search).has('code'))
   const [shared, setShared] = useState(false)
+  // Mirrors the LiveKit track state rather than being the source of truth, so
+  // a track that fails to enable does not leave the button lying.
+  const [micOn, setMicOn] = useState(true)
+  const [camOn, setCamOn] = useState(true)
   const [displayName, setDisplayName] = useState('')
   const [roundId, setRoundId] = useState<number | ''>('')
   const [roundQuery, setRoundQuery] = useState('')
@@ -226,6 +232,8 @@ export function RoomDevPage() {
 
       const snapshot = () => {
         if (!room) return
+        setMicOn(room.localParticipant.isMicrophoneEnabled)
+        setCamOn(room.localParticipant.isCameraEnabled)
         const everyone = [room.localParticipant, ...room.remoteParticipants.values()]
         setTiles(everyone.map((p) => ({
           identity: p.identity,
@@ -254,6 +262,8 @@ export function RoomDevPage() {
         .on(RoomEvent.LocalTrackPublished, snapshot)
         .on(RoomEvent.LocalTrackUnpublished, snapshot)
         .on(RoomEvent.ActiveSpeakersChanged, snapshot)
+        .on(RoomEvent.TrackMuted, snapshot)
+        .on(RoomEvent.TrackUnmuted, snapshot)
 
       try {
         await room.connect(credentials.url, credentials.token)
@@ -281,6 +291,24 @@ export function RoomDevPage() {
     const timer = setInterval(() => { void refresh() }, 10_000)
     return () => clearInterval(timer)
   }, [session, refresh])
+
+  // Toggling asks LiveKit first and only then updates the button, so a device
+  // that refuses to start leaves the control showing the truth.
+  const setMedia = async (kind: 'mic' | 'cam', on: boolean) => {
+    const room = roomRef.current
+    if (!room) return
+    try {
+      if (kind === 'mic') {
+        await room.localParticipant.setMicrophoneEnabled(on)
+        setMicOn(room.localParticipant.isMicrophoneEnabled)
+      } else {
+        await room.localParticipant.setCameraEnabled(on)
+        setCamOn(room.localParticipant.isCameraEnabled)
+      }
+    } catch (err) {
+      setVideoNote(err instanceof Error ? err.message : String(err))
+    }
+  }
 
   const run = async (fn: () => Promise<unknown>) => {
     setError(null)
@@ -351,13 +379,23 @@ export function RoomDevPage() {
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
             />
+            {/* Arriving from an invite link, the code is already filled in and
+                a name is the only thing left to do. Point at it. */}
             <input
-              className="flex-1 rounded border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+              className={`flex-1 rounded border bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500 ${
+                invited && !displayName.trim()
+                  ? 'border-rose-500 ring-1 ring-rose-500'
+                  : 'border-slate-600'
+              }`}
               placeholder="Your name"
+              autoFocus={invited}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
             />
           </div>
+          {invited && !displayName.trim() && (
+            <p className="text-xs text-rose-400">You've been invited to {joinCode} — add a name to join.</p>
+          )}
           <button
             className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-40"
             disabled={!joinCode.trim() || !displayName.trim()}
@@ -572,6 +610,26 @@ export function RoomDevPage() {
 
       <div className="flex shrink-0 items-center gap-3 border-t border-slate-800 px-3 py-1.5 text-xs text-slate-500">
         <span>{state?.participants.filter((p) => p.present).length ?? 0} in the room</span>
+
+        <button
+          className={`flex items-center gap-1.5 rounded px-2 py-1 ${
+            micOn ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-rose-900 text-rose-100 hover:bg-rose-800'
+          }`}
+          onClick={() => setMedia('mic', !micOn)}
+        >
+          {micOn ? <Mic size={14} /> : <MicOff size={14} />}
+          {micOn ? 'Mute' : 'Muted'}
+        </button>
+        <button
+          className={`flex items-center gap-1.5 rounded px-2 py-1 ${
+            camOn ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-rose-900 text-rose-100 hover:bg-rose-800'
+          }`}
+          onClick={() => setMedia('cam', !camOn)}
+        >
+          {camOn ? <Video size={14} /> : <VideoOff size={14} />}
+          {camOn ? 'Stop video' : 'Video off'}
+        </button>
+
         <button
           className="ml-auto hover:text-slate-300"
           onClick={async () => {
