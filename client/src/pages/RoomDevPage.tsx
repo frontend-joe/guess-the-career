@@ -71,7 +71,7 @@ function VideoTile({ tile }: { tile: Tile }) {
 
   return (
     <div
-      className={`relative min-w-0 flex-1 overflow-hidden rounded-lg bg-slate-900 ring-2 ${
+      className={`relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-slate-900 ring-2 ${
         tile.speaking ? 'ring-emerald-400' : 'ring-transparent'
       }`}
     >
@@ -301,8 +301,12 @@ export function RoomDevPage() {
 
   return (
     <div className="flex h-dvh flex-col bg-slate-950 text-slate-200">
-      {/* Board — the top two thirds, as in the composited video. */}
-      <div className="flex min-h-0 flex-[2] flex-col gap-3 overflow-y-auto p-4">
+      {/* Side by side on a desktop, where it is actually worked on, and
+          stacked on a narrow window — which is also the podcast composition,
+          board over faces, so that shape stays checkable by resizing. */}
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      {/* Board. */}
+      <div className="flex min-h-0 min-w-0 flex-[2] flex-col gap-3 overflow-y-auto p-4">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
           <span className="font-mono text-lg tracking-widest text-emerald-400">{state?.code}</span>
           <span className="text-slate-400">
@@ -428,17 +432,20 @@ export function RoomDevPage() {
         )}
       </div>
 
-      {/* Faces — the bottom third, same proportion as the recording.
-          min-h-0 is load-bearing: a flex item defaults to min-height:auto, so
-          without it the <video> elements' intrinsic height wins over the
-          one-third share and the row grows over the board and the controls. */}
-      <div className="flex min-h-0 flex-1 gap-2 border-t border-slate-800 bg-black p-2">
+      {/* Faces — a third of the space either way: a column down the right on a
+          desktop, a band across the bottom when stacked.
+          min-h-0/min-w-0 are load-bearing: a flex item defaults to
+          min-height:auto, so without them the <video> elements' intrinsic size
+          wins over the one-third share and this grows over the board and the
+          controls, which is exactly what it did the first time. */}
+      <div className="flex min-h-0 min-w-0 flex-1 gap-2 border-t border-slate-800 bg-black p-2 lg:flex-col lg:border-l lg:border-t-0">
         {tiles.length === 0 && (
           <div className="grid flex-1 place-items-center text-sm text-slate-600">
             {videoNote ?? 'connecting…'}
           </div>
         )}
         {tiles.map((tile) => <VideoTile key={tile.identity} tile={tile} />)}
+      </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-3 border-t border-slate-800 px-3 py-1.5 text-xs text-slate-500">
