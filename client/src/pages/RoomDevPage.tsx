@@ -102,7 +102,11 @@ export function RoomDevPage() {
   const [videoNote, setVideoNote] = useState<string | null>(null)
   const [lastGuess, setLastGuess] = useState<GuessResult | null>(null)
 
-  const [joinCode, setJoinCode] = useState('')
+  // Prefilled from a shared link, so the other three only have to type a name.
+  const [joinCode, setJoinCode] = useState(
+    () => new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '',
+  )
+  const [shared, setShared] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [roundId, setRoundId] = useState<number | ''>('')
   const [roundQuery, setRoundQuery] = useState('')
@@ -320,6 +324,24 @@ export function RoomDevPage() {
       <div className="flex min-h-0 min-w-0 flex-[2] flex-col gap-3 overflow-y-auto p-4">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
           <span className="font-mono text-lg tracking-widest text-emerald-400">{state?.code}</span>
+          <button
+            className="rounded border border-slate-600 px-2 py-0.5 text-xs hover:border-slate-400"
+            onClick={async () => {
+              const link = `${window.location.origin}/dev/room?code=${state?.code ?? ''}`
+              // The share sheet on a phone, the clipboard everywhere else.
+              // Both can be refused, so fall through rather than assume.
+              try {
+                if (navigator.share) await navigator.share({ title: 'Join my Tenable game', url: link })
+                else await navigator.clipboard.writeText(link)
+                setShared(true)
+                setTimeout(() => setShared(false), 2000)
+              } catch {
+                // Cancelled the share sheet, or no clipboard permission.
+              }
+            }}
+          >
+            {shared ? 'Copied' : 'Share link'}
+          </button>
           <span className="text-slate-400">
             {me?.displayName} · {isHost ? 'host' : 'player'} · v{state?.stateVersion ?? 0}
           </span>
