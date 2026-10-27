@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,6 +71,11 @@ fun BoardSection(model: RoomViewModel) {
     // later — the inline version was gone the moment the row was reused, and
     // unreadable before that.
     var showingClue by remember { mutableStateOf<Int?>(null) }
+    // Clue ranks this screen has already opened by itself. A clue taken
+    // anywhere in the room opens here too, but only once, and never for the
+    // ones already on the board when this screen appeared — joining a round
+    // mid-way should not fire four dialogs at you.
+    var announced by remember { mutableStateOf<Set<Int>?>(null) }
     if (round == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -92,21 +98,38 @@ fun BoardSection(model: RoomViewModel) {
                 rank = rank,
                 answer = round.board.revealed.firstOrNull { it.rank == rank },
                 hasClue = hasClue,
-                canHint = round.isLive,
+                canHint = model.isHost && round.isLive,
                 onLongPress = {
-                    // Anyone may take a clue while the round is live, and
-                    // anyone may reopen one already taken, after the round has
+                    // The host takes a clue; everyone's screen then opens it.
+                    // Anyone may reopen one already taken, after the round has
                     // ended too.
                     when {
+                        // Reopening one already taken — nobody else needs to
+                        // see that.
                         hasClue -> showingClue = rank
-                        round.isLive && !answered -> {
-                            model.takeHint(rank)
-                            showingClue = rank
-                        }
+                        // Not opened here. The clue lands in the event log,
+                        // comes back in the next state, and opens on every
+                        // screen including this one.
+                        model.isHost && round.isLive && !answered -> model.takeHint(rank)
                     }
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(widthFraction(rank)),
             )
+        }
+    }
+
+    // The host spends the clue; everyone reads it. It arrives through the
+    // room state like everything else, so there is no separate message to miss
+    // and a client that resyncs still gets it.
+    val hintRanks = round.board.hints.map { it.rank }
+    LaunchedEffect(hintRanks) {
+        val seen = announced
+        if (seen == null) {
+            announced = hintRanks.toSet()
+        } else {
+            val fresh = hintRanks.filterNot { seen.contains(it) }
+            announced = seen + hintRanks
+            fresh.maxOrNull()?.let { showingClue = it }
         }
     }
 

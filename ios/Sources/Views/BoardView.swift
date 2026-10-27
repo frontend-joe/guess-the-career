@@ -42,12 +42,26 @@ struct BoardView: View {
     /// later — the inline version was gone the moment the row was reused, and
     /// unreadable before that.
     @State private var showingClue: ClueSelection?
+    /// Clue ranks this screen has already opened by itself. A clue taken
+    /// anywhere in the room opens here too, but only once, and never for the
+    /// ones that were already on the board when this screen appeared —
+    /// joining a round mid-way should not fire four sheets at you.
+    @State private var announced: Set<Int> = []
 
     var body: some View {
         if let round = store.round {
             pyramid(round)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
+                // The host spends the clue; everyone reads it. It arrives
+                // through /state like everything else, so there is no separate
+                // message to miss and a client that resyncs still gets it.
+                .onAppear { announced = Set(round.board.hints.map(\.rank)) }
+                .onChange(of: round.board.hints.map(\.rank)) { _, ranks in
+                    let fresh = ranks.filter { !announced.contains($0) }
+                    announced.formUnion(ranks)
+                    if let newest = fresh.max() { showingClue = ClueSelection(id: newest) }
+                }
                 .sheet(item: $showingClue) { selection in
                     ClueSheet(
                         rank: selection.id,
@@ -97,7 +111,7 @@ struct BoardView: View {
             rank: rank,
             answer: round.board.revealed.first { $0.rank == rank },
             hasClue: round.board.hints.contains { $0.rank == rank },
-            canHint: round.isLive,
+            canHint: store.isHost && round.isLive,
             onLongPress: { longPress(rank: rank, round: round) }
         )
         .frame(width: width * BoardStyle.widthFraction(rank: rank), height: height)
@@ -111,19 +125,20 @@ struct BoardView: View {
         )
     }
 
-    /// Anyone may take a clue while the round is live, and anyone may reopen
-    /// one already taken — after the round has ended too. It is in the event
-    /// log either way.
+    /// The host takes a clue; everyone's screen then opens it. Anyone may
+    /// reopen one already taken, after the round has ended too — it is in the
+    /// event log either way.
     private func longPress(rank: Int, round: RoomRound) {
         let existing = round.board.hints.contains { $0.rank == rank }
         let taken = round.board.revealed.contains { $0.rank == rank }
         if existing {
+            // Reopening one already taken — nobody else needs to see that.
             showingClue = ClueSelection(id: rank)
-        } else if round.isLive, !taken {
-            Task {
-                await store.takeHint(rank: rank)
-                showingClue = ClueSelection(id: rank)
-            }
+        } else if store.isHost, round.isLive, !taken {
+            // Not opened here. The clue lands in the event log, comes back in
+            // the next state, and opens on every screen including this one —
+            // one path, so the host sees exactly what the room sees.
+            Task { await store.takeHint(rank: rank) }
         }
     }
 }
