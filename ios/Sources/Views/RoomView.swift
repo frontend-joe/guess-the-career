@@ -125,8 +125,13 @@ struct RoomView: View {
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                // Its own band, a shade up from the app's background. The
+                // question is not part of the board and not part of the
+                // faces; giving it a surface of its own says which is which
+                // without drawing a line between them.
+                .background(BoardStyle.titleBand)
         }
     }
 

@@ -148,7 +148,14 @@ fun RoomScreen(model: RoomViewModel) {
                 fontFamily = AppFonts.Display,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                // Its own band, a shade up from the app's background. The
+                // question is not part of the board and not part of the
+                // faces; giving it a surface of its own says which is which
+                // without drawing a line between them.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF191C23))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
             )
         }
 

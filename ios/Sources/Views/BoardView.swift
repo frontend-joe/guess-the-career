@@ -28,6 +28,10 @@ enum BoardStyle {
     /// dark UI read as a cut rather than a surface.
     static let background = Color(red: 0.039, green: 0.047, blue: 0.063)
 
+    /// The band the question sits in: one step up from the base, which is
+    /// enough to separate it without becoming a third colour in the room.
+    static let titleBand = Color(red: 0.098, green: 0.110, blue: 0.137)
+
     /// 56% at rank 1, widening by 4.9 points a row — the web game's formula.
     static func widthFraction(rank: Int) -> CGFloat {
         min(1.0, (56 + CGFloat(rank - 1) * 4.9) / 100)
