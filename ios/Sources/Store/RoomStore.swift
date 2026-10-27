@@ -36,6 +36,18 @@ final class RoomStore {
     var videoNote: String?
     var lastGuess: GuessResult?
 
+    /// A guess that was a real player, just not on the board — "16th, 54
+    /// goals". The one verdict with no feedback anywhere else: a hit turns a
+    /// row green, a duplicate is already green, and a miss is nothing to say.
+    /// This is the only one worth interrupting anybody for.
+    private(set) var nearMiss: NearMiss?
+    private var nearMissCount = 0
+
+    struct NearMiss: Equatable, Identifiable {
+        let id: Int
+        let text: String
+    }
+
     // Stored, not computed from LiveKit. @Observable tracks this object's own
     // properties; it cannot see into room.localParticipant, so a computed
     // version read the truth and then never told SwiftUI it had changed — the
@@ -355,8 +367,42 @@ final class RoomStore {
         guard let instanceId = round?.instanceId else { return }
         await act { [weak self] seat in
             let result = try await API.guess(seat: seat, instanceId: instanceId, raw: raw)
-            await MainActor.run { self?.lastGuess = result }
+            await MainActor.run { self?.lastGuess = result; self?.showNearMiss(result) }
         }
+    }
+
+    private func showNearMiss(_ result: GuessResult) {
+        guard result.verdict == "near", let rank = result.rank else { return }
+        var parts = [result.name ?? "That one"]
+        var placing = "\(ordinal(rank))"
+        if let value = result.value {
+            placing += ", \(Int(value))"
+            if let unit = result.unit, !unit.isEmpty { placing += " \(unit)" }
+        }
+        parts.append(placing)
+
+        nearMissCount += 1
+        let shown = NearMiss(id: nearMissCount, text: parts.joined(separator: " · "))
+        nearMiss = shown
+        // Long enough to read a name and a number, short enough not to sit
+        // over the board while the next guess is being shouted.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3.5))
+            guard let self, self.nearMiss?.id == shown.id else { return }
+            self.nearMiss = nil
+        }
+    }
+
+    private func ordinal(_ n: Int) -> String {
+        let suffix: String
+        switch (n % 100, n % 10) {
+        case (11, _), (12, _), (13, _): suffix = "th"
+        case (_, 1): suffix = "st"
+        case (_, 2): suffix = "nd"
+        case (_, 3): suffix = "rd"
+        default: suffix = "th"
+        }
+        return "\(n)\(suffix)"
     }
 
     // Posting bumps the room's version, so the message comes back through the

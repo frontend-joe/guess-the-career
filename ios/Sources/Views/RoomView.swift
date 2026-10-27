@@ -11,6 +11,7 @@ struct RoomView: View {
     @State private var showingRoundPicker = false
     @State private var confirmingGiveUp = false
     @State private var showingActions = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Whether the guess field holds the keyboard. The layout changes shape
     /// while you type rather than trying to fit everything at once.
     @FocusState private var typing: Bool
@@ -55,6 +56,37 @@ struct RoomView: View {
                     footer
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
+                // Floating over the board rather than taking a line of its
+                // own: it is a remark, not part of the layout, and it should
+                // not move anything when it arrives or leaves.
+                .overlay(alignment: .bottom) {
+                    if let near = store.nearMiss {
+                        Text(near.text)
+                            .font(.body(13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule().fill(Color(red: 0.16, green: 0.16, blue: 0.18))
+                                    .shadow(color: .black.opacity(0.5), radius: 12, y: 4)
+                            )
+                            .overlay(Capsule().strokeBorder(.white.opacity(0.10), lineWidth: 0.5))
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 92)
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .move(edge: .bottom).combined(with: .opacity)
+                            )
+                    }
+                }
+                .animation(
+                    reduceMotion ? .easeOut(duration: 0.2)
+                                 : .spring(response: 0.35, dampingFraction: 0.85),
+                    value: store.nearMiss
+                )
             }
             .background(BoardStyle.background)
         }
@@ -159,22 +191,15 @@ struct RoomView: View {
             // The error gets its own line rather than competing for width
             // with six controls, where it was truncated to a few characters
             // exactly when it had something to say.
-            // One thin line for whatever the room is telling you: an error
-            // if there is one, otherwise how the last guess went. Neither is
-            // a control, and both were being squeezed between things that are.
+            // Errors only. A verdict used to live here too, which meant a
+            // line of text saying "hit" sat above a board that had just
+            // turned a row green — the same news, twice, in the worse place.
             if let error = store.error {
                 Text(error)
                     .font(.body(11))
                     .foregroundStyle(.red)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            } else if let last = store.lastGuess {
-                Text(verdictLine(last))
-                    .font(.body(11, weight: .semibold))
-                    .foregroundStyle(verdictColour(last.verdict))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .transition(.opacity)
             }
 
             HStack(spacing: 8) {
@@ -226,14 +251,8 @@ struct RoomView: View {
         .padding(.top, 6)
         // Clear of the home indicator, which the content now runs underneath.
         .padding(.bottom, typing ? 8 : 26)
-        .animation(.spring(response: 0.3, dampingFraction: 1.0), value: store.lastGuess?.verdict)
     }
 
-    /// "hit · 4 Dennis Bergkamp", or just the verdict when there is no rank.
-    private func verdictLine(_ result: GuessResult) -> String {
-        guard let rank = result.rank else { return result.verdict }
-        return "\(result.verdict) · \(rank) \(result.name ?? "")".trimmed
-    }
 
     // Everyone types. You can still shout, and mostly will, but a player whose
     // microphone has failed can now play rather than watch.

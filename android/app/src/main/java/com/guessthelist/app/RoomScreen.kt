@@ -3,6 +3,10 @@ package com.guessthelist.app
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.SolidColor
@@ -139,6 +143,14 @@ fun RoomScreen(model: RoomViewModel) {
 
         Box(modifier = Modifier.weight(2f).fillMaxWidth()) {
             BoardSection(model)
+
+            // Floating over the board rather than taking a line of its own:
+            // it is a remark, not part of the layout, and it should not move
+            // anything when it arrives or leaves.
+            NearMissToast(
+                model.nearMiss?.text,
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+            )
         }
 
         // Choosing, starting and ending a round are the host's calls.
@@ -173,18 +185,14 @@ fun RoomScreen(model: RoomViewModel) {
             VideoGrid(model)
         }
 
-        // One thin line for whatever the room is telling you: an error if
-        // there is one, otherwise how the last guess went. Neither is a
-        // control, and both were being squeezed between things that are.
-        val status = model.error ?: model.lastGuess?.let { g ->
-            g.rank?.let { r -> "${g.verdict} · $r ${g.name.orEmpty()}".trim() } ?: g.verdict
-        }
-        status?.let {
+        // Errors only. A verdict used to live here too, which meant a line of
+        // text saying "hit" sat above a board that had just turned a row
+        // green — the same news, twice, in the worse place.
+        model.error?.let {
             Text(
                 it,
                 fontSize = 11.sp,
-                color = if (model.error != null) Color(0xFFFF6B6B)
-                        else verdictColour(model.lastGuess?.verdict.orEmpty()),
+                color = Color(0xFFFF6B6B),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
             )
         }
@@ -512,4 +520,36 @@ private fun ActionRow(
         text = { Text(label, color = tint, fontSize = 16.sp) },
         onClick = onClick,
     )
+}
+
+
+// Its own composable so AnimatedVisibility resolves to the plain overload:
+// called inside a Box that sits in a Column, Kotlin picks ColumnScope's and
+// refuses the implicit receiver.
+@Composable
+private fun NearMissToast(text: String?, modifier: Modifier = Modifier) {
+    // Remembered so the words do not vanish a frame before the toast does,
+    // which turns a fade-out into a flicker of empty pill.
+    var lastText by remember { mutableStateOf("") }
+    text?.let { lastText = it }
+
+    AnimatedVisibility(
+        visible = text != null,
+        enter = fadeIn() + slideInVertically { it / 2 },
+        exit = fadeOut(),
+        modifier = modifier,
+    ) {
+        Text(
+            lastText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF2A2A2E))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+    }
 }

@@ -313,9 +313,54 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act { Api.startRound(it, instanceId) }
     }
 
+    /// A guess that was a real player, just not on the board — "16th, 54
+    /// goals". The one verdict with no feedback anywhere else: a hit turns a
+    /// row green, a duplicate is already green, and a miss is nothing to say.
+    data class NearMiss(val id: Int, val text: String)
+
+    var nearMiss by mutableStateOf<NearMiss?>(null); private set
+    private var nearMissCount = 0
+
     fun guess(raw: String) {
         val instanceId = round?.instanceId ?: return
-        act { lastGuess = Api.guess(it, instanceId, raw) }
+        act {
+            val result = Api.guess(it, instanceId, raw)
+            lastGuess = result
+            showNearMiss(result)
+        }
+    }
+
+    private fun showNearMiss(result: GuessResult) {
+        val rank = result.rank
+        if (result.verdict != "near" || rank == null) return
+
+        val placing = buildString {
+            append(ordinal(rank))
+            result.value?.let { v ->
+                append(", ${v.toInt()}")
+                result.unit?.takeIf { u -> u.isNotEmpty() }?.let { u -> append(" $u") }
+            }
+        }
+        nearMissCount += 1
+        val shown = NearMiss(nearMissCount, "${result.name ?: "That one"} · $placing")
+        nearMiss = shown
+        // Long enough to read a name and a number, short enough not to sit
+        // over the board while the next guess is being shouted.
+        viewModelScope.launch {
+            delay(3_500)
+            if (nearMiss?.id == shown.id) nearMiss = null
+        }
+    }
+
+    private fun ordinal(n: Int): String {
+        val suffix = when {
+            n % 100 in 11..13 -> "th"
+            n % 10 == 1 -> "st"
+            n % 10 == 2 -> "nd"
+            n % 10 == 3 -> "rd"
+            else -> "th"
+        }
+        return "$n$suffix"
     }
 
     // Posting bumps the room's version, so the message comes back through the
