@@ -195,6 +195,8 @@ struct RoomView: View {
                     Button("Give up") { confirmingGiveUp = true }
                         .font(.body(14, weight: .medium))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .fixedSize()
                         .buttonStyle(GlassCapsuleButtonStyle())
                 }
                 if store.isHost, let link = store.inviteLink {
@@ -209,11 +211,15 @@ struct RoomView: View {
                     Button("End game") { Task { await store.endGame() } }
                         .font(.body(14, weight: .medium))
                         .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .fixedSize()
                         .buttonStyle(GlassCapsuleButtonStyle())
                 }
                 Button("Leave") { Task { await store.exit() } }
                     .font(.body(14, weight: .medium))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
                     .buttonStyle(GlassCapsuleButtonStyle())
             }
         }
@@ -269,7 +275,9 @@ struct RoomView: View {
         }
         .animation(.spring(response: 0.3, dampingFraction: 1.0), value: store.lastGuess?.verdict)
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.top, 10)
+        // Clear of the home indicator, which the content now runs underneath.
+        .padding(.bottom, typing ? 10 : 26)
         // Swipe down on the composer to put the keyboard away, without having
         // to find a Done button or tap some neutral patch of screen.
         .swipeDownToDismissKeyboard()

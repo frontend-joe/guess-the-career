@@ -38,6 +38,7 @@ struct KeyboardPinned<Content: View>: UIViewControllerRepresentable {
 
     final class Controller<C: View>: UIViewController {
         private let host: UIHostingController<C>
+        private let restingArea = UILayoutGuide()
 
         init(rootView: C) {
             host = UIHostingController(rootView: rootView)
@@ -49,6 +50,19 @@ struct KeyboardPinned<Content: View>: UIViewControllerRepresentable {
         override func viewDidLoad() {
             super.viewDidLoad()
             view.backgroundColor = .clear
+            // At rest the guide normally parks on the bottom SAFE AREA, which
+            // left a dead band under the composer the height of the home
+            // indicator. Off, it parks on the bottom of the view instead, so
+            // the content fills the screen — the composer keeps its own
+            // padding, which is what holds it clear of the indicator.
+            view.keyboardLayoutGuide.usesBottomSafeArea = false
+
+            // The space the content occupies when no keyboard is up.
+            view.addLayoutGuide(restingArea)
+            NSLayoutConstraint.activate([
+                restingArea.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+                restingArea.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ])
             // The content is taller than this container once it has slid, and
             // the overflow must not draw over the status bar.
             view.clipsToBounds = true
@@ -62,8 +76,12 @@ struct KeyboardPinned<Content: View>: UIViewControllerRepresentable {
                 host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                 host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
                 // Always the full height, keyboard or no keyboard, so the
-                // layout inside never changes shape...
-                host.view.heightAnchor.constraint(equalTo: view.safeAreaLayoutGuide.heightAnchor),
+                // layout inside never changes shape — specifically...
+                // ...the height it has at REST, which is from the top safe
+                // area down to the bottom of the screen. Expressed as a guide
+                // rather than a number so it follows a rotation or a change
+                // in the safe area on its own.
+                host.view.heightAnchor.constraint(equalTo: restingArea.heightAnchor),
                 // ...and only this moves. At rest the guide sits on the safe
                 // area; raised, it is the keyboard's top edge, and the whole
                 // thing travels up with it.
