@@ -17,6 +17,7 @@ import {
   giveUp,
   joinRoom,
   leaveRoom,
+  onRoomChanged,
   participantsOf,
   postMessage,
   resolvePendingReviews,
@@ -80,6 +81,15 @@ function mustFindRoom(code: string): RoomRow {
 // video will be rendered from. A client that applied broadcasts directly would
 // be a second implementation of that fold, free to drift from it — and nobody
 // would notice until a recording showed something the players never saw.
+// The background name lookup can change a live board on its own, with no
+// request to answer. This lets the service say so without importing the
+// transport into it.
+onRoomChanged((roomId, kind) => {
+  const room = sqlite.prepare('SELECT * FROM game_rooms WHERE id = ?').get(roomId) as RoomRow | undefined
+  if (!room) return
+  broadcastState(room.livekit_room, { kind, stateVersion: room.state_version, code: room.code })
+})
+
 function announce(code: string, kind: string): void {
   const room = roomByCode(code)
   if (!room) return

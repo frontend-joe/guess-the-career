@@ -709,7 +709,24 @@ async function drainLearnQueue(): Promise<void> {
              WHERE raw_norm = ? AND status = 'pending'`,
           )
           .run(id == null ? 'unresolved' : 'resolved', id, next.normalized)
-        if (id != null) console.log(`[reviews] learned "${next.raw}" -> footballer ${id}`)
+        if (id != null) {
+          console.log(`[reviews] learned "${next.raw}" -> footballer ${id}`)
+          // If they belong on a board being played right now, put them there.
+          const live = sqlite
+            .prepare(
+              `SELECT DISTINCT r.instance_id FROM game_guess_reviews r
+               JOIN game_round_instances i ON i.id = r.instance_id
+               WHERE r.raw_norm = ? AND i.status = 'live'`,
+            )
+            .all(next.normalized) as { instance_id: number }[]
+          for (const row of live) {
+            try {
+              reshuffleForLearnedPlayer(row.instance_id, id, next.normalized)
+            } catch (err) {
+              console.error(`[reviews] reshuffle failed for instance ${row.instance_id}:`, err)
+            }
+          }
+        }
       } catch (err) {
         console.error(`[reviews] background lookup failed for "${next.raw}":`, err)
       }
@@ -779,6 +796,114 @@ export async function resolvePendingReviews(roomId: number): Promise<ReviewResol
   }
 
   return out
+}
+
+// A player the database had never heard of turns out to belong on the board.
+//
+// The frozen snapshot exists so answers cannot move under people mid-round,
+// and that still holds for everything the round knew at kickoff. This is the
+// one case it was never protecting against: the board was wrong, somebody
+// said so out loud, and the database has now caught up. Leaving it wrong to
+// protect a snapshot of a wrong board helps nobody.
+//
+// It is ONE event carrying the whole revealed set at its new ranks, so the
+// fold stays a fold and the recording reproduces exactly what players saw.
+function reshuffleForLearnedPlayer(instanceId: number, footballerId: number, rawNorm: string): void {
+  const inst = sqlite
+    .prepare('SELECT * FROM game_round_instances WHERE id = ?')
+    .get(instanceId) as InstanceRow | undefined
+  if (!inst || inst.status !== 'live') return
+
+  const params = JSON.parse(inst.params_json) as Record<string, string>
+  const fresh = answersForRound(inst.type, params, inst.metric as Metric, SNAPSHOT_DEPTH)
+
+  const newIndex = fresh.findIndex((a) => a.footballer_id === footballerId)
+  // Not on the board after all — they qualify for the round but not the top
+  // ten. Nothing to reshuffle; the near-miss feedback already covers it.
+  if (newIndex < 0 || newIndex >= ROUND_SIZE) return
+
+  const current = sqlite
+    .prepare('SELECT footballer_id, found_at_ms, found_by_participant_id FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
+    .all(instanceId) as { footballer_id: number | null; found_at_ms: number; found_by_participant_id: number | null }[]
+
+  // Never take a find away. If anybody already on the board would be pushed
+  // off by this, leave the board alone — a correction that deletes somebody's
+  // answer is worse than the board being one name short.
+  const onBoardNow = new Set(
+    fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null),
+  )
+  if (current.some((c) => c.footballer_id != null && !onBoardNow.has(c.footballer_id))) return
+
+  // Whoever said the name gets the credit for it. They did guess correctly;
+  // the database was the one that was wrong.
+  const guesser = sqlite
+    .prepare('SELECT participant_id FROM game_guesses WHERE instance_id = ? AND raw_norm = ? ORDER BY id DESC LIMIT 1')
+    .get(instanceId, rawNorm) as { participant_id: number } | undefined
+
+  const foundBefore = new Map(current.map((c) => [c.footballer_id, c]))
+  const ids = fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
+  const clues = cluesForFootballers(ids)
+  const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
+
+  sqlite.transaction(() => {
+    sqlite.prepare('DELETE FROM game_round_answers WHERE instance_id = ?').run(instanceId)
+    const insert = sqlite.prepare(
+      `INSERT INTO game_round_answers
+         (instance_id, rank, on_board, footballer_id, name, name_norm, surname_norm,
+          nationality, photo_url, value, unit, clue_json, found_at_ms, found_by_participant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+
+    const revealed: Record<string, unknown>[] = []
+    fresh.forEach((a, i) => {
+      const rank = i + 1
+      const normalized = norm(a.name)
+      const prior = a.footballer_id != null ? foundBefore.get(a.footballer_id) : undefined
+      const isTheNewOne = a.footballer_id === footballerId
+      const foundAt = prior?.found_at_ms ?? (isTheNewOne ? tMs : null)
+      const foundBy = prior?.found_by_participant_id ?? (isTheNewOne ? guesser?.participant_id ?? null : null)
+
+      insert.run(
+        instanceId, rank, rank <= ROUND_SIZE ? 1 : 0, a.footballer_id, a.name, normalized,
+        surnameOf(normalized), a.nationality, a.photo_url, a.value, a.unit ?? null,
+        a.footballer_id != null && clues.has(a.footballer_id) ? JSON.stringify(clues.get(a.footballer_id)) : null,
+        foundAt, foundBy,
+      )
+
+      if (rank <= ROUND_SIZE && foundAt != null) {
+        revealed.push({
+          rank, name: a.name, value: a.value, unit: a.unit ?? null,
+          nationality: a.nationality, photoUrl: a.photo_url, byParticipantId: foundBy,
+        })
+      }
+    })
+
+    appendEvent(instanceId, tMs, 'board_reshuffle', guesser?.participant_id ?? null, {
+      name: fresh[newIndex].name,
+      rank: newIndex + 1,
+      revealed,
+    })
+
+    const remaining = sqlite
+      .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL')
+      .get(instanceId) as { n: number }
+    if (remaining.n === 0) {
+      sqlite.prepare("UPDATE game_round_instances SET status = 'complete', ended_at_ms = ? WHERE id = ?").run(tMs, instanceId)
+      appendEvent(instanceId, tMs, 'round_end', null, { reason: 'complete', found: inst.target, target: inst.target })
+    }
+
+    bumpVersion(inst.room_id)
+  })()
+
+  console.log(`[reviews] reshuffled instance ${instanceId}: ${fresh[newIndex].name} is ${newIndex + 1}`)
+  roomChanged?.(inst.room_id, 'board_reshuffle')
+}
+
+// Set by the router at boot, so this service can tell the room something
+// changed without importing the transport.
+let roomChanged: ((roomId: number, kind: string) => void) | null = null
+export function onRoomChanged(fn: (roomId: number, kind: string) => void): void {
+  roomChanged = fn
 }
 
 // ── Giving up ───────────────────────────────────────────────────────────────

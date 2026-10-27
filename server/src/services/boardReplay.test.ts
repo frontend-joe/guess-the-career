@@ -126,3 +126,22 @@ test('a give_up with a malformed answer list does not lose the round', () => {
   ])
   assert.deepEqual(out.revealed.map((r) => r.name), ['Real'])
 })
+
+test('a reshuffle restates the whole revealed set at its new ranks', () => {
+  const out = reduceEvents([
+    LOG[0],
+    ev(2, 1000, 'reveal', { rank: 3, name: 'Found Early', value: 20 }),
+    // A player the database had never heard of turns out to be 2nd, so
+    // everyone below shifts and the one already found moves to 4.
+    ev(3, 5000, 'board_reshuffle', {
+      revealed: [
+        { rank: 2, name: 'John Egan', value: 263, byParticipantId: 7 },
+        { rank: 4, name: 'Found Early', value: 20, byParticipantId: null },
+      ],
+    }),
+  ])
+  assert.deepEqual(out.revealed.map((r) => [r.rank, r.name]), [[2, 'John Egan'], [4, 'Found Early']])
+  // The stale rank-3 entry is gone, not kept alongside the new one.
+  assert.equal(out.revealed.length, 2)
+  assert.equal(out.revealed[0].byParticipantId, 7)
+})

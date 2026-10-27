@@ -34,6 +34,29 @@ export function matchesName(guess: string, name: string): boolean {
   const pl = surnameOf(p)
   if (pl.length < 4) return false
   if (g === pl) return true
-  if (gl.length >= 4 && (gl === pl || damerau(gl, pl) === 1)) return true
+  if (gl === pl) return true
+  // One typo in the surname is forgiven — but NOT when both names carry a
+  // first name and the two disagree.
+  //
+  // "Leighton Baines" was being credited to John Barnes: baines and barnes are
+  // one edit apart, and nothing was looking at the half of the name that says
+  // they are different people. Worse than a wrong answer, it swallowed the
+  // guess — the name never reached the unknown-name path, so the player it
+  // actually referred to was never looked up.
+  //
+  // This is the one place the server knowingly differs from the solo game's
+  // matches(), which has no second name to compare because it is matching
+  // against a board the browser already holds.
+  if (gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
   return false
+}
+
+/// True when either side has no first name to compare, the first names match,
+/// or one is the other's initial ("l baines" and "leighton baines").
+function firstNamesAgree(g: string, p: string): boolean {
+  const gf = g.split(' ')[0]
+  const pf = p.split(' ')[0]
+  if (g.split(' ').length < 2 || p.split(' ').length < 2) return true
+  if (gf === pf) return true
+  return (gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))
 }
