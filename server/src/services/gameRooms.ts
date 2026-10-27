@@ -654,29 +654,69 @@ export function learnUnknownName(raw: string): void {
   // anybody, and the resolver would only guess.
   if (normalized.length < 4) return
 
-  const triedBefore = sqlite
-    .prepare("SELECT 1 FROM game_guess_reviews WHERE raw_norm = ? AND status != 'pending' LIMIT 1")
+  // Skip a name we have already resolved, and a name we failed on RECENTLY.
+  //
+  // Not failed-ever: the first version blacklisted on any failure, so a
+  // lookup that died halfway — a crash, a deploy, Wikipedia having a moment —
+  // poisoned that name permanently and no amount of guessing it again would
+  // ever try once more. An hour is long enough that repeating a nonsense
+  // guess costs nothing and short enough that a real player is not lost.
+  const skip = sqlite
+    .prepare(
+      `SELECT 1 FROM game_guess_reviews
+       WHERE raw_norm = ?
+         AND (status = 'resolved'
+              OR (status = 'unresolved' AND created_at > datetime('now', '-1 hour')))
+       LIMIT 1`,
+    )
     .get(normalized)
-  if (triedBefore) return
+  if (skip) return
 
-  void (async () => {
-    let id: number | null = null
-    try {
-      ;({ id } = await resolveOrCreateFootballer(raw, ''))
-    } catch {
-      id = null
+  // Queued, not fired. Four people guessing wildly used to start four
+  // scrapes at once, each one a run of Wikipedia fetches and a parse, on a
+  // container that is also running the game.
+  learnQueue.push({ raw, normalized })
+  void drainLearnQueue()
+}
+
+const learnQueue: { raw: string; normalized: string }[] = []
+let learning = false
+
+async function drainLearnQueue(): Promise<void> {
+  if (learning) return
+  learning = true
+  try {
+    while (learnQueue.length > 0) {
+      const next = learnQueue.shift()!
+      // EVERYTHING in here is inside a catch. This runs detached from any
+      // request, so an escaping rejection is an unhandled rejection, and an
+      // unhandled rejection takes the whole server down — which is what a
+      // guess answering 502 looks like from a phone.
+      try {
+        let id: number | null = null
+        try {
+          ;({ id } = await resolveOrCreateFootballer(next.raw, ''))
+        } catch (err) {
+          console.warn(`[reviews] could not resolve "${next.raw}":`, err)
+          id = null
+        }
+        // Mark every pending row for this name, in whatever room it was said,
+        // so the next attempt is skipped whether it worked or not.
+        sqlite
+          .prepare(
+            `UPDATE game_guess_reviews
+             SET status = ?, resolved_footballer_id = ?
+             WHERE raw_norm = ? AND status = 'pending'`,
+          )
+          .run(id == null ? 'unresolved' : 'resolved', id, next.normalized)
+        if (id != null) console.log(`[reviews] learned "${next.raw}" -> footballer ${id}`)
+      } catch (err) {
+        console.error(`[reviews] background lookup failed for "${next.raw}":`, err)
+      }
     }
-    // Mark every pending row for this name, in whatever room it was said, so
-    // the next attempt is skipped whether it worked or not.
-    sqlite
-      .prepare(
-        `UPDATE game_guess_reviews
-         SET status = ?, resolved_footballer_id = ?
-         WHERE raw_norm = ? AND status = 'pending'`,
-      )
-      .run(id == null ? 'unresolved' : 'resolved', id, normalized)
-    if (id != null) console.log(`[reviews] learned "${raw}" -> footballer ${id}`)
-  })()
+  } finally {
+    learning = false
+  }
 }
 
 export interface ReviewResolution {

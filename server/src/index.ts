@@ -157,6 +157,20 @@ app.get('/api/health', (c) => {
   return c.json({ ok: true, commit, db, video: missing.length === 0, videoMissing: missing })
 })
 
+// A rejection nobody caught kills the process by default, and this server
+// deliberately runs things detached from any request — the LiveKit broadcast,
+// the background name lookup. One slip in either used to end as a 502 on a
+// guess somebody was in the middle of making.
+//
+// Logged loudly rather than swallowed quietly: staying up is the point, not
+// pretending nothing happened.
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal-guard] unhandled rejection:', reason)
+})
+process.on('uncaughtException', (err) => {
+  console.error('[fatal-guard] uncaught exception:', err)
+})
+
 const port = parseInt(process.env.PORT ?? '3001')
 console.log(`Server running on http://localhost:${port}`)
 
