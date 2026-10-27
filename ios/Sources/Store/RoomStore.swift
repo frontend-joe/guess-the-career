@@ -31,6 +31,13 @@ final class RoomStore {
     var videoNote: String?
     var lastGuess: GuessResult?
 
+    // Stored, not computed from LiveKit. @Observable tracks this object's own
+    // properties; it cannot see into room.localParticipant, so a computed
+    // version read the truth and then never told SwiftUI it had changed — the
+    // buttons sat there showing the old state however often you tapped them.
+    private(set) var cameraOn = false
+    private(set) var microphoneOn = false
+
     /// The version already on screen. Anything higher means we are behind;
     /// anything lower is an out-of-order message to ignore.
     private var version = 0
@@ -189,8 +196,13 @@ final class RoomStore {
             videoNote = "Camera is off — turn it on in Settings."
             return
         }
-        try? await room.localParticipant.setCamera(enabled: on)
-        if on { videoNote = nil }
+        do {
+            try await room.localParticipant.setCamera(enabled: on)
+        } catch {
+            videoNote = "Could not \(on ? "start" : "stop") your camera: \(error.localizedDescription)"
+        }
+        if on, videoNote?.hasPrefix("Camera") == true { videoNote = nil }
+        syncMediaState()
         refreshTiles()
     }
 
@@ -200,16 +212,28 @@ final class RoomStore {
             videoNote = "Mic is off — turn it on in Settings."
             return
         }
-        try? await room.localParticipant.setMicrophone(enabled: on)
-        if on { videoNote = nil }
+        do {
+            try await room.localParticipant.setMicrophone(enabled: on)
+        } catch {
+            videoNote = "Could not \(on ? "unmute" : "mute"): \(error.localizedDescription)"
+        }
+        if on, videoNote?.hasPrefix("Mic") == true { videoNote = nil }
+        syncMediaState()
         refreshTiles()
     }
 
-    var cameraOn: Bool { room?.localParticipant.isCameraEnabled() ?? false }
-    var microphoneOn: Bool { room?.localParticipant.isMicrophoneEnabled() ?? false }
+    /// Read LiveKit's truth into our own observable properties. Called after
+    /// every toggle and on every track event, because a track can also be
+    /// stopped from outside this app.
+    private func syncMediaState() {
+        cameraOn = room?.localParticipant.isCameraEnabled() ?? false
+        microphoneOn = room?.localParticipant.isMicrophoneEnabled() ?? false
+    }
 
     fileprivate func refreshTiles() {
-        guard let room else { tiles = []; return }
+        guard let room else { tiles = []; cameraOn = false; microphoneOn = false; return }
+        cameraOn = room.localParticipant.isCameraEnabled()
+        microphoneOn = room.localParticipant.isMicrophoneEnabled()
         let everyone: [Participant] = [room.localParticipant] + Array(room.remoteParticipants.values)
         tiles = everyone.map {
             Tile(
@@ -287,8 +311,40 @@ extension RoomStore: RoomDelegate {
         Task { @MainActor in handleBroadcast(data) }
     }
 
+    // These signatures have to match the protocol exactly. They are optional
+    // @objc methods, so a near-miss — TrackPublication where the protocol says
+    // RemoteTrackPublication — compiles happily and then simply never fires.
+    // That is how remote video came to never appear: the only thing refreshing
+    // the tiles was a participant connecting, which happens before they have
+    // published anything.
     nonisolated func room(
-        _ room: Room, participant: Participant, didSubscribeTrack publication: TrackPublication
+        _ room: Room, participant: RemoteParticipant, didSubscribeTrack publication: RemoteTrackPublication
+    ) {
+        Task { @MainActor in refreshTiles() }
+    }
+
+    nonisolated func room(
+        _ room: Room, participant: RemoteParticipant, didUnsubscribeTrack publication: RemoteTrackPublication
+    ) {
+        Task { @MainActor in refreshTiles() }
+    }
+
+    nonisolated func room(
+        _ room: Room, participant: LocalParticipant, didPublishTrack publication: LocalTrackPublication
+    ) {
+        Task { @MainActor in refreshTiles() }
+    }
+
+    nonisolated func room(
+        _ room: Room, participant: LocalParticipant, didUnpublishTrack publication: LocalTrackPublication
+    ) {
+        Task { @MainActor in refreshTiles() }
+    }
+
+    // A track can be muted from outside this app, so the buttons follow the
+    // room rather than only their own taps.
+    nonisolated func room(
+        _ room: Room, participant: Participant, trackPublication: TrackPublication, didUpdateIsMuted isMuted: Bool
     ) {
         Task { @MainActor in refreshTiles() }
     }
