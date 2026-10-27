@@ -249,8 +249,10 @@ struct RoomView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 6)
-        // Clear of the home indicator, which the content now runs underneath.
-        .padding(.bottom, typing ? 8 : 26)
+        // Just clear of the home indicator, which the content now runs
+        // underneath — the indicator is a thin bar at the very bottom, not
+        // the 34pt the safe area reserves for it.
+        .padding(.bottom, typing ? 8 : 12)
     }
 
 

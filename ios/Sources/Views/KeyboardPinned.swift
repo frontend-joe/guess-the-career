@@ -66,6 +66,12 @@ struct KeyboardPinned<Content: View>: UIViewControllerRepresentable {
             // The content is taller than this container once it has slid, and
             // the overflow must not draw over the status bar.
             view.clipsToBounds = true
+            // The host view reaches the bottom of the screen, but SwiftUI
+            // INSIDE it was still being handed a bottom safe-area inset and
+            // padding for the home indicator a second time — which is where
+            // the gap under the controls came from. The container already
+            // positions this view; the content inside it should fill it.
+            host.safeAreaRegions = []
             host.view.backgroundColor = .clear
             host.view.translatesAutoresizingMaskIntoConstraints = false
             addChild(host)
