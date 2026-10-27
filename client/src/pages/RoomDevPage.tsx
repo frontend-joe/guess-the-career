@@ -71,7 +71,7 @@ function VideoTile({ tile }: { tile: Tile }) {
 
   return (
     <div
-      className={`relative flex-1 overflow-hidden rounded-lg bg-slate-900 ring-2 ${
+      className={`relative min-w-0 flex-1 overflow-hidden rounded-lg bg-slate-900 ring-2 ${
         tile.speaking ? 'ring-emerald-400' : 'ring-transparent'
       }`}
     >
@@ -401,8 +401,11 @@ export function RoomDevPage() {
         )}
       </div>
 
-      {/* Faces — the bottom third, same proportion as the recording. */}
-      <div className="flex flex-1 gap-2 border-t border-slate-800 bg-black p-2">
+      {/* Faces — the bottom third, same proportion as the recording.
+          min-h-0 is load-bearing: a flex item defaults to min-height:auto, so
+          without it the <video> elements' intrinsic height wins over the
+          one-third share and the row grows over the board and the controls. */}
+      <div className="flex min-h-0 flex-1 gap-2 border-t border-slate-800 bg-black p-2">
         {tiles.length === 0 && (
           <div className="grid flex-1 place-items-center text-sm text-slate-600">
             {videoNote ?? 'connecting…'}
@@ -411,7 +414,7 @@ export function RoomDevPage() {
         {tiles.map((tile) => <VideoTile key={tile.identity} tile={tile} />)}
       </div>
 
-      <div className="flex items-center gap-3 border-t border-slate-800 px-3 py-1.5 text-xs text-slate-500">
+      <div className="flex shrink-0 items-center gap-3 border-t border-slate-800 px-3 py-1.5 text-xs text-slate-500">
         <span>{state?.participants.filter((p) => p.present).length ?? 0} in the room</span>
         <button
           className="ml-auto hover:text-slate-300"
