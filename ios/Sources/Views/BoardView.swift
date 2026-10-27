@@ -42,8 +42,21 @@ struct BoardView: View {
         if let round = store.round {
             VStack(spacing: 6) {
                 GeometryReader { geo in
-                    VStack(spacing: 5) {
-                        ForEach(1...max(round.board.target, 1), id: \.self) { rank in
+                    // Each row gets an EXPLICIT height worked out from the
+                    // space available, rather than an equal share of it.
+                    //
+                    // A share is what it used to take, and a share has a floor:
+                    // the capsule's text will not render below its own
+                    // intrinsic height, so once the board was squeezed under
+                    // roughly 245pt the rows stopped shrinking and started
+                    // overlapping instead — ranks 2 to 9 bunched into a band
+                    // with 10 stranded below it, which is exactly what the
+                    // keyboard animation did on its way past.
+                    let rows = max(round.board.target, 1)
+                    let spacing: CGFloat = 5
+                    let rowHeight = max(8, (geo.size.height - spacing * CGFloat(rows - 1)) / CGFloat(rows))
+                    VStack(spacing: spacing) {
+                        ForEach(1...rows, id: \.self) { rank in
                             PyramidRow(
                                 rank: rank,
                                 answer: round.board.revealed.first { $0.rank == rank },
@@ -52,7 +65,10 @@ struct BoardView: View {
                                 canHint: store.isHost && round.isLive,
                                 onHint: { Task { await store.takeHint(rank: rank) } }
                             )
-                            .frame(width: geo.size.width * BoardStyle.widthFraction(rank: rank))
+                            .frame(
+                                width: geo.size.width * BoardStyle.widthFraction(rank: rank),
+                                height: rowHeight
+                            )
                             .frame(maxWidth: .infinity)
                             // A row changing colour is the single most
                             // important event on this screen, so it is a
@@ -64,7 +80,7 @@ struct BoardView: View {
                             )
                         }
                     }
-                    .frame(height: geo.size.height)
+                    .frame(height: geo.size.height, alignment: .top)
                 }
                 .padding(.horizontal, 10)
             }
@@ -120,7 +136,7 @@ private struct PyramidRow: View {
                         .font(.display(14))
                         .foregroundStyle(answer.wasMissed ? .white.opacity(0.75) : .white)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(0.5)
                     Text(valueText(answer))
                         .font(.display(11))
                         .monospacedDigit()
@@ -143,9 +159,10 @@ private struct PyramidRow: View {
                 Text("\(rank)")
                     .font(.display(17))
                     .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
             }
         }
-        .frame(maxHeight: .infinity)
         .contentShape(Capsule())
         // Feedback on press-down, not on release: a row you are holding for a
         // clue has to acknowledge the hold while it is happening, or the
