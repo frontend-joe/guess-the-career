@@ -152,8 +152,8 @@ export function RoomDevPage() {
   const [shared, setShared] = useState(false)
   // Mirrors the LiveKit track state rather than being the source of truth, so
   // a track that fails to enable does not leave the button lying.
-  const [micOn, setMicOn] = useState(true)
-  const [camOn, setCamOn] = useState(true)
+  const [micOn, setMicOn] = useState(false)
+  const [camOn, setCamOn] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [roundId, setRoundId] = useState<number | ''>('')
   const [roundQuery, setRoundQuery] = useState('')
@@ -198,6 +198,12 @@ export function RoomDevPage() {
       if (next.stateVersion < versionRef.current) return
       versionRef.current = next.stateVersion
       setState(next)
+      // The host ended it. Everyone finds out here, on the next poll or the
+      // next broadcast, rather than staying in a room that no longer exists.
+      if (next.status === 'ended') {
+        exitRoom()
+        setError('The host ended the game.')
+      }
     } catch (err) {
       // A seat that no longer exists — the room ended, or the token expired —
       // is permanent, so drop back to the lobby. Anything else is probably the
@@ -273,7 +279,9 @@ export function RoomDevPage() {
 
       try {
         await room.connect(credentials.url, credentials.token)
-        await room.localParticipant.enableCameraAndMicrophone()
+        // You arrive muted with your camera off, and turn them on when you are
+        // ready. Joining a call already broadcasting is how people end up on
+        // camera before they meant to be.
         snapshot()
         setVideoNote(null)
       } catch (err) {
@@ -590,7 +598,7 @@ export function RoomDevPage() {
               </button>
               <button
                 className="ml-auto rounded bg-rose-900 px-3 py-1.5 text-sm hover:bg-rose-800"
-                onClick={() => run(() => endRoom(session))}
+                onClick={() => run(async () => { await endRoom(session); exitRoom() })}
               >
                 End game
               </button>

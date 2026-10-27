@@ -94,23 +94,19 @@ struct RoomView: View {
         seenMessageId = max(seenMessageId, store.state?.messages.last?.id ?? 0)
     }
 
+    // Just the code. Sharing sits with the other actions, and the state
+    // version was a debugging aid that earned its place during Phase 2 and
+    // stopped earning it once the sync stopped being the thing under test.
     private var header: some View {
         HStack(spacing: 12) {
             Text(store.state?.code ?? "")
                 .font(.system(.title3, design: .monospaced))
                 .tracking(4)
                 .foregroundStyle(.green)
-            if let code = store.state?.code {
-                ShareLink(item: "Join my Tenable game — code \(code)") {
-                    Image(systemName: "square.and.arrow.up")
-                }
-            }
             Spacer()
             if let note = store.videoNote {
                 Text(note).font(.caption2).foregroundStyle(.orange)
             }
-            Text("v\(store.state?.stateVersion ?? 0)")
-                .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -127,6 +123,12 @@ struct RoomView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(store.round?.isPending != true)
             Spacer()
+            if let code = store.state?.code {
+                ShareLink(item: "Join my Tenable game — code \(code)") {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .buttonStyle(.bordered)
+            }
             Button("End", role: .destructive) { Task { await store.endGame() } }
                 .buttonStyle(.bordered)
         }

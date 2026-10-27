@@ -74,18 +74,29 @@ final class RoomStore {
         Task { await connectMedia() }
     }
 
+    // Leave the screen FIRST, then tell the network. Everything that was once
+    // above this line — the leave call, LiveKit's disconnect — waits on
+    // something that can hang, and while it hung the button looked broken:
+    // you tapped Leave and sat in the room.
+    //
+    // Going to the lobby is not a request that can fail, so it does not wait
+    // on anything that can.
     func exit(announce: Bool = true) async {
-        if announce, let seat { try? await API.leave(seat: seat) }
+        let leaving = seat
+        let room = self.room
+
         poller?.cancel()
         poller = nil
-        await room?.disconnect()
-        room = nil
+        self.room = nil
         tiles = []
         seat = nil
         state = nil
         version = 0
         phase = .lobby
         SeatStore.clear()
+
+        if announce, let leaving { try? await API.leave(seat: leaving) }
+        await room?.disconnect()
     }
 
     /// Restore a seat kept from a previous launch, if the server still knows it.
@@ -117,6 +128,13 @@ final class RoomStore {
             guard next.stateVersion >= version else { return }
             version = next.stateVersion
             state = next
+            // The host ended it. Everyone else finds out here, on the next
+            // poll or the next broadcast, rather than staying in a room that
+            // no longer exists.
+            if next.status == "ended" {
+                error = "The host ended the game."
+                await exit(announce: false)
+            }
         } catch let failure as API.Failure where failure.isGone {
             error = "That room is no longer available."
             await exit(announce: false)
@@ -161,21 +179,14 @@ final class RoomStore {
             return
         }
 
-        // Ask iOS and wait for the answer. Calling setCamera straight after
-        // connecting throws on a first launch, because the prompt has not been
-        // answered yet — and then looks fine ever after, since the second
-        // launch is already authorised. A bug only a new user ever meets.
-        let camera = await AVCaptureDevice.requestAccess(for: .video)
-        let microphone = await AVCaptureDevice.requestAccess(for: .audio)
-
-        do {
-            if camera { try await room.localParticipant.setCamera(enabled: true) }
-            if microphone { try await room.localParticipant.setMicrophone(enabled: true) }
-        } catch {
-            videoNote = "Could not start your camera: \(error.localizedDescription)"
-        }
-
-        videoNote = permissionNote(camera: camera, microphone: microphone) ?? videoNote
+        // You arrive muted with your camera off, and turn them on when you are
+        // ready. Joining a call already broadcasting is how people end up on
+        // camera before they meant to be.
+        //
+        // Nothing is asked for here either: setCamera and setMicrophone each
+        // await the permission prompt before publishing, so the prompt arrives
+        // when you tap the button and means what it says.
+        syncMediaState()
         refreshTiles()
     }
 
@@ -285,8 +296,13 @@ final class RoomStore {
         await act { seat in _ = try await API.hint(seat: seat, instanceId: instanceId, rank: rank) }
     }
 
+    // Ending the game used to leave the host sitting in the room it had just
+    // ended: the server marked it ended, /state still returned it, and the
+    // screen did not change. Ending a game means leaving it.
     func endGame() async {
         await act { seat in try await API.endRoom(seat: seat) }
+        guard error == nil else { return }
+        await exit(announce: false)
     }
 
     private func act(_ body: @escaping (Seat) async throws -> Void) async {

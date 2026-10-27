@@ -74,15 +74,24 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { connectMedia() }
     }
 
+    // Leave the screen FIRST, then tell the network. The leave call and
+    // LiveKit's disconnect both wait on something that can hang, and while
+    // they hung the button looked broken: you tapped Leave and sat in the
+    // room. Going back to the lobby is not a request that can fail, so it
+    // does not wait on one.
     fun leave(announce: Boolean = true) {
-        val current = seat
+        val leaving = seat
+        val leavingRoom = room
+
+        poller?.cancel(); poller = null
+        room = null
+        tiles = emptyList()
+        seat = null; state = null; version = 0; inRoom = false
+        prefs.edit().remove(SEAT_KEY).apply()
+
         viewModelScope.launch {
-            if (announce && current != null) runCatching { Api.leave(current) }
-            poller?.cancel(); poller = null
-            room?.disconnect(); room = null
-            tiles = emptyList()
-            seat = null; state = null; version = 0; inRoom = false
-            prefs.edit().remove(SEAT_KEY).apply()
+            if (announce && leaving != null) runCatching { Api.leave(leaving) }
+            runCatching { leavingRoom?.disconnect() }
         }
     }
 
@@ -118,6 +127,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             if (next.stateVersion < version) return
             version = next.stateVersion
             state = next
+            // The host ended it. Everyone else finds out here, on the next
+            // poll or the next broadcast, rather than staying in a room that
+            // no longer exists.
+            if (next.status == "ended") {
+                error = "The host ended the game."
+                leave(announce = false)
+            }
         } catch (failure: Api.Failure) {
             if (failure.isGone) {
                 error = "That room is no longer available."
@@ -176,8 +192,11 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             // Connect first. The data channel carries the state broadcasts, so
             // the game has to keep working for someone who refuses the camera.
             newRoom.connect(credentials.url, credentials.token)
-            setCamera(true)
-            setMicrophone(true)
+            // You arrive muted with your camera off, and turn them on when you
+            // are ready. Joining a call already broadcasting is how people end
+            // up on camera before they meant to be.
+            cameraOn = false
+            micOn = false
             videoNote = null
             refreshTiles()
         } catch (e: Exception) {
@@ -238,7 +257,10 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act { Api.hint(it, instanceId, rank) }
     }
 
-    fun endGame() = act { Api.endRoom(it) }
+    // Ending the game used to leave the host sitting in the room it had just
+    // ended: the server marked it ended, the next state still returned it,
+    // and the screen did not change. Ending a game means leaving it.
+    fun endGame() = act { Api.endRoom(it); leave(announce = false) }
 
     private fun act(body: suspend (Seat) -> Unit) {
         val current = seat ?: return

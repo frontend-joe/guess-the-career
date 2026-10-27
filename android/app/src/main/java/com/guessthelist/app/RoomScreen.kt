@@ -1,5 +1,7 @@
 package com.guessthelist.app
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -58,6 +61,7 @@ fun RoomScreen(model: RoomViewModel) {
     // The newest message id already seen, so the Chat tab can say how many
     // arrived while you were watching faces.
     var seenMessageId by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0C)).safeDrawingPadding()) {
@@ -75,7 +79,9 @@ fun RoomScreen(model: RoomViewModel) {
             )
             Box(Modifier.weight(1f))
             model.videoNote?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFBBF24)) }
-            Text("v${model.state?.stateVersion ?: 0}", fontSize = 11.sp, color = Color.Gray)
+            // The state version was a debugging aid that earned its place
+            // during Phase 2 and stopped earning it once the sync stopped
+            // being the thing under test.
         }
 
         // The question, where the web game puts it: across the top, above the
@@ -117,6 +123,7 @@ fun RoomScreen(model: RoomViewModel) {
                     enabled = model.round?.isPending == true,
                 ) { Text("Start") }
                 Box(Modifier.weight(1f))
+                TextButton(onClick = { shareCode(context, model.state?.code) }) { Text("Share") }
                 TextButton(onClick = { model.endGame() }) { Text("End") }
             }
         }
@@ -371,4 +378,15 @@ private fun ChatPanel(model: RoomViewModel, messages: List<ChatMessage>) {
             ) { Text("Send") }
         }
     }
+}
+
+// Hand the code to whatever the person uses to talk to their mates. A chooser
+// rather than a specific app, because that is not ours to decide.
+private fun shareCode(context: Context, code: String?) {
+    if (code.isNullOrEmpty()) return
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, "Join my Tenable game — code $code")
+    }
+    context.startActivity(Intent.createChooser(intent, "Share the code"))
 }
