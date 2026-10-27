@@ -1,0 +1,43 @@
+# The iOS app is generated from this file with `xcodegen`, so the project is a
+# readable diff rather than a pbxproj nobody can review. Run `xcodegen` in this
+# directory after changing it; GuessTheList.xcodeproj is not committed.
+name: GuessTheList
+
+options:
+  bundleIdPrefix: com.guessthelist
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  LiveKit:
+    url: https://github.com/livekit/client-sdk-swift
+    from: 2.0.0
+
+targets:
+  GuessTheList:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: LiveKit
+        product: LiveKit
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Tenable
+        UILaunchScreen: {}
+        # Both are required before the first capture call, and the strings are
+        # shown to the person, so they say what the camera is actually for.
+        NSCameraUsageDescription: Your camera is shared with the other players in your game.
+        NSMicrophoneUsageDescription: Your microphone is shared with the other players in your game.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIBackgroundModes:
+          - audio
+          - voip
+    settings:
+      base:
+        TARGETED_DEVICE_FAMILY: 1
+        SWIFT_VERSION: 5.0
