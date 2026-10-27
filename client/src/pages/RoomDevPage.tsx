@@ -226,17 +226,20 @@ export function RoomDevPage() {
 
   if (!session) {
     return (
-      <div className="mx-auto max-w-xl space-y-8 p-6 text-slate-200">
+      // The in-room view sets its own dark background; this one needs it too,
+      // or it inherits the site's white and the whole form goes pale-on-pale.
+      <div className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100">
+        <div className="mx-auto max-w-xl space-y-8">
         <header>
-          <h1 className="text-2xl font-semibold">Tenable rooms — dev harness</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <h1 className="text-2xl font-semibold text-white">Tenable rooms — dev harness</h1>
+          <p className="mt-1 text-sm text-slate-300">
             Open this page in four tabs: create a room in one, join it by code in the others.
           </p>
         </header>
 
-        <section className="space-y-3 rounded-lg border border-slate-700 p-4">
-          <h2 className="font-medium">Host a room</h2>
-          <p className="text-sm text-slate-400">Needs a signed-in account.</p>
+        <section className="space-y-3 rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <h2 className="font-medium text-white">Host a room</h2>
+          <p className="text-sm text-slate-300">Needs a signed-in account.</p>
           <button
             className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
             onClick={() => run(async () => {
@@ -250,17 +253,17 @@ export function RoomDevPage() {
           </button>
         </section>
 
-        <section className="space-y-3 rounded-lg border border-slate-700 p-4">
-          <h2 className="font-medium">Join a room</h2>
+        <section className="space-y-3 rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <h2 className="font-medium text-white">Join a room</h2>
           <div className="flex gap-2">
             <input
-              className="w-32 rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm uppercase"
+              className="w-32 rounded border border-slate-600 bg-slate-950 px-3 py-2 text-sm uppercase tracking-widest text-white placeholder:text-slate-500"
               placeholder="CODE"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
             />
             <input
-              className="flex-1 rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm"
+              className="flex-1 rounded border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500"
               placeholder="Your name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -281,6 +284,7 @@ export function RoomDevPage() {
         </section>
 
         {error && <p className="text-sm text-rose-400">{error}</p>}
+        </div>
       </div>
     )
   }
