@@ -37,54 +37,26 @@ enum BoardStyle {
 struct BoardView: View {
     @Environment(RoomStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Which row's clue is on screen. A clue is now a sheet rather than text
+    /// crammed into a capsule, so it can be read, dismissed, and opened again
+    /// later — the inline version was gone the moment the row was reused, and
+    /// unreadable before that.
+    @State private var showingClue: ClueSelection?
 
     var body: some View {
         if let round = store.round {
-            VStack(spacing: 6) {
-                GeometryReader { geo in
-                    // Each row gets an EXPLICIT height worked out from the
-                    // space available, rather than an equal share of it.
-                    //
-                    // A share is what it used to take, and a share has a floor:
-                    // the capsule's text will not render below its own
-                    // intrinsic height, so once the board was squeezed under
-                    // roughly 245pt the rows stopped shrinking and started
-                    // overlapping instead — ranks 2 to 9 bunched into a band
-                    // with 10 stranded below it, which is exactly what the
-                    // keyboard animation did on its way past.
-                    let rows = max(round.board.target, 1)
-                    let spacing: CGFloat = 5
-                    let rowHeight = max(8, (geo.size.height - spacing * CGFloat(rows - 1)) / CGFloat(rows))
-                    VStack(spacing: spacing) {
-                        ForEach(1...rows, id: \.self) { rank in
-                            PyramidRow(
-                                rank: rank,
-                                answer: round.board.revealed.first { $0.rank == rank },
-                                hint: round.board.hints.first { $0.rank == rank },
-                                impliedClues: round.board.impliedClues,
-                                canHint: store.isHost && round.isLive,
-                                onHint: { Task { await store.takeHint(rank: rank) } }
-                            )
-                            .frame(
-                                width: geo.size.width * BoardStyle.widthFraction(rank: rank),
-                                height: rowHeight
-                            )
-                            .frame(maxWidth: .infinity)
-                            // A row changing colour is the single most
-                            // important event on this screen, so it is a
-                            // spring rather than a cut. Critically damped:
-                            // nothing was thrown, so nothing should bounce.
-                            .animation(
-                                reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 1.0),
-                                value: round.board.revealed.count
-                            )
-                        }
-                    }
-                    .frame(height: geo.size.height, alignment: .top)
-                }
+            pyramid(round)
                 .padding(.horizontal, 10)
-            }
-            .padding(.vertical, 6)
+                .padding(.vertical, 6)
+                .sheet(item: $showingClue) { selection in
+                    ClueSheet(
+                        rank: selection.id,
+                        hint: round.board.hints.first { $0.rank == selection.id },
+                        impliedClues: round.board.impliedClues
+                    )
+                    .presentationDetents([.height(300)])
+                    .presentationDragIndicator(.visible)
+                }
         } else {
             VStack(spacing: 6) {
                 Text("No round yet").font(.body(15)).foregroundStyle(.secondary)
@@ -96,15 +68,136 @@ struct BoardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+
+    // Each row gets an EXPLICIT height worked out from the space available,
+    // rather than an equal share of it.
+    //
+    // A share is what it used to take, and a share has a floor: the capsule's
+    // text will not render below its own intrinsic height, so once the board
+    // was squeezed under roughly 245pt the rows stopped shrinking and started
+    // overlapping instead — ranks 2 to 9 bunched into a band with 10 stranded
+    // below it, which is exactly what the keyboard animation did on its way
+    // past.
+    private func pyramid(_ round: RoomRound) -> some View {
+        GeometryReader { geo in
+            let rows = max(round.board.target, 1)
+            let spacing: CGFloat = 5
+            let rowHeight = max(8, (geo.size.height - spacing * CGFloat(rows - 1)) / CGFloat(rows))
+            VStack(spacing: spacing) {
+                ForEach(1...rows, id: \.self) { rank in
+                    row(rank: rank, round: round, width: geo.size.width, height: rowHeight)
+                }
+            }
+            .frame(height: geo.size.height, alignment: .top)
+        }
+    }
+
+    private func row(rank: Int, round: RoomRound, width: CGFloat, height: CGFloat) -> some View {
+        PyramidRow(
+            rank: rank,
+            answer: round.board.revealed.first { $0.rank == rank },
+            hasClue: round.board.hints.contains { $0.rank == rank },
+            canHint: store.isHost && round.isLive,
+            onLongPress: { longPress(rank: rank, round: round) }
+        )
+        .frame(width: width * BoardStyle.widthFraction(rank: rank), height: height)
+        .frame(maxWidth: .infinity)
+        // A row changing colour is the single most important event on this
+        // screen, so it is a spring rather than a cut. Critically damped:
+        // nothing was thrown, so nothing should bounce.
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 1.0),
+            value: round.board.revealed.count
+        )
+    }
+
+    /// Taking a clue is the host's, while the round is live. READING one that
+    /// has already been taken is everybody's, and stays available after the
+    /// round ends — it is in the event log either way.
+    private func longPress(rank: Int, round: RoomRound) {
+        let existing = round.board.hints.contains { $0.rank == rank }
+        let taken = round.board.revealed.contains { $0.rank == rank }
+        if existing {
+            showingClue = ClueSelection(id: rank)
+        } else if store.isHost, round.isLive, !taken {
+            Task {
+                await store.takeHint(rank: rank)
+                showingClue = ClueSelection(id: rank)
+            }
+        }
+    }
+}
+
+private struct ClueSelection: Identifiable { let id: Int }
+
+// A clue, laid out as the few facts it actually is. The capsule version ran
+// them together on one line inside a shape that had no room for them, at a
+// size that shrank with the board.
+private struct ClueSheet: View {
+    let rank: Int
+    let hint: TakenHint?
+    let impliedClues: [String]
+
+    @Environment(\.dismiss) private var dismiss
+
+    private static let fields: [(String, String)] = [
+        ("nationality", "Nationality"), ("position", "Position"), ("years", "Years"),
+        ("club", "Club"), ("squadNumber", "Shirt"), ("born", "Born"),
+    ]
+
+    private var rows: [(String, String)] {
+        Self.fields.compactMap { key, label in
+            // A clue that restates the question is not a clue: if the round is
+            // "Italian forwards", nationality and position are already known.
+            guard !impliedClues.contains(key), let value = hint?.clue?[key]?.display else { return nil }
+            return (label, value)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if rows.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("Nothing to give away")
+                            .font(.body(16, weight: .semibold))
+                        Text("Everything known about this one is already in the question.")
+                            .font(.body(12))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(rows, id: \.0) { label, value in
+                        HStack {
+                            Text(label).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(value).font(.body(15, weight: .semibold))
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("Clue for \(rank)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
 }
 
 private struct PyramidRow: View {
     let rank: Int
     let answer: RevealedAnswer?
-    let hint: TakenHint?
-    let impliedClues: [String]
+    /// Whether a clue has been taken for this row. The clue itself lives in
+    /// the sheet now; the row only has to say that there is one to open.
+    let hasClue: Bool
     let canHint: Bool
-    let onHint: () -> Void
+    let onLongPress: () -> Void
 
     @State private var pressed = false
 
@@ -146,21 +239,22 @@ private struct PyramidRow: View {
                         .background(Capsule().fill(.black.opacity(0.35)))
                 }
                 .padding(.horizontal, 12)
-            } else if let hint {
-                // A taken clue replaces the rank number rather than adding a
-                // line, so the pyramid keeps its shape.
-                Text(clueText(hint))
-                    .font(.body(11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
             } else {
-                Text("\(rank)")
-                    .font(.display(17))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.4)
+                // The rank stays put whether or not a clue has been taken —
+                // the pyramid keeps its shape — and a lightbulb says there is
+                // one to read. Press and hold again to reopen it.
+                HStack(spacing: 5) {
+                    Text("\(rank)")
+                        .font(.display(17))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                    if hasClue {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.yellow.opacity(0.9))
+                    }
+                }
             }
         }
         .contentShape(Capsule())
@@ -170,14 +264,14 @@ private struct PyramidRow: View {
         .scaleEffect(pressed ? 0.97 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 1.0), value: pressed)
         // Press and hold a blank slot for a clue, exactly as on the web.
-        .onLongPressGesture(minimumDuration: 1.0) {
-            guard answer == nil, hint == nil, canHint else { return }
+        .onLongPressGesture(minimumDuration: 0.5) {
+            guard answer == nil, canHint || hasClue else { return }
             // A clue arriving is a commit, so it earns a haptic — fired on the
-            // same event that changes the board, not before or after it.
+            // same event that opens it, not before or after.
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            onHint()
+            onLongPress()
         } onPressingChanged: { holding in
-            pressed = holding && answer == nil && hint == nil && canHint
+            pressed = holding && answer == nil && (canHint || hasClue)
         }
     }
 
@@ -187,15 +281,4 @@ private struct PyramidRow: View {
         return "\(number) \(unit)"
     }
 
-    private func clueText(_ hint: TakenHint) -> String {
-        let fields: [(String, String)] = [
-            ("nationality", "Nationality"), ("position", "Position"), ("years", "Years"),
-            ("club", "Club"), ("squadNumber", "Shirt"), ("born", "Born"),
-        ]
-        let parts = fields.compactMap { key, label -> String? in
-            guard !impliedClues.contains(key), let value = hint.clue?[key]?.display else { return nil }
-            return "\(label): \(value)"
-        }
-        return parts.isEmpty ? "Nothing to give away" : parts.joined(separator: " · ")
-    }
 }

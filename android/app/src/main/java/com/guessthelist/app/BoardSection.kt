@@ -16,12 +16,20 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +67,11 @@ private fun widthFraction(rank: Int): Float =
 @Composable
 fun BoardSection(model: RoomViewModel) {
     val round = model.round
+    // Which row's clue is on screen. A clue is a dialog rather than text
+    // crammed into a capsule, so it can be read, dismissed, and opened again
+    // later — the inline version was gone the moment the row was reused, and
+    // unreadable before that.
+    var showingClue by remember { mutableStateOf<Int?>(null) }
     if (round == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -75,17 +88,79 @@ fun BoardSection(model: RoomViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         for (rank in 1..round.board.target) {
+            val hasClue = round.board.hints.any { it.rank == rank }
+            val answered = round.board.revealed.any { it.rank == rank }
             PyramidRow(
                 rank = rank,
                 answer = round.board.revealed.firstOrNull { it.rank == rank },
-                hint = round.board.hints.firstOrNull { it.rank == rank },
-                impliedClues = round.board.impliedClues,
+                hasClue = hasClue,
                 canHint = model.isHost && round.isLive,
-                onHint = { model.takeHint(rank) },
+                onLongPress = {
+                    // Taking a clue is the host's, while the round is live.
+                    // READING one already taken is everybody's, and stays
+                    // available after the round ends.
+                    when {
+                        hasClue -> showingClue = rank
+                        model.isHost && round.isLive && !answered -> {
+                            model.takeHint(rank)
+                            showingClue = rank
+                        }
+                    }
+                },
                 modifier = Modifier.weight(1f).fillMaxWidth(widthFraction(rank)),
             )
         }
     }
+
+    showingClue?.let { rank ->
+        ClueDialog(
+            rank = rank,
+            hint = round.board.hints.firstOrNull { it.rank == rank },
+            impliedClues = round.board.impliedClues,
+            onDismiss = { showingClue = null },
+        )
+    }
+}
+
+// A clue, laid out as the few facts it actually is. The capsule version ran
+// them together on one line inside a shape that had no room for them, at a
+// size that shrank with the board.
+@Composable
+private fun ClueDialog(
+    rank: Int,
+    hint: TakenHint?,
+    impliedClues: List<String>,
+    onDismiss: () -> Unit,
+) {
+    val fields = listOf(
+        "nationality" to "Nationality", "position" to "Position", "years" to "Years",
+        "club" to "Club", "squadNumber" to "Shirt", "born" to "Born",
+    )
+    // A clue that restates the question is not a clue: if the round is
+    // "Italian forwards", nationality and position are already known.
+    val rows = fields.mapNotNull { (key, label) ->
+        if (impliedClues.contains(key)) null else hint?.display(key)?.let { label to it }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Clue for $rank") },
+        text = {
+            if (rows.isEmpty()) {
+                Text("Nothing to give away — everything known about this one is already in the question.")
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rows.forEach { (label, value) ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = Color.Gray, fontSize = 14.sp)
+                            Text(value, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -93,10 +168,10 @@ fun BoardSection(model: RoomViewModel) {
 private fun PyramidRow(
     rank: Int,
     answer: RevealedAnswer?,
-    hint: TakenHint?,
-    impliedClues: List<String>,
+    /** Whether a clue has been taken. The clue itself lives in the dialog. */
+    hasClue: Boolean,
     canHint: Boolean,
-    onHint: () -> Unit,
+    onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val brush = when {
@@ -107,7 +182,7 @@ private fun PyramidRow(
 
     val interaction = remember { MutableInteractionSource() }
     val holding by interaction.collectIsPressedAsState()
-    val holdable = answer == null && hint == null && canHint
+    val holdable = answer == null && (canHint || hasClue)
     // Feedback on press-down, not on release: a row you are holding for a clue
     // has to acknowledge the hold while it is happening, or the second before
     // the clue appears feels like nothing is working. Critically damped —
@@ -130,10 +205,10 @@ private fun PyramidRow(
                 indication = null,
                 onLongClick = {
                     if (holdable) {
-                        // Causality: fired on the event that changes the
-                        // board, not on the touch that requested it.
+                        // Causality: fired on the event that opens the clue,
+                        // not on the touch that requested it.
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onHint()
+                        onLongPress()
                     }
                 },
                 onClick = {},
@@ -171,25 +246,28 @@ private fun PyramidRow(
                     )
                 }
             }
-            // A taken clue replaces the rank number rather than adding a line,
-            // so the pyramid keeps its shape.
-            hint != null -> Text(
-                clueText(hint, impliedClues),
-                fontSize = 11.sp,
-                fontFamily = AppFonts.Body,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.95f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp),
-            )
-            else -> Text(
-                "$rank",
-                fontSize = 17.sp,
-                fontFamily = AppFonts.Display,
-                color = Color.White.copy(alpha = 0.95f),
-            )
+            // The rank stays put whether or not a clue has been taken — the
+            // pyramid keeps its shape — and a dot says there is one to read.
+            // Press and hold again to reopen it.
+            else -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    "$rank",
+                    fontSize = 17.sp,
+                    fontFamily = AppFonts.Display,
+                    color = Color.White.copy(alpha = 0.95f),
+                )
+                if (hasClue) {
+                    Icon(
+                        Icons.Filled.Lightbulb,
+                        contentDescription = "Clue taken",
+                        tint = Color(0xFFFACC15),
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -200,13 +278,3 @@ private fun valueText(answer: RevealedAnswer): String {
     return if (unit.isNullOrEmpty()) number else "$number $unit"
 }
 
-private fun clueText(hint: TakenHint, implied: List<String>): String {
-    val fields = listOf(
-        "nationality" to "Nationality", "position" to "Position", "years" to "Years",
-        "club" to "Club", "squadNumber" to "Shirt", "born" to "Born",
-    )
-    val parts = fields.mapNotNull { (key, label) ->
-        if (implied.contains(key)) null else hint.display(key)?.let { "$label: $it" }
-    }
-    return if (parts.isEmpty()) "Nothing to give away" else parts.joinToString(" · ")
-}

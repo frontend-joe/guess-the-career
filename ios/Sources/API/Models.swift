@@ -144,8 +144,30 @@ struct JoinedRoom: Codable {
     }
 }
 
+// ACTION responses, which are not board state and must not borrow its types.
+//
+// These two used to decode into TakenHint and RevealedAnswer, both of which
+// carry a non-optional `tMs` that only /state ever sends. Swift's synthesised
+// Codable has no defaults, so the whole response failed with "The data
+// couldn't be read because it is missing" — taking a clue and giving up both
+// errored while working perfectly on the server. Android never showed it:
+// kotlinx fills missing fields from its defaults.
+struct HintResult: Codable {
+    let rank: Int
+    let clue: [String: ClueValue]?
+    let stateVersion: Int
+    let replayed: Bool
+}
+
 struct GiveUpResult: Codable {
-    let revealed: [RevealedAnswer]
+    struct Revealed: Codable {
+        let rank: Int
+        let name: String
+        let value: Double
+        let unit: String?
+    }
+
+    let revealed: [Revealed]
     let stateVersion: Int
 }
 

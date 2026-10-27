@@ -109,7 +109,7 @@ enum API {
         )
     }
 
-    static func hint(seat: Seat, instanceId: Int, rank: Int) async throws -> TakenHint {
+    static func hint(seat: Seat, instanceId: Int, rank: Int) async throws -> HintResult {
         try await post(
             "api/rooms/\(seat.code)/hint",
             body: ["instanceId": instanceId, "rank": rank], bearer: seat.token
