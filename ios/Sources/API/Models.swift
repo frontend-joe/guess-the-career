@@ -192,6 +192,9 @@ struct ChatResult: Codable {
 
 struct GuessResult: Codable {
     let verdict: String
+    /// On a miss: the player the database knows by that name, if any.
+    /// Optional so a phone on an older build than the server still decodes.
+    let known: String?
     let rank: Int?
     let value: Double?
     let unit: String?

@@ -366,11 +366,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                 text = "${result.name ?: raw} · already up there"
                 emphatic = false
             }
-            // Not "wrong" — unrecognised. The two are worth telling apart,
-            // because this one usually means the database has never heard of
-            // them rather than that they do not belong on the list.
+            // Three different answers wearing one word. The database has
+            // never heard of them; or it knows them and they do not qualify;
+            // or it knows them because they were added AFTER this round was
+            // frozen, in which case nothing can put them on this board.
             else -> {
-                text = "No player called \u201C$raw\u201D"
+                text = result.known?.let { "$it is not on this list" }
+                    ?: "No player called \u201C$raw\u201D"
                 emphatic = false
             }
         }

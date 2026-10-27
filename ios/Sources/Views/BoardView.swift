@@ -46,6 +46,9 @@ struct BoardView: View {
     /// later — the inline version was gone the moment the row was reused, and
     /// unreadable before that.
     @State private var showingClue: ClueSelection?
+    /// Drives the wave. Counts up forever; each row works out its own moment
+    /// from it, so there is one timer for the board rather than ten.
+    @State private var wave: Int = 0
     /// Clue ranks this screen has already opened by itself. A clue taken
     /// anywhere in the room opens here too, but only once, and never for the
     /// ones that were already on the board when this screen appeared —
@@ -57,6 +60,17 @@ struct BoardView: View {
             pyramid(round)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
+                // One timer, not ten. Off entirely under reduced motion: a
+                // repeating sweep across the whole screen is exactly the kind
+                // of ambient movement that setting exists to stop.
+                .task(id: reduceMotion) {
+                    guard !reduceMotion else { return }
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(10))
+                        guard !Task.isCancelled else { return }
+                        wave += 1
+                    }
+                }
                 // The host spends the clue; everyone reads it. It arrives
                 // through /state like everything else, so there is no separate
                 // message to miss and a client that resyncs still gets it.
@@ -116,6 +130,11 @@ struct BoardView: View {
             answer: round.board.revealed.first { $0.rank == rank },
             hasClue: round.board.hints.contains { $0.rank == rank },
             canHint: store.isHost && round.isLive,
+            // Bottom to top: rank 10 goes first, rank 1 last. The board reads
+            // downwards, so a wave running the other way is movement rather
+            // than a second way of reading it.
+            waveTick: wave,
+            waveDelay: Double(max(round.board.target, 1) - rank) * 0.045,
             onLongPress: { longPress(rank: rank, round: round) }
         )
         .frame(width: width * BoardStyle.widthFraction(rank: rank), height: height)
@@ -216,9 +235,14 @@ private struct PyramidRow: View {
     /// the sheet now; the row only has to say that there is one to open.
     let hasClue: Bool
     let canHint: Bool
+    /// Bumped once every ten seconds for the whole board.
+    let waveTick: Int
+    /// This row's place in the wave, in seconds behind the one below it.
+    let waveDelay: Double
     let onLongPress: () -> Void
 
     @State private var pressed = false
+    @State private var shimmer = false
 
     private var colours: (top: Color, bottom: Color) {
         guard let answer else { return BoardStyle.violet }
@@ -267,6 +291,33 @@ private struct PyramidRow: View {
                     .foregroundStyle(.white.opacity(0.95))
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)
+            }
+        }
+        // A band of light crossing the row, clipped to the capsule so it
+        // never leaks past the shape. Masked by the capsule rather than drawn
+        // as a second one, so it rides whatever gradient is underneath.
+        .overlay {
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, .white.opacity(0.55), .clear],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                )
+                .scaleEffect(x: 0.35, anchor: .center)
+                .offset(x: shimmer ? 260 : -260)
+                .opacity(shimmer ? 1 : 0)
+                .clipShape(Capsule())
+                .allowsHitTesting(false)
+        }
+        .onChange(of: waveTick) { _, _ in
+            Task {
+                try? await Task.sleep(for: .seconds(waveDelay))
+                // Across in a fifth of a second: the point is a flicker
+                // travelling up the board, not a row being highlighted.
+                withAnimation(.easeOut(duration: 0.22)) { shimmer = true }
+                try? await Task.sleep(for: .seconds(0.22))
+                shimmer = false
             }
         }
         .contentShape(Capsule())

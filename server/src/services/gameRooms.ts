@@ -43,6 +43,14 @@ export type Verdict = 'hit' | 'near' | 'duplicate' | 'miss'
 
 export interface GuessResult {
   verdict: Verdict
+  /// On a miss: the player the DATABASE knows by that name, if any.
+  ///
+  /// "wrong" and "never heard of them" are different answers, and a miss
+  /// alone cannot tell them apart. A name the database knows but which is not
+  /// in this round's frozen answers either does not qualify for the round, or
+  /// was added after it kicked off — and a player added mid-round can never
+  /// appear on a board that was settled at the freeze.
+  known: string | null
   rank: number | null
   value: number | null
   unit: string | null
@@ -442,6 +450,10 @@ export function submitGuess(
       : undefined
     return {
       verdict: prior.verdict as Verdict,
+      // A replay answers exactly as the first attempt did, so the same
+      // lookup rather than a null — the retry is the same guess, not a
+      // different one that happens to know less.
+      known: hit ? null : knownPlayerNamed(raw),
       rank: prior.matched_rank,
       value: hit?.value ?? null,
       unit: hit?.unit ?? null,
@@ -525,6 +537,7 @@ export function submitGuess(
 
   return {
     verdict,
+    known: match ? null : knownPlayerNamed(raw),
     rank: match?.rank ?? null,
     value: match?.value ?? null,
     unit: match?.unit ?? null,
@@ -594,6 +607,22 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   })()
 
   return { rank, clue, stateVersion, replayed: false }
+}
+
+// Does the database know anybody by this name, whatever the round thinks?
+//
+// Matched on the whole name or on the surname as a WHOLE WORD — `LIKE '%egan'`
+// would have answered "Kevin Keegan" to "Egan", which is precisely the
+// confusion this is meant to clear up.
+function knownPlayerNamed(raw: string): string | null {
+  const row = sqlite
+    .prepare(
+      `SELECT name FROM footballers
+       WHERE normalize(name) = normalize(?) OR normalize(name) LIKE '% ' || normalize(?)
+       LIMIT 1`,
+    )
+    .get(raw, raw) as { name: string } | undefined
+  return row?.name ?? null
 }
 
 // ── Unknown names ───────────────────────────────────────────────────────────

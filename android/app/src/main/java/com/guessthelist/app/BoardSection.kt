@@ -2,6 +2,9 @@ package com.guessthelist.app
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -27,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 // A port of PyramidRow from client/src/pages/TenablePage.tsx, kept faithful to
 // it: the same widths, the same two gradients, the same value badge. Three
@@ -71,6 +76,15 @@ fun BoardSection(model: RoomViewModel) {
     // later — the inline version was gone the moment the row was reused, and
     // unreadable before that.
     var showingClue by remember { mutableStateOf<Int?>(null) }
+    // Drives the wave. Counts up forever; each row works out its own moment
+    // from it, so there is one timer for the board rather than ten.
+    var wave by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(10_000)
+            wave += 1
+        }
+    }
     // Clue ranks this screen has already opened by itself. A clue taken
     // anywhere in the room opens here too, but only once, and never for the
     // ones already on the board when this screen appeared — joining a round
@@ -99,6 +113,11 @@ fun BoardSection(model: RoomViewModel) {
                 answer = round.board.revealed.firstOrNull { it.rank == rank },
                 hasClue = hasClue,
                 canHint = model.isHost && round.isLive,
+                // Bottom to top: rank 10 goes first, rank 1 last. The board
+                // reads downwards, so a wave running the other way is
+                // movement rather than a second way of reading it.
+                waveTick = wave,
+                waveDelayMs = ((round.board.target - rank) * 45).toLong(),
                 onLongPress = {
                     // The host takes a clue; everyone's screen then opens it.
                     // Anyone may reopen one already taken, after the round has
@@ -192,9 +211,23 @@ private fun PyramidRow(
     /** Whether a clue has been taken. The clue itself lives in the dialog. */
     hasClue: Boolean,
     canHint: Boolean,
+    /** Bumped once every ten seconds for the whole board. */
+    waveTick: Int,
+    /** This row's place in the wave, behind the one below it. */
+    waveDelayMs: Long,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // -1 parks the band off the leading edge, +1 off the trailing edge.
+    val sweep = remember { Animatable(-1f) }
+    LaunchedEffect(waveTick) {
+        if (waveTick == 0) return@LaunchedEffect
+        delay(waveDelayMs)
+        // Across in a fifth of a second: the point is a flicker travelling up
+        // the board, not a row being highlighted.
+        sweep.animateTo(1f, tween(220, easing = LinearEasing))
+        sweep.snapTo(-1f)
+    }
     val brush = when {
         answer == null -> Brush.verticalGradient(listOf(VioletTop, VioletBottom))
         answer.missed -> Brush.verticalGradient(listOf(MissedTop, MissedBottom))
@@ -236,6 +269,24 @@ private fun PyramidRow(
             ),
         contentAlignment = Alignment.Center,
     ) {
+        // A band of light crossing the row. Drawn inside the clipped Box so
+        // it never leaks past the capsule, and over whatever gradient is
+        // underneath rather than replacing it.
+        if (sweep.value > -1f && sweep.value < 1f) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .graphicsLayer { translationX = sweep.value * size.width }
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to Color.Transparent,
+                            0.5f to Color.White.copy(alpha = 0.45f),
+                            1f to Color.Transparent,
+                        )
+                    )
+            )
+        }
+
         when {
             answer != null -> Row(
                 verticalAlignment = Alignment.CenterVertically,

@@ -157,6 +157,8 @@ data class JoinedRoom(
 @Serializable
 data class GuessResult(
     val verdict: String,
+    /** On a miss: the player the database knows by that name, if any. */
+    val known: String? = null,
     val rank: Int? = null,
     val value: Double? = null,
     val unit: String? = null,
