@@ -64,7 +64,7 @@ import { progressRouter } from './routes/progress.ts'
 import { settingsRouter } from './routes/settings.ts'
 import { usersRouter } from './routes/users.ts'
 import { roomsRouter } from './routes/rooms.ts'
-import { livekitConfig } from './services/livekit.ts'
+import { livekitMissing } from './services/livekit.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
 runMigrations()
@@ -149,7 +149,8 @@ app.get('/api/health', (c) => {
   // variables set in a dashboard are otherwise invisible until someone starts
   // a game and finds there is no call — and the only other way to ask is from
   // inside a room you have already joined.
-  return c.json({ ok: true, db, video: livekitConfig() != null })
+  const missing = livekitMissing()
+  return c.json({ ok: true, db, video: missing.length === 0, videoMissing: missing })
 })
 
 const port = parseInt(process.env.PORT ?? '3001')

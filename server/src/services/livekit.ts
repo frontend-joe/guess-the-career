@@ -34,12 +34,22 @@ function env(name: string): string | null {
   return value ? value : null
 }
 
+const REQUIRED = ['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'] as const
+
+// Which of the three are missing. Names only — a name is not a secret, and
+// without this the failure is a bare "no video" that gives you nothing to go
+// on when the cause is a typo or the wrong Railway service.
+export function livekitMissing(): string[] {
+  return REQUIRED.filter((name) => env(name) == null)
+}
+
 export function livekitConfig(): LivekitConfig | null {
-  const url = env('LIVEKIT_URL')
-  const apiKey = env('LIVEKIT_API_KEY')
-  const apiSecret = env('LIVEKIT_API_SECRET')
-  if (!url || !apiKey || !apiSecret) return null
-  return { url, apiKey, apiSecret }
+  if (livekitMissing().length) return null
+  return {
+    url: env('LIVEKIT_URL')!,
+    apiKey: env('LIVEKIT_API_KEY')!,
+    apiSecret: env('LIVEKIT_API_SECRET')!,
+  }
 }
 
 // LIVEKIT_URL is handed out as wss:// for clients to dial; the service API is
