@@ -338,7 +338,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             append(ordinal(rank))
             result.value?.let { v ->
                 append(", ${v.toInt()}")
-                result.unit?.takeIf { u -> u.isNotEmpty() }?.let { u -> append(" $u") }
+                // `unit` is only set for the odd metrics — a fee, a shirt
+                // number. An ordinary round sends nothing, because the metric
+                // IS the unit, which is how the toast ended up reading
+                // "11th, 294".
+                val unit = result.unit?.takeIf { u -> u.isNotEmpty() }
+                    ?: round?.board?.metric.orEmpty()
+                if (unit.isNotEmpty()) append(" $unit")
             }
         }
         nearMissCount += 1

@@ -20,9 +20,18 @@ import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.t
 // it has missed something. Raw SQL rather than Drizzle inside those blocks:
 // better-sqlite3 transactions are synchronous and Drizzle's API is not.
 
-// How far past the board we freeze, to keep near-miss feedback ("16th, 54
-// goals") available without running a query mid-round.
-const SNAPSHOT_DEPTH = 50
+// How far past the board we freeze, so a wrong answer can still be told where
+// it placed — "57th, 112 goals" — without running a query mid-round.
+//
+// 200 rather than 50 because at 50 most wrong answers were real players who
+// simply fell outside it, and the game had nothing to say about them. These
+// are ORDER BY ... LIMIT queries; 200 costs what 50 costs, and 200 rows per
+// round instance is nothing.
+//
+// Deepening this cannot cost anybody a hit. The matcher reads the snapshot
+// ORDER BY rank and takes the lowest-ranked unfound match, so a new row at
+// rank 150 can only ever win when no lower-ranked answer matched at all.
+const SNAPSHOT_DEPTH = 200
 
 // No vowels (so a code can never spell something unfortunate) and no 0/O/1/I,
 // because these get read aloud over a video call and typed by someone else.

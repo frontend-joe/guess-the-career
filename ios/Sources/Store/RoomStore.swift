@@ -377,7 +377,11 @@ final class RoomStore {
         var placing = "\(ordinal(rank))"
         if let value = result.value {
             placing += ", \(Int(value))"
-            if let unit = result.unit, !unit.isEmpty { placing += " \(unit)" }
+            // `unit` is only set for the odd metrics — a fee, a shirt number.
+            // An ordinary round sends nothing, because the metric IS the
+            // unit, which is how the toast ended up reading "11th, 294".
+            let unit = result.unit?.isEmpty == false ? result.unit! : (round?.board.metric ?? "")
+            if !unit.isEmpty { placing += " \(unit)" }
         }
         parts.append(placing)
 
