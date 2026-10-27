@@ -16,6 +16,7 @@
     "cheerio": "^1.0.0",
     "drizzle-orm": "^0.43.1",
     "hono": "^4.7.11",
+    "livekit-server-sdk": "^2.19.2",
     "tsx": "^4.19.4",
     "zod": "^3.25.28"
   },

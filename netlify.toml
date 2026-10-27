@@ -4,6 +4,12 @@
 
 # Pin the build environment to Node 20 (matches Railway's nixpacks nodejs_20) so
 # the Netlify build can't drift onto a different Node version than we test with.
+#
+# This pin is why client/package.json holds livekit-client at an exact 2.22.0:
+# 2.23 added a transitive dependency declaring engines.node >= 22.22, which
+# yarn refuses to install here. Raising this to 22 would also mean raising
+# nixpacks.toml, and rebuilding better-sqlite3 from source on a new Node is a
+# bigger risk than staying a minor version behind on a WebRTC client.
 [build.environment]
   NODE_VERSION = "20"
 

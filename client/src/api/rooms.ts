@@ -1,0 +1,186 @@
+// Multiplayer Tenable rooms.
+//
+// Every call here is made with `credentials: 'omit'` and an explicit bearer
+// token, with one exception: creating a room, which is the only thing that
+// needs a real account. That is not fussiness — it is what makes it possible
+// to open four tabs in one browser and be four different people. Tabs share a
+// cookie jar, so a join that sent the session cookie would hand every tab the
+// host's seat.
+
+export interface RoomParticipant {
+  id: number
+  displayName: string
+  role: string
+  slot: number
+  present: boolean
+}
+
+export interface RevealedAnswer {
+  rank: number
+  name: string
+  value: number
+  unit: string | null
+  nationality: string | null
+  photoUrl: string | null
+  tMs: number
+  byParticipantId: number | null
+}
+
+export interface ReplayGuess {
+  raw: string
+  verdict: string
+  matchedRank: number | null
+  tMs: number
+  byParticipantId: number | null
+}
+
+export interface BoardState {
+  title: string
+  target: number
+  ordered: boolean
+  metric: string
+  impliedClues: string[]
+  revealed: RevealedAnswer[]
+  guesses: ReplayGuess[]
+  ended: { reason: string; tMs: number } | null
+}
+
+export interface RoomRound {
+  instanceId: number
+  seq: number
+  status: string
+  startedAtMs: number | null
+  board: BoardState
+  blanks: number[]
+}
+
+export interface RoomState {
+  code: string
+  status: string
+  stateVersion: number
+  livekitRoom: string
+  hostUserId: number
+  participants: RoomParticipant[]
+  round: RoomRound | null
+}
+
+export interface JoinedRoom extends RoomState {
+  participantId: number
+  participantToken: string
+}
+
+export interface GuessResult {
+  verdict: 'hit' | 'near' | 'duplicate' | 'miss'
+  rank: number | null
+  value: number | null
+  unit: string | null
+  name: string | null
+  replayed: boolean
+  stateVersion: number
+  complete: boolean
+}
+
+export interface LivekitCredentials {
+  url: string
+  roomName: string
+  identity: string
+  slot: number
+  token: string
+}
+
+// A seat in a room: the code plus the token that proves which seat it is.
+export interface RoomSession {
+  code: string
+  participantId: number
+  participantToken: string
+}
+
+async function unwrap<T>(res: Response): Promise<T> {
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`)
+  return body as T
+}
+
+function asSeat(session: RoomSession, init: RequestInit = {}): RequestInit {
+  return {
+    ...init,
+    credentials: 'omit',
+    headers: {
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      Authorization: `Bearer ${session.participantToken}`,
+      ...init.headers,
+    },
+  }
+}
+
+// The one call that needs an account.
+export async function createRoom(name?: string): Promise<JoinedRoom> {
+  const res = await fetch('/api/rooms', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  return unwrap<JoinedRoom>(res)
+}
+
+export async function joinRoom(code: string, displayName: string): Promise<JoinedRoom> {
+  const res = await fetch(`/api/rooms/${encodeURIComponent(code)}/join`, {
+    method: 'POST',
+    credentials: 'omit',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ displayName, platform: 'web' }),
+  })
+  return unwrap<JoinedRoom>(res)
+}
+
+export async function fetchRoomState(session: RoomSession): Promise<RoomState> {
+  const res = await fetch(`/api/rooms/${session.code}/state`, asSeat(session))
+  return unwrap<RoomState>(res)
+}
+
+export async function freezeRound(session: RoomSession, roundId: number): Promise<{ instanceId: number }> {
+  const res = await fetch(
+    `/api/rooms/${session.code}/rounds`,
+    asSeat(session, { method: 'POST', body: JSON.stringify({ roundId }) }),
+  )
+  return unwrap<{ instanceId: number }>(res)
+}
+
+export async function startRound(session: RoomSession, instanceId: number): Promise<RoomState> {
+  const res = await fetch(
+    `/api/rooms/${session.code}/rounds/${instanceId}/start`,
+    asSeat(session, { method: 'POST' }),
+  )
+  return unwrap<RoomState>(res)
+}
+
+export async function submitGuess(
+  session: RoomSession,
+  instanceId: number,
+  raw: string,
+): Promise<GuessResult> {
+  const res = await fetch(
+    `/api/rooms/${session.code}/guess`,
+    asSeat(session, {
+      method: 'POST',
+      // Generated here and kept with the attempt, so a retry over a flaky
+      // connection is scored once.
+      body: JSON.stringify({ instanceId, clientGuessId: crypto.randomUUID(), raw }),
+    }),
+  )
+  return unwrap<GuessResult>(res)
+}
+
+export async function leaveRoom(session: RoomSession): Promise<void> {
+  await fetch(`/api/rooms/${session.code}/leave`, asSeat(session, { method: 'POST' }))
+}
+
+export async function endRoom(session: RoomSession): Promise<void> {
+  await fetch(`/api/rooms/${session.code}/end`, asSeat(session, { method: 'POST' }))
+}
+
+export async function livekitCredentials(session: RoomSession): Promise<LivekitCredentials> {
+  const res = await fetch(`/api/rooms/${session.code}/livekit-token`, asSeat(session))
+  return unwrap<LivekitCredentials>(res)
+}

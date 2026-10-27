@@ -24,6 +24,7 @@ import {
   type ParticipantRow,
   type RoomRow,
 } from '../services/gameRooms.ts'
+import { broadcastState, livekitConfig, mintJoinToken } from '../services/livekit.ts'
 
 export const roomsRouter = new Hono()
 
@@ -64,6 +65,23 @@ function mustFindRoom(code: string): RoomRow {
   return room
 }
 
+// Persist, then announce — never the other way round. A broadcast that fails
+// is harmless, because it says nothing except "the version moved, go and
+// refetch"; a broadcast describing a write that did not land is a desync no
+// client can recover from.
+//
+// Note what is NOT in the message: the change itself. Clients re-read
+// GET /state rather than applying a diff, so there is exactly one code path
+// that turns the event log into a board, and it is the same fold the recorded
+// video will be rendered from. A client that applied broadcasts directly would
+// be a second implementation of that fold, free to drift from it — and nobody
+// would notice until a recording showed something the players never saw.
+function announce(code: string, kind: string): void {
+  const room = roomByCode(code)
+  if (!room) return
+  broadcastState(room.livekit_room, { kind, stateVersion: room.state_version, code: room.code })
+}
+
 // POST /api/rooms — the host opens a game.
 roomsRouter.post(
   '/',
@@ -100,6 +118,7 @@ roomsRouter.post(
         userId: user?.id ?? null,
         platform,
       })
+      announce(room.code, 'participant_joined')
       return c.json({
         ...roomState(room),
         participantId: participant.id,
@@ -133,6 +152,7 @@ roomsRouter.post(
     if (me.role !== 'host') return c.json({ error: 'Only the host can choose rounds' }, 403)
     try {
       const inst = freezeRound(room.id, c.req.valid('json').roundId)
+      announce(room.code, 'round_frozen')
       return c.json({ instanceId: inst.id, seq: inst.seq, title: inst.title, status: inst.status }, 201)
     } catch (err) {
       return fail(err)
@@ -149,8 +169,8 @@ roomsRouter.post('/:code/rounds/:instanceId/start', async (c) => {
   const instanceId = parseInt(c.req.param('instanceId'), 10)
   if (isNaN(instanceId)) return c.json({ error: 'Invalid round instance' }, 400)
   try {
-    const inst = startRound(instanceId)
-    if (inst.room_id !== room.id) return c.json({ error: 'Wrong room' }, 403)
+    const inst = startRound(room.id, instanceId)
+    announce(room.code, 'round_started')
     return c.json({ ...roomState(roomByCode(room.code)!), instanceId: inst.id })
   } catch (err) {
     return fail(err)
@@ -171,7 +191,10 @@ roomsRouter.post(
     if (!me) return c.json({ error: 'Not in this room' }, 403)
     const { instanceId, clientGuessId, raw } = c.req.valid('json')
     try {
-      return c.json(submitGuess(instanceId, me, clientGuessId, raw))
+      const result = submitGuess(instanceId, me, clientGuessId, raw)
+      // A replayed guess changed nothing, so there is nothing to announce.
+      if (!result.replayed) announce(room.code, 'guess')
+      return c.json(result)
     } catch (err) {
       return fail(err)
     }
@@ -184,6 +207,7 @@ roomsRouter.post('/:code/leave', async (c) => {
   const me = await participantFor(c, room)
   if (!me) return c.json({ error: 'Not in this room' }, 403)
   leaveRoom(me.id)
+  announce(room.code, 'participant_left')
   return c.json({ ok: true })
 })
 
@@ -194,7 +218,32 @@ roomsRouter.post('/:code/end', async (c) => {
   if (!me) return c.json({ error: 'Not in this room' }, 403)
   if (me.role !== 'host') return c.json({ error: 'Only the host can end the game' }, 403)
   endRoom(room.id)
+  announce(room.code, 'room_ended')
   return c.json({ ok: true })
+})
+
+// GET /api/rooms/:code/livekit-token — the credential to dial into the call.
+//
+// Minted per participant and scoped to this room's LiveKit room name, so a
+// token that escapes with a game code cannot be used to walk into a different
+// game.
+roomsRouter.get('/:code/livekit-token', async (c) => {
+  const room = mustFindRoom(c.req.param('code'))
+  const me = await participantFor(c, room)
+  if (!me) return c.json({ error: 'Not in this room' }, 403)
+  const config = livekitConfig()
+  if (!config) return c.json({ error: 'Video is not configured on this server' }, 503)
+
+  // Identity is the participant row, not the user: guests have no user id, and
+  // the slot-to-tile mapping the recording depends on is keyed on this row.
+  const identity = `p${me.id}`
+  return c.json({
+    url: config.url,
+    roomName: room.livekit_room,
+    identity,
+    slot: me.slot,
+    token: await mintJoinToken(room.livekit_room, identity, me.display_name),
+  })
 })
 
 // Turn a RoomError into its intended status rather than a 500.

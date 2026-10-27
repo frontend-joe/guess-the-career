@@ -125,6 +125,7 @@ import { RecordSalesPage } from '@/pages/RecordSalesPage'
 import { RecordSalesAdminPage } from '@/pages/RecordSalesAdminPage'
 import { RecordSalesSchedulePage } from '@/pages/RecordSalesSchedulePage'
 import { RecordSalesDetailPage } from '@/pages/RecordSalesDetailPage'
+import { RoomDevPage } from '@/pages/RoomDevPage'
 
 const router = createBrowserRouter([
  {
@@ -161,6 +162,11 @@ const router = createBrowserRouter([
   { path: '/play/nationality-players', element: <NationalityPlayersPage /> },
   { path: '/play/only-player', element: <OnlyPlayerPage /> },
   { path: '/play/tenable', element: <TenablePage /> },
+
+  // Dev harness for multiplayer Tenable — four tabs, real video, real server.
+  // Not linked from anywhere: the product surface for this is the native apps.
+  { path: '/dev/room', element: <RoomDevPage /> },
+
   { path: '/play/foreigners', element: <ForeignersPage /> },
   { path: '/play/serie-a', element: <SerieAPage /> },
   { path: '/play/la-liga', element: <LaLigaPage /> },

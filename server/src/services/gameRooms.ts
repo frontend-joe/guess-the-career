@@ -172,6 +172,7 @@ export function joinRoom(
       // recording survives someone's phone dying.
       if (existing) {
         sqlite.prepare('UPDATE game_participants SET left_at = NULL WHERE id = ?').run(existing.id)
+        bumpVersion(room.id)
         return sqlite.prepare('SELECT * FROM game_participants WHERE id = ?').get(existing.id) as ParticipantRow
       }
     }
@@ -192,6 +193,9 @@ export function joinRoom(
          VALUES (?, ?, ?, 'player', ?, ?)`,
       )
       .run(room.id, opts.userId ?? null, displayName, slot, opts.platform ?? null)
+    // The lobby is part of the state everyone watches, so arriving and leaving
+    // bump the version like any other change.
+    bumpVersion(room.id)
     return sqlite
       .prepare('SELECT * FROM game_participants WHERE id = ?')
       .get(Number(info.lastInsertRowid)) as ParticipantRow
@@ -201,9 +205,16 @@ export function joinRoom(
 }
 
 export function leaveRoom(participantId: number): void {
-  sqlite
-    .prepare("UPDATE game_participants SET left_at = datetime('now') WHERE id = ? AND left_at IS NULL")
-    .run(participantId)
+  sqlite.transaction(() => {
+    const info = sqlite
+      .prepare("UPDATE game_participants SET left_at = datetime('now') WHERE id = ? AND left_at IS NULL")
+      .run(participantId)
+    if (info.changes === 0) return
+    const row = sqlite
+      .prepare('SELECT room_id FROM game_participants WHERE id = ?')
+      .get(participantId) as { room_id: number } | undefined
+    if (row) bumpVersion(row.room_id)
+  })()
 }
 
 export function endRoom(roomId: number): void {
@@ -300,11 +311,16 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
   return sqlite.prepare('SELECT * FROM game_round_instances WHERE id = ?').get(instanceId) as InstanceRow
 }
 
-export function startRound(instanceId: number): InstanceRow {
+// roomId is required rather than checked afterwards by the caller: starting a
+// round is what stamps started_at_ms, and a host of one room must not be able
+// to stamp T0 on another room's instance even if the response is then thrown
+// away.
+export function startRound(roomId: number, instanceId: number): InstanceRow {
   const inst = sqlite
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')
     .get(instanceId) as InstanceRow | undefined
   if (!inst) throw new RoomError('Unknown round instance', 404)
+  if (inst.room_id !== roomId) throw new RoomError('That round belongs to another room', 403)
   if (inst.status !== 'pending') throw new RoomError(`That round is already ${inst.status}`, 409)
 
   sqlite.transaction(() => {
