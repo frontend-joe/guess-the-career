@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
@@ -128,27 +129,20 @@ fun RoomScreen(model: RoomViewModel) {
 
         // Choosing, starting and ending a round are the host's calls.
         // Guessing is not — the bar below is everyone's.
-        if (model.isHost) {
+        // Only what you need BEFORE a round: pick one, start it. It goes away
+        // once the round is live, because by then there is nothing left to set
+        // up — everything you can still do lives in the one row at the bottom.
+        if (model.isHost && model.round?.isLive != true) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // One slot, two jobs, because they never apply at the same
-                // time: before kickoff you are choosing what to play, and
-                // during a round the only thing left to decide is whether to
-                // stop.
-                if (model.round?.isLive == true) {
-                    Button(onClick = { confirmingGiveUp = true }) { Text("Give up") }
-                } else {
-                    Button(onClick = { picking = true }) { Text("Choose round") }
-                    Button(
-                        onClick = { model.startRound() },
-                        enabled = model.round?.isPending == true,
-                    ) { Text("Start") }
-                }
+                Button(onClick = { picking = true }) { Text("Choose round") }
+                Button(
+                    onClick = { model.startRound() },
+                    enabled = model.round?.isPending == true,
+                ) { Text("Start") }
                 Box(Modifier.weight(1f))
-                TextButton(onClick = { shareInvite(context, model.state?.code) }) { Text("Share") }
-                TextButton(onClick = { model.endGame() }) { Text("End") }
             }
         }
 
@@ -165,9 +159,18 @@ fun RoomScreen(model: RoomViewModel) {
             VideoGrid(model)
         }
 
+        model.error?.let {
+            Text(
+                it,
+                fontSize = 11.sp,
+                color = Color(0xFFFF6B6B),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // The same two icons iOS shows, and for the same reason: a
@@ -190,8 +193,30 @@ fun RoomScreen(model: RoomViewModel) {
                 )
             }
             Box(Modifier.weight(1f))
-            model.error?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFF6B6B)) }
-            TextButton(onClick = { model.leave() }) { Text("Leave") }
+
+            // One row for every action available at any moment of a game:
+            // your own microphone and camera on the left, then what you can do
+            // to the room, then the way out. Splitting these across two rows
+            // meant two places to look for a button and two rows of height to
+            // pay for it.
+            if (model.isHost && model.round?.isLive == true) {
+                TextButton(onClick = { confirmingGiveUp = true }) {
+                    Text("Give up", fontSize = 13.sp, color = Color(0xFFFF6B6B))
+                }
+            }
+            if (model.isHost) {
+                IconButton(onClick = { shareInvite(context, model.state?.code) }) {
+                    Icon(
+                        Icons.Filled.Share,
+                        contentDescription = "Share the invite",
+                        tint = Color(0xFF9CA3AF),
+                    )
+                }
+                TextButton(onClick = { model.endGame() }) {
+                    Text("End", fontSize = 13.sp, color = Color(0xFFFF6B6B))
+                }
+            }
+            TextButton(onClick = { model.leave() }) { Text("Leave", fontSize = 13.sp) }
         }
 
         // Everyone types. You can still shout, and mostly will, but a player

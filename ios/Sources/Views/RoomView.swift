@@ -127,36 +127,76 @@ struct RoomView: View {
         .padding(.vertical, 8)
     }
 
-    // Choosing, starting and ending a round are the host's calls. Guessing is
-    // not — see guessBar.
+    // Only what you need BEFORE a round: pick one, start it. It goes away
+    // once the round is live, because by then there is nothing left to set up
+    // — everything you can still do lives in the one row at the bottom.
     @ViewBuilder
     private var hostControls: some View {
-        HStack {
-            // One slot, two jobs, because they never apply at the same time:
-            // before kickoff you are choosing what to play, and during a round
-            // the only thing left to decide is whether to stop.
-            if store.round?.isLive == true {
-                Button("Give up", role: .destructive) { confirmingGiveUp = true }
-                    .buttonStyle(.bordered)
-            } else {
+        if store.round?.isLive != true {
+            HStack {
                 Button("Choose round") { showingRoundPicker = true }
                     .buttonStyle(.bordered)
                 Button("Start") { Task { await store.startRound() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(store.round?.isPending != true)
+                Spacer()
             }
-            Spacer()
-            if let link = store.inviteLink {
-                ShareLink(item: link, message: Text("Join my Tenable game")) {
-                    Image(systemName: "square.and.arrow.up")
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+    }
+
+    // One row for every action that is available at any moment of a game:
+    // your own microphone and camera on the left, then what you can do to the
+    // room, then the way out. Splitting these across two rows meant two
+    // places to look for a button and two rows of height to pay for it.
+    private var footer: some View {
+        VStack(spacing: 4) {
+            // The error gets its own line rather than competing for width
+            // with seven controls.
+            if let error = store.error {
+                Text(error)
+                    .font(.body(11))
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack(spacing: 14) {
+                Button {
+                    Task { await store.setMicrophone(!store.microphoneOn) }
+                } label: {
+                    Image(systemName: store.microphoneOn ? "mic.fill" : "mic.slash.fill")
+                        .foregroundStyle(store.microphoneOn ? .green : .red)
                 }
-                .buttonStyle(.bordered)
+                Button {
+                    Task { await store.setCamera(!store.cameraOn) }
+                } label: {
+                    Image(systemName: store.cameraOn ? "video.fill" : "video.slash.fill")
+                        .foregroundStyle(store.cameraOn ? .green : .red)
+                }
+
+                Spacer()
+
+                if store.isHost, store.round?.isLive == true {
+                    Button("Give up", role: .destructive) { confirmingGiveUp = true }
+                        .font(.body(13, weight: .semibold))
+                }
+                if store.isHost, let link = store.inviteLink {
+                    ShareLink(item: link, message: Text("Join my Tenable game")) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+                if store.isHost {
+                    Button("End", role: .destructive) { Task { await store.endGame() } }
+                        .font(.body(13, weight: .semibold))
+                }
+                Button("Leave") { Task { await store.exit() } }
+                    .font(.body(13, weight: .semibold))
             }
-            Button("End", role: .destructive) { Task { await store.endGame() } }
-                .buttonStyle(.bordered)
         }
         .padding(.horizontal)
-        .padding(.bottom, 8)
+        .padding(.vertical, 8)
     }
 
     // Everyone types. You can still shout, and mostly will, but a player whose
@@ -166,10 +206,10 @@ struct RoomView: View {
             TextField("Your guess…", text: $guess)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .focused($typing)
                 // The keyboard's blue key says Send and sends. Leaving it as
                 // Return meant the most obvious button on screen did nothing.
                 .submitLabel(.send)
+                .focused($typing)
                 .onSubmit(submit)
                 .disabled(store.round?.isLive != true)
             if let last = store.lastGuess {
@@ -193,29 +233,6 @@ struct RoomView: View {
         // Swipe down on the composer to put the keyboard away, without having
         // to find a Done button or tap some neutral patch of screen.
         .swipeDownToDismissKeyboard()
-    }
-
-    private var footer: some View {
-        HStack(spacing: 16) {
-            Button {
-                Task { await store.setMicrophone(!store.microphoneOn) }
-            } label: {
-                Image(systemName: store.microphoneOn ? "mic.fill" : "mic.slash.fill")
-            }
-            Button {
-                Task { await store.setCamera(!store.cameraOn) }
-            } label: {
-                Image(systemName: store.cameraOn ? "video.fill" : "video.slash.fill")
-            }
-            Spacer()
-            if let error = store.error {
-                Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
-            }
-            Button("Leave") { Task { await store.exit() } }
-                .font(.caption)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 
     private func submit() {
