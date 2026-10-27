@@ -14,25 +14,48 @@ struct RoomView: View {
     /// arrived while you were watching faces.
     @State private var seenMessageId = 0
     @State private var confirmingGiveUp = false
+    /// Whether the guess field holds the keyboard. The layout changes shape
+    /// while you type rather than trying to fit everything at once.
+    @FocusState private var typing: Bool
 
     private enum Tab { case video, chat }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            roundTitle
+        // Every height here is a share of the space actually available, read
+        // live from the geometry. It used to be a share of UIScreen's height,
+        // which is a different number entirely once the keyboard is up: the
+        // panel went on claiming a third of the WHOLE screen when only half
+        // the screen was left, the board was squeezed into what remained, and
+        // the pyramid drew straight over the controls and the status bar.
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                header
+                roundTitle
 
-            BoardView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                BoardView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // However tight it gets, the board stays inside its own
+                    // slot rather than drawing over its neighbours.
+                    .clipped()
 
-            if store.isHost { hostControls }
-            guessBar
+                if store.isHost { hostControls }
+                guessBar
 
-            bottomPanel
-                .frame(height: UIScreen.main.bounds.height / 3)
-                .background(BoardStyle.background)
+                // While you are typing a guess, faces and chat are the two
+                // things you are definitely not looking at, so they stand
+                // aside and give the board the room. This is also what stops
+                // the layout having to fit everything at once.
+                if !typing {
+                    bottomPanel
+                        .frame(height: max(140, geo.size.height / 3))
+                        .background(BoardStyle.background)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
 
-            footer
+                footer
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .animation(.spring(response: 0.35, dampingFraction: 1.0), value: typing)
         }
         .background(BoardStyle.background)
         .sheet(isPresented: $showingRoundPicker) { RoundPickerView() }
@@ -159,6 +182,7 @@ struct RoomView: View {
             TextField("Your guess…", text: $guess)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
+                .focused($typing)
                 // The keyboard's blue key says Send and sends. Leaving it as
                 // Return meant the most obvious button on screen did nothing.
                 .submitLabel(.send)
@@ -208,7 +232,11 @@ struct RoomView: View {
 
     private func submit() {
         let raw = guess.trimmed
-        guard !raw.isEmpty else { return }
+        guard !raw.isEmpty else {
+            // An empty send is how you ask for the keyboard to go away.
+            typing = false
+            return
+        }
         guess = ""
         Task {
             await store.guess(raw)

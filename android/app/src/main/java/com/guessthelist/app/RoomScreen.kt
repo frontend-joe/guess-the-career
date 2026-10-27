@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -59,6 +60,9 @@ fun RoomScreen(model: RoomViewModel) {
     var picking by remember { mutableStateOf(false) }
     var chatTab by remember { mutableStateOf(false) }
     var confirmingGiveUp by remember { mutableStateOf(false) }
+    // Whether the guess field holds the keyboard. The layout changes shape
+    // while you type rather than trying to fit everything at once.
+    var typing by remember { mutableStateOf(false) }
     // The newest message id already seen, so the Chat tab can say how many
     // arrived while you were watching faces.
     var seenMessageId by remember { mutableIntStateOf(0) }
@@ -139,7 +143,9 @@ fun RoomScreen(model: RoomViewModel) {
                 label = { Text("Your guess…") },
                 singleLine = true,
                 enabled = model.round?.isLive == true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { typing = it.isFocused },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
@@ -162,7 +168,10 @@ fun RoomScreen(model: RoomViewModel) {
         // Faces and chat share the bottom third rather than splitting it:
         // chat is there for the player whose camera or microphone has failed,
         // which is precisely when their tile is worth nothing anyway.
-        Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
+        // While you are typing a guess, faces and chat are the two things you
+        // are definitely not looking at, so they stand aside and give the
+        // board the room.
+        if (!typing) Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
             val messages = model.state?.messages.orEmpty()
             val unread = messages.count { it.id > seenMessageId }
             TabRow(selectedTabIndex = if (chatTab) 1 else 0, containerColor = Color(0xFF0A0A0C)) {
