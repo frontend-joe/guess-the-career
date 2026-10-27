@@ -111,35 +111,20 @@ fun RoomScreen(model: RoomViewModel) {
             .windowInsetsPadding(WindowInsets.systemBars),
     ) {
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // No code on screen. People join by tapping the link you send
-            // them, so a six-character string to read out and mistype is a
-            // step that no longer needs to exist.
-            Box(Modifier.weight(1f))
-            model.videoNote?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFBBF24)) }
-            // The state version was a debugging aid that earned its place
-            // during Phase 2 and stopped earning it once the sync stopped
-            // being the thing under test.
+        // Nothing but the occasional video note now that the code has gone, so
+        // it takes no space at all unless it has something to say. An empty
+        // bar across the top was costing the board a row of its own height.
+        model.videoNote?.let {
+            Text(
+                it,
+                fontSize = 11.sp,
+                color = Color(0xFFFBBF24),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+            )
         }
 
         // The question, where the web game puts it: across the top, above the
         // board, so it is readable without looking past the pyramid.
-        // Just the question. The found count was telling you what the board
-        // already shows.
-        model.round?.let { round ->
-            Text(
-                round.board.title,
-                fontSize = 15.sp,
-                fontFamily = AppFonts.Display,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-            )
-        }
 
         Box(modifier = Modifier.weight(2f).fillMaxWidth()) {
             BoardSection(model)
@@ -150,6 +135,20 @@ fun RoomScreen(model: RoomViewModel) {
             NearMissToast(
                 model.nearMiss?.text,
                 Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+            )
+        }
+
+        // Under the board, not over it: the question is what the board is an
+        // answer to, and reading downwards from the pyramid to the words puts
+        // them in that order.
+        model.round?.let { round ->
+            Text(
+                round.board.title,
+                fontSize = 15.sp,
+                fontFamily = AppFonts.Display,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
 
@@ -206,14 +205,20 @@ fun RoomScreen(model: RoomViewModel) {
             // red means either "this is off" or "this ends something", and
             // everything else is plain white. The row used to carry red, red,
             // grey, red and blue at once, which gave the eye no hierarchy.
-            IconButton(onClick = { scope.launch { model.setMicrophone(!model.micOn) } }) {
+            IconButton(
+                onClick = { scope.launch { model.setMicrophone(!model.micOn) } },
+                modifier = Modifier.size(42.dp),
+            ) {
                 Icon(
                     if (model.micOn) Icons.Filled.Mic else Icons.Filled.MicOff,
                     contentDescription = if (model.micOn) "Mute" else "Unmute",
                     tint = if (model.micOn) Color.White else Color(0xFFFF6B6B),
                 )
             }
-            IconButton(onClick = { scope.launch { model.setCamera(!model.cameraOn) } }) {
+            IconButton(
+                onClick = { scope.launch { model.setCamera(!model.cameraOn) } },
+                modifier = Modifier.size(42.dp),
+            ) {
                 Icon(
                     if (model.cameraOn) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
                     contentDescription = if (model.cameraOn) "Turn camera off" else "Turn camera on",
@@ -228,8 +233,8 @@ fun RoomScreen(model: RoomViewModel) {
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(21.dp))
                     .background(Color.White.copy(alpha = 0.08f))
                     // Swipe down on the field to put the keyboard away.
                     .pointerInput(Unit) {
@@ -279,7 +284,10 @@ fun RoomScreen(model: RoomViewModel) {
             // competing for a phone's width meant every one of them was
             // cramped.
             Box {
-                IconButton(onClick = { showingActions = true }) {
+                IconButton(
+                    onClick = { showingActions = true },
+                    modifier = Modifier.size(42.dp),
+                ) {
                     Icon(
                         Icons.Filled.MoreVert,
                         contentDescription = "More options",

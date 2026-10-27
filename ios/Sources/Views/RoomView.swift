@@ -31,13 +31,17 @@ struct RoomView: View {
             GeometryReader { geo in
                 VStack(spacing: 0) {
                     header
-                    roundTitle
 
                     BoardView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         // However tight it gets, the board stays inside its
                         // own slot rather than drawing over its neighbours.
                         .clipped()
+
+                    // Under the board, not over it: the question is what the
+                    // board is an answer to, and reading downwards from the
+                    // pyramid to the words puts them in that order.
+                    roundTitle
 
                     if store.isHost { hostControls }
 
@@ -109,8 +113,7 @@ struct RoomView: View {
     }
 
 
-    // The question, where the web game puts it: across the top, above the
-    // board, so it is readable without looking past the pyramid.
+    // The question the board is answering.
     @ViewBuilder
     private var roundTitle: some View {
         if let round = store.round {
@@ -147,15 +150,19 @@ struct RoomView: View {
     // No code on screen. People join by tapping the link you send them, so a
     // six-character string to read out and mistype is a step that no longer
     // needs to exist.
+    // Nothing but the occasional video note now that the code has gone, so it
+    // takes no space at all unless it has something to say. An empty bar
+    // across the top was costing the board a row of its own height.
+    @ViewBuilder
     private var header: some View {
-        HStack(spacing: 12) {
-            Spacer()
-            if let note = store.videoNote {
-                Text(note).font(.caption2).foregroundStyle(.orange)
-            }
+        if let note = store.videoNote {
+            Text(note)
+                .font(.body(11))
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 
     // Only what you need BEFORE a round: pick one, start it. It goes away

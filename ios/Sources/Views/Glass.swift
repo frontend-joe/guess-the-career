@@ -17,7 +17,7 @@ import SwiftUI
 enum GlassStyle {
     /// Everything in the control row is this across, so the row reads as one
     /// set of controls rather than a line of differently-sized things.
-    static let controlHeight: CGFloat = 38
+    static let controlHeight: CGFloat = 42
     static let symbol: CGFloat = 16
 
     /// The resting fill under the glass. Dark enough to separate from the
