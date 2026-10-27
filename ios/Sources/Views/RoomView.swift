@@ -9,16 +9,11 @@ struct RoomView: View {
 
     @State private var guess = ""
     @State private var showingRoundPicker = false
-    @State private var tab = Tab.video
-    /// The newest message id already seen, so the Chat tab can say how many
-    /// arrived while you were watching faces.
-    @State private var seenMessageId = 0
     @State private var confirmingGiveUp = false
     /// Whether the guess field holds the keyboard. The layout changes shape
     /// while you type rather than trying to fit everything at once.
     @FocusState private var typing: Bool
 
-    private enum Tab { case video, chat }
 
     var body: some View {
         // Every height here is a share of the space actually available, read
@@ -104,38 +99,16 @@ struct RoomView: View {
     // Faces and chat share the bottom third rather than splitting it: chat is
     // there for the player whose camera or microphone has failed, which is
     // precisely when their tile is worth nothing anyway.
+    // Faces only, for now. The Video/Chat tabs are off while the call is the
+    // thing being tested — chat was built for the player whose camera or
+    // microphone has failed, and a tab bar costs the faces vertical space in
+    // every game where nothing has failed. ChatView and its endpoint are
+    // untouched, so this is one view away from coming back.
     private var bottomPanel: some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $tab) {
-                Text("Video").tag(Tab.video)
-                Text(unread > 0 ? "Chat (\(unread))" : "Chat").tag(Tab.chat)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-
-            switch tab {
-            case .video:
-                VideoGridView(tiles: store.tiles)
-            case .chat:
-                ChatView()
-            }
-        }
-        .onChange(of: tab) { _, now in
-            if now == .chat { markChatRead() }
-        }
-        .onChange(of: store.state?.messages.last?.id) { _, _ in
-            if tab == .chat { markChatRead() }
-        }
+        VideoGridView(tiles: store.tiles)
     }
 
-    private var unread: Int {
-        (store.state?.messages ?? []).filter { $0.id > seenMessageId }.count
-    }
 
-    private func markChatRead() {
-        seenMessageId = max(seenMessageId, store.state?.messages.last?.id ?? 0)
-    }
 
     // Just the code. Sharing sits with the other actions, and the state
     // version was a debugging aid that earned its place during Phase 2 and

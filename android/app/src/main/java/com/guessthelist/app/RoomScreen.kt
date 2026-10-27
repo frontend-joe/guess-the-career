@@ -35,14 +35,11 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,12 +72,8 @@ import kotlinx.coroutines.launch
 fun RoomScreen(model: RoomViewModel) {
     var guess by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
-    var chatTab by remember { mutableStateOf(false) }
     var confirmingGiveUp by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
-    // The newest message id already seen, so the Chat tab can say how many
-    // arrived while you were watching faces.
-    var seenMessageId by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -163,36 +156,13 @@ fun RoomScreen(model: RoomViewModel) {
         // Faces and chat share the bottom third rather than splitting it:
         // chat is there for the player whose camera or microphone has failed,
         // which is precisely when their tile is worth nothing anyway.
-        // Always here. Hiding this while the guess field had focus was a bug
-        // twice over: Compose does not drop focus when the keyboard closes, so
-        // `typing` stayed true and the faces never came back at all — and
-        // hiding them was the wrong idea anyway. The whole screen slides now.
-        Column(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
-            val messages = model.state?.messages.orEmpty()
-            val unread = messages.count { it.id > seenMessageId }
-            TabRow(selectedTabIndex = if (chatTab) 1 else 0, containerColor = Color(0xFF0A0A0C)) {
-                Tab(
-                    selected = !chatTab,
-                    onClick = { chatTab = false },
-                    text = { Text("Video", fontSize = 13.sp) },
-                )
-                Tab(
-                    selected = chatTab,
-                    onClick = {
-                        chatTab = true
-                        seenMessageId = messages.lastOrNull()?.id ?: seenMessageId
-                    },
-                    text = {
-                        Text(if (unread > 0) "Chat ($unread)" else "Chat", fontSize = 13.sp)
-                    },
-                )
-            }
-            LaunchedEffect(chatTab, messages.lastOrNull()?.id) {
-                if (chatTab) seenMessageId = messages.lastOrNull()?.id ?: seenMessageId
-            }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (chatTab) ChatPanel(model, messages) else VideoGrid(model)
-            }
+        // Faces only, for now. The Video/Chat tabs are off while the call is
+        // the thing being tested — chat was built for the player whose camera
+        // or microphone has failed, and a tab bar costs the faces vertical
+        // space in every game where nothing has failed. ChatPanel and its
+        // endpoint are untouched, so this is one line away from coming back.
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
+            VideoGrid(model)
         }
 
         Row(
@@ -388,6 +358,7 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
     )
 }
 
+@Suppress("unused")   // off while the Video/Chat tabs are hidden
 @Composable
 private fun ChatPanel(model: RoomViewModel, messages: List<ChatMessage>) {
     var draft by remember { mutableStateOf("") }
