@@ -3,6 +3,11 @@ package com.guessthelist.app
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -173,23 +178,22 @@ fun RoomScreen(model: RoomViewModel) {
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // The same two icons iOS shows, and for the same reason: a
-            // slashed icon reads as "this is off" at a glance, where the old
-            // labels did not even agree with each other — "Stop video" named
-            // the action while "Muted" named the state, so the same button
-            // row was telling you two different kinds of thing at once.
+            // The same two icons iOS shows, and the same colour discipline:
+            // red means either "this is off" or "this ends something", and
+            // everything else is plain white. The row used to carry red, red,
+            // grey, red and blue at once, which gave the eye no hierarchy.
             IconButton(onClick = { scope.launch { model.setMicrophone(!model.micOn) } }) {
                 Icon(
                     if (model.micOn) Icons.Filled.Mic else Icons.Filled.MicOff,
                     contentDescription = if (model.micOn) "Mute" else "Unmute",
-                    tint = if (model.micOn) Color(0xFF4ADE80) else Color(0xFFFF6B6B),
+                    tint = if (model.micOn) Color.White else Color(0xFFFF6B6B),
                 )
             }
             IconButton(onClick = { scope.launch { model.setCamera(!model.cameraOn) } }) {
                 Icon(
                     if (model.cameraOn) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
                     contentDescription = if (model.cameraOn) "Turn camera off" else "Turn camera on",
-                    tint = if (model.cameraOn) Color(0xFF4ADE80) else Color(0xFFFF6B6B),
+                    tint = if (model.cameraOn) Color.White else Color(0xFFFF6B6B),
                 )
             }
             Box(Modifier.weight(1f))
@@ -201,7 +205,7 @@ fun RoomScreen(model: RoomViewModel) {
             // pay for it.
             if (model.isHost && model.round?.isLive == true) {
                 TextButton(onClick = { confirmingGiveUp = true }) {
-                    Text("Give up", fontSize = 13.sp, color = Color(0xFFFF6B6B))
+                    Text("Give up", fontSize = 14.sp, color = Color.White)
                 }
             }
             if (model.isHost) {
@@ -209,29 +213,34 @@ fun RoomScreen(model: RoomViewModel) {
                     Icon(
                         Icons.Filled.Share,
                         contentDescription = "Share the invite",
-                        tint = Color(0xFF9CA3AF),
+                        tint = Color.White,
                     )
                 }
                 TextButton(onClick = { model.endGame() }) {
-                    Text("End", fontSize = 13.sp, color = Color(0xFFFF6B6B))
+                    Text("End", fontSize = 14.sp, color = Color(0xFFFF6B6B))
                 }
             }
-            TextButton(onClick = { model.leave() }) { Text("Leave", fontSize = 13.sp) }
+            TextButton(onClick = { model.leave() }) {
+                Text("Leave", fontSize = 14.sp, color = Color.White)
+            }
         }
 
         // Everyone types. You can still shout, and mostly will, but a player
         // whose microphone has failed can now play rather than watch.
         //
-        // Last, so it sits on the very bottom edge — and therefore directly on
-        // top of the keyboard when one is up. It is a composer, and a composer
-        // belongs where your thumbs are.
+        // The field IS the bottom section — one full-width well with the send
+        // button floating inside it, rather than a box with controls parked
+        // alongside eating width the words need.
+        val live = model.round?.isLive == true
+        val canSend = live && guess.isNotBlank()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF10121A))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                // Swipe down on the composer to put the keyboard away, without
-                // having to find a Done key or tap some neutral patch.
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .padding(start = 6.dp, end = 6.dp)
+                // Swipe down on the composer to put the keyboard away.
                 .pointerInput(Unit) {
                     detectVerticalDragGestures { _, dragAmount ->
                         if (dragAmount > 6f) keyboard?.hide()
@@ -240,49 +249,40 @@ fun RoomScreen(model: RoomViewModel) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            BasicTextField(
                 value = guess,
                 onValueChange = { guess = it },
-                placeholder = { Text("Your guess…") },
+                enabled = live,
                 singleLine = true,
-                enabled = model.round?.isLive == true,
-                modifier = Modifier.weight(1f),
+                textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                cursorBrush = SolidColor(Color.White),
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                decorationBox = { inner ->
+                    if (guess.isEmpty()) {
+                        Text("Your guess…", color = Color.Gray, fontSize = 16.sp)
+                    }
+                    inner()
+                },
             )
             model.lastGuess?.let {
                 Text(it.verdict, color = verdictColour(it.verdict), fontSize = 12.sp)
             }
             IconButton(
-                onClick = {
-                    val raw = guess.trim()
-                    if (raw.isNotEmpty()) { model.guess(raw); guess = "" }
-                },
-                enabled = model.round?.isLive == true && guess.isNotBlank(),
+                onClick = { val raw = guess.trim(); if (raw.isNotEmpty()) { model.guess(raw); guess = "" } },
+                enabled = canSend,
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(if (canSend) Color.White else Color.White.copy(alpha = 0.12f)),
             ) {
                 Icon(
                     Icons.Filled.ArrowUpward,
                     contentDescription = "Submit guess",
-                    tint = if (guess.isNotBlank()) Color(0xFF4ADE80) else Color.DarkGray,
+                    tint = if (canSend) Color.Black else Color.White.copy(alpha = 0.35f),
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
-    }
-
-    // Giving up cannot be undone and ends the round for everybody, which is
-    // the one case that earns a confirmation. Choosing a round does not, which
-    // is why they are not the same button by accident.
-    if (confirmingGiveUp) {
-        AlertDialog(
-            onDismissRequest = { confirmingGiveUp = false },
-            title = { Text("Give up and show the answers?") },
-            confirmButton = {
-                TextButton(onClick = { model.giveUp(); confirmingGiveUp = false }) {
-                    Text("Show the answers")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmingGiveUp = false }) { Text("Keep playing") }
-            },
-        )
     }
 
     if (picking) {

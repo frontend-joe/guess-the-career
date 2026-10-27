@@ -29,12 +29,6 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>RussoOne-Regular.ttf</string>
-		<string>NotoSans-Regular.ttf</string>
-		<string>NotoSans-SemiBold.ttf</string>
-		<string>NotoSans-Bold.ttf</string>
-		<string>ChakraPetch-Regular.ttf</string>
-		<string>ChakraPetch-SemiBold.ttf</string>
-		<string>ChakraPetch-Bold.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

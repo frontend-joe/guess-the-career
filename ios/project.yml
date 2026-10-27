@@ -34,17 +34,11 @@ targets:
       properties:
         CFBundleDisplayName: Tenable
         UILaunchScreen: {}
-        # The same faces the web game loads from Google Fonts, bundled. These
-        # are file names; Font.custom takes the PostScript name instead, which
-        # is why Fonts.swift keeps the two in one place.
+        # The one bundled face: the board's. Everything else is the system
+        # font. This is a file name; Font.custom takes the PostScript name
+        # instead, which is why Fonts.swift keeps the two in one place.
         UIAppFonts:
           - RussoOne-Regular.ttf
-          - NotoSans-Regular.ttf
-          - NotoSans-SemiBold.ttf
-          - NotoSans-Bold.ttf
-          - ChakraPetch-Regular.ttf
-          - ChakraPetch-SemiBold.ttf
-          - ChakraPetch-Bold.ttf
         # Both are required before the first capture call, and the strings are
         # shown to the person, so they say what the camera is actually for.
         NSCameraUsageDescription: Your camera is shared with the other players in your game.

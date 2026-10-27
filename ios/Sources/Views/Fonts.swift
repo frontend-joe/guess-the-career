@@ -1,8 +1,7 @@
 import SwiftUI
 
-// The web game's faces, bundled so the apps read as the same product:
-// Russo One for the board and anything display-sized (client/src/index.css
-// calls it .font-display), Noto Sans for everything you read as text.
+// One bundled face: Russo One, for the board and anything display-sized (the
+// web game's .font-display). Everything else is the system font.
 //
 // The names are PostScript names, not file names. Getting one wrong fails
 // silently — SwiftUI falls back to the system font and says nothing — so they
@@ -13,12 +12,14 @@ extension Font {
         .custom("RussoOne-Regular", size: size)
     }
 
-    /// Noto Sans, the reading face.
+    /// The system face, for everything that is not the board.
+    ///
+    /// San Francisco, not a bundled web font. It already ships optical sizing,
+    /// tracking tables and legibility tuning that a downloaded .ttf does not,
+    /// it honours the reader's text-size setting, and it is what every other
+    /// control on the screen is set in. Russo One earns its place because the
+    /// board IS the game's identity; ordinary text does not.
     static func body(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        switch weight {
-        case .bold, .heavy, .black: return .custom("NotoSans-Bold", size: size)
-        case .semibold, .medium: return .custom("NotoSans-SemiBold", size: size)
-        default: return .custom("NotoSans-Regular", size: size)
-        }
+        .system(size: size, weight: weight)
     }
 }

@@ -146,14 +146,20 @@ struct RoomView: View {
         }
     }
 
-    // One row for every action that is available at any moment of a game:
-    // your own microphone and camera on the left, then what you can do to the
-    // room, then the way out. Splitting these across two rows meant two
-    // places to look for a button and two rows of height to pay for it.
+    // One row for every action available at any moment of a game: your own
+    // microphone and camera on the left, what you can do to the room on the
+    // right, and the way out last.
+    //
+    // All one height, all the same material, so the row reads as one set of
+    // controls. Colour is kept for meaning rather than decoration: red means
+    // either "this is off" or "this ends something", and everything else is
+    // plain white. The row previously carried red, red, blue, red and blue at
+    // once, which gave the eye no hierarchy to use.
     private var footer: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             // The error gets its own line rather than competing for width
-            // with seven controls.
+            // with six controls, where it was truncated to a few characters
+            // exactly when it had something to say.
             if let error = store.error {
                 Text(error)
                     .font(.body(11))
@@ -162,74 +168,108 @@ struct RoomView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack(spacing: 14) {
+            HStack(spacing: 8) {
                 Button {
                     Task { await store.setMicrophone(!store.microphoneOn) }
                 } label: {
                     Image(systemName: store.microphoneOn ? "mic.fill" : "mic.slash.fill")
-                        .foregroundStyle(store.microphoneOn ? .green : .red)
+                        .font(.system(size: GlassStyle.symbol))
+                        .foregroundStyle(store.microphoneOn ? .white : .red)
                 }
+                .buttonStyle(GlassCircleButtonStyle())
+                .accessibilityLabel(store.microphoneOn ? "Mute" : "Unmute")
+
                 Button {
                     Task { await store.setCamera(!store.cameraOn) }
                 } label: {
                     Image(systemName: store.cameraOn ? "video.fill" : "video.slash.fill")
-                        .foregroundStyle(store.cameraOn ? .green : .red)
+                        .font(.system(size: GlassStyle.symbol))
+                        .foregroundStyle(store.cameraOn ? .white : .red)
                 }
+                .buttonStyle(GlassCircleButtonStyle())
+                .accessibilityLabel(store.cameraOn ? "Turn camera off" : "Turn camera on")
 
-                Spacer()
+                Spacer(minLength: 8)
 
                 if store.isHost, store.round?.isLive == true {
-                    Button("Give up", role: .destructive) { confirmingGiveUp = true }
-                        .font(.body(13, weight: .semibold))
+                    Button("Give up") { confirmingGiveUp = true }
+                        .font(.body(14, weight: .medium))
+                        .foregroundStyle(.white)
+                        .buttonStyle(GlassCapsuleButtonStyle())
                 }
                 if store.isHost, let link = store.inviteLink {
                     ShareLink(item: link, message: Text("Join my Tenable game")) {
                         Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: GlassStyle.symbol))
+                            .foregroundStyle(.white)
                     }
+                    .buttonStyle(GlassCircleButtonStyle())
                 }
                 if store.isHost {
-                    Button("End", role: .destructive) { Task { await store.endGame() } }
-                        .font(.body(13, weight: .semibold))
+                    Button("End") { Task { await store.endGame() } }
+                        .font(.body(14, weight: .medium))
+                        .foregroundStyle(.red)
+                        .buttonStyle(GlassCapsuleButtonStyle())
                 }
                 Button("Leave") { Task { await store.exit() } }
-                    .font(.body(13, weight: .semibold))
+                    .font(.body(14, weight: .medium))
+                    .foregroundStyle(.white)
+                    .buttonStyle(GlassCapsuleButtonStyle())
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 14)
         .padding(.vertical, 8)
     }
 
     // Everyone types. You can still shout, and mostly will, but a player whose
     // microphone has failed can now play rather than watch.
+    //
+    // The field IS the bottom section — one full-width well with the send
+    // button floating inside it, rather than a box with controls parked
+    // alongside eating width the words need.
     private var guessBar: some View {
-        HStack(spacing: 8) {
-            TextField("Your guess…", text: $guess)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-                // The keyboard's blue key says Send and sends. Leaving it as
-                // Return meant the most obvious button on screen did nothing.
-                .submitLabel(.send)
-                .focused($typing)
-                .onSubmit(submit)
-                .disabled(store.round?.isLive != true)
-            if let last = store.lastGuess {
-                Text(last.verdict)
-                    .font(.body(12, weight: .semibold))
-                    .foregroundStyle(verdictColour(last.verdict))
-                    .transition(.opacity)
+        let live = store.round?.isLive == true
+        let canSend = live && !guess.trimmed.isEmpty
+
+        return GlassField {
+            HStack(spacing: 8) {
+                TextField("Your guess…", text: $guess)
+                    .textFieldStyle(.plain)
+                    .font(.body(16))
+                    .autocorrectionDisabled()
+                    // The keyboard's blue key says Send and sends. Leaving it
+                    // as Return meant the most obvious button did nothing.
+                    .submitLabel(.send)
+                    .focused($typing)
+                    .onSubmit(submit)
+                    .disabled(!live)
+                    .padding(.leading, 18)
+
+                if let last = store.lastGuess {
+                    Text(last.verdict)
+                        .font(.body(12, weight: .semibold))
+                        .foregroundStyle(verdictColour(last.verdict))
+                        .transition(.opacity)
+                }
+
+                Button(action: submit) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(canSend ? Color.black : Color.white.opacity(0.35))
+                        .frame(width: 34, height: 34)
+                        .background(
+                            Circle().fill(canSend ? Color.white : Color.white.opacity(0.12))
+                        )
+                }
+                .disabled(!canSend)
+                .padding(.trailing, 6)
+                .animation(.spring(response: 0.25, dampingFraction: 1.0), value: canSend)
             }
-            Button(action: submit) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
-                    // 44pt of target around a 28pt glyph.
-                    .frame(width: 44, height: 44)
-            }
-            .disabled(store.round?.isLive != true || guess.trimmed.isEmpty)
+            .frame(height: 50)
         }
         .animation(.spring(response: 0.3, dampingFraction: 1.0), value: store.lastGuess?.verdict)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color(red: 0.063, green: 0.071, blue: 0.090))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         // Swipe down on the composer to put the keyboard away, without having
         // to find a Done button or tap some neutral patch of screen.
         .swipeDownToDismissKeyboard()

@@ -111,3 +111,30 @@ private struct LegacyGlass: View {
             }
     }
 }
+
+
+/// The composer's well: a full-width glass capsule that the field and its send
+/// button live INSIDE, rather than a box with controls parked beside it.
+struct GlassField<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            content()
+                .background {
+                    Capsule().fill(GlassStyle.disc)
+                        .glassEffect(.regular, in: .capsule)
+                }
+        } else {
+            content()
+                .background {
+                    Capsule().fill(GlassStyle.disc)
+                        .overlay {
+                            // A bright top edge is light catching the material,
+                            // and the cheapest honest imitation of one.
+                            Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+                        }
+                }
+        }
+    }
+}
