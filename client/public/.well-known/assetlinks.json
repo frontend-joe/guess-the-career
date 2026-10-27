@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.guessthelist.app",
+      "sha256_cert_fingerprints": [
+        "EE:1E:57:FF:C1:4F:58:8C:3E:82:06:BA:07:B6:4B:C8:0E:69:25:FF:01:4D:B8:2E:66:60:58:E6:2A:53:7C:7A",
+        "49:B0:BE:D3:C8:D2:46:9A:2E:12:E5:3B:2B:C6:57:51:C9:76:70:6C:08:0C:37:E3:CF:A0:C1:A2:40:FB:5C:7A"
+      ]
+    }
+  }
+]

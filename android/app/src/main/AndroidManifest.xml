@@ -28,6 +28,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- The invite link. autoVerify makes Android fetch
+                 https://guessthelist.xyz/.well-known/assetlinks.json and check
+                 this package against the signing certificate; only then does a
+                 link open the app rather than the browser. A debug build is
+                 signed with a different certificate than a release one, which
+                 is why that file lists both fingerprints. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="guessthelist.xyz" android:pathPrefix="/join/" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

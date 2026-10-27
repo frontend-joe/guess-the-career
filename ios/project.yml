@@ -66,6 +66,16 @@ targets:
         # starts encrypting stored recordings with a key it manages, this has
         # to be revisited.
         ITSAppUsesNonExemptEncryption: false
+    # The invite link. An https link only opens the app if Apple can fetch
+    # https://guessthelist.xyz/.well-known/apple-app-site-association over
+    # HTTPS with no redirect and find this exact app ID in it — otherwise the
+    # link quietly opens the website instead, which is indistinguishable from
+    # the feature not existing.
+    entitlements:
+      path: Sources/GuessTheList.entitlements
+      properties:
+        com.apple.developer.associated-domains:
+          - applinks:guessthelist.xyz
     settings:
       base:
         TARGETED_DEVICE_FAMILY: 1

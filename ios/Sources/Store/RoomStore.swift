@@ -26,6 +26,11 @@ final class RoomStore {
     private(set) var state: RoomState?
     private(set) var tiles: [Tile] = []
 
+    /// A code pulled out of an invite link and not yet used. The lobby reads
+    /// it, so a link lands you on "type your name" rather than joining under
+    /// whatever name happened to be in the field.
+    var pendingJoinCode: String?
+
     var accessToken: String?
     var error: String?
     var videoNote: String?
@@ -60,6 +65,27 @@ final class RoomStore {
 
     var isHost: Bool { me?.isHost == true }
     var round: RoomRound? { state?.round }
+
+    // MARK: - Invite links
+
+    /// The invite. One shape across all three clients — /join/<CODE> — because
+    /// it is also what the website routes and what the two association files
+    /// claim. A link that opens the app on one platform and the website on the
+    /// other would be the same bug twice.
+    var inviteLink: URL? {
+        guard let code = state?.code else { return nil }
+        return URL(string: "https://guessthelist.xyz/join/\(code)")
+    }
+
+    /// Handle https://guessthelist.xyz/join/<CODE>. Anything else is ignored
+    /// rather than guessed at.
+    func handleInvite(_ url: URL) {
+        let parts = url.pathComponents.filter { $0 != "/" }
+        guard parts.first == "join", let code = parts.dropFirst().first else { return }
+        let cleaned = code.uppercased().filter { $0.isLetter || $0.isNumber }
+        guard !cleaned.isEmpty else { return }
+        pendingJoinCode = cleaned
+    }
 
     // MARK: - Entering and leaving
 

@@ -10,6 +10,7 @@ struct GuessTheListApp: App {
                 .environment(store)
                 .preferredColorScheme(.dark)
                 .task { await store.restoreSeat() }
+                .onOpenURL { store.handleInvite($0) }
         }
     }
 }

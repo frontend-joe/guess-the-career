@@ -47,6 +47,13 @@ struct LobbyView: View {
             }
             .navigationTitle("Football Tenable")
             .disabled(busy)
+            // An invite link fills the code in and leaves the guest with only
+            // the one thing they actually have to supply: their name.
+            .onChange(of: store.pendingJoinCode, initial: true) { _, invited in
+                guard let invited else { return }
+                code = invited
+                store.pendingJoinCode = nil
+            }
         }
     }
 

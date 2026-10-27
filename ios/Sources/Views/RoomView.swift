@@ -94,12 +94,11 @@ struct RoomView: View {
     // Just the code. Sharing sits with the other actions, and the state
     // version was a debugging aid that earned its place during Phase 2 and
     // stopped earning it once the sync stopped being the thing under test.
+    // No code on screen. People join by tapping the link you send them, so a
+    // six-character string to read out and mistype is a step that no longer
+    // needs to exist.
     private var header: some View {
         HStack(spacing: 12) {
-            Text(store.state?.code ?? "")
-                .font(.display(20))
-                .tracking(4)
-                .foregroundStyle(.green)
             Spacer()
             if let note = store.videoNote {
                 Text(note).font(.caption2).foregroundStyle(.orange)
@@ -120,8 +119,8 @@ struct RoomView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(store.round?.isPending != true)
             Spacer()
-            if let code = store.state?.code {
-                ShareLink(item: "Join my Tenable game — code \(code)") {
+            if let link = store.inviteLink {
+                ShareLink(item: link, message: Text("Join my Tenable game")) {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .buttonStyle(.bordered)

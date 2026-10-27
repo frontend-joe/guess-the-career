@@ -20,7 +20,23 @@
   status = 200
   force  = true
 
-# SPA fallback — all other routes serve index.html
+# The two files that let an invite link open the app instead of the website.
+# Apple's has no file extension, so without this it is served as
+# application/octet-stream and iOS refuses it — the link then silently opens
+# the website forever, which looks exactly like the feature not being built.
+# Both must be served over HTTPS with no redirect.
+[[headers]]
+  for = "/.well-known/apple-app-site-association"
+  [headers.values]
+    Content-Type = "application/json"
+
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json"
+
+# SPA fallback — all other routes serve index.html. Static files in the publish
+# directory are matched first, so this does not shadow /.well-known.
 [[redirects]]
   from   = "/*"
   to     = "/index.html"

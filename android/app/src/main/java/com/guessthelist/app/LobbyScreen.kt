@@ -14,6 +14,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,7 +32,7 @@ import kotlinx.coroutines.launch
 // asymmetry is the product — asking the friend you are already on a call with
 // to sign up is how you end up playing on your own.
 @Composable
-fun LobbyScreen(model: RoomViewModel) {
+fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember { mutableStateOf(null) }) {
     var code by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -57,6 +59,12 @@ fun LobbyScreen(model: RoomViewModel) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // An invite link fills the code in and leaves the guest with only the
+        // one thing they actually have to supply: their name.
+        LaunchedEffect(invite.value) {
+            invite.value?.let { code = it; invite.value = null }
+        }
+
         Text("Football Tenable", style = MaterialTheme.typography.headlineMedium)
 
         Text("Join a game", style = MaterialTheme.typography.titleMedium)

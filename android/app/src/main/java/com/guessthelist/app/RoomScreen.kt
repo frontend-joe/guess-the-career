@@ -71,12 +71,9 @@ fun RoomScreen(model: RoomViewModel) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                model.state?.code.orEmpty(),
-                fontFamily = AppFonts.Display,
-                fontSize = 20.sp,
-                color = Color(0xFF4ADE80),
-            )
+            // No code on screen. People join by tapping the link you send
+            // them, so a six-character string to read out and mistype is a
+            // step that no longer needs to exist.
             Box(Modifier.weight(1f))
             model.videoNote?.let { Text(it, fontSize = 11.sp, color = Color(0xFFFBBF24)) }
             // The state version was a debugging aid that earned its place
@@ -116,7 +113,7 @@ fun RoomScreen(model: RoomViewModel) {
                     enabled = model.round?.isPending == true,
                 ) { Text("Start") }
                 Box(Modifier.weight(1f))
-                TextButton(onClick = { shareCode(context, model.state?.code) }) { Text("Share") }
+                TextButton(onClick = { shareInvite(context, model.state?.code) }) { Text("Share") }
                 TextButton(onClick = { model.endGame() }) { Text("End") }
             }
         }
@@ -373,13 +370,18 @@ private fun ChatPanel(model: RoomViewModel, messages: List<ChatMessage>) {
     }
 }
 
-// Hand the code to whatever the person uses to talk to their mates. A chooser
+// Hand the link to whatever the person uses to talk to their mates. A chooser
 // rather than a specific app, because that is not ours to decide.
-private fun shareCode(context: Context, code: String?) {
+//
+// One shape across all three clients — /join/<CODE> — because it is also what
+// the website routes and what the two association files claim. A link that
+// opens the app on one platform and the website on the other would be the same
+// bug twice.
+private fun shareInvite(context: Context, code: String?) {
     if (code.isNullOrEmpty()) return
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, "Join my Tenable game — code $code")
+        putExtra(Intent.EXTRA_TEXT, "Join my Tenable game: https://guessthelist.xyz/join/$code")
     }
-    context.startActivity(Intent.createChooser(intent, "Share the code"))
+    context.startActivity(Intent.createChooser(intent, "Share the invite"))
 }

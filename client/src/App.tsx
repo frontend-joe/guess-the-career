@@ -127,6 +127,14 @@ import { RecordSalesSchedulePage } from '@/pages/RecordSalesSchedulePage'
 import { RecordSalesDetailPage } from '@/pages/RecordSalesDetailPage'
 import { RoomDevPage } from '@/pages/RoomDevPage'
 
+// An invite link is /join/<CODE>, the one shape all three clients share. The
+// browser only ever sees it when the app is not installed, so all it does is
+// hand the code to the web game, which already knows how to prefill from it.
+function JoinRedirect() {
+  const code = window.location.pathname.split('/').pop() ?? ''
+  return <Navigate to={`/dev/room?code=${encodeURIComponent(code.toUpperCase())}`} replace />
+}
+
 const router = createBrowserRouter([
  {
   element: <RootLayout />,
@@ -166,6 +174,10 @@ const router = createBrowserRouter([
   // Dev harness for multiplayer Tenable — four tabs, real video, real server.
   // Not linked from anywhere: the product surface for this is the native apps.
   { path: '/dev/room', element: <RoomDevPage /> },
+  // The invite link. On a phone with the app installed this never reaches the
+  // browser — iOS and Android hand it to the app — so this is the fallback for
+  // a laptop, or for someone who has not installed it yet.
+  { path: '/join/:code', element: <JoinRedirect /> },
 
   { path: '/play/foreigners', element: <ForeignersPage /> },
   { path: '/play/serie-a', element: <SerieAPage /> },

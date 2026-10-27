@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["QZA66MATSN.com.guessthelist.GuessTheList"],
+        "components": [
+          { "/": "/join/*", "comment": "An invite to a game opens the app on the join screen." }
+        ]
+      }
+    ]
+  }
+}
