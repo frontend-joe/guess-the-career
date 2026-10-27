@@ -52,3 +52,7 @@ targets:
         # the latter from the clock so it cannot be forgotten.
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
+        # Without this the build is fine, installs fine, and is then refused by
+        # App Store Connect: an icon in an asset catalog plus the
+        # CFBundleIconName the catalog generates are both required.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

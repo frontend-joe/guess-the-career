@@ -46,7 +46,7 @@ xcodebuild -exportArchive \
 IPA="$(find "$BUILD_DIR/export" -name '*.ipa' | head -1)"
 [ -n "$IPA" ] || { echo "✗ No ipa was produced"; exit 1; }
 
-echo "▸ Uploading $IPA…"
+echo "▸ Uploading ${IPA}…"
 xcrun altool --upload-app -f "$IPA" -t ios \
   --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
