@@ -10,3 +10,22 @@
   startCommand  = "yarn workspace server start"
   healthcheckPath = "/api/health"
   restartPolicyType = "ON_FAILURE"
+
+# ── Persistence (NOT configurable from this file) ────────────────────────────
+# The SQLite database lives at DATABASE_PATH, which MUST point inside a mounted
+# volume. Railway's container filesystem is ephemeral: without a volume the
+# database is recreated empty on every deploy and everything still appears to
+# work, just with no data.
+#
+# Volumes cannot be declared in railway.toml — config-as-code covers only the
+# build and deploy settings, not volume creation or attachment — so this is set
+# in the Railway dashboard and nothing in this repo can enforce it:
+#
+#   1. Service -> Variables:  DATABASE_PATH = /data/db.sqlite
+#   2. Service -> Volumes:    mount a volume at /data
+#
+# To check it is actually in effect, GET /api/health and look at `db`:
+# `existedAtBoot: false` on a redeploy, or a footballers count that has
+# suddenly dropped, means the volume is not attached. GET /api/admin/db-info
+# gives the resolved path, and GET /api/admin/db-snapshot downloads a real
+# consistent copy of the whole database.

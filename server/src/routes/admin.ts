@@ -1,13 +1,47 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
-import { sqlite } from '../db/client.ts'
+import { readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { sqlite, databaseInfo } from '../db/client.ts'
 import { requireAdmin } from '../services/auth.ts'
 
 export const adminRouter = new Hono()
 
 // All admin endpoints require a logged-in admin session.
 adminRouter.use('*', requireAdmin)
+
+// GET /api/admin/db-snapshot — the whole database as one .sqlite file.
+//
+// export-db below dumps a hand-picked set of tables as JSON, which is useful
+// for inspection but is not a backup: it misses every table nobody remembered
+// to add. This uses SQLite's online backup API, so it is a consistent snapshot
+// of everything, taken without stopping writes.
+//
+// Nothing in the repo can guarantee the production volume is mounted (Railway
+// config-as-code cannot declare volumes), so being able to pull a real copy
+// down on demand is the recovery half of that problem.
+adminRouter.get('/db-snapshot', async () => {
+  const dest = join(tmpdir(), `gtl-snapshot-${Date.now()}.sqlite`)
+  try {
+    await sqlite.backup(dest)
+    const bytes = readFileSync(dest)
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        'content-type': 'application/vnd.sqlite3',
+        'content-disposition': `attachment; filename="gtl-${stamp}.sqlite"`,
+        'content-length': String(bytes.length),
+      },
+    })
+  } finally {
+    rmSync(dest, { force: true })
+  }
+})
+
+// GET /api/admin/db-info — which database is this process actually on?
+adminRouter.get('/db-info', (c) => c.json(databaseInfo()))
 
 // GET /api/admin/export-db
 adminRouter.get('/export-db', (c) => {

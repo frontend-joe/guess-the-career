@@ -1,17 +1,65 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { readFileSync, readdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as schema from './schema.ts'
 import { normalizeClubAlias } from '../services/scraper.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+// DATABASE_PATH must point at a mounted volume in production. Railway's
+// container filesystem is ephemeral and railway.toml cannot declare a volume
+// (config-as-code doesn't support it), so this is set in the dashboard and
+// nothing in the repo can enforce it. What we can do is make a wrong value
+// obvious instead of silent — see reportDatabase() below.
 const dbPath = process.env.DATABASE_PATH ?? './data/db.sqlite'
+
+// Captured before the file is opened: better-sqlite3 creates it on open, so
+// after this line "did it already exist?" is unanswerable.
+const existedAtBoot = existsSync(dbPath)
+
 export const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
+// Explicit rather than relying on the 5s default: a long admin backfill holds
+// the write lock, and every other request has to be willing to wait for it.
+sqlite.pragma('busy_timeout = 5000')
+
+export interface DatabaseInfo {
+  path: string
+  existedAtBoot: boolean
+  sizeBytes: number
+  footballers: number
+}
+
+export function databaseInfo(): DatabaseInfo {
+  let footballers = 0
+  try {
+    footballers = (sqlite.prepare('SELECT COUNT(*) AS n FROM footballers').get() as { n: number }).n
+  } catch {
+    // Pre-migration or a brand-new file; 0 is the honest answer.
+  }
+  return {
+    path: resolve(dbPath),
+    existedAtBoot,
+    sizeBytes: existsSync(dbPath) ? statSync(dbPath).size : 0,
+    footballers,
+  }
+}
+
+// Say out loud which database we are on. If a volume is ever detached or
+// DATABASE_PATH is lost, the next deploy silently starts on an empty file and
+// everything still "works" — this line is what makes that visible.
+export function reportDatabase(): void {
+  const info = databaseInfo()
+  const mb = (info.sizeBytes / 1_000_000).toFixed(1)
+  console.log(`Database: ${info.path} (${mb} MB, ${info.footballers} footballers)`)
+  if (!info.existedAtBoot) {
+    console.warn(`⚠ Database did not exist at boot and was CREATED at ${info.path}.`)
+    console.warn('⚠ If this is production, DATABASE_PATH is not pointing at the volume and data is being lost.')
+  }
+}
 
 const TRANSLITERATE: Record<string, string> = {
   ı: 'i', ł: 'l', ø: 'o', đ: 'd', ð: 'd',
