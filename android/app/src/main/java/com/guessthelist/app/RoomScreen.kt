@@ -104,45 +104,51 @@ fun RoomScreen(model: RoomViewModel) {
             BoardSection(model)
         }
 
+        // Choosing, starting and ending a round are the host's calls.
+        // Guessing is not — the bar below is everyone's.
         if (model.isHost) {
-            Column(
+            Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { picking = true }) { Text("Choose round") }
-                    Button(
-                        onClick = { model.startRound() },
-                        enabled = model.round?.isPending == true,
-                    ) { Text("Start") }
-                    Box(Modifier.weight(1f))
-                    TextButton(onClick = { model.endGame() }) { Text("End") }
-                }
-                // Only the host types. Everyone else shouts — which is the
-                // game, and is enforced on the server, not here.
-                OutlinedTextField(
-                    value = guess,
-                    onValueChange = { guess = it },
-                    label = { Text("Type what they shout…") },
-                    singleLine = true,
-                    enabled = model.round?.isLive == true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            val raw = guess.trim()
-                            if (raw.isNotEmpty()) { model.guess(raw); guess = "" }
-                        },
-                        enabled = model.round?.isLive == true && guess.isNotBlank(),
-                    ) { Text("Guess") }
-                    model.lastGuess?.let {
-                        Text(
-                            it.verdict,
-                            color = verdictColour(it.verdict),
-                            modifier = Modifier.align(Alignment.CenterVertically),
-                        )
-                    }
+                Button(onClick = { picking = true }) { Text("Choose round") }
+                Button(
+                    onClick = { model.startRound() },
+                    enabled = model.round?.isPending == true,
+                ) { Text("Start") }
+                Box(Modifier.weight(1f))
+                TextButton(onClick = { model.endGame() }) { Text("End") }
+            }
+        }
+
+        // Everyone types. You can still shout, and mostly will, but a player
+        // whose microphone has failed can now play rather than watch.
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            OutlinedTextField(
+                value = guess,
+                onValueChange = { guess = it },
+                label = { Text("Your guess…") },
+                singleLine = true,
+                enabled = model.round?.isLive == true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        val raw = guess.trim()
+                        if (raw.isNotEmpty()) { model.guess(raw); guess = "" }
+                    },
+                    enabled = model.round?.isLive == true && guess.isNotBlank(),
+                ) { Text("Guess") }
+                model.lastGuess?.let {
+                    Text(
+                        it.verdict,
+                        color = verdictColour(it.verdict),
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                    )
                 }
             }
         }

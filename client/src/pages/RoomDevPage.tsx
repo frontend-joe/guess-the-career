@@ -597,7 +597,14 @@ export function RoomDevPage() {
             </div>
 
             <p className="text-xs text-slate-400">{hostHint(round?.status)}</p>
+          </div>
+        )}
 
+        {/* Everyone guesses. You can still shout, and mostly will, but a
+            player whose microphone has failed can now play rather than
+            watch. Choosing, starting and ending a round stay the host's. */}
+        {session && (
+          <div className={`space-y-2 border-t border-slate-800 pt-3 ${isHost ? '' : 'mt-auto'}`}>
             <form
               className="flex gap-2"
               onSubmit={(e) => {
@@ -610,7 +617,7 @@ export function RoomDevPage() {
             >
               <input
                 className="flex-1 rounded border border-slate-600 bg-slate-900 px-3 py-2"
-                placeholder={round?.status === 'live' ? 'Type what they shouted…' : 'Start a round first'}
+                placeholder={round?.status === 'live' ? 'Your guess…' : 'Waiting for a round to start'}
                 disabled={round?.status !== 'live'}
                 value={guess}
                 onChange={(e) => setGuess(e.target.value)}

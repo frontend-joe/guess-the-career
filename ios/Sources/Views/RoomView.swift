@@ -25,6 +25,7 @@ struct RoomView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if store.isHost { hostControls }
+            guessBar
 
             bottomPanel
                 .frame(height: UIScreen.main.bounds.height / 3)
@@ -115,33 +116,37 @@ struct RoomView: View {
         .padding(.vertical, 8)
     }
 
+    // Choosing, starting and ending a round are the host's calls. Guessing is
+    // not — see guessBar.
     @ViewBuilder
     private var hostControls: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Button("Choose round") { showingRoundPicker = true }
-                    .buttonStyle(.bordered)
-                Button("Start") { Task { await store.startRound() } }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(store.round?.isPending != true)
-                Spacer()
-                Button("End", role: .destructive) { Task { await store.endGame() } }
-                    .buttonStyle(.bordered)
-            }
+        HStack {
+            Button("Choose round") { showingRoundPicker = true }
+                .buttonStyle(.bordered)
+            Button("Start") { Task { await store.startRound() } }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.round?.isPending != true)
+            Spacer()
+            Button("End", role: .destructive) { Task { await store.endGame() } }
+                .buttonStyle(.bordered)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+    }
 
-            // Only the host types. Everyone else shouts — which is the game,
-            // and is enforced on the server, not here.
-            HStack {
-                TextField("Type what they shout…", text: $guess)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                    .onSubmit(submit)
-                    .disabled(store.round?.isLive != true)
-                if let last = store.lastGuess {
-                    Text(last.verdict)
-                        .font(.caption)
-                        .foregroundStyle(verdictColour(last.verdict))
-                }
+    // Everyone types. You can still shout, and mostly will, but a player whose
+    // microphone has failed can now play rather than watch.
+    private var guessBar: some View {
+        HStack {
+            TextField("Your guess…", text: $guess)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .onSubmit(submit)
+                .disabled(store.round?.isLive != true)
+            if let last = store.lastGuess {
+                Text(last.verdict)
+                    .font(.caption)
+                    .foregroundStyle(verdictColour(last.verdict))
             }
         }
         .padding(.horizontal)

@@ -378,8 +378,18 @@ function pickAnswer(raw: string, answers: AnswerRow[]): AnswerRow | null {
   return fuzzy.find((a) => a.found_at_ms == null) ?? fuzzy[0]
 }
 
-// The host guesses; everyone else shouts. Enforced here rather than in the UI,
-// because a participant with the API would otherwise just guess anyway.
+// Anyone in the room may guess. It started host-only — everyone else shouts,
+// one person types — but that made the game unplayable for whoever's
+// microphone had failed, and the same fix that gave them chat should give
+// them the keyboard.
+//
+// What stays host-only is everything that changes the shape of the game:
+// freezing, starting, ending and taking a clue. Those are the host's calls.
+// Guessing is just playing.
+//
+// Attribution is unaffected: found_by_participant_id has always recorded the
+// participant who guessed, so the event log and the recording already know
+// who got it.
 export function submitGuess(
   instanceId: number,
   participant: ParticipantRow,
@@ -391,7 +401,6 @@ export function submitGuess(
     .get(instanceId) as InstanceRow | undefined
   if (!inst) throw new RoomError('Unknown round instance', 404)
   if (inst.room_id !== participant.room_id) throw new RoomError('Wrong room', 403)
-  if (participant.role !== 'host') throw new RoomError('Only the host can enter guesses', 403)
   if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
 
   const room = sqlite.prepare('SELECT * FROM game_rooms WHERE id = ?').get(inst.room_id) as RoomRow
