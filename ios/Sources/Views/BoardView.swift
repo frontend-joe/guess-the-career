@@ -134,7 +134,7 @@ struct BoardView: View {
             // downwards, so a wave running the other way is movement rather
             // than a second way of reading it.
             waveTick: wave,
-            waveDelay: Double(max(round.board.target, 1) - rank) * 0.045,
+            waveDelay: Double(max(round.board.target, 1) - rank) * 0.075,
             onLongPress: { longPress(rank: rank, round: round) }
         )
         .frame(width: width * BoardStyle.widthFraction(rank: rank), height: height)
@@ -309,12 +309,13 @@ private struct PyramidRow: View {
             guard tick > 0 else { return }
             Task {
                 try? await Task.sleep(for: .seconds(waveDelay))
-                // Up fast, down a little slower, so it reads as a flick
-                // rather than a pulse. Both short: the wave has nine more
-                // rows to get through.
-                withAnimation(.easeOut(duration: 0.13)) { lift = 1 }
-                try? await Task.sleep(for: .seconds(0.13))
-                withAnimation(.easeIn(duration: 0.2)) { lift = 0 }
+                // Up a little faster than it comes down, so it reads as a
+                // rise and a settle rather than a pulse. Slower than the
+                // first attempt, which crossed the board quickly enough that
+                // you saw a flicker rather than something travelling.
+                withAnimation(.easeOut(duration: 0.2)) { lift = 1 }
+                try? await Task.sleep(for: .seconds(0.2))
+                withAnimation(.easeIn(duration: 0.3)) { lift = 0 }
             }
         }
         // Press and hold a blank slot for a clue, exactly as on the web.

@@ -117,7 +117,7 @@ fun BoardSection(model: RoomViewModel) {
                 // reads downwards, so a wave running the other way is
                 // movement rather than a second way of reading it.
                 waveTick = wave,
-                waveDelayMs = ((round.board.target - rank) * 45).toLong(),
+                waveDelayMs = ((round.board.target - rank) * 75).toLong(),
                 onLongPress = {
                     // The host takes a clue; everyone's screen then opens it.
                     // Anyone may reopen one already taken, after the round has
@@ -223,10 +223,12 @@ private fun PyramidRow(
     LaunchedEffect(waveTick) {
         if (waveTick == 0) return@LaunchedEffect
         delay(waveDelayMs)
-        // Up fast, down a little slower, so it reads as a flick rather than a
-        // pulse. Both short: the wave has nine more rows to get through.
-        lift.animateTo(1f, tween(130, easing = LinearEasing))
-        lift.animateTo(0f, tween(200, easing = LinearEasing))
+        // Up a little faster than it comes down, so it reads as a rise and a
+        // settle rather than a pulse. Slower than the first attempt, which
+        // crossed the board quickly enough that you saw a flicker rather than
+        // something travelling.
+        lift.animateTo(1f, tween(200, easing = LinearEasing))
+        lift.animateTo(0f, tween(300, easing = LinearEasing))
     }
     val brush = when {
         answer == null -> Brush.verticalGradient(listOf(VioletTop, VioletBottom))
