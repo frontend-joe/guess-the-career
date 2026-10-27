@@ -95,9 +95,23 @@ export interface RoomSession {
   participantToken: string
 }
 
+// Carries the status, so a caller can tell "this seat is gone" (403/404) from
+// "the network is having a moment" and only give up on the first.
+export class RoomApiError extends Error {
+  // Written out rather than a constructor parameter property: the client
+  // builds with erasableSyntaxOnly, which rules those out.
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
 async function unwrap<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`)
+  if (!res.ok) {
+    throw new RoomApiError((body as { error?: string }).error ?? `Request failed (${res.status})`, res.status)
+  }
   return body as T
 }
 

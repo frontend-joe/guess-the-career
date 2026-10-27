@@ -10,7 +10,9 @@ import {
   livekitCredentials,
   startRound,
   submitGuess,
+  RoomApiError,
   type GuessResult,
+  type JoinedRoom,
   type RoomSession,
   type RoomState,
 } from '@/api/rooms'
@@ -93,8 +95,22 @@ function VideoTile({ tile }: { tile: Tile }) {
   )
 }
 
+// sessionStorage, not localStorage, and that is the whole point: it is scoped
+// to one tab. Four tabs are four different people here, and a seat shared
+// across them would have them all fighting over one participant.
+const SEAT_KEY = 'gtl-room-seat'
+
+function storedSeat(): RoomSession | null {
+  try {
+    const raw = sessionStorage.getItem(SEAT_KEY)
+    return raw ? (JSON.parse(raw) as RoomSession) : null
+  } catch {
+    return null
+  }
+}
+
 export function RoomDevPage() {
-  const [session, setSession] = useState<RoomSession | null>(null)
+  const [session, setSession] = useState<RoomSession | null>(storedSeat)
   const [state, setState] = useState<RoomState | null>(null)
   const [tiles, setTiles] = useState<Tile[]>([])
   const [rounds, setRounds] = useState<TenablePlayRound[]>([])
@@ -119,6 +135,25 @@ export function RoomDevPage() {
   const sessionRef = useRef<RoomSession | null>(null)
   sessionRef.current = session
 
+  const enterRoom = useCallback((joined: JoinedRoom) => {
+    const seat: RoomSession = {
+      code: joined.code,
+      participantId: joined.participantId,
+      participantToken: joined.participantToken,
+    }
+    try { sessionStorage.setItem(SEAT_KEY, JSON.stringify(seat)) } catch { /* private mode */ }
+    versionRef.current = joined.stateVersion
+    setState(joined)
+    setSession(seat)
+  }, [])
+
+  const exitRoom = useCallback(() => {
+    try { sessionStorage.removeItem(SEAT_KEY) } catch { /* private mode */ }
+    versionRef.current = 0
+    setSession(null)
+    setState(null)
+  }, [])
+
   const refresh = useCallback(async () => {
     const current = sessionRef.current
     if (!current) return
@@ -128,9 +163,17 @@ export function RoomDevPage() {
       versionRef.current = next.stateVersion
       setState(next)
     } catch (err) {
-      setError(String(err))
+      // A seat that no longer exists — the room ended, or the token expired —
+      // is permanent, so drop back to the lobby. Anything else is probably the
+      // network, and the next poll can have another go.
+      if (err instanceof RoomApiError && (err.status === 403 || err.status === 404)) {
+        exitRoom()
+        setError('That room is no longer available.')
+        return
+      }
+      setError(err instanceof Error ? err.message : String(err))
     }
-  }, [])
+  }, [exitRoom])
 
   useEffect(() => { getTenablePlayRounds().then(setRounds).catch(() => {}) }, [])
 
@@ -268,10 +311,7 @@ export function RoomDevPage() {
           <button
             className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
             onClick={() => run(async () => {
-              const joined = await createRoom()
-              versionRef.current = joined.stateVersion
-              setState(joined)
-              setSession(joined)
+              enterRoom(await createRoom())
             })}
           >
             Create room
@@ -298,10 +338,7 @@ export function RoomDevPage() {
             className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-40"
             disabled={!joinCode.trim() || !displayName.trim()}
             onClick={() => run(async () => {
-              const joined = await joinRoom(joinCode.trim(), displayName.trim())
-              versionRef.current = joined.stateVersion
-              setState(joined)
-              setSession(joined)
+              enterRoom(await joinRoom(joinCode.trim(), displayName.trim()))
             })}
           >
             Join
@@ -495,9 +532,7 @@ export function RoomDevPage() {
           className="ml-auto hover:text-slate-300"
           onClick={async () => {
             await leaveRoom(session).catch(() => {})
-            versionRef.current = 0
-            setSession(null)
-            setState(null)
+            exitRoom()
           }}
         >
           Leave
