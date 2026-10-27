@@ -304,6 +304,13 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
       )
     })
 
+    // Picking a different round before starting replaces the last pick rather
+    // than stacking up behind it. Without this every unstarted choice stayed
+    // pending for the rest of the game.
+    sqlite
+      .prepare("UPDATE game_round_instances SET status = 'abandoned' WHERE room_id = ? AND status = 'pending' AND id != ?")
+      .run(roomId, id)
+
     bumpVersion(roomId)
     return id
   })()
@@ -771,8 +778,16 @@ export interface RoomState {
 export function roomState(room: RoomRow): RoomState {
   const inst = sqlite
     .prepare(
+      // A live round always wins — freezing the next one must not yank the
+      // board out from under a round being played. Failing that, the NEWEST
+      // instance is the current one, whatever its status.
+      //
+      // 'pending' used to sort ahead of everything except 'live', which meant
+      // the moment a round ended the board jumped to whichever round had been
+      // picked and never started — so giving up replaced the answers you had
+      // just asked to see with a different round's blank pyramid.
       `SELECT * FROM game_round_instances WHERE room_id = ?
-       ORDER BY CASE status WHEN 'live' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, seq DESC LIMIT 1`,
+       ORDER BY CASE status WHEN 'live' THEN 0 ELSE 1 END, seq DESC LIMIT 1`,
     )
     .get(room.id) as InstanceRow | undefined
 
