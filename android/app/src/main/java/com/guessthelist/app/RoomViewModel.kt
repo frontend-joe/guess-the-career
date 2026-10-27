@@ -303,8 +303,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
 
     fun freezeRound(roundId: Int) = act { Api.freezeRound(it, roundId) }
 
+    /** The round WAITING to be started, which is not always the one on the
+     *  board: after a round finishes the board keeps its answers up while the
+     *  next one is lined up. */
+    val pendingInstanceId: Int? get() = state?.pendingInstanceId
+
     fun startRound() {
-        val instanceId = round?.instanceId ?: return
+        val instanceId = pendingInstanceId ?: return
         act { Api.startRound(it, instanceId) }
     }
 

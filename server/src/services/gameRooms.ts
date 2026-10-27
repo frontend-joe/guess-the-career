@@ -335,6 +335,14 @@ export function startRound(roomId: number, instanceId: number): InstanceRow {
     sqlite
       .prepare("UPDATE game_round_instances SET status = 'live', started_at_ms = ? WHERE id = ?")
       .run(startedAtMs, instanceId)
+    // Starting settles it: no other pick is waiting any more. Without this a
+    // round frozen and never started — including ones left behind by older
+    // builds, which could be frozen DURING a live round and so carry a higher
+    // seq — outranks the round you just finished and takes the board the
+    // moment it ends. That is what made Give up jump to another round.
+    sqlite
+      .prepare("UPDATE game_round_instances SET status = 'abandoned' WHERE room_id = ? AND status = 'pending' AND id != ?")
+      .run(inst.room_id, instanceId)
     sqlite.prepare("UPDATE game_rooms SET status = 'live' WHERE id = ? AND status = 'lobby'").run(inst.room_id)
     appendEvent(instanceId, 0, 'round_start', null, {
       title: inst.title,
@@ -760,6 +768,9 @@ export interface RoomState {
   stateVersion: number
   livekitRoom: string
   hostUserId: number
+  /// The round picked and waiting to be started, if any. Separate from
+  /// `round`, which is what the board is showing.
+  pendingInstanceId: number | null
   participants: { id: number; displayName: string; role: string; slot: number; present: boolean }[]
   messages: ChatMessage[]
   round: {
@@ -778,16 +789,20 @@ export interface RoomState {
 export function roomState(room: RoomRow): RoomState {
   const inst = sqlite
     .prepare(
-      // A live round always wins — freezing the next one must not yank the
-      // board out from under a round being played. Failing that, the NEWEST
-      // instance is the current one, whatever its status.
+      // What the board shows, in order of claim:
       //
-      // 'pending' used to sort ahead of everything except 'live', which meant
-      // the moment a round ended the board jumped to whichever round had been
-      // picked and never started — so giving up replaced the answers you had
-      // just asked to see with a different round's blank pyramid.
+      //   live     — a round being played always wins. Picking the next one
+      //              must never yank the board out from under it.
+      //   complete — a round that has been PLAYED outranks one merely picked.
+      //              This is the whole fix: a pending round used to take the
+      //              board the instant a round ended, so Give up replaced the
+      //              answers you had just asked to see with another round's
+      //              blank pyramid. The answers now stay up until the host
+      //              actually starts the next round.
+      //   pending   — only when nothing has been played yet, which is the
+      //              first round of a game, where a preview is what you want.
       `SELECT * FROM game_round_instances WHERE room_id = ?
-       ORDER BY CASE status WHEN 'live' THEN 0 ELSE 1 END, seq DESC LIMIT 1`,
+       ORDER BY CASE status WHEN 'live' THEN 0 WHEN 'complete' THEN 1 ELSE 2 END, seq DESC LIMIT 1`,
     )
     .get(room.id) as InstanceRow | undefined
 
@@ -816,9 +831,17 @@ export function roomState(room: RoomRow): RoomState {
     }
   }
 
+  // The round waiting to be started, which is NOT always the one on the board
+  // any more: after a round finishes the board keeps showing its answers while
+  // the host lines the next one up. Start needs to know which that is.
+  const pending = sqlite
+    .prepare("SELECT id FROM game_round_instances WHERE room_id = ? AND status = 'pending' ORDER BY seq DESC LIMIT 1")
+    .get(room.id) as { id: number } | undefined
+
   return {
     code: room.code,
     status: room.status,
+    pendingInstanceId: pending?.id ?? null,
     stateVersion: room.state_version,
     livekitRoom: room.livekit_room,
     hostUserId: room.host_user_id,

@@ -341,8 +341,13 @@ final class RoomStore {
         await act { seat in _ = try await API.freezeRound(seat: seat, roundId: roundId) }
     }
 
+    /// The round WAITING to be started, which is not always the one on the
+    /// board: after a round finishes the board keeps its answers up while the
+    /// next one is lined up.
+    var pendingInstanceId: Int? { state?.pendingInstanceId }
+
     func startRound() async {
-        guard let instanceId = round?.instanceId else { return }
+        guard let instanceId = pendingInstanceId else { return }
         await act { seat in _ = try await API.startRound(seat: seat, instanceId: instanceId) }
     }
 

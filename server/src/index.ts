@@ -150,7 +150,11 @@ app.get('/api/health', (c) => {
   // a game and finds there is no call — and the only other way to ask is from
   // inside a room you have already joined.
   const missing = livekitMissing()
-  return c.json({ ok: true, db, video: missing.length === 0, videoMissing: missing })
+  // Which commit is actually serving. Railway sets this on every deploy, and
+  // without it "is my fix live yet?" is unanswerable from outside — which is
+  // exactly the question that matters after pushing a server-side fix.
+  const commit = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? null
+  return c.json({ ok: true, commit, db, video: missing.length === 0, videoMissing: missing })
 })
 
 const port = parseInt(process.env.PORT ?? '3001')

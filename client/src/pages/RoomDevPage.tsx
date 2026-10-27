@@ -616,9 +616,9 @@ export function RoomDevPage() {
               </button>
               <button
                 className="rounded bg-emerald-600 px-3 py-1.5 text-sm hover:bg-emerald-500 disabled:opacity-40"
-                disabled={round?.status !== 'pending'}
-                title={round?.status === 'pending' ? 'Starts the clock' : 'Freeze a round first'}
-                onClick={() => run(() => startRound(session, round!.instanceId))}
+                disabled={state?.pendingInstanceId == null}
+                title={state?.pendingInstanceId != null ? 'Starts the clock' : 'Freeze a round first'}
+                onClick={() => run(() => startRound(session, state!.pendingInstanceId!))}
               >
                 Start
               </button>

@@ -80,6 +80,9 @@ export interface RoomState {
   stateVersion: number
   livekitRoom: string
   hostUserId: number
+  /** The round picked and waiting to be started, which is not always the one
+   *  the board is showing. */
+  pendingInstanceId: number | null
   participants: RoomParticipant[]
   messages: ChatMessage[]
   round: RoomRound | null

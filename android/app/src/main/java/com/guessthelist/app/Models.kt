@@ -117,6 +117,9 @@ data class RoomState(
     val stateVersion: Int,
     val livekitRoom: String,
     val hostUserId: Int,
+    /** The round picked and waiting to be started. Separate from [round],
+     *  which is what the board is showing. */
+    val pendingInstanceId: Int? = null,
     val participants: List<RoomParticipant> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
     val round: RoomRound? = null,
@@ -129,6 +132,7 @@ data class JoinedRoom(
     val stateVersion: Int,
     val livekitRoom: String,
     val hostUserId: Int,
+    val pendingInstanceId: Int? = null,
     val participants: List<RoomParticipant> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
     val round: RoomRound? = null,
@@ -136,7 +140,10 @@ data class JoinedRoom(
     val participantToken: String,
 ) {
     val state: RoomState
-        get() = RoomState(code, status, stateVersion, livekitRoom, hostUserId, participants, messages, round)
+        get() = RoomState(
+            code, status, stateVersion, livekitRoom, hostUserId,
+            pendingInstanceId, participants, messages, round,
+        )
 }
 
 @Serializable

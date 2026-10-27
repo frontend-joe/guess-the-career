@@ -138,7 +138,7 @@ struct RoomView: View {
                     .buttonStyle(.bordered)
                 Button("Start") { Task { await store.startRound() } }
                     .buttonStyle(.borderedProminent)
-                    .disabled(store.round?.isPending != true)
+                    .disabled(store.pendingInstanceId == nil)
                 Spacer()
             }
             .padding(.horizontal)

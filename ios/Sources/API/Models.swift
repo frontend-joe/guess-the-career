@@ -117,6 +117,10 @@ struct RoomState: Codable, Equatable {
     let stateVersion: Int
     let livekitRoom: String
     let hostUserId: Int
+    /// The round picked and waiting to be started. Separate from `round`,
+    /// which is what the board is showing — after a round finishes the board
+    /// keeps its answers up while the host lines the next one up.
+    let pendingInstanceId: Int?
     let participants: [RoomParticipant]
     let messages: [ChatMessage]
     let round: RoomRound?
@@ -129,6 +133,7 @@ struct JoinedRoom: Codable {
     let stateVersion: Int
     let livekitRoom: String
     let hostUserId: Int
+    let pendingInstanceId: Int?
     let participants: [RoomParticipant]
     let messages: [ChatMessage]
     let round: RoomRound?
@@ -139,6 +144,7 @@ struct JoinedRoom: Codable {
         RoomState(
             code: code, status: status, stateVersion: stateVersion,
             livekitRoom: livekitRoom, hostUserId: hostUserId,
+            pendingInstanceId: pendingInstanceId,
             participants: participants, messages: messages, round: round
         )
     }

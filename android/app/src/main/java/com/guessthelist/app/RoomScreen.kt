@@ -140,7 +140,7 @@ fun RoomScreen(model: RoomViewModel) {
                 Button(onClick = { picking = true }) { Text("Choose round") }
                 Button(
                     onClick = { model.startRound() },
-                    enabled = model.round?.isPending == true,
+                    enabled = model.pendingInstanceId != null,
                 ) { Text("Start") }
                 Box(Modifier.weight(1f))
             }
