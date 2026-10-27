@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
@@ -24,7 +23,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -246,28 +244,15 @@ private fun PyramidRow(
                     )
                 }
             }
-            // The rank stays put whether or not a clue has been taken — the
-            // pyramid keeps its shape — and a dot says there is one to read.
-            // Press and hold again to reopen it.
-            else -> Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text(
-                    "$rank",
-                    fontSize = 17.sp,
-                    fontFamily = AppFonts.Display,
-                    color = Color.White.copy(alpha = 0.95f),
-                )
-                if (hasClue) {
-                    Icon(
-                        Icons.Filled.Lightbulb,
-                        contentDescription = "Clue taken",
-                        tint = Color(0xFFFACC15),
-                        modifier = Modifier.size(13.dp),
-                    )
-                }
-            }
+            // Just the rank, clue or no clue, so the pyramid reads as the
+            // board and nothing else. Press and hold reopens a clue that has
+            // already been taken.
+            else -> Text(
+                "$rank",
+                fontSize = 17.sp,
+                fontFamily = AppFonts.Display,
+                color = Color.White.copy(alpha = 0.95f),
+            )
         }
     }
 }

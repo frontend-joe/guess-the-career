@@ -240,21 +240,14 @@ private struct PyramidRow: View {
                 }
                 .padding(.horizontal, 12)
             } else {
-                // The rank stays put whether or not a clue has been taken —
-                // the pyramid keeps its shape — and a lightbulb says there is
-                // one to read. Press and hold again to reopen it.
-                HStack(spacing: 5) {
-                    Text("\(rank)")
-                        .font(.display(17))
-                        .foregroundStyle(.white.opacity(0.95))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.4)
-                    if hasClue {
-                        Image(systemName: "lightbulb.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.yellow.opacity(0.9))
-                    }
-                }
+                // Just the rank, clue or no clue, so the pyramid reads as the
+                // board and nothing else. Press and hold reopens a clue that
+                // has already been taken.
+                Text("\(rank)")
+                    .font(.display(17))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
             }
         }
         .contentShape(Capsule())
