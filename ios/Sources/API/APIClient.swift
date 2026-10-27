@@ -72,7 +72,11 @@ enum API {
     // MARK: - Rooms
 
     static func createRoom(accessToken: String, name: String?) async throws -> JoinedRoom {
-        try await post("api/rooms", body: ["name": name], bearer: accessToken)
+        // Omit the key rather than sending null. Swift's synthesised encoder
+        // writes an explicit null for a nil Optional, which is a different
+        // thing on the wire from "absent" and not every schema treats them
+        // alike.
+        try await post("api/rooms", body: name.map { ["name": $0] } ?? [:], bearer: accessToken)
     }
 
     static func joinRoom(code: String, displayName: String) async throws -> JoinedRoom {

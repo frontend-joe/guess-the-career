@@ -87,13 +87,17 @@ function announce(code: string, kind: string): void {
 roomsRouter.post(
   '/',
   requireUser,
-  zValidator('json', z.object({ name: z.string().trim().max(60).optional() })),
+  // nullish, not optional: a native client encoding an absent name sends an
+  // explicit null, and only a browser omits the key. Rejecting null here cost
+  // an afternoon finding out that "create a room" worked on the web and 400'd
+  // on the phone.
+  zValidator('json', z.object({ name: z.string().trim().max(60).nullish() })),
   async (c) => {
     const user = await getCurrentUser(c)
     if (!user) return c.json({ error: 'Unauthorized' }, 401)
     const room = createRoom(
       { id: user.id, displayName: user.display_name ?? user.email.split('@')[0] },
-      c.req.valid('json').name,
+      c.req.valid('json').name ?? undefined,
     )
     const host = participantsOf(room.id)[0]
     return c.json({
