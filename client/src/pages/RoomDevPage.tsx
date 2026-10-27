@@ -522,10 +522,10 @@ export function RoomDevPage() {
                       <span className="text-sm text-slate-400">
                         {found ? `${found.value}${found.unit ? ` ${found.unit}` : ''}` : ''}
                       </span>
-                      {/* Host only, and only while there is something to clue.
+                      {/* Anyone, while there is something to clue.
                           The clue goes into the event log, so every tab sees it
                           and the recording will show it appearing. */}
-                      {isHost && !found && !hint && round.status === 'live' && (
+                      {!found && !hint && round.status === 'live' && (
                         <button
                           className="text-slate-500 hover:text-slate-200"
                           title="Take a clue on this one"

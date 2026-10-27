@@ -531,13 +531,19 @@ export interface HintResult {
 // track of the recording has to show the clue appearing when it was asked for.
 // A hint that existed only in the host's browser would be invisible in the
 // video, and the round would make no sense to watch.
+// Anyone in the room may take a clue, as anyone may guess. It started
+// host-only, which meant everybody else could see that a clue had been taken
+// but not ask for one — and a clue is information about the board, not a
+// control over it. Taking one is idempotent and costs nothing twice.
+//
+// What stays host-only is what changes the shape of the game: freezing a
+// round, starting it, ending it, giving up.
 export function takeHint(instanceId: number, participant: ParticipantRow, rank: number): HintResult {
   const inst = sqlite
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')
     .get(instanceId) as InstanceRow | undefined
   if (!inst) throw new RoomError('Unknown round instance', 404)
   if (inst.room_id !== participant.room_id) throw new RoomError('Wrong room', 403)
-  if (participant.role !== 'host') throw new RoomError('Only the host can take a clue', 403)
   if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
 
   const answer = sqlite

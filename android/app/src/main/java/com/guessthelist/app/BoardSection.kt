@@ -92,14 +92,14 @@ fun BoardSection(model: RoomViewModel) {
                 rank = rank,
                 answer = round.board.revealed.firstOrNull { it.rank == rank },
                 hasClue = hasClue,
-                canHint = model.isHost && round.isLive,
+                canHint = round.isLive,
                 onLongPress = {
-                    // Taking a clue is the host's, while the round is live.
-                    // READING one already taken is everybody's, and stays
-                    // available after the round ends.
+                    // Anyone may take a clue while the round is live, and
+                    // anyone may reopen one already taken, after the round has
+                    // ended too.
                     when {
                         hasClue -> showingClue = rank
-                        model.isHost && round.isLive && !answered -> {
+                        round.isLive && !answered -> {
                             model.takeHint(rank)
                             showingClue = rank
                         }

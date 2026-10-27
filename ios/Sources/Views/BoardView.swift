@@ -97,7 +97,7 @@ struct BoardView: View {
             rank: rank,
             answer: round.board.revealed.first { $0.rank == rank },
             hasClue: round.board.hints.contains { $0.rank == rank },
-            canHint: store.isHost && round.isLive,
+            canHint: round.isLive,
             onLongPress: { longPress(rank: rank, round: round) }
         )
         .frame(width: width * BoardStyle.widthFraction(rank: rank), height: height)
@@ -111,15 +111,15 @@ struct BoardView: View {
         )
     }
 
-    /// Taking a clue is the host's, while the round is live. READING one that
-    /// has already been taken is everybody's, and stays available after the
-    /// round ends — it is in the event log either way.
+    /// Anyone may take a clue while the round is live, and anyone may reopen
+    /// one already taken — after the round has ended too. It is in the event
+    /// log either way.
     private func longPress(rank: Int, round: RoomRound) {
         let existing = round.board.hints.contains { $0.rank == rank }
         let taken = round.board.revealed.contains { $0.rank == rank }
         if existing {
             showingClue = ClueSelection(id: rank)
-        } else if store.isHost, round.isLive, !taken {
+        } else if round.isLive, !taken {
             Task {
                 await store.takeHint(rank: rank)
                 showingClue = ClueSelection(id: rank)
