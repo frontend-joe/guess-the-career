@@ -63,6 +63,7 @@ import { authRouter } from './routes/auth.ts'
 import { progressRouter } from './routes/progress.ts'
 import { settingsRouter } from './routes/settings.ts'
 import { usersRouter } from './routes/users.ts'
+import { roomsRouter } from './routes/rooms.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
 runMigrations()
@@ -136,6 +137,7 @@ app.route('/api/record-sales', recordSalesRouter)
 app.route('/api/auth', authRouter)
 app.route('/api/progress', progressRouter)
 app.route('/api/users', usersRouter)
+app.route('/api/rooms', roomsRouter)
 
 // redeploy trigger: 2026-07-06c
 // `db` is here so a detached volume is visible from outside the container:

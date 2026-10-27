@@ -675,3 +675,110 @@ export const auth_refresh_tokens = sqliteTable('auth_refresh_tokens', {
 })
 
 export type AuthRefreshToken = typeof auth_refresh_tokens.$inferSelect
+
+// ── Multiplayer rooms ────────────────────────────────────────────────────────
+// See migrations 0087-0089 for the invariants: state_version is the sync
+// primitive, a frozen round instance is never recomputed, and game_events is
+// the board track of the recorded video.
+
+export const game_rooms = sqliteTable('game_rooms', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  code: text('code').notNull().unique(),
+  livekit_room: text('livekit_room').notNull().unique(),
+  host_user_id: integer('host_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name'),
+  status: text('status').notNull().default('lobby'),
+  max_players: integer('max_players').notNull().default(4),
+  state_version: integer('state_version').notNull().default(0),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+  ended_at: text('ended_at'),
+})
+
+export const game_participants = sqliteTable('game_participants', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  room_id: integer('room_id').notNull().references(() => game_rooms.id, { onDelete: 'cascade' }),
+  user_id: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  display_name: text('display_name').notNull(),
+  role: text('role').notNull().default('player'),
+  slot: integer('slot').notNull(),
+  platform: text('platform'),
+  joined_at: text('joined_at').notNull().default(sql`(datetime('now'))`),
+  left_at: text('left_at'),
+})
+
+export const game_round_instances = sqliteTable('game_round_instances', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  room_id: integer('room_id').notNull().references(() => game_rooms.id, { onDelete: 'cascade' }),
+  round_id: integer('round_id').notNull(),
+  seq: integer('seq').notNull(),
+  type: text('type').notNull(),
+  params_json: text('params_json').notNull(),
+  metric: text('metric').notNull(),
+  title: text('title').notNull(),
+  ordered: integer('ordered', { mode: 'boolean' }).notNull(),
+  target: integer('target').notNull().default(10),
+  implied_clues: text('implied_clues').notNull().default('[]'),
+  status: text('status').notNull().default('pending'),
+  started_at_ms: integer('started_at_ms'),
+  ended_at_ms: integer('ended_at_ms'),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const game_round_answers = sqliteTable('game_round_answers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  instance_id: integer('instance_id').notNull().references(() => game_round_instances.id, { onDelete: 'cascade' }),
+  rank: integer('rank').notNull(),
+  on_board: integer('on_board', { mode: 'boolean' }).notNull(),
+  footballer_id: integer('footballer_id'),
+  name: text('name').notNull(),
+  name_norm: text('name_norm').notNull(),
+  surname_norm: text('surname_norm').notNull(),
+  nationality: text('nationality'),
+  photo_url: text('photo_url'),
+  value: integer('value').notNull(),
+  unit: text('unit'),
+  clue_json: text('clue_json'),
+  found_at_ms: integer('found_at_ms'),
+  found_by_participant_id: integer('found_by_participant_id').references(() => game_participants.id, { onDelete: 'set null' }),
+})
+
+export const game_guesses = sqliteTable('game_guesses', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  instance_id: integer('instance_id').notNull().references(() => game_round_instances.id, { onDelete: 'cascade' }),
+  participant_id: integer('participant_id').notNull().references(() => game_participants.id, { onDelete: 'cascade' }),
+  client_guess_id: text('client_guess_id').notNull(),
+  raw: text('raw').notNull(),
+  raw_norm: text('raw_norm').notNull(),
+  verdict: text('verdict').notNull(),
+  matched_rank: integer('matched_rank'),
+  t_ms: integer('t_ms').notNull(),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const game_guess_reviews = sqliteTable('game_guess_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  instance_id: integer('instance_id').notNull().references(() => game_round_instances.id, { onDelete: 'cascade' }),
+  raw: text('raw').notNull(),
+  raw_norm: text('raw_norm').notNull(),
+  status: text('status').notNull().default('pending'),
+  resolved_footballer_id: integer('resolved_footballer_id').references(() => footballers.id, { onDelete: 'set null' }),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export const game_events = sqliteTable('game_events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  instance_id: integer('instance_id').notNull().references(() => game_round_instances.id, { onDelete: 'cascade' }),
+  seq: integer('seq').notNull(),
+  t_ms: integer('t_ms').notNull(),
+  type: text('type').notNull(),
+  actor_participant_id: integer('actor_participant_id').references(() => game_participants.id, { onDelete: 'set null' }),
+  payload: text('payload').notNull().default('{}'),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+})
+
+export type GameRoom = typeof game_rooms.$inferSelect
+export type GameParticipant = typeof game_participants.$inferSelect
+export type GameRoundInstance = typeof game_round_instances.$inferSelect
+export type GameRoundAnswer = typeof game_round_answers.$inferSelect
+export type GameGuess = typeof game_guesses.$inferSelect
+export type GameEvent = typeof game_events.$inferSelect

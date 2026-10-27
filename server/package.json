@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc",
+    "test": "node --import tsx --test src/services/*.test.ts",
     "start": "tsx src/index.ts"
   },
   "dependencies": {

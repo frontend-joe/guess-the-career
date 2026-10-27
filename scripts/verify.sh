@@ -7,6 +7,11 @@
 #   • fresh-DB boot + /health    → Railway startup/healthcheck (catches a bad
 #                                   migration or startup crash before it ships)
 #
+# It also runs the server unit tests. There are only a couple, deliberately:
+# nameMatch and boardReplay are pure functions where a silent bug corrupts a
+# recording nobody can make again, which is a different kind of risk from the
+# rest of the codebase.
+#
 # Run `yarn verify` before pushing. It cannot catch purely environmental Railway
 # failures (e.g. a flaky better-sqlite3 native compile), only code/migration ones.
 set -euo pipefail
@@ -17,6 +22,9 @@ find . -name "*.tsbuildinfo" -not -path "*/node_modules/*" -delete 2>/dev/null |
 
 echo "▸ Building server (tsc — Railway build)…"
 yarn workspace server build
+
+echo "▸ Running server unit tests…"
+yarn workspace server test
 
 echo "▸ Building client (tsc -b && vite build — Netlify build)…"
 yarn workspace client build

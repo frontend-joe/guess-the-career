@@ -194,6 +194,41 @@ export async function rotateRefreshToken(presented: string): Promise<TokenPair |
   return issueTokenPair(user, { deviceLabel: row.device_label, platform: row.platform })
 }
 
+// ── Room-scoped tokens for guests ───────────────────────────────────────────
+// A guest joins with a code and a name and never creates an account, so they
+// need an identity that is real enough to act with and narrow enough to be
+// harmless: this authorises exactly one seat in exactly one room.
+//
+// It carries no `uid`, so getCurrentUser() returns null for it and a guest can
+// never reach a user- or admin-gated route with one.
+
+const PARTICIPANT_TTL = 60 * 60 * 24
+
+export interface ParticipantPayload {
+  rid: number
+  pid: number
+  typ: 'participant'
+  exp: number
+}
+
+export async function signParticipantToken(roomId: number, participantId: number): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + PARTICIPANT_TTL
+  return sign({ rid: roomId, pid: participantId, typ: 'participant', exp }, authSecret())
+}
+
+export async function verifyParticipantToken(token: string): Promise<ParticipantPayload | null> {
+  try {
+    const payload = (await verify(token, authSecret(), 'HS256')) as unknown as ParticipantPayload
+    return payload.typ === 'participant' ? payload : null
+  } catch {
+    return null
+  }
+}
+
+export function requestBearer(c: Context): string | null {
+  return bearerToken(c)
+}
+
 export async function revokeRefreshToken(presented: string): Promise<void> {
   await db
     .update(auth_refresh_tokens)
