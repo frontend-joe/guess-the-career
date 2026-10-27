@@ -38,6 +38,23 @@ test('untilMs gives the board as it stood at that moment', () => {
   assert.equal(reduceEvents(LOG, 8999).ended, null)
 })
 
+test('a clue appears when it was taken, not from the start', () => {
+  const log = [
+    LOG[0],
+    ev(2, 3000, 'hint', { rank: 4, clue: { nationality: 'Italy', position: 'Defender' } }, 7),
+  ]
+  assert.deepEqual(reduceEvents(log, 2999).hints, [])
+  const [hint] = reduceEvents(log).hints
+  assert.equal(hint.rank, 4)
+  assert.equal(hint.tMs, 3000)
+  assert.deepEqual(hint.clue, { nationality: 'Italy', position: 'Defender' })
+})
+
+test('a hint with no clue recorded does not break the fold', () => {
+  const out = reduceEvents([LOG[0], ev(2, 100, 'hint', { rank: 3, clue: null })])
+  assert.deepEqual(out.hints, [{ rank: 3, clue: null, tMs: 100 }])
+})
+
 test('revealed rows come back in rank order, not reveal order', () => {
   const out = reduceEvents([
     LOG[0],

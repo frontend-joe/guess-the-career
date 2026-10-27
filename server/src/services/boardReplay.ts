@@ -40,6 +40,15 @@ export interface ReplayGuess {
   byParticipantId: number | null
 }
 
+// A clue taken on a slot that is still blank. It lives in the log like
+// everything else, because the video has to show the clue appearing at the
+// moment it was asked for — not as something the board always had.
+export interface TakenHint {
+  rank: number
+  clue: Record<string, string | number | null> | null
+  tMs: number
+}
+
 export interface BoardState {
   title: string
   target: number
@@ -47,6 +56,7 @@ export interface BoardState {
   metric: string
   impliedClues: string[]
   revealed: RevealedAnswer[]
+  hints: TakenHint[]
   guesses: ReplayGuess[]
   ended: { reason: string; tMs: number } | null
 }
@@ -73,6 +83,7 @@ export function reduceEvents(events: ReplayEvent[], untilMs = Number.POSITIVE_IN
     metric: '',
     impliedClues: [],
     revealed: [],
+    hints: [],
     guesses: [],
     ended: null,
   }
@@ -103,6 +114,15 @@ export function reduceEvents(events: ReplayEvent[], untilMs = Number.POSITIVE_IN
           byParticipantId: e.actor_participant_id,
         })
         break
+      case 'hint':
+        state.hints.push({
+          rank: num(p.rank),
+          clue: p.clue && typeof p.clue === 'object'
+            ? (p.clue as Record<string, string | number | null>)
+            : null,
+          tMs: e.t_ms,
+        })
+        break
       case 'guess':
         state.guesses.push({
           raw: str(p.raw),
@@ -123,5 +143,6 @@ export function reduceEvents(events: ReplayEvent[], untilMs = Number.POSITIVE_IN
   }
 
   state.revealed.sort((a, b) => a.rank - b.rank)
+  state.hints.sort((a, b) => a.rank - b.rank)
   return state
 }

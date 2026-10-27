@@ -34,6 +34,12 @@ export interface ReplayGuess {
   byParticipantId: number | null
 }
 
+export interface TakenHint {
+  rank: number
+  clue: Record<string, string | number | null> | null
+  tMs: number
+}
+
 export interface BoardState {
   title: string
   target: number
@@ -41,6 +47,7 @@ export interface BoardState {
   metric: string
   impliedClues: string[]
   revealed: RevealedAnswer[]
+  hints: TakenHint[]
   guesses: ReplayGuess[]
   ended: { reason: string; tMs: number } | null
 }
@@ -184,6 +191,18 @@ export async function submitGuess(
     }),
   )
   return unwrap<GuessResult>(res)
+}
+
+export async function takeHint(
+  session: RoomSession,
+  instanceId: number,
+  rank: number,
+): Promise<TakenHint & { replayed: boolean }> {
+  const res = await fetch(
+    `/api/rooms/${session.code}/hint`,
+    asSeat(session, { method: 'POST', body: JSON.stringify({ instanceId, rank }) }),
+  )
+  return unwrap<TakenHint & { replayed: boolean }>(res)
 }
 
 export async function leaveRoom(session: RoomSession): Promise<void> {

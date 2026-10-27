@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Eye } from 'lucide-react'
 import type { LocalAudioTrack, LocalVideoTrack, RemoteAudioTrack, RemoteVideoTrack, Room } from 'livekit-client'
 import {
   createRoom,
@@ -10,6 +11,7 @@ import {
   livekitCredentials,
   startRound,
   submitGuess,
+  takeHint,
   RoomApiError,
   type GuessResult,
   type JoinedRoom,
@@ -43,6 +45,28 @@ interface Tile {
   speaking: boolean
   video: AnyVideoTrack | null
   audio: AnyAudioTrack | null
+}
+
+// The clue, minus whatever the question already gave away — asking for a hint
+// on "Birmingham City's overseas players" and being told "club: Birmingham
+// City" is not a hint.
+function clueLines(
+  clue: Record<string, string | number | null> | null,
+  impliedClues: string[],
+): string[] {
+  if (!clue) return ['No clue recorded for this one']
+  const fields: [string, string][] = [
+    ['nationality', 'Nationality'],
+    ['position', 'Position'],
+    ['years', 'Years'],
+    ['club', 'Club'],
+    ['squadNumber', 'Shirt'],
+    ['born', 'Born'],
+  ]
+  const lines = fields
+    .filter(([key]) => !impliedClues.includes(key) && clue[key] != null && clue[key] !== '')
+    .map(([key, label]) => `${label}: ${clue[key]}`)
+  return lines.length ? lines : ['Nothing to give away on this one']
 }
 
 const VERDICT_STYLE: Record<string, string> = {
@@ -397,18 +421,38 @@ export function RoomDevPage() {
             <ol className="space-y-1">
               {Array.from({ length: round.board.target }, (_, i) => i + 1).map((rank) => {
                 const found = round.board.revealed.find((r) => r.rank === rank)
+                const hint = round.board.hints.find((h) => h.rank === rank)
                 return (
                   <li
                     key={rank}
-                    className={`flex items-baseline gap-3 rounded px-3 py-1.5 ${
-                      found ? 'bg-emerald-900/40' : 'bg-slate-900'
-                    }`}
+                    className={`rounded px-3 py-1.5 ${found ? 'bg-emerald-900/40' : 'bg-slate-900'}`}
                   >
-                    <span className="w-6 text-right text-sm text-slate-500">{rank}</span>
-                    <span className="flex-1">{found ? found.name : '— — —'}</span>
-                    <span className="text-sm text-slate-400">
-                      {found ? `${found.value}${found.unit ? ` ${found.unit}` : ''}` : ''}
-                    </span>
+                    <div className="flex items-baseline gap-3">
+                      <span className="w-6 text-right text-sm text-slate-500">{rank}</span>
+                      <span className="flex-1">{found ? found.name : '— — —'}</span>
+                      <span className="text-sm text-slate-400">
+                        {found ? `${found.value}${found.unit ? ` ${found.unit}` : ''}` : ''}
+                      </span>
+                      {/* Host only, and only while there is something to clue.
+                          The clue goes into the event log, so every tab sees it
+                          and the recording will show it appearing. */}
+                      {isHost && !found && !hint && round.status === 'live' && (
+                        <button
+                          className="text-slate-500 hover:text-slate-200"
+                          title="Take a clue on this one"
+                          onClick={() => run(() => takeHint(session, round.instanceId, rank))}
+                        >
+                          <Eye size={15} />
+                        </button>
+                      )}
+                    </div>
+                    {hint && (
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-9 text-xs text-amber-300/90">
+                        {clueLines(hint.clue, round.board.impliedClues).map((line) => (
+                          <span key={line}>{line}</span>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 )
               })}

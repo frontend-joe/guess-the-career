@@ -21,6 +21,7 @@ import {
   roomState,
   startRound,
   submitGuess,
+  takeHint,
   type ParticipantRow,
   type RoomRow,
 } from '../services/gameRooms.ts'
@@ -194,6 +195,28 @@ roomsRouter.post(
       const result = submitGuess(instanceId, me, clientGuessId, raw)
       // A replayed guess changed nothing, so there is nothing to announce.
       if (!result.replayed) announce(room.code, 'guess')
+      return c.json(result)
+    } catch (err) {
+      return fail(err)
+    }
+  },
+)
+
+// POST /api/rooms/:code/hint — a clue on a slot that is still blank.
+roomsRouter.post(
+  '/:code/hint',
+  zValidator('json', z.object({
+    instanceId: z.number().int().positive(),
+    rank: z.number().int().positive(),
+  })),
+  async (c) => {
+    const room = mustFindRoom(c.req.param('code'))
+    const me = await participantFor(c, room)
+    if (!me) return c.json({ error: 'Not in this room' }, 403)
+    const { instanceId, rank } = c.req.valid('json')
+    try {
+      const result = takeHint(instanceId, me, rank)
+      if (!result.replayed) announce(room.code, 'hint')
       return c.json(result)
     } catch (err) {
       return fail(err)

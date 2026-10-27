@@ -503,6 +503,60 @@ export function submitGuess(
   }
 }
 
+// ── Hints ───────────────────────────────────────────────────────────────────
+
+export interface HintResult {
+  rank: number
+  clue: Record<string, string | number | null> | null
+  stateVersion: number
+  replayed: boolean
+}
+
+// Take a clue on a slot that is still blank.
+//
+// The clue comes out of the frozen snapshot, not from the footballer tables,
+// so it describes the player who was the answer when the round started even if
+// the database has moved on since.
+//
+// It is appended to the event log rather than just returned, because the board
+// track of the recording has to show the clue appearing when it was asked for.
+// A hint that existed only in the host's browser would be invisible in the
+// video, and the round would make no sense to watch.
+export function takeHint(instanceId: number, participant: ParticipantRow, rank: number): HintResult {
+  const inst = sqlite
+    .prepare('SELECT * FROM game_round_instances WHERE id = ?')
+    .get(instanceId) as InstanceRow | undefined
+  if (!inst) throw new RoomError('Unknown round instance', 404)
+  if (inst.room_id !== participant.room_id) throw new RoomError('Wrong room', 403)
+  if (participant.role !== 'host') throw new RoomError('Only the host can take a clue', 403)
+  if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
+
+  const answer = sqlite
+    .prepare('SELECT rank, on_board, clue_json, found_at_ms FROM game_round_answers WHERE instance_id = ? AND rank = ?')
+    .get(instanceId, rank) as { rank: number; on_board: number; clue_json: string | null; found_at_ms: number | null } | undefined
+  if (!answer || !answer.on_board) throw new RoomError('No such slot on this board', 404)
+  if (answer.found_at_ms != null) throw new RoomError('That one is already found', 409)
+
+  const room = sqlite.prepare('SELECT * FROM game_rooms WHERE id = ?').get(inst.room_id) as RoomRow
+  const clue = answer.clue_json
+    ? (JSON.parse(answer.clue_json) as Record<string, string | number | null>)
+    : null
+
+  // Asking twice is not a second clue, and must not move the version — the
+  // board already shows it, and a recording should not blink.
+  const existing = sqlite
+    .prepare("SELECT 1 FROM game_events WHERE instance_id = ? AND type = 'hint' AND json_extract(payload, '$.rank') = ?")
+    .get(instanceId, rank)
+  if (existing) return { rank, clue, stateVersion: room.state_version, replayed: true }
+
+  const stateVersion = sqlite.transaction(() => {
+    appendEvent(instanceId, Date.now() - (inst.started_at_ms ?? Date.now()), 'hint', participant.id, { rank, clue })
+    return bumpVersion(inst.room_id)
+  })()
+
+  return { rank, clue, stateVersion, replayed: false }
+}
+
 // ── State ───────────────────────────────────────────────────────────────────
 
 export interface RoomState {
