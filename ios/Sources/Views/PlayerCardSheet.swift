@@ -23,7 +23,8 @@ struct PlayerCardSheet: View {
     @State private var failed = false
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            header
             ScrollView {
                 VStack(spacing: 0) {
                     if let card {
@@ -42,17 +43,14 @@ struct PlayerCardSheet: View {
                     }
                 }
             }
-            .background(Color.white)
-            .navigationTitle(card?.name ?? name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Color.white, for: .navigationBar)
         }
+        .background(Color.white)
+        // Half height, not full. The card is a dozen rows of career; opening
+        // it at full height left most of the sheet empty and white, and the
+        // navigation bar it used to carry spent the presentation settling —
+        // which is what the jiggle on open was. A plain header does not
+        // animate, and a player with a long career can still be dragged up.
+        .presentationDetents([.medium, .large])
         // The whole sheet is light, so its text must be too — the room runs
         // in dark mode and would otherwise draw white on white.
         .environment(\.colorScheme, .light)
@@ -64,6 +62,24 @@ struct PlayerCardSheet: View {
     }
 
     // MARK: - Pieces
+
+    /// The name and a way out, as plain views. Deliberately not a navigation
+    /// bar: there is nothing to navigate, and the bar was the thing moving.
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(card?.name ?? name)
+                .font(.display(19))
+                .foregroundStyle(Color(white: 0.12))
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 12)
+            Button("Done") { dismiss() }
+                .font(.body(15, weight: .semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
+    }
 
     private func message(_ text: String) -> some View {
         Text(text)
