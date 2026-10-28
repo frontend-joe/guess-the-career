@@ -54,7 +54,9 @@ private val Band = Color(0xFFF3F4F6)
 
 @Composable
 fun PlayerCardDialog(
-    footballerId: Int,
+    /** Null when the board has a name but no footballer behind it. The dialog
+     *  still opens and says so, rather than the row ignoring the tap. */
+    footballerId: Int?,
     /** Shown while the card loads, so the dialog opens with the name on it
      *  rather than a title that arrives half a second later. */
     name: String,
@@ -64,6 +66,7 @@ fun PlayerCardDialog(
     var failed by remember(footballerId) { mutableStateOf(false) }
 
     LaunchedEffect(footballerId) {
+        if (footballerId == null) return@LaunchedEffect
         runCatching { Api.footballerCard(footballerId) }
             .onSuccess { card = it }
             .onFailure { failed = true }
@@ -99,6 +102,9 @@ fun PlayerCardDialog(
                         Career("Senior career", loaded.senior)
                         Career("International career", loaded.international, international = true)
                     }
+                    // Either this answer has no footballer record at all, or
+                    // the round predates the board logging who its rows are.
+                    footballerId == null -> Message("No career on file for this one.")
                     failed -> Message("Couldn't load this player.")
                     else -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), Alignment.Center) {
                         CircularProgressIndicator()

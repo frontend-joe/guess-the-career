@@ -78,7 +78,9 @@ fun BoardSection(model: RoomViewModel) {
     var showingClue by remember { mutableStateOf<Int?>(null) }
     // Which found player's card is open, as (id, name) so the dialog can show
     // the name while the career loads.
-    var showingPlayer by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    // The id is nullable: a row can carry a name the board cannot put a
+    // footballer to, and that row still opens and says so.
+    var showingPlayer by remember { mutableStateOf<Pair<Int?, String>?>(null) }
     // Drives the wave. Counts up forever; each row works out its own moment
     // from it, so there is one timer for the board rather than ten.
     var wave by remember { mutableIntStateOf(0) }
@@ -153,8 +155,11 @@ fun BoardSection(model: RoomViewModel) {
                 // career. Anyone can, at any time, including after the round
                 // has ended and including on an answer revealed by giving up
                 // — the card settles the "who even is that" the board starts.
+                // Opens for ANY row with a name on it, including one the board
+                // cannot identify: a row that looks tappable and does nothing
+                // is worse than one that opens and says it knows nothing.
                 onClick = {
-                    slotAnswer?.footballerId?.let { showingPlayer = it to slotAnswer.name }
+                    slotAnswer?.let { showingPlayer = it.footballerId to it.name }
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(widthFraction(rank)),
             )
@@ -276,7 +281,7 @@ private fun PyramidRow(
     // Whether the row does anything at all when touched: a blank one you can
     // hold for a clue, or a found one you can tap for the player. A row that
     // does nothing must not shrink under the finger and promise that it does.
-    val pressable = holdable || answer?.footballerId != null
+    val pressable = holdable || answer != null
     // Feedback on press-down, not on release: a row you are holding for a clue
     // has to acknowledge the hold while it is happening, or the second before
     // the clue appears feels like nothing is working. Critically damped —
@@ -308,7 +313,7 @@ private fun PyramidRow(
                         onLongPress()
                     }
                 },
-                onClick = { if (answer?.footballerId != null) onClick() },
+                onClick = { if (answer != null) onClick() },
             ),
         contentAlignment = Alignment.Center,
     ) {

@@ -196,10 +196,14 @@ struct BoardView: View {
     /// Anyone can, at any time, including after the round has ended and
     /// including on an answer that was revealed by giving up — the point of
     /// the card is to settle the "who even is that" the board starts.
+    /// Opens for ANY row with a name on it, including one the board cannot
+    /// identify. A row that looks tappable and does nothing is indisputably
+    /// worse than one that opens and says it knows nothing — and silence is
+    /// also undebuggable, because a missing id and a dead gesture look exactly
+    /// alike from the far side of the screen.
     private func tap(slot: Int, round: RoomRound) {
-        guard let answer = answer(slot: slot, round: round),
-              let id = answer.footballerId else { return }
-        showingClue = .player(id: id, name: answer.name)
+        guard let answer = answer(slot: slot, round: round) else { return }
+        showingClue = .player(id: answer.footballerId, name: answer.name)
     }
 
     /// The host takes a clue; everyone's screen then opens it. Anyone may
@@ -226,12 +230,15 @@ struct BoardView: View {
 /// would be the same sheet.
 private enum BoardSheet: Identifiable {
     case clue(rank: Int)
-    case player(id: Int, name: String)
+    /// The id is optional: a row can carry a name the board cannot put a
+    /// footballer to. The name is the identity here, because that is the only
+    /// thing such a row has.
+    case player(id: Int?, name: String)
 
     var id: String {
         switch self {
         case .clue(let rank): "clue-\(rank)"
-        case .player(let id, _): "player-\(id)"
+        case .player(_, let name): "player-\(name)"
         }
     }
 }
@@ -357,10 +364,7 @@ private struct PyramidRow: View {
                 // Tap a row you have found to read that player's career. No
                 // press-down shrink here: a plain tap gesture has no pressing
                 // callback, and the sheet is up fast enough to be the feedback.
-                .onTapGesture {
-                    guard answer?.footballerId != nil else { return }
-                    onTap()
-                }
+                .onTapGesture { onTap() }
         }
     }
 

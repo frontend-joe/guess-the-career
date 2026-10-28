@@ -11,7 +11,9 @@ import SwiftUI
 // Light, not dark, exactly as on the web. The card is a reference sheet lifted
 // over the game, and a dark one would read as another part of the board.
 struct PlayerCardSheet: View {
-    let footballerId: Int
+    /// Null when the board has a name but no footballer behind it. The sheet
+    /// still opens and says so, rather than the row ignoring the tap.
+    let footballerId: Int?
     /// Shown while the card loads, so the sheet opens with the name already
     /// on it rather than a title that arrives half a second later.
     let name: String
@@ -28,6 +30,11 @@ struct PlayerCardSheet: View {
                         bio(card)
                         career("Senior career", card.senior)
                         career("International career", card.international, international: true)
+                    } else if footballerId == nil {
+                        // Either this answer has no footballer record at all,
+                        // or the round was played before the board started
+                        // logging who its rows are. Nothing to fetch.
+                        message("No career on file for this one.")
                     } else if failed {
                         message("Couldn't load this player.")
                     } else {
@@ -50,6 +57,7 @@ struct PlayerCardSheet: View {
         // in dark mode and would otherwise draw white on white.
         .environment(\.colorScheme, .light)
         .task {
+            guard let footballerId else { return }
             do { card = try await API.footballerCard(id: footballerId) }
             catch { failed = true }
         }
