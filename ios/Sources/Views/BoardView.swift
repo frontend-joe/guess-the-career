@@ -361,10 +361,18 @@ private struct PyramidRow: View {
                 }
         } else {
             capsule
-                // Tap a row you have found to read that player's career. No
-                // press-down shrink here: a plain tap gesture has no pressing
-                // callback, and the sheet is up fast enough to be the feedback.
-                .onTapGesture { onTap() }
+                // Tap a row you have found to read that player's career.
+                //
+                // The haptic fires HERE, in the gesture itself, before
+                // anything downstream can fail. A plain tap gesture has no
+                // pressing callback, so without it the row gives nothing back
+                // until the sheet arrives — and if the sheet is what is
+                // broken, "the tap did not fire" and "the tap fired and
+                // nothing came up" are the same silence.
+                .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onTap()
+                }
         }
     }
 
