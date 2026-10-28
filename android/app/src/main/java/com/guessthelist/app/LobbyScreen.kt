@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -39,8 +40,13 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val focus = LocalFocusManager.current
 
     fun run(body: suspend () -> Unit) {
+        // Every button on this screen commits something, and a commit puts the
+        // keyboard away — before the work, so the field is no longer focused
+        // by the time signing in or creating a room recomposes around it.
+        focus.clearFocus()
         busy = true
         model.error = null
         scope.launch {
