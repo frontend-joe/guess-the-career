@@ -453,7 +453,7 @@ export function submitGuess(
       // A replay answers exactly as the first attempt did, so the same
       // lookup rather than a null — the retry is the same guess, not a
       // different one that happens to know less.
-      known: hit ? null : knownPlayerNamed(raw),
+      known: hit ? null : knownPlayerNamed(raw)?.name ?? null,
       rank: prior.matched_rank,
       value: hit?.value ?? null,
       unit: hit?.unit ?? null,
@@ -539,15 +539,49 @@ export function submitGuess(
 
   const known = match ? null : knownPlayerNamed(raw)
 
-  // A name nobody recognises gets looked up on its own, in the background,
-  // after this answer has gone back. Nothing waits on it and the board cannot
-  // change because of it — the answers were frozen at kickoff — so the only
-  // thing it affects is the next round.
-  if (verdict === 'miss' && known == null) learnUnknownName(raw)
+  if (verdict === 'miss') {
+    if (known == null) {
+      // Nobody has heard of them. Look them up on its own, in the background,
+      // after this answer has gone back — nothing waits on Wikipedia.
+      learnUnknownName(raw)
+    } else {
+      // The database DOES know them, and they are not on this board. If they
+      // belong on it, put them there now and answer the guess as the hit it
+      // always was.
+      //
+      // This used to run only for names that were newly LEARNED, which meant
+      // the fix worked exactly once per player: the first person to say a
+      // missing name got the board corrected, and everybody who said it
+      // afterwards — in any later round frozen before the data caught up —
+      // was told they were wrong.
+      //
+      // Synchronous, unlike the scrape, because it is only SQL: a re-derivation
+      // and a rewrite, no network. Worth the few hundred milliseconds to
+      // answer the guess correctly rather than a beat later.
+      const placed = reshuffleForPlayer(instanceId, known.id, norm(raw))
+      if (placed) {
+        sqlite
+          .prepare("UPDATE game_guesses SET verdict = 'hit', matched_rank = ? WHERE instance_id = ? AND client_guess_id = ?")
+          .run(placed.rank, instanceId, clientGuessId)
+        return {
+          verdict: 'hit',
+          known: null,
+          rank: placed.rank,
+          value: placed.value,
+          unit: placed.unit,
+          name: placed.name,
+          replayed: false,
+          stateVersion: roomByCode(room.code)?.state_version ?? stateVersion,
+          complete: (sqlite.prepare('SELECT status FROM game_round_instances WHERE id = ?')
+            .get(instanceId) as { status: string }).status === 'complete',
+        }
+      }
+    }
+  }
 
   return {
     verdict,
-    known,
+    known: known?.name ?? null,
     rank: match?.rank ?? null,
     value: match?.value ?? null,
     unit: match?.unit ?? null,
@@ -624,15 +658,15 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
 // Matched on the whole name or on the surname as a WHOLE WORD — `LIKE '%egan'`
 // would have answered "Kevin Keegan" to "Egan", which is precisely the
 // confusion this is meant to clear up.
-function knownPlayerNamed(raw: string): string | null {
+function knownPlayerNamed(raw: string): { id: number; name: string } | null {
   const row = sqlite
     .prepare(
-      `SELECT name FROM footballers
+      `SELECT id, name FROM footballers
        WHERE normalize(name) = normalize(?) OR normalize(name) LIKE '% ' || normalize(?)
        LIMIT 1`,
     )
-    .get(raw, raw) as { name: string } | undefined
-  return row?.name ?? null
+    .get(raw, raw) as { id: number; name: string } | undefined
+  return row ?? null
 }
 
 // ── Unknown names ───────────────────────────────────────────────────────────
@@ -721,7 +755,7 @@ async function drainLearnQueue(): Promise<void> {
             .all(next.normalized) as { instance_id: number }[]
           for (const row of live) {
             try {
-              reshuffleForLearnedPlayer(row.instance_id, id, next.normalized)
+              reshuffleForPlayer(row.instance_id, id, next.normalized)
             } catch (err) {
               console.error(`[reviews] reshuffle failed for instance ${row.instance_id}:`, err)
             }
@@ -808,11 +842,15 @@ export async function resolvePendingReviews(roomId: number): Promise<ReviewResol
 //
 // It is ONE event carrying the whole revealed set at its new ranks, so the
 // fold stays a fold and the recording reproduces exactly what players saw.
-function reshuffleForLearnedPlayer(instanceId: number, footballerId: number, rawNorm: string): void {
+function reshuffleForPlayer(
+  instanceId: number,
+  footballerId: number,
+  rawNorm: string,
+): { rank: number; name: string; value: number; unit: string | null } | null {
   const inst = sqlite
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')
     .get(instanceId) as InstanceRow | undefined
-  if (!inst || inst.status !== 'live') return
+  if (!inst || inst.status !== 'live') return null
 
   const params = JSON.parse(inst.params_json) as Record<string, string>
   const fresh = answersForRound(inst.type, params, inst.metric as Metric, SNAPSHOT_DEPTH)
@@ -820,7 +858,7 @@ function reshuffleForLearnedPlayer(instanceId: number, footballerId: number, raw
   const newIndex = fresh.findIndex((a) => a.footballer_id === footballerId)
   // Not on the board after all — they qualify for the round but not the top
   // ten. Nothing to reshuffle; the near-miss feedback already covers it.
-  if (newIndex < 0 || newIndex >= ROUND_SIZE) return
+  if (newIndex < 0 || newIndex >= ROUND_SIZE) return null
 
   const current = sqlite
     .prepare('SELECT footballer_id, found_at_ms, found_by_participant_id FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
@@ -832,7 +870,7 @@ function reshuffleForLearnedPlayer(instanceId: number, footballerId: number, raw
   const onBoardNow = new Set(
     fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null),
   )
-  if (current.some((c) => c.footballer_id != null && !onBoardNow.has(c.footballer_id))) return
+  if (current.some((c) => c.footballer_id != null && !onBoardNow.has(c.footballer_id))) return null
 
   // Whoever said the name gets the credit for it. They did guess correctly;
   // the database was the one that was wrong.
@@ -897,6 +935,9 @@ function reshuffleForLearnedPlayer(instanceId: number, footballerId: number, raw
 
   console.log(`[reviews] reshuffled instance ${instanceId}: ${fresh[newIndex].name} is ${newIndex + 1}`)
   roomChanged?.(inst.room_id, 'board_reshuffle')
+
+  const placed = fresh[newIndex]
+  return { rank: newIndex + 1, name: placed.name, value: placed.value, unit: placed.unit ?? null }
 }
 
 // Set by the router at boot, so this service can tell the room something
