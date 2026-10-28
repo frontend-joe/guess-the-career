@@ -35,6 +35,14 @@ export function matchesName(guess: string, name: string): boolean {
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true
+  // A single-word guess also matches any OTHER whole word of the name, not
+  // just the last one. Players known by one name wear it at the front —
+  // Raúl González, Ronaldinho Gaúcho, Kaká — and "Raul" matched nothing,
+  // because every rule here was looking at the surname.
+  //
+  // Four characters minimum, same as the surname rule and for the same
+  // reason: "Lee" and "Ian" are first names on half the board.
+  if (!g.includes(' ') && g.length >= 4 && p.split(' ').includes(g)) return true
   // One typo in the surname is forgiven — but NOT when both names carry a
   // first name and the two disagree.
   //

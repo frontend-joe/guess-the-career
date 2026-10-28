@@ -661,8 +661,12 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
 function knownPlayerNamed(raw: string): { id: number; name: string } | null {
   const row = sqlite
     .prepare(
+      // Any WHOLE word of the name, padded so the LIKE cannot match a
+      // fragment: ' raul ' is in ' raul gonzalez ' but 'egan' being in
+      // 'keegan' is exactly the false positive this padding prevents.
       `SELECT id, name FROM footballers
-       WHERE normalize(name) = normalize(?) OR normalize(name) LIKE '% ' || normalize(?)
+       WHERE normalize(name) = normalize(?)
+          OR (' ' || normalize(name) || ' ') LIKE '% ' || normalize(?) || ' %'
        LIMIT 1`,
     )
     .get(raw, raw) as { id: number; name: string } | undefined

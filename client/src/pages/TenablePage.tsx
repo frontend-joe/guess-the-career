@@ -50,7 +50,21 @@ function matches(guess: string, name: string): boolean {
   const gl = g.split(' ').at(-1) ?? '', pl = p.split(' ').at(-1) ?? ''
   if (pl.length < 4) return false
   if (g === pl) return true
-  if (gl.length >= 4 && (gl === pl || damerau(gl, pl) === 1)) return true
+  if (gl === pl) return true
+  // A single-word guess also matches any OTHER whole word of the name.
+  // Players known by one name wear it at the front — Raúl González,
+  // Ronaldinho Gaúcho — and "Raul" matched nothing, because every rule here
+  // was looking at the surname. Four characters minimum, same as below:
+  // "Lee" and "Ian" are first names on half the board.
+  if (!g.includes(' ') && g.length >= 4 && p.split(' ').includes(g)) return true
+  // One typo in the surname is forgiven, but NOT when both names carry a
+  // first name and the two disagree — "Leighton Baines" was being credited
+  // to John Barnes, whose surname is one edit away.
+  if (gl.length >= 4 && damerau(gl, pl) === 1) {
+    const gf = g.split(' ')[0], pf = p.split(' ')[0]
+    if (!g.includes(' ') || !p.includes(' ') || gf === pf) return true
+    return (gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))
+  }
   return false
 }
 
