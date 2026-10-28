@@ -24,14 +24,23 @@ export function surnameOf(normalized: string): string {
 }
 
 // Exact match, or a surname match tolerant of one transposition/typo.
-// Surnames under 4 characters never fuzzy-match — "Cole" and "Kane" are too
-// close for comfort at distance 1, and short names collide constantly.
+// Surnames under 4 characters never match on their own — see the guard below.
 export function matchesName(guess: string, name: string): boolean {
   const g = norm(guess)
   const p = norm(name)
   if (g === p) return true
   const gl = surnameOf(g)
   const pl = surnameOf(p)
+  // A guess that is the tail of the full name, in full, is accepted whatever
+  // its last word measures. surnameOf takes the final word only, so a Dutch
+  // tussenvoegsel is not part of the surname as far as the rules below are
+  // concerned: Edwin van der Sar's is "sar", three characters, and the short
+  // surname guard then rejected "van der Sar" — the man's actual surname,
+  // typed in full — leaving the full name the only guess that worked.
+  //
+  // This is not the short-surname rule in disguise. "Sar" alone is still too
+  // little to go on; three words of a four-word name is not.
+  if (g.includes(' ') && p.endsWith(` ${g}`)) return true
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true

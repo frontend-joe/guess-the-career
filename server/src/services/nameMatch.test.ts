@@ -37,6 +37,20 @@ test('an answer with a short surname never matches on surname alone', () => {
   assert.ok(matchesName('Heung-min Son', 'Heung-min Son'))
 })
 
+test('a surname typed in full matches, particles and all', () => {
+  // surnameOf takes the last word, so van der Sar's "surname" is "sar" — three
+  // characters, and the short-surname guard above then rejected the man's
+  // actual surname typed in full. Only "Edwin van der Sar" worked.
+  assert.ok(matchesName('van der Sar', 'Edwin van der Sar'))
+  assert.ok(matchesName('Van der Sar', 'Edwin van der Sar'))
+  assert.ok(matchesName('de Boer', 'Frank de Boer'))
+  // The bare short surname is still not enough to go on — unchanged.
+  assert.ok(!matchesName('Sar', 'Edwin van der Sar'))
+  // And a tail is a tail: a middle fragment is not a name.
+  assert.ok(!matchesName('van der', 'Edwin van der Sar'))
+  assert.ok(!matchesName('der Sar', 'Edwin van der Vaart'))
+})
+
 test('fuzzy matching is distance 1, not distance 3', () => {
   assert.ok(!matchesName('Kane', 'Andy Cole'))
   // Four-character surnames one edit apart DO match — "Bale"/"Hale" is the

@@ -48,6 +48,13 @@ function matches(guess: string, name: string): boolean {
   const g = norm(guess), p = norm(name)
   if (g === p) return true
   const gl = g.split(' ').at(-1) ?? '', pl = p.split(' ').at(-1) ?? ''
+  // A guess that is the tail of the full name, in full, is accepted whatever
+  // its last word measures. The split above takes the final word only, so a
+  // Dutch tussenvoegsel is not part of the surname as far as the rules below
+  // are concerned: Edwin van der Sar's is "sar", three characters, and the
+  // short surname guard then rejected "van der Sar" — his actual surname,
+  // typed in full. "Sar" alone is still too little to go on.
+  if (g.includes(' ') && p.endsWith(` ${g}`)) return true
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true
