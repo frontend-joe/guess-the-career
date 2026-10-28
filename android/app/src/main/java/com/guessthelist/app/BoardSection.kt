@@ -315,20 +315,17 @@ private fun PyramidRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                Box(
-                    Modifier
-                        .sizeIn(minWidth = 24.dp, minHeight = 22.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.35f))
-                        .padding(horizontal = 6.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        valueText(answer),
-                        fontSize = 11.sp,
-                        fontFamily = AppFonts.Display,
-                        color = Color.White,
-                    )
+                valueText(answer)?.let { badge ->
+                    Box(
+                        Modifier
+                            .sizeIn(minWidth = 24.dp, minHeight = 22.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .padding(horizontal = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(badge, fontSize = 11.sp, fontFamily = AppFonts.Display, color = Color.White)
+                    }
                 }
             }
             // Just the rank, clue or no clue, so the pyramid reads as the
@@ -345,7 +342,13 @@ private fun PyramidRow(
     }
 }
 
-private fun valueText(answer: RevealedAnswer): String {
+/** What goes in the badge, or nothing at all. */
+private fun valueText(answer: RevealedAnswer): String? {
+    // A shirt number is not a score. On a squad round the board is not ranked
+    // by it — it is not ranked by anything — so putting "8 shirt" next to a
+    // name states a fact nobody asked for and makes the row look like it
+    // placed eighth.
+    if (answer.unit == "shirt") return null
     // A transfer fee is a price, not a count. "37500000 fee" is unreadable at
     // a glance and wraps the badge onto two lines; "37.5m" is the number
     // people actually say.

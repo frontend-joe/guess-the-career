@@ -311,13 +311,15 @@ private struct PyramidRow: View {
                         .foregroundStyle(answer.wasMissed ? .white.opacity(0.75) : .white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
-                    Text(valueText(answer))
-                        .font(.display(11))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .frame(minWidth: 24, minHeight: 22)
-                        .background(Capsule().fill(.black.opacity(0.35)))
+                    if let badge = valueText(answer) {
+                        Text(badge)
+                            .font(.display(11))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .frame(minWidth: 24, minHeight: 22)
+                            .background(Capsule().fill(.black.opacity(0.35)))
+                    }
                 }
                 .padding(.horizontal, 12)
             } else {
@@ -369,7 +371,13 @@ private struct PyramidRow: View {
         }
     }
 
-    private func valueText(_ answer: RevealedAnswer) -> String {
+    /// What goes in the badge, or nothing at all.
+    private func valueText(_ answer: RevealedAnswer) -> String? {
+        // A shirt number is not a score. On a squad round the board is not
+        // ranked by it — it is not ranked by anything — so putting "8 shirt"
+        // next to a name states a fact nobody asked for and makes the row
+        // look like it placed eighth.
+        if answer.unit == "shirt" { return nil }
         // A transfer fee is a price, not a count. "37500000 fee" is unreadable
         // at a glance and wraps the badge onto two lines; "37.5m" is the
         // number people actually say.
