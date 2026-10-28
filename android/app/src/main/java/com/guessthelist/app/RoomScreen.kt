@@ -3,6 +3,8 @@ package com.guessthelist.app
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -42,6 +44,10 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.PersonRemove
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Cancel
@@ -353,36 +359,127 @@ private fun VideoGrid(model: RoomViewModel) {
     }
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         model.tiles.forEach { tile ->
-            val track = tile.track
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF16161A)),
-                contentAlignment = Alignment.Center,
-            ) {
-                val lkRoom = model.room
-                if (track != null && lkRoom != null) {
-                    // Positional: the published parameter names are not
-                    // what they look like from the Java signature.
-                    VideoTrackView(
-                        track,
-                        Modifier.fillMaxSize(),
-                        lkRoom,
-                        tile.isLocal,
+            Box(Modifier.weight(1f).fillMaxHeight()) { Tile(model, tile) }
+        }
+    }
+}
+
+// One face, and everything you can do about it.
+//
+// A long press rather than a visible button on every tile: four faces in the
+// bottom third have no room for chrome, and a long press is what Android
+// already uses for "what can I do with this thing".
+// combinedClickable is still marked experimental; it is the only way to get a
+// long press on a Box without hand-rolling gesture detection.
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Tile(model: RoomViewModel, tile: RoomViewModel.Tile) {
+    val scope = rememberCoroutineScope()
+    var menu by remember { mutableStateOf(false) }
+    var reporting by remember { mutableStateOf(false) }
+    var confirmingRemove by remember { mutableStateOf(false) }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF16161A))
+            .combinedClickable(onClick = {}, onLongClick = { if (!tile.isLocal) menu = true }),
+        contentAlignment = Alignment.Center,
+    ) {
+        val track = tile.track
+        val lkRoom = model.room
+        when {
+            // Not a black rectangle with no explanation: blocking is something
+            // you did, and the tile says so and how to undo it.
+            tile.isBlocked -> Text("blocked — long press to undo", fontSize = 11.sp, color = Color.Gray)
+            track != null && lkRoom != null ->
+                // Positional: the published parameter names are not
+                // what they look like from the Java signature.
+                VideoTrackView(
+                    track,
+                    Modifier.fillMaxSize(),
+                    lkRoom,
+                    tile.isLocal,
+                )
+            else -> Text("camera off", fontSize = 11.sp, color = Color.Gray)
+        }
+
+        Text(
+            if (tile.isLocal) "${tile.name} (you)" else tile.name,
+            fontSize = 10.sp,
+            color = Color.White,
+            modifier = Modifier.align(Alignment.BottomStart).padding(4.dp),
+        )
+
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(if (tile.isBlocked) "Unblock ${tile.name}" else "Block ${tile.name}") },
+                leadingIcon = {
+                    Icon(
+                        if (tile.isBlocked) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                        contentDescription = null,
                     )
-                } else {
-                    Text("camera off", fontSize = 11.sp, color = Color.Gray)
-                }
-                Text(
-                    if (tile.isLocal) "${tile.name} (you)" else tile.name,
-                    fontSize = 10.sp,
-                    color = Color.White,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(4.dp),
+                },
+                onClick = { menu = false; scope.launch { model.toggleBlock(tile) } },
+            )
+            DropdownMenuItem(
+                text = { Text("Report ${tile.name}") },
+                leadingIcon = { Icon(Icons.Filled.Flag, contentDescription = null) },
+                onClick = { menu = false; reporting = true },
+            )
+            // Removing is the host's, and it is destructive, so it is last and
+            // it asks first.
+            if (model.isHost) {
+                DropdownMenuItem(
+                    text = { Text("Remove from game", color = Color(0xFFFF6B6B)) },
+                    leadingIcon = {
+                        Icon(Icons.Filled.PersonRemove, contentDescription = null, tint = Color(0xFFFF6B6B))
+                    },
+                    onClick = { menu = false; confirmingRemove = true },
                 )
             }
         }
+    }
+
+    if (reporting) {
+        val reasons = listOf(
+            "abuse" to "Abusive behaviour",
+            "harassment" to "Harassment",
+            "nudity" to "Nudity or sexual content",
+            "hate" to "Hate speech",
+            "other" to "Something else",
+        )
+        AlertDialog(
+            onDismissRequest = { reporting = false },
+            title = { Text("Report ${tile.name}") },
+            confirmButton = { TextButton(onClick = { reporting = false }) { Text("Cancel") } },
+            text = {
+                Column {
+                    reasons.forEach { (code, label) ->
+                        TextButton(onClick = {
+                            reporting = false
+                            scope.launch { model.report(tile, code) }
+                        }) { Text(label) }
+                    }
+                }
+            },
+        )
+    }
+
+    if (confirmingRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmingRemove = false },
+            title = { Text("Remove ${tile.name} from the game?") },
+            text = { Text("They lose their place and their invite stops working.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmingRemove = false
+                    scope.launch { model.removePlayer(tile) }
+                }) { Text("Remove", color = Color(0xFFFF6B6B)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmingRemove = false }) { Text("Cancel") } },
+        )
     }
 }
 

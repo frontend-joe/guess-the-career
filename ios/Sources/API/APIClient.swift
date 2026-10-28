@@ -120,6 +120,20 @@ enum API {
         _ = try await request("POST", "api/rooms/\(seat.code)/leave", bearer: seat.token)
     }
 
+    /// Host only. The server revokes the seat and cuts their call.
+    static func removePlayer(seat: Seat, participantId: Int) async throws {
+        _ = try await request(
+            "POST", "api/rooms/\(seat.code)/participants/\(participantId)/remove", bearer: seat.token)
+    }
+
+    /// Anyone can report anyone — including the host, which is the case that
+    /// matters and the reason this is not routed through them.
+    static func report(seat: Seat, participantId: Int, reason: String) async throws {
+        _ = try await request(
+            "POST", "api/rooms/\(seat.code)/participants/\(participantId)/report",
+            body: ["reason": reason], bearer: seat.token)
+    }
+
     static func endRoom(seat: Seat) async throws {
         _ = try await request("POST", "api/rooms/\(seat.code)/end", bearer: seat.token)
     }

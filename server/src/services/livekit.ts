@@ -122,3 +122,21 @@ export function broadcastState(livekitRoom: string, message: StateBroadcast): vo
       console.warn(`livekit: broadcast to ${livekitRoom} failed:`, err)
     })
 }
+
+// Disconnect someone from the call.
+//
+// Fire-and-forget for the same reason as broadcastState, with one difference
+// worth stating: this is not what enforces a removal. The seat is revoked in
+// SQLite first, and that is what stops a removed player guessing, polling or
+// minting a fresh token. Cutting the call is the visible half — without it
+// they would sit there on camera, removed from a game they can still see.
+export function ejectParticipant(livekitRoom: string, identity: string): void {
+  const config = livekitConfig()
+  if (!config) return
+  roomService(config)
+    .removeParticipant(livekitRoom, identity)
+    .catch((err: unknown) => {
+      // Ordinary when they never dialled in, or had already dropped.
+      console.warn(`livekit: removing ${identity} from ${livekitRoom} failed:`, err)
+    })
+}

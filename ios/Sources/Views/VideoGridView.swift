@@ -25,16 +25,32 @@ struct VideoGridView: View {
 }
 
 private struct TileView: View {
+    @Environment(RoomStore.self) private var store
     let tile: RoomStore.Tile
+
+    @State private var confirmingRemove = false
+    @State private var reporting = false
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let track = tile.track {
+            if tile.isBlocked {
+                // Not a black rectangle with no explanation: blocking is
+                // something you did, and the tile says so and how to undo it.
+                Color(white: 0.06)
+                    .overlay {
+                        VStack(spacing: 2) {
+                            Image(systemName: "eye.slash.fill").font(.caption)
+                            Text("blocked").font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+            } else if let track = tile.track {
                 SwiftUIVideoView(track, layoutMode: .fill, mirrorMode: tile.isLocal ? .mirror : .auto)
             } else {
                 Color(white: 0.1)
                     .overlay(Text("camera off").font(.caption2).foregroundStyle(.secondary))
             }
+
             Text(tile.isLocal ? "\(tile.name) (you)" : tile.name)
                 .font(.caption2)
                 .padding(.horizontal, 4)
@@ -44,5 +60,54 @@ private struct TileView: View {
                 .padding(4)
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        // A long press rather than a visible button on every tile: four faces
+        // in the bottom third have no room for chrome, and this is the gesture
+        // iOS already uses for "what can I do with this thing".
+        .contextMenu { menu }
+        .confirmationDialog(
+            "Remove \(tile.name) from the game?",
+            isPresented: $confirmingRemove,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) { Task { await store.removePlayer(tile) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They lose their place and their invite stops working.")
+        }
+        .confirmationDialog("Report \(tile.name)", isPresented: $reporting, titleVisibility: .visible) {
+            Button("Abusive behaviour") { Task { await store.report(tile, reason: "abuse") } }
+            Button("Harassment") { Task { await store.report(tile, reason: "harassment") } }
+            Button("Nudity or sexual content") { Task { await store.report(tile, reason: "nudity") } }
+            Button("Hate speech") { Task { await store.report(tile, reason: "hate") } }
+            Button("Something else") { Task { await store.report(tile, reason: "other") } }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private var menu: some View {
+        if !tile.isLocal {
+            Button {
+                Task { await store.toggleBlock(tile) }
+            } label: {
+                Label(
+                    tile.isBlocked ? "Unblock \(tile.name)" : "Block \(tile.name)",
+                    systemImage: tile.isBlocked ? "eye" : "eye.slash"
+                )
+            }
+
+            Button { reporting = true } label: {
+                Label("Report \(tile.name)", systemImage: "flag")
+            }
+
+            // Removing is the host's, and it is destructive, so it is last and
+            // it asks first.
+            if store.isHost {
+                Button(role: .destructive) { confirmingRemove = true } label: {
+                    Label("Remove from game", systemImage: "person.fill.xmark")
+                }
+            }
+        }
     }
 }

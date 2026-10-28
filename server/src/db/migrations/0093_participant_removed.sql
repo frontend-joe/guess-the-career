@@ -1,0 +1,19 @@
+-- Removal has to outlast the seat it revokes.
+--
+-- Leaving and being removed both clear your seat, and until now they were the
+-- same write: left_at. That makes "removed" a revolving door — rejoining with
+-- the code hands a signed-in player their old slot straight back, left_at set
+-- to NULL, as if nothing had happened.
+--
+-- So a removal is recorded separately from a departure. A row with removed = 1
+-- is refused at the door.
+--
+-- What this does NOT do, stated plainly rather than discovered later: a GUEST
+-- has no identity to refuse. They are a display name and a row, so a removed
+-- guest who still has the invite code can come back as a new row under a new
+-- name. Blocking that properly means either rotating the room code — which
+-- breaks the link for everyone already in the room, since the code is in every
+-- client's seat — or giving guests an identity, which is exactly what "join
+-- with just a name" exists to avoid. Among friends in a private room, the
+-- host's answer to someone who keeps coming back is End game.
+ALTER TABLE game_participants ADD COLUMN removed INTEGER NOT NULL DEFAULT 0;

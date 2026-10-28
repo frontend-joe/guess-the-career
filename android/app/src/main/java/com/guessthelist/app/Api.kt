@@ -144,6 +144,24 @@ object Api {
         call("POST", "api/rooms/${seat.code}/leave", bearer = seat.token)
     }
 
+    /** Host only. The server revokes the seat and cuts their call. */
+    suspend fun removePlayer(seat: Seat, participantId: Int) {
+        call("POST", "api/rooms/${seat.code}/participants/$participantId/remove", bearer = seat.token)
+    }
+
+    /**
+     * Anyone can report anyone — including the host, which is the case that
+     * matters and the reason this is not routed through them.
+     */
+    suspend fun report(seat: Seat, participantId: Int, reason: String) {
+        call(
+            "POST",
+            "api/rooms/${seat.code}/participants/$participantId/report",
+            buildJsonObject { put("reason", reason) },
+            bearer = seat.token,
+        )
+    }
+
     suspend fun endRoom(seat: Seat) {
         call("POST", "api/rooms/${seat.code}/end", bearer = seat.token)
     }

@@ -18,6 +18,8 @@ import io.livekit.android.room.participant.Participant
 import io.livekit.android.room.track.VideoTrack
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.participant.LocalParticipant
+import io.livekit.android.room.participant.RemoteParticipant
+import io.livekit.android.room.track.RemoteTrackPublication
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -305,6 +307,7 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                 isLocal = p is LocalParticipant,
                 track = p.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack,
                 participant = p,
+                isBlocked = p.identity?.value in blocked,
             )
         }
     }
@@ -315,7 +318,60 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         val isLocal: Boolean,
         val track: VideoTrack?,
         val participant: Participant,
-    )
+        /** Blocked by THIS viewer. Nobody else's screen changes. */
+        val isBlocked: Boolean = false,
+    ) {
+        /**
+         * The server's participant row, which is what every room endpoint is
+         * keyed on. LiveKit identities are minted as "p<id>" precisely so this
+         * is possible — see the livekit-token route.
+         */
+        val participantId: Int? get() = identity.removePrefix("p").toIntOrNull()
+    }
+
+    /**
+     * Players this viewer has blocked, by LiveKit identity.
+     *
+     * Blocking is local and immediate: it unsubscribes from their tracks, so
+     * their video and audio stop arriving at this device entirely. Nothing is
+     * sent to the server and nobody else's screen changes — which is the
+     * point. You should not have to ask anyone's permission to stop looking at
+     * someone, and it works even when the person you want to block is the
+     * host.
+     */
+    var blocked by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    suspend fun toggleBlock(tile: Tile) {
+        if (tile.isLocal) return
+        val remote = tile.participant as? RemoteParticipant ?: return
+        val blocking = tile.identity !in blocked
+        blocked = if (blocking) blocked + tile.identity else blocked - tile.identity
+
+        // Unsubscribing, not muting locally: the track stops being delivered
+        // at all, so a blocked player costs no bandwidth and cannot reappear
+        // because some composable read the publication directly.
+        remote.trackPublications.values.forEach { publication ->
+            (publication as? RemoteTrackPublication)?.setSubscribed(!blocking)
+        }
+        refreshTiles()
+    }
+
+    suspend fun report(tile: Tile, reason: String) {
+        val current = seat ?: return
+        val id = tile.participantId ?: return
+        runCatching { Api.report(current, id, reason) }
+            .onSuccess { videoNote = "Reported. Block them too if you don't want to see or hear them." }
+            .onFailure { error = it.message }
+    }
+
+    suspend fun removePlayer(tile: Tile) {
+        val current = seat ?: return
+        val id = tile.participantId ?: return
+        runCatching { Api.removePlayer(current, id) }
+            .onSuccess { refresh() }
+            .onFailure { error = it.message }
+    }
 
     private fun handleBroadcast(text: String) {
         val message = Api.parseBroadcast(text) ?: return

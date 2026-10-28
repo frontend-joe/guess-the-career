@@ -13,6 +13,7 @@ import {
 import { matchesName, norm, surnameOf } from './nameMatch.ts'
 import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.ts'
 import { resolveOrCreateFootballer } from './playerImport.ts'
+import { moderateMessage } from './moderation.ts'
 
 // Private multiplayer rooms. See migrations 0087-0089 for the data model and
 // the invariants; this file enforces them.
@@ -156,6 +157,9 @@ export interface ParticipantRow {
   role: string
   slot: number
   left_at: string | null
+  /// 1 when the host removed them, which is a different thing from leaving:
+  /// it survives a rejoin attempt. See 0093_participant_removed.sql.
+  removed: number
 }
 
 export function participantsOf(roomId: number): ParticipantRow[] {
@@ -187,6 +191,9 @@ export function joinRoom(
       const existing = sqlite
         .prepare('SELECT * FROM game_participants WHERE room_id = ? AND user_id = ?')
         .get(room.id, opts.userId) as ParticipantRow | undefined
+      // Removed means removed. Without this the host's only sanction lasts
+      // exactly as long as it takes the removed player to tap Join again.
+      if (existing?.removed) throw new RoomError('You were removed from that game', 403)
       // Rejoining is not a new seat — it keeps the slot, so tile order in a
       // recording survives someone's phone dying.
       if (existing) {
@@ -234,6 +241,64 @@ export function leaveRoom(participantId: number): void {
       .get(participantId) as { room_id: number } | undefined
     if (row) bumpVersion(row.room_id)
   })()
+}
+
+// Remove someone from a room, host's orders.
+//
+// Returns the row so the caller can cut their call too — the LiveKit identity
+// is derived from it. Throws rather than returning quietly, because every
+// refusal here is something the host should be told: you cannot remove
+// yourself (that is Leave), and you cannot remove the host (that is End game).
+export function removeParticipant(roomId: number, actor: ParticipantRow, targetId: number): ParticipantRow {
+  if (actor.role !== 'host') throw new RoomError('Only the host can remove a player', 403)
+  if (actor.id === targetId) throw new RoomError('Use Leave to leave your own game', 400)
+
+  const target = sqlite
+    .prepare('SELECT * FROM game_participants WHERE id = ? AND room_id = ?')
+    .get(targetId, roomId) as ParticipantRow | undefined
+  if (!target) throw new RoomError('No such player in this game', 404)
+  if (target.role === 'host') throw new RoomError('The host cannot be removed', 400)
+
+  // Same revocation as leaving — the seat is what authorises everything, a
+  // guess, a poll, a fresh LiveKit token — plus the flag that stops it being
+  // handed straight back at the door.
+  sqlite.transaction(() => {
+    sqlite
+      .prepare("UPDATE game_participants SET left_at = datetime('now'), removed = 1 WHERE id = ?")
+      .run(target.id)
+    bumpVersion(roomId)
+  })()
+  return target
+}
+
+/// File a report against another player. Nothing is enforced automatically:
+/// the row exists to be read, and the host still has mute and remove for the
+/// moment itself.
+export function reportParticipant(
+  roomId: number,
+  reporter: ParticipantRow,
+  targetId: number,
+  reason: string,
+  note: string | null,
+): void {
+  if (reporter.id === targetId) throw new RoomError('You cannot report yourself', 400)
+  const target = sqlite
+    .prepare('SELECT id FROM game_participants WHERE id = ? AND room_id = ?')
+    .get(targetId, roomId) as { id: number } | undefined
+  if (!target) throw new RoomError('No such player in this game', 404)
+
+  // The most recent message from the reported player, if there is one. A
+  // report about something said is far more use with the thing said attached.
+  const lastMessage = sqlite
+    .prepare('SELECT id FROM game_messages WHERE room_id = ? AND participant_id = ? ORDER BY id DESC LIMIT 1')
+    .get(roomId, targetId) as { id: number } | undefined
+
+  sqlite
+    .prepare(
+      `INSERT INTO game_reports (room_id, reporter_participant_id, target_participant_id, message_id, reason, note)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(roomId, reporter.id, targetId, lastMessage?.id ?? null, reason, note)
 }
 
 export function endRoom(roomId: number): void {
@@ -1126,8 +1191,13 @@ export function postMessage(
   clientMessageId: string,
   body: string,
 ): PostMessageResult {
-  const text = body.trim()
-  if (!text) throw new RoomError('An empty message is not a message', 400)
+  const typed = body.trim()
+  if (!typed) throw new RoomError('An empty message is not a message', 400)
+
+  // Moderated before it is stored, so what is broadcast and what is kept are
+  // the same text. The original is kept beside it — a filter whose decisions
+  // cannot be inspected cannot be corrected.
+  const { body: text, moderated } = moderateMessage(typed)
 
   const existing = sqlite
     .prepare('SELECT id, participant_id, display_name, body, created_at FROM game_messages WHERE room_id = ? AND client_message_id = ?')
@@ -1155,10 +1225,18 @@ export function postMessage(
   const { id, stateVersion } = sqlite.transaction(() => {
     const info = sqlite
       .prepare(
-        `INSERT INTO game_messages (room_id, participant_id, display_name, client_message_id, body)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO game_messages (room_id, participant_id, display_name, client_message_id, body, moderated, original_body)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(room.id, participant.id, participant.display_name, clientMessageId, text)
+      .run(
+        room.id,
+        participant.id,
+        participant.display_name,
+        clientMessageId,
+        text,
+        moderated ? 1 : 0,
+        moderated ? typed : null,
+      )
     return { id: Number(info.lastInsertRowid), stateVersion: bumpVersion(room.id) }
   })()
 

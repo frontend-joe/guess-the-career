@@ -20,6 +20,8 @@ import {
   onRoomChanged,
   participantsOf,
   postMessage,
+  removeParticipant,
+  reportParticipant,
   resolvePendingReviews,
   roomByCode,
   roomState,
@@ -29,7 +31,7 @@ import {
   type ParticipantRow,
   type RoomRow,
 } from '../services/gameRooms.ts'
-import { broadcastState, livekitConfig, mintJoinToken } from '../services/livekit.ts'
+import { broadcastState, ejectParticipant, livekitConfig, mintJoinToken } from '../services/livekit.ts'
 
 export const roomsRouter = new Hono()
 
@@ -53,14 +55,21 @@ async function participantFor(c: Context, room: RoomRow): Promise<ParticipantRow
     const payload = await verifyParticipantToken(bearer)
     if (payload) {
       if (payload.rid !== room.id) return null
+      // `left_at IS NULL` is what makes a removal real. The token stays
+      // valid — it is signed and cannot be recalled — so the seat it points
+      // at is the thing that gets revoked. Without this clause a removed
+      // player keeps guessing, polling and minting fresh LiveKit tokens, and
+      // "removed" means nothing more than a tile disappearing for a moment.
       return (sqlite
-        .prepare('SELECT * FROM game_participants WHERE id = ? AND room_id = ?')
+        .prepare('SELECT * FROM game_participants WHERE id = ? AND room_id = ? AND left_at IS NULL')
         .get(payload.pid, room.id) as ParticipantRow | undefined) ?? null
     }
   }
   const user = await getCurrentUser(c)
   if (!user) return null
-  return participantsOf(room.id).find((p) => p.user_id === user.id) ?? null
+  // Same revocation rule as the token path above: a seat that has been given
+  // up or taken away is not a seat.
+  return participantsOf(room.id).find((p) => p.user_id === user.id && p.left_at == null) ?? null
 }
 
 // Everything below needs a room that exists; this keeps the lookup in one place.
@@ -306,6 +315,50 @@ roomsRouter.post('/:code/leave', async (c) => {
   announce(room.code, 'participant_left')
   return c.json({ ok: true })
 })
+
+// POST /api/rooms/:code/participants/:id/remove — the host removes a player.
+//
+// Two writes, in this order: the seat is revoked in SQLite, and only then is
+// the call cut. The database is what enforces the removal — the LiveKit eject
+// is what makes it visible, and it is allowed to fail.
+roomsRouter.post('/:code/participants/:id/remove', async (c) => {
+  const room = mustFindRoom(c.req.param('code'))
+  const me = await participantFor(c, room)
+  if (!me) return c.json({ error: 'Not in this room' }, 403)
+  try {
+    const target = removeParticipant(room.id, me, Number(c.req.param('id')))
+    ejectParticipant(room.livekit_room, `p${target.id}`)
+    announce(room.code, 'participant_removed')
+    return c.json({ ok: true })
+  } catch (err) {
+    return fail(err)
+  }
+})
+
+// POST /api/rooms/:code/participants/:id/report — anyone reports anyone.
+//
+// Not host-only on purpose. The person who needs to report something is
+// whoever it was aimed at, and routing that through the host is no use at all
+// when the host is the problem.
+roomsRouter.post(
+  '/:code/participants/:id/report',
+  zValidator('json', z.object({
+    reason: z.enum(['abuse', 'harassment', 'nudity', 'hate', 'other']),
+    note: z.string().trim().max(500).nullish(),
+  })),
+  async (c) => {
+    const room = mustFindRoom(c.req.param('code'))
+    const me = await participantFor(c, room)
+    if (!me) return c.json({ error: 'Not in this room' }, 403)
+    const { reason, note } = c.req.valid('json')
+    try {
+      reportParticipant(room.id, me, Number(c.req.param('id')), reason, note ?? null)
+      return c.json({ ok: true })
+    } catch (err) {
+      return fail(err)
+    }
+  },
+)
 
 // POST /api/rooms/:code/end — host closes the game.
 roomsRouter.post('/:code/end', async (c) => {

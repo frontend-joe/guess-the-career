@@ -61,6 +61,16 @@ final class RoomStore {
     private(set) var cameraOn = false
     private(set) var microphoneOn = false
 
+    /// Players this viewer has blocked, by LiveKit identity.
+    ///
+    /// Blocking is local and immediate: it unsubscribes from their tracks, so
+    /// their video and audio stop arriving at this device entirely. Nothing is
+    /// sent to the server and nobody else's screen changes — which is the
+    /// point. You should not have to ask anyone's permission to stop looking
+    /// at someone, and it works even when the person you want to block is the
+    /// host.
+    private(set) var blocked: Set<String> = []
+
     /// The version already on screen. Anything higher means we are behind;
     /// anything lower is an out-of-order message to ignore.
     private var version = 0
@@ -84,9 +94,19 @@ final class RoomStore {
         let isLocal: Bool
         let track: VideoTrack?
         let participant: Participant
+        /// Blocked by THIS viewer. Nobody else's screen changes.
+        let isBlocked: Bool
+
+        /// The server's participant row, which is what every room endpoint is
+        /// keyed on. LiveKit identities are minted as "p<id>" precisely so
+        /// this is possible — see the livekit-token route.
+        var participantId: Int? {
+            guard id.hasPrefix("p") else { return nil }
+            return Int(id.dropFirst())
+        }
 
         static func == (a: Tile, b: Tile) -> Bool {
-            a.id == b.id && a.name == b.name && a.track === b.track
+            a.id == b.id && a.name == b.name && a.track === b.track && a.isBlocked == b.isBlocked
         }
     }
 
@@ -343,6 +363,46 @@ final class RoomStore {
         refreshTiles()
     }
 
+    // MARK: - Blocking, reporting, removing
+
+    /// Stop (or resume) receiving someone's video and audio on this device.
+    func toggleBlock(_ tile: Tile) async {
+        guard !tile.isLocal, let remote = tile.participant as? RemoteParticipant else { return }
+        let blocking = !blocked.contains(tile.id)
+        if blocking { blocked.insert(tile.id) } else { blocked.remove(tile.id) }
+
+        // Unsubscribing, not muting locally: the track stops being delivered
+        // at all, so a blocked player costs no bandwidth and cannot reappear
+        // because some view read the publication directly.
+        for publication in remote.trackPublications.values {
+            guard let publication = publication as? RemoteTrackPublication else { continue }
+            try? await publication.set(subscribed: !blocking)
+        }
+        refreshTiles()
+    }
+
+    /// File a report against another player.
+    func report(_ tile: Tile, reason: String) async {
+        guard let seat, let id = tile.participantId else { return }
+        do {
+            try await API.report(seat: seat, participantId: id, reason: reason)
+            videoNote = "Reported. Block them too if you don't want to see or hear them."
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Host only: revoke their seat and cut their call.
+    func removePlayer(_ tile: Tile) async {
+        guard let seat, let id = tile.participantId else { return }
+        do {
+            try await API.removePlayer(seat: seat, participantId: id)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     /// Read LiveKit's truth into our own observable properties. Called after
     /// every toggle and on every track event, because a track can also be
     /// stopped from outside this app.
@@ -373,7 +433,8 @@ final class RoomStore {
                     ?? "?",
                 isLocal: isLocal,
                 track: participant.firstCameraVideoTrack,
-                participant: participant
+                participant: participant,
+                isBlocked: blocked.contains(participant.identity?.stringValue ?? "")
             )
         }
     }
