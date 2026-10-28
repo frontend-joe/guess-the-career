@@ -68,7 +68,9 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
         // An invite link fills the code in and leaves the guest with only the
         // one thing they actually have to supply: their name.
         LaunchedEffect(invite.value) {
-            invite.value?.let { code = it; invite.value = null }
+            // Whatever went wrong with the last room is not news about this
+            // link, so a fresh invite clears the slate it lands on.
+            invite.value?.let { code = it; invite.value = null; model.error = null }
         }
 
         Text("Football Tenable", style = MaterialTheme.typography.headlineMedium)

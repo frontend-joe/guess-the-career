@@ -183,6 +183,17 @@ final class RoomStore {
         seat = saved
         do {
             let fresh = try await API.roomState(seat: saved)
+            // A seat in a game that is already over is rubbish to throw away,
+            // not a room to walk back into. Restoring it anyway put the room on
+            // screen for one poll and then reported "the host ended the game" —
+            // a true sentence about a game you left, landing on the lobby just
+            // as you tapped an invite to a new one, where it reads as a verdict
+            // on the link you just opened.
+            guard fresh.status != "ended" else {
+                seat = nil
+                SeatStore.clear()
+                return
+            }
             state = fresh
             version = fresh.stateVersion
             phase = .inRoom

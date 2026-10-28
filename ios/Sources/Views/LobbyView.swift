@@ -65,6 +65,9 @@ struct LobbyView: View {
                 guard let invited else { return }
                 code = invited
                 store.pendingJoinCode = nil
+                // Whatever went wrong with the last room is not news about this
+                // link, so a fresh invite clears the slate it lands on.
+                store.error = nil
             }
         }
     }
