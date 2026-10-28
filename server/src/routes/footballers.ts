@@ -404,12 +404,19 @@ footballersRouter.get('/:id/derived-spells', (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.json({ error: 'Bad id' }, 400)
 
-  // The stint fallback only runs for players with no scraped statistics at
-  // all; for everyone else these spells are informational, so say which case
-  // this player is in rather than implying the rows are in use.
+  // The stint fallback only runs for players whose scraped statistics can't
+  // answer a league question — no rows carrying a league we build rounds from.
+  // For everyone else these spells are informational, so say which case this
+  // player is in rather than implying the rows are in use. Must match the
+  // predicate in STINT_RESOLVED, or this screen reports the opposite of what
+  // the engine does.
   const scraped = sqlite
-    .prepare(`SELECT COUNT(*) AS n FROM career_statistics WHERE footballer_id = ?`)
-    .get(id) as { n: number }
+    .prepare(
+      `SELECT COUNT(*) AS n FROM career_statistics
+       WHERE footballer_id = ?
+         AND COALESCE(league, division) IN (${ALLOWED_LEAGUES.map(() => '?').join(', ')})`,
+    )
+    .get(id, ...ALLOWED_LEAGUES) as { n: number }
 
   const rows = sqlite
     .prepare(

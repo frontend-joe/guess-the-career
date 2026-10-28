@@ -166,8 +166,21 @@ const STINT_RESOLVED = `
            COALESCE(st.goals, 0) AS goals
     FROM career_stints st
     WHERE st.stint_type = 'senior'
+      -- Scraped rows only displace the infobox where they can actually answer
+      -- the question. Dirk Kuyt has all 21 seasons scraped and not one of them
+      -- carries a division, so his six Liverpool rows — 51 goals, the right
+      -- number — were filtered out for having no league, while merely existing
+      -- switched off the fallback that reads Premier League off club_seasons
+      -- and gets it right. Partial data was worse than none: he fell through
+      -- both paths and vanished from Dutch Premier League rounds.
+      --
+      -- A row with an allowed league still wins, so nobody is counted twice:
+      -- the fallback only runs where the career_statistics branch above
+      -- contributes nothing to these leagues in the first place.
       AND NOT EXISTS (
-        SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
+        SELECT 1 FROM career_statistics x
+        WHERE x.footballer_id = st.footballer_id
+          AND COALESCE(x.league, x.division) IN (${ALLOWED_LEAGUES_SQL})
       )
   ),
   per_league AS (
