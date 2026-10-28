@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The board itself: five capsules, narrow at the top and widening as they
+  descend, shaded green-400 down to green-700 the way the real rows are.
+
+  An adaptive icon's viewport is 108dp and only the middle 72dp is guaranteed
+  to survive whatever mask the launcher applies, so the stack lives inside
+  21..87 with room to spare. The geometry matches ios/scripts/make-icon.swift,
+  which draws the same pyramid for the iOS icon and the legacy PNGs.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#4ADE80"
+        android:pathData="M48.918,21 L59.082,21 A5.016,5.016 0 0 1 59.082,31.032 L48.918,31.032 A5.016,5.016 0 0 1 48.918,21 Z" />
+    <path
+        android:fillColor="#41C975"
+        android:pathData="M42.978,34.992 L65.022,34.992 A5.016,5.016 0 0 1 65.022,45.024 L42.978,45.024 A5.016,5.016 0 0 1 42.978,34.992 Z" />
+    <path
+        android:fillColor="#39B56B"
+        android:pathData="M37.467,48.984 L70.533,48.984 A5.016,5.016 0 0 1 70.533,59.016 L37.467,59.016 A5.016,5.016 0 0 1 37.467,48.984 Z" />
+    <path
+        android:fillColor="#30A160"
+        android:pathData="M31.527,62.976 L76.473,62.976 A5.016,5.016 0 0 1 76.473,73.008 L31.527,73.008 A5.016,5.016 0 0 1 31.527,62.976 Z" />
+    <path
+        android:fillColor="#288C55"
+        android:pathData="M26.016,76.968 L81.984,76.968 A5.016,5.016 0 0 1 81.984,87 L26.016,87 A5.016,5.016 0 0 1 26.016,76.968 Z" />
+</vector>

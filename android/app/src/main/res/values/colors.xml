@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- slate-950, the board's own backdrop. Matches `background` in
+         ios/scripts/make-icon.swift. -->
+    <color name="ic_launcher_background">#0C122B</color>
+</resources>

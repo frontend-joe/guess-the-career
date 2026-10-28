@@ -11,6 +11,10 @@ struct RoomView: View {
     @State private var showingRoundPicker = false
     @State private var confirmingGiveUp = false
     @State private var showingActions = false
+    /// Share was tapped in the actions menu; the sheet goes up once that menu
+    /// is out of the way.
+    @State private var shareWanted = false
+    @State private var sharing: ShareRequest?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Whether the guess field holds the keyboard. The layout changes shape
     /// while you type rather than trying to fit everything at once.
@@ -273,9 +277,21 @@ struct RoomView: View {
                 .popover(isPresented: $showingActions, arrowEdge: .bottom) {
                     RoomActionsMenu(
                         onGiveUp: { confirmingGiveUp = true },
+                        onShare: { shareWanted = true },
                         onDismiss: { showingActions = false }
                     )
                     .presentationCompactAdaptation(.popover)
+                }
+                // Not a delay: the popover closing is the signal. One
+                // presentation at a time is the whole point — two at once is
+                // what left the ellipsis button dead.
+                .onChange(of: showingActions) { _, open in
+                    guard !open, shareWanted else { return }
+                    shareWanted = false
+                    if let link = store.inviteLink { sharing = ShareRequest(url: link) }
+                }
+                .sheet(item: $sharing) { request in
+                    ActivitySheet(items: [request.url])
                 }
             }
         }

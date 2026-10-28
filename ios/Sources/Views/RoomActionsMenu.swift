@@ -11,6 +11,10 @@ struct RoomActionsMenu: View {
     @Environment(RoomStore.self) private var store
 
     let onGiveUp: () -> Void
+    /// Asks the room to share, rather than sharing from in here. A sheet
+    /// presented by a view that is closing never finishes presenting — see
+    /// ActivitySheet.
+    let onShare: () -> Void
     let onDismiss: () -> Void
 
     private static let inset: CGFloat = 16
@@ -21,12 +25,8 @@ struct RoomActionsMenu: View {
                 row("flag.fill", "Give up", action: onGiveUp)
             }
 
-            if store.isHost, let link = store.inviteLink {
-                ShareLink(item: link, message: Text("Join my Tenable game")) {
-                    rowLabel("square.and.arrow.up", "Share invite", tint: .primary)
-                }
-                .buttonStyle(MenuRowStyle())
-                .simultaneousGesture(TapGesture().onEnded { onDismiss() })
+            if store.isHost, store.inviteLink != nil {
+                row("square.and.arrow.up", "Share invite", action: onShare)
             }
 
             row("rectangle.portrait.and.arrow.right", "Leave") {
