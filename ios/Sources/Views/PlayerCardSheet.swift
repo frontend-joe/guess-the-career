@@ -8,8 +8,10 @@ import SwiftUI
 // and a second image pipeline, for a 16pt badge, on a screen that is already
 // carrying four video tracks. The names and the numbers are the content.
 //
-// Light, not dark, exactly as on the web. The card is a reference sheet lifted
-// over the game, and a dark one would read as another part of the board.
+// Dark, like the clue sheet and the rest of the room. The web modal is light
+// because the web game is, and carrying that over made the one light surface
+// in a dark app — a flashbang mid-round. Every colour here is semantic, so the
+// card inherits the app's scheme instead of pinning its own.
 struct PlayerCardSheet: View {
     /// Null when the board has a name but no footballer behind it. The sheet
     /// still opens and says so, rather than the row ignoring the tap.
@@ -44,16 +46,12 @@ struct PlayerCardSheet: View {
                 }
             }
         }
-        .background(Color.white)
         // Half height, not full. The card is a dozen rows of career; opening
-        // it at full height left most of the sheet empty and white, and the
-        // navigation bar it used to carry spent the presentation settling —
-        // which is what the jiggle on open was. A plain header does not
-        // animate, and a player with a long career can still be dragged up.
+        // it at full height left most of the sheet empty, and the navigation
+        // bar it used to carry spent the presentation settling — which is what
+        // the jiggle on open was. A plain header does not animate, and a player
+        // with a long career can still be dragged up.
         .presentationDetents([.medium, .large])
-        // The whole sheet is light, so its text must be too — the room runs
-        // in dark mode and would otherwise draw white on white.
-        .environment(\.colorScheme, .light)
         .task {
             guard let footballerId else { return }
             do { card = try await API.footballerCard(id: footballerId) }
@@ -69,7 +67,6 @@ struct PlayerCardSheet: View {
         HStack(alignment: .firstTextBaseline) {
             Text(card?.name ?? name)
                 .font(.display(19))
-                .foregroundStyle(Color(white: 0.12))
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
             Spacer(minLength: 12)
@@ -107,16 +104,15 @@ struct PlayerCardSheet: View {
             HStack(alignment: .top, spacing: 12) {
                 Text(label)
                     .font(.body(13, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.45))
+                    .foregroundStyle(.secondary)
                     .frame(width: 104, alignment: .leading)
                 Text(value)
                     .font(.body(13))
-                    .foregroundStyle(Color(white: 0.15))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            Divider().overlay(Color(white: 0.92))
+            Divider()
         }
     }
 
@@ -127,12 +123,14 @@ struct PlayerCardSheet: View {
                 Text(title).font(.display(13))
                 Spacer()
             }
-            .foregroundStyle(Color(white: 0.3))
+            .foregroundStyle(.secondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
-            .background(Color(white: 0.95))
-            .overlay(alignment: .bottom) { Divider().overlay(Color(white: 0.88)) }
-            .overlay(alignment: .top) { Divider().overlay(Color(white: 0.88)) }
+            // A band that lifts off the sheet rather than one of a fixed
+            // grey, so it reads as a section header in either scheme.
+            .background(.fill.tertiary)
+            .overlay(alignment: .bottom) { Divider() }
+            .overlay(alignment: .top) { Divider() }
 
             HStack(spacing: 8) {
                 Text("Years").frame(width: 72, alignment: .leading)
@@ -140,7 +138,7 @@ struct PlayerCardSheet: View {
                 Text(international ? "Caps (Gls)" : "Apps (Gls)").frame(width: 74, alignment: .trailing)
             }
             .font(.body(11, weight: .medium))
-            .foregroundStyle(Color(white: 0.62))
+            .foregroundStyle(.tertiary)
             .padding(.horizontal, 14)
             .padding(.vertical, 5)
 
@@ -156,29 +154,28 @@ struct PlayerCardSheet: View {
     private func stintRow(_ stint: CardStint) -> some View {
         let parts = stint.parts
         return VStack(spacing: 0) {
-            Divider().overlay(Color(white: 0.94))
+            Divider()
             HStack(alignment: .top, spacing: 8) {
                 Text(stint.years)
                     .font(.body(12))
                     .monospacedDigit()
-                    .foregroundStyle(Color(white: 0.45))
+                    .foregroundStyle(.secondary)
                     .frame(width: 72, alignment: .leading)
                 HStack(spacing: 5) {
                     // The arrow is how Wikipedia says "out on loan", and it
                     // is worth keeping: a row of 6 appearances reads very
                     // differently once you can see it was a loan spell.
                     if parts.tag == "loan" {
-                        Text("→").font(.body(12)).foregroundStyle(Color(white: 0.5))
+                        Text("→").font(.body(12)).foregroundStyle(.tertiary)
                     }
                     Text(parts.tag == nil ? parts.name : "\(parts.name) (\(parts.tag!))")
                         .font(.body(12))
-                        .foregroundStyle(Color(white: 0.2))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Text(stint.appsGoals)
                     .font(.body(12))
                     .monospacedDigit()
-                    .foregroundStyle(Color(white: 0.35))
+                    .foregroundStyle(.secondary)
                     .frame(width: 74, alignment: .trailing)
             }
             .padding(.horizontal, 14)

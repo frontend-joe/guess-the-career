@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,13 +44,11 @@ import kotlin.math.roundToInt
 // badge, on a screen already carrying four video tracks. The names and the
 // numbers are the content.
 //
-// Light, not dark, exactly as on the web. The card is a reference sheet lifted
-// over the game; a dark one would read as another part of the board.
-private val Ink = Color(0xFF1F2937)
-private val InkSoft = Color(0xFF6B7280)
-private val InkFaint = Color(0xFF9CA3AF)
-private val Hairline = Color(0xFFF0F0F2)
-private val Band = Color(0xFFF3F4F6)
+// Dark, like the clue dialog and the rest of the room. The web modal is light
+// because the web game is, and carrying that over made the one light surface
+// in a dark app — a flashbang mid-round. Every colour here comes from
+// MaterialTheme, so the card follows the app's scheme instead of pinning its
+// own; MainActivity sets darkColorScheme().
 
 @Composable
 fun PlayerCardDialog(
@@ -73,7 +71,12 @@ fun PlayerCardDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(color = Color.White, shape = RoundedCornerShape(16.dp)) {
+        // The same container an AlertDialog gives the clue, so the two sit at
+        // the same elevation above the board rather than one looking nearer.
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(16.dp),
+        ) {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Row(
                     Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 10.dp),
@@ -83,7 +86,7 @@ fun PlayerCardDialog(
                         card?.name ?: name,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Ink,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -118,7 +121,7 @@ fun PlayerCardDialog(
 @Composable
 private fun Message(text: String) {
     Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), Alignment.Center) {
-        Text(text, color = InkSoft, fontSize = 13.sp)
+        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
     }
 }
 
@@ -129,54 +132,77 @@ private fun BioRow(label: String, value: String?) {
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkSoft, modifier = Modifier.width(104.dp))
-        Text(value, fontSize = 13.sp, color = Ink, modifier = Modifier.weight(1f))
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(104.dp),
+        )
+        Text(value, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
     }
-    HorizontalDivider(color = Hairline)
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 }
 
 @Composable
 private fun Career(title: String, stints: List<CardStint>, international: Boolean = false) {
     if (stints.isEmpty()) return
-    HorizontalDivider(color = Color(0xFFE5E7EB))
+    val hairline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text(
         title,
         fontSize = 13.sp,
         fontFamily = AppFonts.Display,
-        color = Color(0xFF4B5563),
-        modifier = Modifier.fillMaxWidth().background(Band).padding(horizontal = 14.dp, vertical = 7.dp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // A band that lifts off the surface rather than one of a fixed grey,
+        // so it reads as a section header in either scheme.
+        modifier = Modifier.fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
     )
-    HorizontalDivider(color = Color(0xFFE5E7EB))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Years", fontSize = 11.sp, color = InkFaint, modifier = Modifier.width(66.dp))
-        Text("Team", fontSize = 11.sp, color = InkFaint, modifier = Modifier.weight(1f))
+        Text("Years", fontSize = 11.sp, color = faint, modifier = Modifier.width(66.dp))
+        Text("Team", fontSize = 11.sp, color = faint, modifier = Modifier.weight(1f))
         Text(
             if (international) "Caps (Gls)" else "Apps (Gls)",
-            fontSize = 11.sp, color = InkFaint, modifier = Modifier.width(74.dp),
+            fontSize = 11.sp, color = faint, modifier = Modifier.width(74.dp),
         )
     }
     stints.forEach { stint ->
-        HorizontalDivider(color = Hairline)
+        HorizontalDivider(color = hairline)
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(stint.years, fontSize = 12.sp, color = InkSoft, modifier = Modifier.width(66.dp))
+            Text(
+                stint.years,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(66.dp),
+            )
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 // The arrow is how Wikipedia says "out on loan", and it is
                 // worth keeping: a row of 6 appearances reads very differently
                 // once you can see it was a loan spell.
-                if (stint.tag == "loan") Text("→", fontSize = 12.sp, color = InkFaint)
+                if (stint.tag == "loan") Text("→", fontSize = 12.sp, color = faint)
                 Text(
                     stint.tag?.let { "${stint.clubName} ($it)" } ?: stint.clubName,
                     fontSize = 12.sp,
-                    color = Ink,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
-            Text(stint.appsGoals, fontSize = 12.sp, color = InkSoft, modifier = Modifier.width(74.dp))
+            Text(
+                stint.appsGoals,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(74.dp),
+            )
         }
     }
 }
