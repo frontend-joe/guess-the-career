@@ -332,7 +332,12 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
       const rank = i + 1
       const normalized = norm(a.name)
       insert.run(
-        id, rank, rank <= ROUND_SIZE ? 1 : 0, a.footballer_id, a.name, normalized, surnameOf(normalized),
+        // On an UNORDERED round — "name any ten of this squad" — every answer
+        // is on the board. The rank is only the order they happen to be
+        // listed in, and ranking the first ten of a squad list meant the
+        // other thirteen players were told they were near misses.
+        id, rank, ordered ? (rank <= ROUND_SIZE ? 1 : 0) : 1,
+        a.footballer_id, a.name, normalized, surnameOf(normalized),
         a.nationality, a.photo_url, a.value, a.unit ?? null,
         clueFor(a, normalized),
       )
@@ -523,10 +528,17 @@ export function submitGuess(
         photoUrl: match.photo_url,
       })
 
-      const { remaining } = sqlite
-        .prepare('SELECT COUNT(*) AS remaining FROM game_round_answers WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL')
-        .get(instanceId) as { remaining: number }
-      if (remaining === 0) {
+      // Ordered: done when every slot is filled. Unordered: done when enough
+      // have been named — there are twenty-three in a squad and only ten
+      // slots, so waiting for them all would never end.
+      const done = inst.ordered
+        ? (sqlite
+            .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL')
+            .get(instanceId) as { n: number }).n === 0
+        : (sqlite
+            .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
+            .get(instanceId) as { n: number }).n >= inst.target
+      if (done) {
         sqlite
           .prepare("UPDATE game_round_instances SET status = 'complete', ended_at_ms = ? WHERE id = ?")
           .run(tMs, instanceId)
@@ -643,9 +655,19 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   if (participant.role !== 'host') throw new RoomError('Only the host can take a clue', 403)
   if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
 
-  const answer = sqlite
-    .prepare('SELECT rank, on_board, clue_json, found_at_ms FROM game_round_answers WHERE instance_id = ? AND rank = ?')
-    .get(instanceId, rank) as { rank: number; on_board: number; clue_json: string | null; found_at_ms: number | null } | undefined
+  // On an unordered round the slot you held is not an answer — the board
+  // fills from the top as people are named — so the clue is about whoever is
+  // still missing rather than about rank N of a squad list.
+  const answer = (inst.ordered
+    ? sqlite
+        .prepare('SELECT rank, on_board, clue_json, found_at_ms FROM game_round_answers WHERE instance_id = ? AND rank = ?')
+        .get(instanceId, rank)
+    : sqlite
+        .prepare(
+          `SELECT rank, on_board, clue_json, found_at_ms FROM game_round_answers
+           WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL ORDER BY rank LIMIT 1`,
+        )
+        .get(instanceId)) as { rank: number; on_board: number; clue_json: string | null; found_at_ms: number | null } | undefined
   if (!answer || !answer.on_board) throw new RoomError('No such slot on this board', 404)
   if (answer.found_at_ms != null) throw new RoomError('That one is already found', 409)
 
@@ -654,19 +676,24 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
     ? (JSON.parse(answer.clue_json) as Record<string, string | number | null>)
     : null
 
+  // The clue belongs to the ANSWER, which on an unordered round is not the
+  // slot that was held. Recording it against the slot would let one squad
+  // member's clue be asked for ten times over, once per row.
+  const clued = answer.rank
+
   // Asking twice is not a second clue, and must not move the version — the
   // board already shows it, and a recording should not blink.
   const existing = sqlite
     .prepare("SELECT 1 FROM game_events WHERE instance_id = ? AND type = 'hint' AND json_extract(payload, '$.rank') = ?")
-    .get(instanceId, rank)
-  if (existing) return { rank, clue, stateVersion: room.state_version, replayed: true }
+    .get(instanceId, clued)
+  if (existing) return { rank: clued, clue, stateVersion: room.state_version, replayed: true }
 
   const stateVersion = sqlite.transaction(() => {
-    appendEvent(instanceId, Date.now() - (inst.started_at_ms ?? Date.now()), 'hint', participant.id, { rank, clue })
+    appendEvent(instanceId, Date.now() - (inst.started_at_ms ?? Date.now()), 'hint', participant.id, { rank: clued, clue })
     return bumpVersion(inst.room_id)
   })()
 
-  return { rank, clue, stateVersion, replayed: false }
+  return { rank: clued, clue, stateVersion, replayed: false }
 }
 
 // Does the database know anybody by this name, whatever the round thinks?
@@ -871,6 +898,9 @@ function reshuffleForPlayer(
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')
     .get(instanceId) as InstanceRow | undefined
   if (!inst || inst.status !== 'live') return null
+  // Nothing to reshuffle on an unordered round: the answers are a squad list,
+  // not a ranking, and a new player cannot displace anybody from it.
+  if (!inst.ordered) return null
 
   const params = JSON.parse(inst.params_json) as Record<string, string>
   const fresh = answersForRound(inst.type, params, inst.metric as Metric, SNAPSHOT_DEPTH)
@@ -993,12 +1023,20 @@ export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpR
   if (participant.role !== 'host') throw new RoomError('Only the host can give up', 403)
   if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
 
+  // On an unordered round only enough to fill the board: a squad has
+  // twenty-three players and the board has ten slots, so revealing every
+  // unfound answer would hand back more rows than there is board.
+  const alreadyFound = (sqlite
+    .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
+    .get(instanceId) as { n: number }).n
+  const stillToFill = inst.ordered ? inst.target : Math.max(0, inst.target - alreadyFound)
+
   const missed = sqlite
     .prepare(
       `SELECT rank, name, value, unit, nationality, photo_url FROM game_round_answers
-       WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL ORDER BY rank`,
+       WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL ORDER BY rank LIMIT ?`,
     )
-    .all(instanceId) as {
+    .all(instanceId, stillToFill) as {
       rank: number
       name: string
       value: number
@@ -1208,7 +1246,16 @@ export function roomState(room: RoomRow): RoomState {
       board,
       // Which rows are still blank, so a client never has to infer it (and so
       // the unfound answers are never sent to anyone).
-      blanks: Array.from({ length: inst.target }, (_, i) => i + 1).filter((r) => !found.has(r)),
+      //
+      // On an unordered round a rank is not a slot — the found players fill
+      // the board from the top in whatever order they are shown — so the
+      // blanks are simply however much of the ten is left.
+      blanks: inst.ordered
+        ? Array.from({ length: inst.target }, (_, i) => i + 1).filter((r) => !found.has(r))
+        : Array.from(
+            { length: Math.max(0, inst.target - board.revealed.length) },
+            (_, i) => board.revealed.length + i + 1,
+          ),
     }
   }
 

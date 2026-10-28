@@ -105,12 +105,26 @@ fun BoardSection(model: RoomViewModel) {
         verticalArrangement = Arrangement.spacedBy(5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // What sits in a given SLOT, which is not the same as a given rank. An
+        // ordered board is a ranking: rank 3 belongs in slot 3 and nowhere
+        // else. An unordered one — "name any ten of this squad" — has no
+        // ranking at all, so the names fill from the top as they are found.
+        val inOrder = round.board.revealed.sortedBy { it.rank }
         for (rank in 1..round.board.target) {
+            val slotAnswer = if (round.board.ordered) {
+                round.board.revealed.firstOrNull { it.rank == rank }
+            } else {
+                inOrder.getOrNull(rank - 1)
+            }
             val hasClue = round.board.hints.any { it.rank == rank }
-            val answered = round.board.revealed.any { it.rank == rank }
+            val answered = slotAnswer != null
             PyramidRow(
                 rank = rank,
-                answer = round.board.revealed.firstOrNull { it.rank == rank },
+                // A number on an unordered board claims a ranking that is not
+                // there, and this one was asking people to name the squad in
+                // order of shirt number.
+                showsRank = round.board.ordered,
+                answer = slotAnswer,
                 hasClue = hasClue,
                 canHint = model.isHost && round.isLive,
                 // Bottom to top: rank 10 goes first, rank 1 last. The board
@@ -210,6 +224,7 @@ private fun ClueDialog(
 @Composable
 private fun PyramidRow(
     rank: Int,
+    showsRank: Boolean,
     answer: RevealedAnswer?,
     /** Whether a clue has been taken. The clue itself lives in the dialog. */
     hasClue: Boolean,
@@ -319,12 +334,13 @@ private fun PyramidRow(
             // Just the rank, clue or no clue, so the pyramid reads as the
             // board and nothing else. Press and hold reopens a clue that has
             // already been taken.
-            else -> Text(
+            showsRank -> Text(
                 "$rank",
                 fontSize = 17.sp,
                 fontFamily = AppFonts.Display,
                 color = Color.White.copy(alpha = 0.95f),
             )
+            else -> Unit
         }
     }
 }

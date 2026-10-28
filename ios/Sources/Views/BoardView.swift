@@ -139,10 +139,28 @@ struct BoardView: View {
         }
     }
 
+    /// What sits in a given SLOT, which is not the same as a given rank.
+    ///
+    /// An ordered board is a ranking: rank 3 belongs in slot 3 and nowhere
+    /// else. An unordered one — "name any ten of this squad" — has no
+    /// ranking at all, so the names fill from the top as they are found, and
+    /// the slots are just rows.
+    private func answer(slot: Int, round: RoomRound) -> RevealedAnswer? {
+        if round.board.ordered {
+            return round.board.revealed.first { $0.rank == slot }
+        }
+        let inOrder = round.board.revealed.sorted { $0.rank < $1.rank }
+        return slot <= inOrder.count ? inOrder[slot - 1] : nil
+    }
+
     private func row(rank: Int, round: RoomRound, width: CGFloat, height: CGFloat) -> some View {
         PyramidRow(
             rank: rank,
-            answer: round.board.revealed.first { $0.rank == rank },
+            // A number on an unordered board claims a ranking that is not
+            // there, and this one was asking people to name the squad in
+            // order of shirt number.
+            showsRank: round.board.ordered,
+            answer: answer(slot: rank, round: round),
             hasClue: round.board.hints.contains { $0.rank == rank },
             canHint: store.isHost && round.isLive,
             // Bottom to top: rank 10 goes first, rank 1 last. The board reads
@@ -248,6 +266,7 @@ private struct ClueSheet: View {
 
 private struct PyramidRow: View {
     let rank: Int
+    let showsRank: Bool
     let answer: RevealedAnswer?
     /// Whether a clue has been taken for this row. The clue itself lives in
     /// the sheet now; the row only has to say that there is one to open.
@@ -305,11 +324,13 @@ private struct PyramidRow: View {
                 // Just the rank, clue or no clue, so the pyramid reads as the
                 // board and nothing else. Press and hold reopens a clue that
                 // has already been taken.
-                Text("\(rank)")
-                    .font(.display(17))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.4)
+                if showsRank {
+                    Text("\(rank)")
+                        .font(.display(17))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                }
             }
         }
         // The row stands up and sits back down, like someone in the wave:
