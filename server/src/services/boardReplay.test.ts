@@ -145,3 +145,14 @@ test('a reshuffle restates the whole revealed set at its new ranks', () => {
   assert.equal(out.revealed.length, 2)
   assert.equal(out.revealed[0].byParticipantId, 7)
 })
+
+test('a reveal carries the footballer id, and an older event folds to null', () => {
+  const out = reduceEvents([
+    LOG[0],
+    ev(2, 1000, 'reveal', { rank: 1, name: 'Andre Gray', value: 113, footballerId: 4821 }, 7),
+    // Logged before the board carried ids. The row still folds — it is simply
+    // not tappable — because an append-only log cannot be backfilled.
+    ev(3, 2000, 'reveal', { rank: 2, name: 'Troy Deeney', value: 103 }, 7),
+  ])
+  assert.deepEqual(out.revealed.map((r) => r.footballerId), [4821, null])
+})

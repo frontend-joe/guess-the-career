@@ -76,6 +76,9 @@ fun BoardSection(model: RoomViewModel) {
     // later — the inline version was gone the moment the row was reused, and
     // unreadable before that.
     var showingClue by remember { mutableStateOf<Int?>(null) }
+    // Which found player's card is open, as (id, name) so the dialog can show
+    // the name while the career loads.
+    var showingPlayer by remember { mutableStateOf<Pair<Int, String>?>(null) }
     // Drives the wave. Counts up forever; each row works out its own moment
     // from it, so there is one timer for the board rather than ten.
     var wave by remember { mutableIntStateOf(0) }
@@ -146,6 +149,13 @@ fun BoardSection(model: RoomViewModel) {
                         model.isHost && round.isLive && !answered -> model.takeHint(rank)
                     }
                 },
+                // Tapping a row that has a name on it opens that player's
+                // career. Anyone can, at any time, including after the round
+                // has ended and including on an answer revealed by giving up
+                // — the card settles the "who even is that" the board starts.
+                onClick = {
+                    slotAnswer?.footballerId?.let { showingPlayer = it to slotAnswer.name }
+                },
                 modifier = Modifier.weight(1f).fillMaxWidth(widthFraction(rank)),
             )
         }
@@ -173,6 +183,10 @@ fun BoardSection(model: RoomViewModel) {
             impliedClues = round.board.impliedClues,
             onDismiss = { showingClue = null },
         )
+    }
+
+    showingPlayer?.let { (id, name) ->
+        PlayerCardDialog(footballerId = id, name = name, onDismiss = { showingPlayer = null })
     }
 }
 
@@ -234,6 +248,8 @@ private fun PyramidRow(
     /** This row's place in the wave, behind the one below it. */
     waveDelayMs: Long,
     onLongPress: () -> Unit,
+    /** Opens the player's career. Only does anything on a row with a name. */
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 0 at rest, 1 at the top of this row's part of the wave.
@@ -257,12 +273,16 @@ private fun PyramidRow(
     val interaction = remember { MutableInteractionSource() }
     val holding by interaction.collectIsPressedAsState()
     val holdable = answer == null && (canHint || hasClue)
+    // Whether the row does anything at all when touched: a blank one you can
+    // hold for a clue, or a found one you can tap for the player. A row that
+    // does nothing must not shrink under the finger and promise that it does.
+    val pressable = holdable || answer?.footballerId != null
     // Feedback on press-down, not on release: a row you are holding for a clue
     // has to acknowledge the hold while it is happening, or the second before
     // the clue appears feels like nothing is working. Critically damped —
     // nothing was thrown, so nothing should bounce.
     val scale by animateFloatAsState(
-        targetValue = if (holding && holdable) 0.97f else 1f,
+        targetValue = if (holding && pressable) 0.97f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "press",
     )
@@ -271,7 +291,7 @@ private fun PyramidRow(
     Box(
         modifier = modifier
             .graphicsLayer {
-                val s = if (holding && holdable) scale else scale * (1f + 0.055f * lift.value)
+                val s = if (holding && pressable) scale else scale * (1f + 0.055f * lift.value)
                 scaleX = s; scaleY = s
             }
             .clip(CircleShape)
@@ -288,7 +308,7 @@ private fun PyramidRow(
                         onLongPress()
                     }
                 },
-                onClick = {},
+                onClick = { if (answer?.footballerId != null) onClick() },
             ),
         contentAlignment = Alignment.Center,
     ) {

@@ -28,6 +28,11 @@ export interface RevealedAnswer {
   unit: string | null
   nationality: string | null
   photoUrl: string | null
+  /// Which footballer this row is, so a client can open their career card.
+  /// Null on rows from before this was logged, and on the answers that have
+  /// no footballer record at all — a transfer row can name somebody the
+  /// footballers table has never heard of.
+  footballerId: number | null
   tMs: number
   byParticipantId: number | null
   /// Revealed by giving up rather than guessed. Every client draws these
@@ -124,6 +129,7 @@ export function reduceEvents(
           unit: nullableStr(p.unit),
           nationality: nullableStr(p.nationality),
           photoUrl: nullableStr(p.photoUrl),
+          footballerId: nullableNum(p.footballerId),
           tMs: e.t_ms,
           byParticipantId: e.actor_participant_id,
           missed: false,
@@ -147,6 +153,7 @@ export function reduceEvents(
             unit: nullableStr(a.unit),
             nationality: nullableStr(a.nationality),
             photoUrl: nullableStr(a.photoUrl),
+            footballerId: nullableNum(a.footballerId),
             tMs: e.t_ms,
             byParticipantId: nullableNum(a.byParticipantId),
             missed: false,
@@ -169,6 +176,7 @@ export function reduceEvents(
             unit: nullableStr(a.unit),
             nationality: nullableStr(a.nationality),
             photoUrl: nullableStr(a.photoUrl),
+            footballerId: nullableNum(a.footballerId),
             tMs: e.t_ms,
             byParticipantId: null,
             missed: true,

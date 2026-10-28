@@ -169,6 +169,18 @@ object Api {
     suspend fun scheduledRounds(): List<ScheduledRound> =
         get("api/tenable/schedule/rounds")
 
+    /**
+     * A player's career, for the card opened by tapping a found row. No seat
+     * token: this is the same public route the web game reads, and the answer
+     * is already on screen by the time anyone can ask for it.
+     *
+     * It can be slow on a player nobody has ever opened — the route fills in
+     * the full name and birthplace from Wikipedia on first view and caches
+     * them. That is off the game's critical path, which is why this is a tap
+     * on a finished row and never anything the round waits for.
+     */
+    suspend fun footballerCard(id: Int): FootballerCard = get("api/footballers/$id/card")
+
     fun parseBroadcast(text: String): StateBroadcast? =
         runCatching { json.decodeFromString<StateBroadcast>(text) }.getOrNull()
 }

@@ -22,6 +22,10 @@ struct RevealedAnswer: Codable, Equatable {
     let unit: String?
     let nationality: String?
     let photoUrl: String?
+    /// Who this row is, so tapping it can open their career. Null on an
+    /// answer with no footballer record, and on rows logged before the board
+    /// carried ids — both simply do not open.
+    let footballerId: Int?
     let tMs: Int
     /// Revealed by giving up rather than guessed. Optional so a phone running
     /// an older build than the server still decodes the board rather than
@@ -224,4 +228,80 @@ struct ScheduledRound: Codable, Identifiable, Equatable {
     let metric: String
 
     var id: Int { roundId }
+}
+
+// MARK: - Player card
+
+// The same payload the web game's player modal reads, from
+// GET /api/footballers/:id/card. That route predates the apps and speaks
+// snake_case, so the keys are spelled out rather than renamed server-side —
+// the web client decodes it as it stands and changing it would break there.
+struct CardStint: Codable, Equatable {
+    let years: String
+    let club: String
+    let apps: Int?
+    let goals: Int?
+    let stintType: String
+
+    enum CodingKeys: String, CodingKey {
+        case years, club, apps, goals
+        case stintType = "stint_type"
+    }
+
+    var isInternational: Bool { stintType == "international" }
+
+    /// Wikipedia marks a loan with a leading arrow and/or a "(loan)" suffix,
+    /// and a trial with "(trial)". The row shows the club and the tag apart,
+    /// so strip them off the name rather than printing it raw.
+    var parts: (name: String, tag: String?) {
+        let loan = club.hasPrefix("→") || club.range(of: "(loan)", options: .caseInsensitive) != nil
+        let trial = club.range(of: "(trial)", options: .caseInsensitive) != nil
+        var name = club
+        if let r = name.range(of: "^→\\s*", options: .regularExpression) { name.removeSubrange(r) }
+        while let r = name.range(of: "\\s*\\((loan|trial)\\)", options: [.regularExpression, .caseInsensitive]) {
+            name.removeSubrange(r)
+        }
+        return (name.trimmingCharacters(in: .whitespaces), loan ? "loan" : trial ? "trial" : nil)
+    }
+
+    /// "47 (18)", or just the appearances when the goals are unknown.
+    var appsGoals: String {
+        let a = apps ?? 0
+        return goals != nil ? "\(a) (\(goals!))" : "\(a)"
+    }
+}
+
+struct FootballerCard: Codable, Equatable {
+    let id: Int
+    let name: String
+    let fullName: String?
+    let born: String?
+    let birthplace: String?
+    let heightCm: Int?
+    let position: String?
+    let nationality: String?
+    let stints: [CardStint]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, born, birthplace, position, nationality, stints
+        case fullName = "full_name"
+        case heightCm = "height_cm"
+    }
+
+    var senior: [CardStint] { stints.filter { !$0.isInternational } }
+    var international: [CardStint] { stints.filter(\.isInternational) }
+
+    /// "26 June 1991" — the long form the web modal shows, not the ISO date
+    /// the database stores.
+    var bornLong: String? {
+        guard let born else { return nil }
+        let iso = DateFormatter()
+        iso.dateFormat = "yyyy-MM-dd"
+        iso.locale = Locale(identifier: "en_GB")
+        guard let date = iso.date(from: String(born.prefix(10))) else { return born }
+        let out = DateFormatter()
+        out.locale = Locale(identifier: "en_GB")
+        out.dateFormat = "d MMMM yyyy"
+        return out.string(from: date)
+    }
 }

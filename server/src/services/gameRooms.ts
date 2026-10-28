@@ -474,6 +474,9 @@ interface AnswerRow {
   unit: string | null
   nationality: string | null
   photo_url: string | null
+  /// Null for an answer with no footballer record — a transfer row can name
+  /// somebody the footballers table has never heard of.
+  footballer_id: number | null
   found_at_ms: number | null
 }
 
@@ -591,6 +594,7 @@ export function submitGuess(
         unit: match.unit,
         nationality: match.nationality,
         photoUrl: match.photo_url,
+        footballerId: match.footballer_id,
       })
 
       // Ordered: done when every slot is filled. Unordered: done when enough
@@ -1026,7 +1030,8 @@ function reshuffleForPlayer(
       if (rank <= ROUND_SIZE && foundAt != null) {
         revealed.push({
           rank, name: a.name, value: a.value, unit: a.unit ?? null,
-          nationality: a.nationality, photoUrl: a.photo_url, byParticipantId: foundBy,
+          nationality: a.nationality, photoUrl: a.photo_url,
+          footballerId: a.footballer_id, byParticipantId: foundBy,
         })
       }
     })
@@ -1098,7 +1103,7 @@ export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpR
 
   const missed = sqlite
     .prepare(
-      `SELECT rank, name, value, unit, nationality, photo_url FROM game_round_answers
+      `SELECT rank, name, value, unit, nationality, photo_url, footballer_id FROM game_round_answers
        WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL ORDER BY rank LIMIT ?`,
     )
     .all(instanceId, stillToFill) as {
@@ -1108,6 +1113,7 @@ export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpR
       unit: string | null
       nationality: string | null
       photo_url: string | null
+      footballer_id: number | null
     }[]
 
   const stateVersion = sqlite.transaction(() => {
@@ -1120,6 +1126,7 @@ export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpR
         unit: a.unit,
         nationality: a.nationality,
         photoUrl: a.photo_url,
+        footballerId: a.footballer_id,
       })),
     })
     sqlite

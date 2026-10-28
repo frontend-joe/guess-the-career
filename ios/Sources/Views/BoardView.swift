@@ -60,7 +60,11 @@ struct BoardView: View {
     /// crammed into a capsule, so it can be read, dismissed, and opened again
     /// later — the inline version was gone the moment the row was reused, and
     /// unreadable before that.
-    @State private var showingClue: ClueSelection?
+    /// There is ONE sheet here, carrying whichever of the two things a row
+    /// can open. Two `.sheet` modifiers on one view is how the share invite
+    /// broke: a view can only be presenting one thing, and the second
+    /// modifier wedges the first.
+    @State private var showingClue: BoardSheet?
     /// Drives the wave. Counts up forever; each row works out its own moment
     /// from it, so there is one timer for the board rather than ten.
     @State private var wave: Int = 0
@@ -93,16 +97,22 @@ struct BoardView: View {
                 .onChange(of: round.board.hints.map(\.rank)) { _, ranks in
                     let fresh = ranks.filter { !announced.contains($0) }
                     announced.formUnion(ranks)
-                    if let newest = fresh.max() { showingClue = ClueSelection(id: newest) }
+                    if let newest = fresh.max() { showingClue = .clue(rank: newest) }
                 }
-                .sheet(item: $showingClue) { selection in
-                    ClueSheet(
-                        rank: selection.id,
-                        hint: round.board.hints.first { $0.rank == selection.id },
-                        impliedClues: round.board.impliedClues
-                    )
-                    .presentationDetents([.height(300)])
-                    .presentationDragIndicator(.visible)
+                .sheet(item: $showingClue) { sheet in
+                    switch sheet {
+                    case .clue(let rank):
+                        ClueSheet(
+                            rank: rank,
+                            hint: round.board.hints.first { $0.rank == rank },
+                            impliedClues: round.board.impliedClues
+                        )
+                        .presentationDetents([.height(300)])
+                        .presentationDragIndicator(.visible)
+                    case .player(let id, let name):
+                        PlayerCardSheet(footballerId: id, name: name)
+                            .presentationDragIndicator(.visible)
+                    }
                 }
         } else {
             VStack(spacing: 6) {
@@ -168,7 +178,8 @@ struct BoardView: View {
             // than a second way of reading it.
             waveTick: wave,
             waveDelay: Double(max(round.board.target, 1) - rank) * 0.11,
-            onLongPress: { longPress(rank: rank, round: round) }
+            onLongPress: { longPress(rank: rank, round: round) },
+            onTap: { tap(slot: rank, round: round) }
         )
         .frame(width: width * BoardStyle.widthFraction(rank: rank), height: height)
         .frame(maxWidth: .infinity)
@@ -181,6 +192,16 @@ struct BoardView: View {
         )
     }
 
+    /// Tapping a row that has a name on it opens that player's career.
+    /// Anyone can, at any time, including after the round has ended and
+    /// including on an answer that was revealed by giving up — the point of
+    /// the card is to settle the "who even is that" the board starts.
+    private func tap(slot: Int, round: RoomRound) {
+        guard let answer = answer(slot: slot, round: round),
+              let id = answer.footballerId else { return }
+        showingClue = .player(id: id, name: answer.name)
+    }
+
     /// The host takes a clue; everyone's screen then opens it. Anyone may
     /// reopen one already taken, after the round has ended too — it is in the
     /// event log either way.
@@ -189,7 +210,7 @@ struct BoardView: View {
         let taken = round.board.revealed.contains { $0.rank == rank }
         if existing {
             // Reopening one already taken — nobody else needs to see that.
-            showingClue = ClueSelection(id: rank)
+            showingClue = .clue(rank: rank)
         } else if store.isHost, round.isLive, !taken {
             // Not opened here. The clue lands in the event log, comes back in
             // the next state, and opens on every screen including this one —
@@ -199,7 +220,21 @@ struct BoardView: View {
     }
 }
 
-private struct ClueSelection: Identifiable { let id: Int }
+/// What the board's one sheet is currently showing. A rank identifies a clue
+/// and a footballer id identifies a card, and the two id spaces overlap, so
+/// the case name is part of the identity — otherwise clue 7 and footballer 7
+/// would be the same sheet.
+private enum BoardSheet: Identifiable {
+    case clue(rank: Int)
+    case player(id: Int, name: String)
+
+    var id: String {
+        switch self {
+        case .clue(let rank): "clue-\(rank)"
+        case .player(let id, _): "player-\(id)"
+        }
+    }
+}
 
 // A clue, laid out as the few facts it actually is. The capsule version ran
 // them together on one line inside a shape that had no room for them, at a
@@ -277,10 +312,20 @@ private struct PyramidRow: View {
     /// This row's place in the wave, in seconds behind the one below it.
     let waveDelay: Double
     let onLongPress: () -> Void
+    /// Opens the player's career. Only ever called on a row with a name.
+    let onTap: () -> Void
 
     @State private var pressed = false
     /// 0 at rest, 1 at the top of this row's part of the wave.
     @State private var lift: CGFloat = 0
+
+    /// Whether this row does anything when you touch it — a blank one you can
+    /// hold for a clue, or a found one you can tap for the player. A row that
+    /// does nothing must not shrink under the finger and promise that it does.
+    private var isPressable: Bool {
+        if let answer { return answer.footballerId != nil }
+        return canHint || hasClue
+    }
 
     private var colours: (top: Color, bottom: Color) {
         guard let answer else { return BoardStyle.violet }
@@ -367,8 +412,17 @@ private struct PyramidRow: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             onLongPress()
         } onPressingChanged: { holding in
-            pressed = holding && answer == nil && (canHint || hasClue)
+            pressed = holding && isPressable
         }
+        // Tap a row you have found to read that player's career. A simple tap
+        // gesture rather than a Button: the row already owns its press state
+        // for the long-press, and a Button would fight it for the highlight.
+        //
+        // After the long press, so the hold still wins on a blank row.
+        .simultaneousGesture(TapGesture().onEnded {
+            guard answer?.footballerId != nil else { return }
+            onTap()
+        })
     }
 
     /// What goes in the badge, or nothing at all.

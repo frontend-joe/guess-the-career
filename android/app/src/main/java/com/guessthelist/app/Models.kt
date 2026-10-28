@@ -29,6 +29,10 @@ data class RevealedAnswer(
     val unit: String? = null,
     val nationality: String? = null,
     val photoUrl: String? = null,
+    /// Who this row is, so tapping it can open their career. Null on an answer
+    /// with no footballer record, and on rows logged before the board carried
+    /// ids — both simply do not open.
+    val footballerId: Int? = null,
     val tMs: Int = 0,
     /// Revealed by giving up rather than guessed. Defaulted so a phone running
     /// an older build than the server still decodes the board.
@@ -210,3 +214,54 @@ data class Seat(
 data class StateBroadcast(
     @SerialName("stateVersion") val stateVersion: Int = 0,
 )
+
+// ── Player card ─────────────────────────────────────────────────────────────
+
+// The same payload the web game's player modal reads, from
+// GET /api/footballers/:id/card. That route predates the apps and speaks
+// snake_case; the web client decodes it as it stands, so the names are mapped
+// here rather than changed on the server.
+@Serializable
+data class CardStint(
+    val years: String = "",
+    val club: String = "",
+    val apps: Int? = null,
+    val goals: Int? = null,
+    @SerialName("stint_type") val stintType: String = "senior",
+) {
+    val isInternational: Boolean get() = stintType == "international"
+
+    /** "47 (18)", or just the appearances when the goals are unknown. */
+    val appsGoals: String get() = (apps ?: 0).let { if (goals != null) "$it ($goals)" else "$it" }
+
+    /**
+     * Wikipedia marks a loan with a leading arrow and/or a "(loan)" suffix,
+     * and a trial with "(trial)". The row shows the club and the tag apart,
+     * so strip them off the name rather than printing it raw.
+     */
+    val clubName: String
+        get() = club.removePrefix("→").replace(Regex("""\s*\((loan|trial)\)""", RegexOption.IGNORE_CASE), "").trim()
+
+    val tag: String?
+        get() = when {
+            club.startsWith("→") || club.contains("(loan)", true) -> "loan"
+            club.contains("(trial)", true) -> "trial"
+            else -> null
+        }
+}
+
+@Serializable
+data class FootballerCard(
+    val id: Int = 0,
+    val name: String = "",
+    @SerialName("full_name") val fullName: String? = null,
+    val born: String? = null,
+    val birthplace: String? = null,
+    @SerialName("height_cm") val heightCm: Int? = null,
+    val position: String? = null,
+    val nationality: String? = null,
+    val stints: List<CardStint> = emptyList(),
+) {
+    val senior: List<CardStint> get() = stints.filter { !it.isInternational }
+    val international: List<CardStint> get() = stints.filter { it.isInternational }
+}

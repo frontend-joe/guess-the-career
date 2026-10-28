@@ -142,6 +142,18 @@ enum API {
         try await get("api/tenable/schedule/rounds")
     }
 
+    /// A player's career, for the card opened by tapping a found row. No seat
+    /// token: this is the same public route the web game reads, and the
+    /// answer is already on screen by the time anyone can ask for it.
+    ///
+    /// It can be slow on a player nobody has ever opened — the route fills in
+    /// the full name and birthplace from Wikipedia on first view and caches
+    /// them. That is off the game's critical path, which is why this is a tap
+    /// on a finished row and never anything the round waits for.
+    static func footballerCard(id: Int) async throws -> FootballerCard {
+        try await get("api/footballers/\(id)/card")
+    }
+
     struct FrozenRound: Decodable {
         let instanceId: Int
         let title: String
