@@ -199,6 +199,10 @@ struct GuessResult: Codable {
     /// On a miss: the player the database knows by that name, if any.
     /// Optional so a phone on an older build than the server still decodes.
     let known: String?
+    /// A miss whose name has just been queued for a Wikipedia lookup, and
+    /// which can still land on THIS board and score. Optional so a phone on
+    /// an older build than the server still decodes.
+    let checking: Bool?
     let rank: Int?
     let value: Double?
     let unit: String?

@@ -452,7 +452,12 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             // frozen, in which case nothing can put them on this board.
             else -> {
                 text = result.known?.let { "$it is not on this list" }
-                    ?: "No player called \u201C$raw\u201D"
+                    // Not "no such player" \u2014 the server has just gone to look
+                    // them up, and if they belong here they will land on the
+                    // board in a few seconds and score. Saying they do not
+                    // exist and then adding them is how this read as a bug.
+                    ?: if (result.checking) "Never heard of \u201C$raw\u201D \u2014 looking them up"
+                    else "No player called \u201C$raw\u201D"
                 emphatic = false
             }
         }

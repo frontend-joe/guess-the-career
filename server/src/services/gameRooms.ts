@@ -53,6 +53,15 @@ export interface GuessResult {
   /// was added after it kicked off — and a player added mid-round can never
   /// appear on a board that was settled at the freeze.
   known: string | null
+  /// A miss whose name has just been queued for a Wikipedia lookup, which
+  /// can still land on THIS board and score.
+  ///
+  /// Without this the only honest answer the client could give was a flat
+  /// "no player called Steele" — and then Jason Steele would appear on the
+  /// board as a correct answer a few seconds later, having been learned and
+  /// placed by the background resolver. The guess was not wrong; the answer
+  /// was premature.
+  checking: boolean
   rank: number | null
   value: number | null
   unit: string | null
@@ -543,6 +552,9 @@ export function submitGuess(
       // lookup rather than a null — the retry is the same guess, not a
       // different one that happens to know less.
       known: hit ? null : knownPlayerNamed(raw)?.name ?? null,
+      // A replay never queues a second lookup — the first attempt already
+      // did, and the name is in the skip list by now.
+      checking: false,
       rank: prior.matched_rank,
       value: hit?.value ?? null,
       unit: hit?.unit ?? null,
@@ -635,12 +647,13 @@ export function submitGuess(
     .get(instanceId) as { status: string }
 
   const known = match ? null : knownPlayerNamed(raw)
+  let checking = false
 
   if (verdict === 'miss') {
     if (known == null) {
       // Nobody has heard of them. Look them up on its own, in the background,
       // after this answer has gone back — nothing waits on Wikipedia.
-      learnUnknownName(raw)
+      checking = learnUnknownName(raw)
     } else {
       // The database DOES know them, and they are not on this board. If they
       // belong on it, put them there now and answer the guess as the hit it
@@ -663,6 +676,7 @@ export function submitGuess(
         return {
           verdict: 'hit',
           known: null,
+          checking: false,
           rank: placed.rank,
           value: placed.value,
           unit: placed.unit,
@@ -679,6 +693,7 @@ export function submitGuess(
   return {
     verdict,
     known: known?.name ?? null,
+    checking,
     rank: match?.rank ?? null,
     value: match?.value ?? null,
     unit: match?.unit ?? null,
@@ -798,11 +813,14 @@ function knownPlayerNamed(raw: string): { id: number; name: string } | null {
 // Deduped across the whole database by normalised name, so a name is attempted
 // once and never again — including the ones that turn out not to be players.
 // Otherwise every repetition of a nonsense guess is another Wikipedia search.
-export function learnUnknownName(raw: string): void {
+/// Returns whether a lookup was actually queued, so the guess that triggered
+/// it can say "checking" rather than "never heard of them" — a name that is
+/// about to be looked up may yet turn out to belong on the board.
+export function learnUnknownName(raw: string): boolean {
   const normalized = norm(raw)
   // Not worth a network round trip: a couple of characters cannot identify
   // anybody, and the resolver would only guess.
-  if (normalized.length < 4) return
+  if (normalized.length < 4) return false
 
   // Skip a name we have already resolved, and a name we failed on RECENTLY.
   //
@@ -820,13 +838,14 @@ export function learnUnknownName(raw: string): void {
        LIMIT 1`,
     )
     .get(normalized)
-  if (skip) return
+  if (skip) return false
 
   // Queued, not fired. Four people guessing wildly used to start four
   // scrapes at once, each one a run of Wikipedia fetches and a parse, on a
   // container that is also running the game.
   learnQueue.push({ raw, normalized })
   void drainLearnQueue()
+  return true
 }
 
 const learnQueue: { raw: string; normalized: string }[] = []

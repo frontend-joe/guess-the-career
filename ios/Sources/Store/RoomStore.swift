@@ -501,6 +501,12 @@ final class RoomStore {
             // frozen, in which case nothing can put them on this board.
             if let known = result.known {
                 text = "\(known) is not on this list"
+            } else if result.checking == true {
+                // Not "no such player" — the server has just gone to look
+                // them up, and if they belong here they will land on the
+                // board in a few seconds and score. Saying they do not exist
+                // and then adding them is how this read as a bug.
+                text = "Never heard of \u{201C}\(raw)\u{201D} — looking them up"
             } else {
                 text = "No player called \u{201C}\(raw)\u{201D}"
             }

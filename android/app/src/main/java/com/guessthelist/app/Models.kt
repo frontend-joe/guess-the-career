@@ -163,6 +163,9 @@ data class GuessResult(
     val verdict: String,
     /** On a miss: the player the database knows by that name, if any. */
     val known: String? = null,
+    /** A miss whose name has just been queued for a Wikipedia lookup, and
+     *  which can still land on THIS board and score. */
+    val checking: Boolean = false,
     val rank: Int? = null,
     val value: Double? = null,
     val unit: String? = null,
