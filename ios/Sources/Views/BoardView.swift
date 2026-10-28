@@ -38,13 +38,13 @@ enum BoardStyle {
     static func money(_ value: Double) -> String {
         if value >= 1_000_000 {
             let m = value / 1_000_000
-            return m == m.rounded() ? "\(Int(m))m" : String(format: "%.1fm", m)
+            return m == m.rounded() ? "\(safeInt(m))m" : String(format: "%.1fm", m)
         }
         if value >= 1_000 {
             let k = value / 1_000
-            return k == k.rounded() ? "\(Int(k))k" : String(format: "%.1fk", k)
+            return k == k.rounded() ? "\(safeInt(k))k" : String(format: "%.1fk", k)
         }
-        return String(Int(value))
+        return String(safeInt(value))
     }
 
     /// 56% at rank 1, widening by 4.9 points a row — the web game's formula.
@@ -353,7 +353,7 @@ private struct PyramidRow: View {
         // at a glance and wraps the badge onto two lines; "37.5m" is the
         // number people actually say.
         if answer.unit == "fee" { return BoardStyle.money(answer.value) }
-        let number = String(Int(answer.value))
+        let number = String(safeInt(answer.value))
         guard let unit = answer.unit, !unit.isEmpty else { return number }
         return "\(number) \(unit)"
     }

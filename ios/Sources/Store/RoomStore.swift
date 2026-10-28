@@ -389,7 +389,7 @@ final class RoomStore {
             guard let rank = result.rank else { return }
             var placing = ordinal(rank)
             if let value = result.value {
-                placing += ", \(Int(value))"
+                placing += ", \(safeInt(value))"
                 // `unit` is only set for the odd metrics — a fee, a shirt
                 // number. An ordinary round sends nothing, because the metric
                 // IS the unit, which is how this read "11th, 294".

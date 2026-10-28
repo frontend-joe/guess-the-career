@@ -65,7 +65,7 @@ enum ClueValue: Codable, Equatable {
     var display: String? {
         switch self {
         case .text(let s): return s.isEmpty ? nil : s
-        case .number(let d): return String(Int(d))
+        case .number(let d): return String(safeInt(d))
         case .missing: return nil
         }
     }

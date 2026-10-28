@@ -23,3 +23,17 @@ extension Font {
         .system(size: size, weight: weight)
     }
 }
+
+
+/// Double to Int without the trap.
+///
+/// `Int(someDouble)` is a CRASH in Swift, not a conversion, whenever the value
+/// is NaN, infinite, or outside Int's range. Every number on this screen comes
+/// from JSON the app did not write — goals, appearances, a transfer fee — and
+/// one bad row should discolour a badge, not kill the app mid-game.
+func safeInt(_ value: Double) -> Int {
+    guard value.isFinite else { return 0 }
+    if value >= Double(Int.max) { return Int.max }
+    if value <= Double(Int.min) { return Int.min }
+    return Int(value)
+}
