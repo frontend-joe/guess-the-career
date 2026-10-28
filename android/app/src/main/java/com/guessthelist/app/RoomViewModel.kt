@@ -165,13 +165,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
 
     // MARK: Media
 
-    private suspend fun connectMedia() {
-        val current = seat ?: return
+    private suspend fun connectMedia(): Boolean {
+        val current = seat ?: return false
         val credentials = try {
             Api.livekitCredentials(current)
         } catch (e: Exception) {
             videoNote = "No video: ${e.message}"
-            return
+            return false
         }
 
         val newRoom = LiveKit.create(appContext = getApplication())
@@ -211,26 +211,49 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             micOn = false
             videoNote = null
             refreshTiles()
+            return true
         } catch (e: Exception) {
+            // Drop the half-built room. Keeping it was what turned a failed
+            // connection into an SDK complaint about a missing publisher when
+            // the camera button was tapped minutes later; the real fault was
+            // here, and it said so at the time.
+            room = null
+            runCatching { newRoom.disconnect() }
             videoNote = "Video failed: ${e.message}"
+            refreshTiles()
+            return false
         }
     }
 
-    // A nil room is not "nothing happened" — it means the call never
-    // connected, and silently doing nothing is what made this look like a dead
-    // button rather than a failed connection. Same for a throw: runCatching
-    // used to swallow the reason, so a refused permission and a broken camera
-    // looked identical, which is to say they looked like nothing at all.
-    suspend fun setCamera(on: Boolean) {
+    /** A room object is not a connection: publishing needs the transport that
+     * connect builds, so the camera and mic ask for one rather than finding
+     * out from the SDK. */
+    private suspend fun ensureMediaConnected(): Boolean {
         val current = room
-        if (current == null) {
-            videoNote = videoNote ?: "Not connected to the call yet."
-            return
+        if (current != null && current.state == Room.State.CONNECTED) return true
+        if (current != null &&
+            (current.state == Room.State.CONNECTING || current.state == Room.State.RECONNECTING)
+        ) {
+            videoNote = "Still connecting to the call — try again in a moment."
+            return false
         }
+        if (current != null) {
+            room = null
+            runCatching { current.disconnect() }
+        }
+        return connectMedia()
+    }
+
+    // A throw is not "nothing happened": runCatching used to swallow the
+    // reason, so a refused permission and a broken camera looked identical,
+    // which is to say they looked like nothing at all.
+    suspend fun setCamera(on: Boolean) {
         if (on && !hasPermission(Manifest.permission.CAMERA)) {
             videoNote = "Camera is blocked — allow it for Tenable in Settings."
             return
         }
+        if (!ensureMediaConnected()) return
+        val current = room ?: return
         runCatching { current.localParticipant.setCameraEnabled(on) }
             .onSuccess { if (on) videoNote = null }
             .onFailure { videoNote = "Could not start your camera: ${it.message}" }
@@ -239,15 +262,12 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun setMicrophone(on: Boolean) {
-        val current = room
-        if (current == null) {
-            videoNote = videoNote ?: "Not connected to the call yet."
-            return
-        }
         if (on && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
             videoNote = "Mic is blocked — allow it for Tenable in Settings."
             return
         }
+        if (!ensureMediaConnected()) return
+        val current = room ?: return
         runCatching { current.localParticipant.setMicrophoneEnabled(on) }
             .onSuccess { if (on) videoNote = null }
             .onFailure { videoNote = "Could not unmute: ${it.message}" }
@@ -275,9 +295,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         val current = room ?: run { tiles = emptyList(); return }
         val participants = listOf<Participant>(current.localParticipant) + current.remoteParticipants.values
         tiles = participants.map { p ->
+            // LiveKit only knows a name once it has connected, and a tile
+            // labelled "?" told the player nothing except that something was
+            // wrong. The room state knows who you are regardless.
+            val mine = if (p is LocalParticipant) me?.displayName else null
             Tile(
                 identity = p.identity?.value.orEmpty(),
-                name = p.name?.takeIf { it.isNotEmpty() } ?: p.identity?.value ?: "?",
+                name = p.name?.takeIf { it.isNotEmpty() } ?: mine ?: p.identity?.value ?: "?",
                 isLocal = p is LocalParticipant,
                 track = p.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack,
                 participant = p,

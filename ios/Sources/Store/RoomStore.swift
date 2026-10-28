@@ -215,14 +215,15 @@ final class RoomStore {
 
     // MARK: - Media
 
-    private func connectMedia() async {
-        guard let seat else { return }
+    @discardableResult
+    private func connectMedia() async -> Bool {
+        guard let seat else { return false }
         let credentials: LivekitCredentials
         do {
             credentials = try await API.livekitCredentials(seat: seat)
         } catch {
             videoNote = "No video: \(error.localizedDescription)"
-            return
+            return false
         }
 
         let room = Room(delegate: self)
@@ -233,8 +234,16 @@ final class RoomStore {
             // who says no to the camera — or who is still reading the prompt.
             try await room.connect(url: credentials.url, token: credentials.token)
         } catch {
+            // Drop the half-built room. Keeping it was what turned a failed
+            // connection into "Invalid state (Publisher is nil)" later on:
+            // the camera button found a room, published into it, and the SDK
+            // complained about the transport that connect never built. The
+            // real fault was here, several minutes earlier.
+            self.room = nil
+            await room.disconnect()
             videoNote = "Video failed: \(error.localizedDescription)"
-            return
+            refreshTiles()
+            return false
         }
 
         // You arrive muted with your camera off, and turn them on when you are
@@ -246,6 +255,24 @@ final class RoomStore {
         // when you tap the button and means what it says.
         syncMediaState()
         refreshTiles()
+        return true
+    }
+
+    /// A room object is not a connection. Publishing needs the transport that
+    /// `connect` builds, and a room that failed, dropped or is still
+    /// reconnecting has none — so the camera and mic ask for one here rather
+    /// than finding out from the SDK.
+    private func ensureMediaConnected() async -> Bool {
+        if let room, room.connectionState == .connected { return true }
+        if let room, room.connectionState == .connecting || room.connectionState == .reconnecting {
+            videoNote = "Still connecting to the call — try again in a moment."
+            return false
+        }
+        if let room {
+            self.room = nil
+            await room.disconnect()
+        }
+        return await connectMedia()
     }
 
     private func permissionNote(camera: Bool, microphone: Bool) -> String? {
@@ -258,13 +285,6 @@ final class RoomStore {
     }
 
     func setCamera(_ on: Bool) async {
-        // A nil room is not "nothing happened" — it means the call never
-        // connected, and silently doing nothing is what made this look like a
-        // dead button rather than a failed connection.
-        guard let room else {
-            videoNote = videoNote ?? "Not connected to the call yet."
-            return
-        }
         // Turning it on is the first time permission is needed, now that the
         // app no longer asks at connect. Denied and not-yet-asked need
         // different messages: one is a trip to Settings, the other is just a
@@ -283,6 +303,10 @@ final class RoomStore {
                 break
             }
         }
+        // Asked for after the permission prompt, not before: a reconnect takes
+        // a second or two, and there is no point spending it for someone who
+        // is about to tap Don't Allow.
+        guard await ensureMediaConnected(), let room else { return }
         do {
             try await room.localParticipant.setCamera(enabled: on)
             if on { videoNote = nil }
@@ -294,10 +318,6 @@ final class RoomStore {
     }
 
     func setMicrophone(_ on: Bool) async {
-        guard let room else {
-            videoNote = videoNote ?? "Not connected to the call yet."
-            return
-        }
         if on {
             switch AVCaptureDevice.authorizationStatus(for: .audio) {
             case .denied, .restricted:
@@ -312,6 +332,7 @@ final class RoomStore {
                 break
             }
         }
+        guard await ensureMediaConnected(), let room else { return }
         do {
             try await room.localParticipant.setMicrophone(enabled: on)
             if on { videoNote = nil }
@@ -335,13 +356,24 @@ final class RoomStore {
         cameraOn = room.localParticipant.isCameraEnabled()
         microphoneOn = room.localParticipant.isMicrophoneEnabled()
         let everyone: [Participant] = [room.localParticipant] + Array(room.remoteParticipants.values)
-        tiles = everyone.map {
-            Tile(
-                id: $0.identity?.stringValue ?? UUID().uuidString,
-                name: ($0.name?.isEmpty == false ? $0.name : nil) ?? $0.identity?.stringValue ?? "?",
-                isLocal: $0 is LocalParticipant,
-                track: $0.firstCameraVideoTrack,
-                participant: $0
+        tiles = everyone.map { participant in
+            let isLocal = participant is LocalParticipant
+            // LiveKit only knows a name once it has connected, and a tile
+            // labelled "?" told the player nothing except that something was
+            // wrong. The room state knows who you are regardless, so your own
+            // tile is named from that, and its id does not change under
+            // SwiftUI while the connection is still coming up.
+            let fallbackName = isLocal ? me?.displayName : nil
+            let fallbackId = isLocal ? "me" : UUID().uuidString
+            return Tile(
+                id: participant.identity?.stringValue ?? fallbackId,
+                name: (participant.name?.isEmpty == false ? participant.name : nil)
+                    ?? fallbackName
+                    ?? participant.identity?.stringValue
+                    ?? "?",
+                isLocal: isLocal,
+                track: participant.firstCameraVideoTrack,
+                participant: participant
             )
         }
     }
