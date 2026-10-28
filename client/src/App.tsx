@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
 import { Layout } from '@/components/Layout'
 import { PublicHomePage } from '@/pages/PublicHomePage'
+import { PrivacyPage } from '@/pages/PrivacyPage'
 import { AuthPage } from '@/pages/AuthPage'
 import { RequireAdmin } from '@/components/guards'
 import { UsersPage } from '@/pages/UsersPage'
@@ -141,6 +142,9 @@ const router = createBrowserRouter([
   children: [
   // Public marketing landing + auth
   { path: '/', element: <PublicHomePage /> },
+  // Required by Google Play before an app that uses the camera and
+  // microphone can be released to any track.
+  { path: '/privacy', element: <PrivacyPage /> },
   { path: '/login', element: <AuthPage mode="login" /> },
   { path: '/signup', element: <AuthPage mode="signup" /> },
 
