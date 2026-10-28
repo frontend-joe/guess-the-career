@@ -40,7 +40,18 @@ import kotlinx.serialization.json.Json
 class RoomViewModel(app: Application) : AndroidViewModel(app) {
 
     var seat by mutableStateOf<Seat?>(null); private set
-    var state by mutableStateOf<RoomState?>(null); private set
+    /** Assigning this renames the tiles, because that is where their names come
+     *  from. LiveKit fires nothing when a participant's name turns up, so
+     *  without this a tile that connected nameless stays nameless until a
+     *  track event happens to redraw it — and a player with their camera off
+     *  never produces one. */
+    private var backingState by mutableStateOf<RoomState?>(null)
+    var state: RoomState?
+        get() = backingState
+        private set(value) {
+            backingState = value
+            if (room != null) refreshTiles()
+        }
     var inRoom by mutableStateOf(false); private set
     var tiles by mutableStateOf<List<Tile>>(emptyList()); private set
 
@@ -303,17 +314,32 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     //
     // A Tile holding the track changes when the track does, which is exactly
     // what structural equality should be comparing.
+    /** The display name the server has for a LiveKit identity, or null if this
+     *  is not one of ours. Identities are "p<participant id>" — see the
+     *  livekit-token route, which mints them that way for exactly this. */
+    private fun knownName(identity: String?): String? {
+        val id = identity?.removePrefix("p")?.toIntOrNull() ?: return null
+        return state?.participants?.firstOrNull { it.id == id }?.displayName?.takeIf { it.isNotEmpty() }
+    }
+
     private fun refreshTiles() {
         val current = room ?: run { tiles = emptyList(); return }
         val participants = listOf<Participant>(current.localParticipant) + current.remoteParticipants.values
         tiles = participants.map { p ->
-            // LiveKit only knows a name once it has connected, and a tile
-            // labelled "?" told the player nothing except that something was
-            // wrong. The room state knows who you are regardless.
+            // The server is what knows who is in this room. LiveKit's own name
+            // is a convenience that arrives with the connection and can come
+            // back empty after one is resumed — which is what backgrounding the
+            // app did on iOS: the other player's tile came back as "?" and
+            // stayed that way, because nothing redraws a tile whose camera is
+            // off. Identities are minted as "p<participant id>" precisely so a
+            // tile can be matched to the room state, so look the name up there
+            // first and keep LiveKit's as the fallback rather than the source.
+            val identity = p.identity?.value
             val mine = if (p is LocalParticipant) me?.displayName else null
             Tile(
-                identity = p.identity?.value.orEmpty(),
-                name = p.name?.takeIf { it.isNotEmpty() } ?: mine ?: p.identity?.value ?: "?",
+                identity = identity.orEmpty(),
+                name = knownName(identity)
+                    ?: p.name?.takeIf { it.isNotEmpty() } ?: mine ?: identity ?: "?",
                 isLocal = p is LocalParticipant,
                 track = p.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack,
                 participant = p,

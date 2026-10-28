@@ -23,7 +23,14 @@ final class RoomStore {
 
     private(set) var phase: Phase = .lobby
     private(set) var seat: Seat?
-    private(set) var state: RoomState?
+    /// Setting this renames the tiles, because that is where their names come
+    /// from. LiveKit fires nothing when a participant's name turns up, so
+    /// without this a tile that connected nameless stays nameless until a
+    /// track event happens to redraw it — and a player with their camera off
+    /// never produces one.
+    private(set) var state: RoomState? {
+        didSet { if room != nil { refreshTiles() } }
+    }
     private(set) var tiles: [Tile] = []
 
     /// A code pulled out of an invite link and not yet used. The lobby reads
@@ -422,6 +429,15 @@ final class RoomStore {
         microphoneOn = room?.localParticipant.isMicrophoneEnabled() ?? false
     }
 
+    /// The display name the server has for a LiveKit identity, or nil if this
+    /// is not one of ours. Identities are "p<participant id>" — see the
+    /// livekit-token route, which mints them that way for exactly this.
+    private func knownName(forIdentity identity: String?) -> String? {
+        guard let identity, identity.hasPrefix("p"), let id = Int(identity.dropFirst()) else { return nil }
+        let name = state?.participants.first { $0.id == id }?.displayName
+        return name?.isEmpty == false ? name : nil
+    }
+
     fileprivate func refreshTiles() {
         guard let room else { tiles = []; cameraOn = false; microphoneOn = false; return }
         cameraOn = room.localParticipant.isCameraEnabled()
@@ -429,18 +445,23 @@ final class RoomStore {
         let everyone: [Participant] = [room.localParticipant] + Array(room.remoteParticipants.values)
         tiles = everyone.map { participant in
             let isLocal = participant is LocalParticipant
-            // LiveKit only knows a name once it has connected, and a tile
-            // labelled "?" told the player nothing except that something was
-            // wrong. The room state knows who you are regardless, so your own
-            // tile is named from that, and its id does not change under
-            // SwiftUI while the connection is still coming up.
-            let fallbackName = isLocal ? me?.displayName : nil
+            let identity = participant.identity?.stringValue
+            // The server is what knows who is in this room. LiveKit's own name
+            // is a convenience that arrives with the connection and can come
+            // back empty after one is resumed — which is what backgrounding
+            // the app did: the other player's tile came back as "?" and stayed
+            // that way, because nothing redraws a tile whose camera is off.
+            //
+            // Identities are minted as "p<participant id>" precisely so a tile
+            // can be matched to the room state, so look the name up there
+            // first and keep LiveKit's as the fallback rather than the source.
             let fallbackId = isLocal ? "me" : UUID().uuidString
             return Tile(
-                id: participant.identity?.stringValue ?? fallbackId,
-                name: (participant.name?.isEmpty == false ? participant.name : nil)
-                    ?? fallbackName
-                    ?? participant.identity?.stringValue
+                id: identity ?? fallbackId,
+                name: knownName(forIdentity: identity)
+                    ?? (participant.name?.isEmpty == false ? participant.name : nil)
+                    ?? (isLocal ? me?.displayName : nil)
+                    ?? identity
                     ?? "?",
                 isLocal: isLocal,
                 track: participant.firstCameraVideoTrack,
