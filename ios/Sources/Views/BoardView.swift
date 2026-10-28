@@ -319,20 +319,52 @@ private struct PyramidRow: View {
     /// 0 at rest, 1 at the top of this row's part of the wave.
     @State private var lift: CGFloat = 0
 
-    /// Whether this row does anything when you touch it — a blank one you can
-    /// hold for a clue, or a found one you can tap for the player. A row that
-    /// does nothing must not shrink under the finger and promise that it does.
-    private var isPressable: Bool {
-        if let answer { return answer.footballerId != nil }
-        return canHint || hasClue
-    }
+    /// Whether holding this row does anything. Only ever a blank one: a row
+    /// with a name on it is tapped, not held. A row that does nothing must not
+    /// shrink under the finger and promise that it does.
+    private var isHoldable: Bool { answer == nil && (canHint || hasClue) }
 
     private var colours: (top: Color, bottom: Color) {
         guard let answer else { return BoardStyle.violet }
         return answer.wasMissed ? BoardStyle.missed : BoardStyle.green
     }
 
+    // A row has exactly ONE gesture, chosen by what is on it: a blank row is
+    // held for a clue, a found row is tapped for the player. They are never
+    // both live.
+    //
+    // That is not tidiness, it is the fix. The tap was a
+    // `.simultaneousGesture` layered over the long press, and a tap composed
+    // with a long press on the same view is a race SwiftUI resolves in favour
+    // of the inner gesture — the hold swallowed it and the row did nothing.
+    // Two gestures that can never apply to the same row have no business
+    // competing to recognise one.
     var body: some View {
+        if answer == nil {
+            capsule
+                // Press and hold a blank slot for a clue, exactly as on the web.
+                .onLongPressGesture(minimumDuration: 0.5) {
+                    guard canHint || hasClue else { return }
+                    // A clue arriving is a commit, so it earns a haptic — fired
+                    // on the same event that opens it, not before or after.
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onLongPress()
+                } onPressingChanged: { holding in
+                    pressed = holding && isHoldable
+                }
+        } else {
+            capsule
+                // Tap a row you have found to read that player's career. No
+                // press-down shrink here: a plain tap gesture has no pressing
+                // callback, and the sheet is up fast enough to be the feedback.
+                .onTapGesture {
+                    guard answer?.footballerId != nil else { return }
+                    onTap()
+                }
+        }
+    }
+
+    private var capsule: some View {
         ZStack {
             Capsule()
                 .fill(
@@ -404,25 +436,6 @@ private struct PyramidRow: View {
                 withAnimation(.easeIn(duration: 0.42)) { lift = 0 }
             }
         }
-        // Press and hold a blank slot for a clue, exactly as on the web.
-        .onLongPressGesture(minimumDuration: 0.5) {
-            guard answer == nil, canHint || hasClue else { return }
-            // A clue arriving is a commit, so it earns a haptic — fired on the
-            // same event that opens it, not before or after.
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            onLongPress()
-        } onPressingChanged: { holding in
-            pressed = holding && isPressable
-        }
-        // Tap a row you have found to read that player's career. A simple tap
-        // gesture rather than a Button: the row already owns its press state
-        // for the long-press, and a Button would fight it for the highlight.
-        //
-        // After the long press, so the hold still wins on a blank row.
-        .simultaneousGesture(TapGesture().onEnded {
-            guard answer?.footballerId != nil else { return }
-            onTap()
-        })
     }
 
     /// What goes in the badge, or nothing at all.
