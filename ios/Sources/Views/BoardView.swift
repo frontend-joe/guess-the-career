@@ -32,6 +32,21 @@ enum BoardStyle {
     /// enough to separate it without becoming a third colour in the room.
     static let titleBand = Color(red: 0.098, green: 0.110, blue: 0.137)
 
+    /// A fee as people say it: 37.5m, 25m, 900k. No currency symbol, because
+    /// the board only carries the amount — the written fee, with its symbol,
+    /// is in the clue.
+    static func money(_ value: Double) -> String {
+        if value >= 1_000_000 {
+            let m = value / 1_000_000
+            return m == m.rounded() ? "\(Int(m))m" : String(format: "%.1fm", m)
+        }
+        if value >= 1_000 {
+            let k = value / 1_000
+            return k == k.rounded() ? "\(Int(k))k" : String(format: "%.1fk", k)
+        }
+        return String(Int(value))
+    }
+
     /// 56% at rank 1, widening by 4.9 points a row — the web game's formula.
     static func widthFraction(rank: Int) -> CGFloat {
         min(1.0, (56 + CGFloat(rank - 1) * 4.9) / 100)
@@ -178,7 +193,10 @@ private struct ClueSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    // Transfer fields first: on a transfer round they are the answer's whole
+    // context, and the career fields below are mostly absent.
     private static let fields: [(String, String)] = [
+        ("fee", "Fee"), ("fromClub", "From"), ("toClub", "To"),
         ("nationality", "Nationality"), ("position", "Position"), ("years", "Years"),
         ("club", "Club"), ("squadNumber", "Shirt"), ("born", "Born"),
     ]
@@ -331,6 +349,10 @@ private struct PyramidRow: View {
     }
 
     private func valueText(_ answer: RevealedAnswer) -> String {
+        // A transfer fee is a price, not a count. "37500000 fee" is unreadable
+        // at a glance and wraps the badge onto two lines; "37.5m" is the
+        // number people actually say.
+        if answer.unit == "fee" { return BoardStyle.money(answer.value) }
         let number = String(Int(answer.value))
         guard let unit = answer.unit, !unit.isEmpty else { return number }
         return "\(number) \(unit)"

@@ -1,4 +1,4 @@
-import { sqlite } from "../db/client.ts";
+import { normalizeName, sqlite } from "../db/client.ts";
 import { normalizeClubAlias } from "../services/scraper.ts";
 
 // Football Tenable — 10-answer list rounds.
@@ -900,6 +900,11 @@ export interface TenableClue {
   clubWikiUrl: string | null;
   squadNumber: number | null;
   born: string | null;
+  // Transfer rounds only. The career fields above describe the player; these
+  // describe the MOVE, which is what the question is actually about.
+  fromClub?: string | null;
+  toClub?: string | null;
+  fee?: string | null;
 }
 
 // Anything the question already gives away is suppressed — no point "hinting"
@@ -910,6 +915,50 @@ export function impliedCluesFor(type: string): string[] {
   if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial"].includes(type)) implied.push("club");
   if (["surname-length", "surname-initial", "surname", "club-surname-initial"].includes(type)) implied.push("surname");
   return implied;
+}
+
+// A transfer round's clue is about the TRANSFER, not the career.
+//
+// The generic clue described the player: nationality, position, the club they
+// made most appearances for, their shirt number. On "Biggest LaLiga transfers,
+// 2003/04" that read "Manchester United, shirt 7" — true of Beckham, and
+// nothing at all to do with the move being asked about, which is the half of
+// the question that makes it guessable.
+//
+// Keyed by player name rather than footballer_id because a transfer row can
+// name somebody the database has no footballer for at all.
+export function transferCluesForWindow(windowId: number): Map<string, TenableClue> {
+  const rows = sqlite.prepare(
+    `SELECT player_name, nationality, position, from_club, to_club, fee_text, fee_value
+     FROM transfer_window_players WHERE window_id = ?`,
+  ).all(windowId) as {
+    player_name: string;
+    nationality: string | null;
+    position: string | null;
+    from_club: string | null;
+    to_club: string | null;
+    fee_text: string | null;
+    fee_value: number | null;
+  }[];
+
+  const clues = new Map<string, TenableClue>();
+  for (const r of rows) {
+    clues.set(normalizeName(r.player_name).trim(), {
+      nationality: r.nationality,
+      position: r.position,
+      years: null,
+      club: null,
+      clubWikiUrl: null,
+      squadNumber: null,
+      born: null,
+      fromClub: r.from_club,
+      toClub: r.to_club,
+      // The written fee where there is one ("£25m"), since it is the number
+      // people remember; the raw value only as a fallback.
+      fee: r.fee_text ?? (r.fee_value != null ? String(r.fee_value) : null),
+    });
+  }
+  return clues;
 }
 
 export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {

@@ -172,7 +172,10 @@ private fun ClueDialog(
     impliedClues: List<String>,
     onDismiss: () -> Unit,
 ) {
+    // Transfer fields first: on a transfer round they are the answer's whole
+    // context, and the career fields below are mostly absent.
     val fields = listOf(
+        "fee" to "Fee", "fromClub" to "From", "toClub" to "To",
         "nationality" to "Nationality", "position" to "Position", "years" to "Years",
         "club" to "Club", "squadNumber" to "Shirt", "born" to "Born",
     )
@@ -327,8 +330,24 @@ private fun PyramidRow(
 }
 
 private fun valueText(answer: RevealedAnswer): String {
+    // A transfer fee is a price, not a count. "37500000 fee" is unreadable at
+    // a glance and wraps the badge onto two lines; "37.5m" is the number
+    // people actually say.
+    if (answer.unit == "fee") return money(answer.value)
     val number = answer.value.toInt().toString()
     val unit = answer.unit
     return if (unit.isNullOrEmpty()) number else "$number $unit"
+}
+
+/** A fee as people say it: 37.5m, 25m, 900k. No currency symbol — the board
+ *  carries only the amount, and the written fee is in the clue. */
+private fun money(value: Double): String {
+    fun trim(v: Double, suffix: String): String =
+        if (v == Math.floor(v)) "${v.toInt()}$suffix" else String.format("%.1f%s", v, suffix)
+    return when {
+        value >= 1_000_000 -> trim(value / 1_000_000, "m")
+        value >= 1_000 -> trim(value / 1_000, "k")
+        else -> value.toInt().toString()
+    }
 }
 

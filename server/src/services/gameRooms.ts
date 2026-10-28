@@ -3,6 +3,7 @@ import { sqlite } from '../db/client.ts'
 import {
   answersForRound,
   cluesForFootballers,
+  transferCluesForWindow,
   impliedCluesFor,
   isOrdered,
   titleFor,
@@ -287,6 +288,21 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
 
   const ids = answers.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
   const clues = cluesForFootballers(ids)
+  // A transfer round is asking about a MOVE, so its clues describe the move —
+  // fee, from, to — not the player's career. Keyed by name, because a
+  // transfer row can name somebody with no footballer record at all.
+  const transferClues = round.type === 'transfer-window' && params.windowId
+    ? transferCluesForWindow(parseInt(params.windowId, 10))
+    : null
+
+  const clueFor = (a: { footballer_id: number | null }, normalized: string): string | null => {
+    const transfer = transferClues?.get(normalized)
+    if (transfer) return JSON.stringify(transfer)
+    if (a.footballer_id != null && clues.has(a.footballer_id)) {
+      return JSON.stringify(clues.get(a.footballer_id))
+    }
+    return null
+  }
 
   const instanceId = sqlite.transaction(() => {
     const { next } = sqlite
@@ -318,7 +334,7 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
       insert.run(
         id, rank, rank <= ROUND_SIZE ? 1 : 0, a.footballer_id, a.name, normalized, surnameOf(normalized),
         a.nationality, a.photo_url, a.value, a.unit ?? null,
-        a.footballer_id != null && clues.has(a.footballer_id) ? JSON.stringify(clues.get(a.footballer_id)) : null,
+        clueFor(a, normalized),
       )
     })
 
