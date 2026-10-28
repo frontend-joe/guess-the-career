@@ -269,6 +269,16 @@ export async function resolveOrCreateFootballer(
 
   for (const title of titles.slice(0, 5)) {
     const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
+
+    // Somebody already here citing this exact article is this player, however
+    // little the typed text looked like their name. The check above only sees
+    // what was TYPED: "Raul" matched nothing, so a second Raúl González was
+    // scraped in beside the first and the board showed him twice.
+    const sameArticle = sqlite
+      .prepare('SELECT id FROM footballers WHERE wikipedia_url = ? LIMIT 1')
+      .get(wikiUrl) as { id: number } | undefined
+    if (sameArticle) return { id: sameArticle.id, created: false }
+
     try {
       const id = await insertScrapedFootballer(wikiUrl)
       // Skip a candidate that resolved to something that isn't a person, so a
