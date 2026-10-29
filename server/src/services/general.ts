@@ -37,6 +37,21 @@ export const GENERAL_TOPICS: GeneralTopic[] = [
   { slug: "deserts", label: "Deserts" },
   { slug: "states", label: "States & regions" },
   { slug: "capitals", label: "Capitals" },
+  { slug: "words", label: "Words & language" },
+  { slug: "music", label: "Music" },
+  { slug: "film", label: "Film & TV" },
+  { slug: "tech", label: "Technology" },
+  { slug: "food", label: "Food & drink" },
+  { slug: "sport", label: "Sport" },
+  { slug: "science", label: "Science & nature" },
+  { slug: "history", label: "History" },
+  { slug: "culture", label: "Culture & tradition" },
+  { slug: "games", label: "Games & toys" },
+  { slug: "transport", label: "Transport" },
+  { slug: "tv", label: "TV & radio" },
+  { slug: "literature", label: "Books & plays" },
+  { slug: "nature", label: "Nature & animals" },
+  { slug: "money", label: "Money" },
 ];
 
 export interface GeneralAnswerInput {

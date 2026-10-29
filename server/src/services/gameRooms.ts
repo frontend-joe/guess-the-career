@@ -11,7 +11,7 @@ import {
   ROUND_SIZE,
   type Metric,
 } from './tenable.ts'
-import { matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
+import { isPlaceExactly, matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
 import { parseAliases } from './general.ts'
 import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.ts'
 import { resolveOrCreateFootballer } from './playerImport.ts'
@@ -510,17 +510,27 @@ interface AnswerRow {
 // prefer someone not yet found, so repeating an ambiguous surname moves on to
 // the next player it fits rather than endlessly re-hitting the first.
 function pickAnswer(raw: string, answers: AnswerRow[], category: string): AnswerRow | null {
+  const prefer = (rows: AnswerRow[]) => rows.find((a) => a.found_at_ms == null) ?? rows[0]
+
   const g = norm(raw)
   const exact = answers.filter((a) => a.name_norm === g)
-  if (exact.length) return exact.find((a) => a.found_at_ms == null) ?? exact[0]
+  if (exact.length) return prefer(exact)
+
   // Places are matched whole, with their authored aliases; people are matched
   // by the surname rules. See matchesPlace for why the two cannot be the same
   // function — "York" is not New York.
-  const fuzzy = category === 'football'
-    ? answers.filter((a) => matchesName(raw, a.name))
-    : answers.filter((a) => matchesPlace(raw, a.name, parseAliases(a.aliases)))
-  if (!fuzzy.length) return null
-  return fuzzy.find((a) => a.found_at_ms == null) ?? fuzzy[0]
+  if (category !== 'football') {
+    // An exact alias before any fuzzy name, or the latitude that forgives a
+    // typo lets one answer be credited to another: "The Gambia" is one edit
+    // from Zambia and both are on the same board.
+    const alias = answers.filter((a) => isPlaceExactly(raw, a.name, parseAliases(a.aliases)))
+    if (alias.length) return prefer(alias)
+    const close = answers.filter((a) => matchesPlace(raw, a.name, parseAliases(a.aliases)))
+    return close.length ? prefer(close) : null
+  }
+
+  const fuzzy = answers.filter((a) => matchesName(raw, a.name))
+  return fuzzy.length ? prefer(fuzzy) : null
 }
 
 // Anyone in the room may guess. It started host-only — everyone else shouts,

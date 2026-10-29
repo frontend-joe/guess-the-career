@@ -13,7 +13,7 @@ process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), 'geo-test-')), 'db.s
 const { runMigrations, sqlite } = await import('../db/client.ts')
 runMigrations()
 
-const { matchesPlace } = await import('./nameMatch.ts')
+const { matchesPlace, isPlaceExactly, norm } = await import('./nameMatch.ts')
 const {
   generalRounds, generalAnswers, saveGeneralRound, deleteGeneralRound,
 } = await import('./general.ts')
@@ -205,4 +205,57 @@ test('nothing is left behind under the old category name', () => {
   // And the rounds really did come across, rather than the old ones simply
   // having been dropped.
   assert.ok(generalRounds().length >= 20)
+})
+
+test('an exact answer is never a guess at a different one', () => {
+  // "The Gambia" strips to "gambia", which is one edit from Zambia, and both are
+  // answers to "African countries ending in A". The spelling latitude that
+  // forgives a typo is what makes one answer reachable from the other, so an
+  // exact name or alias has to be checked first — see pickAnswer.
+  const gambia = { name: 'Gambia', aliases: ['The Gambia'] }
+  const zambia = { name: 'Zambia', aliases: [] }
+  assert.equal(isPlaceExactly('The Gambia', gambia.name, gambia.aliases), true)
+  assert.equal(isPlaceExactly('The Gambia', zambia.name, zambia.aliases), false)
+  // Without the exact pass, this is the collision that would decide it:
+  assert.equal(matchesPlace('The Gambia', 'Zambia'), true)
+})
+
+test('an optional article does not change the answer', () => {
+  assert.equal(matchesPlace("Midsummer Night's Dream", "A Midsummer Night's Dream"), true)
+  assert.equal(matchesPlace('View to a Kill', 'A View to a Kill'), true)
+  assert.equal(matchesPlace('The Strand', 'Strand'), true)
+})
+
+// The real guard on seven hundred hand-written answers. Every name and every
+// alias in every round must resolve to the answer it belongs to and to nothing
+// else — checked with pickAnswer's own precedence, since that is what decides it
+// in a game. A round where two answers can be reached by the same word is a
+// round that credits the wrong one, and no amount of reading the list spots it.
+test('no answer or alias in any round is ambiguous', () => {
+  const problems: string[] = []
+  for (const round of generalRounds()) {
+    const answers = generalAnswers(round.slug)
+    for (const answer of answers) {
+      for (const probe of [answer.name, ...answer.aliases]) {
+        const byName = answers.filter((x) => norm(x.name) === norm(probe))
+        const byAlias = answers.filter((x) => isPlaceExactly(probe, x.name, x.aliases))
+        const hits = byName.length ? byName
+          : byAlias.length ? byAlias
+          : answers.filter((x) => matchesPlace(probe, x.name, x.aliases))
+        if (!hits.some((h) => h.name === answer.name)) {
+          problems.push(`${round.slug}: "${probe}" resolves to ${hits.map((h) => h.name).join(', ') || 'nothing'}, not ${answer.name}`)
+        } else if (hits.length > 1) {
+          problems.push(`${round.slug}: "${probe}" (${answer.name}) is also ${hits.filter((h) => h.name !== answer.name).map((h) => h.name).join(', ')}`)
+        }
+      }
+    }
+  }
+  assert.deepEqual(problems, [])
+})
+
+test('no round repeats an answer', () => {
+  for (const round of generalRounds()) {
+    const names = generalAnswers(round.slug).map((a) => a.name.toLowerCase())
+    assert.deepEqual([...new Set(names)].length, names.length, `${round.slug} repeats an answer`)
+  }
 })

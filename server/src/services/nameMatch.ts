@@ -93,7 +93,11 @@ function firstNamesAgree(g: string, p: string): boolean {
 //  - the geographical noise words, which people drop or add freely without
 //    meaning anything by it. "Mt Everest", "Everest", "Lake Baikal", "Baikal",
 //    "River Nile" are all the same answer and all equally correct.
-const PLACE_NOISE = /\b(?:the|mount|mt|lake|river|island|islands|isle|sea|city|and)\b/g
+//
+// The articles are in here for the same reason: "A Midsummer Night's Dream" and
+// "A View to a Kill" are titles nobody recites the article of, and an authored
+// round should not be the thing that notices.
+const PLACE_NOISE = /\b(?:a|an|the|mount|mt|lake|river|island|islands|isle|sea|city|and)\b/g
 
 function placeKey(s: string): string {
   return norm(s)
@@ -101,6 +105,23 @@ function placeKey(s: string): string {
     .replace(PLACE_NOISE, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+/**
+ * True when the guess IS the answer — its name or one of its aliases, once the
+ * optional noise words are set aside — with no spelling latitude at all.
+ *
+ * Checked before matchesPlace rather than instead of it, because the latitude
+ * that makes a typo forgivable also makes near-identical answers reachable from
+ * each other. "The Gambia" strips to "gambia", which is one edit from Zambia,
+ * and both are answers to "African countries ending in A": without this, naming
+ * one of them could credit the other. An exact answer is never a guess at a
+ * different one.
+ */
+export function isPlaceExactly(guess: string, name: string, aliases: string[] = []): boolean {
+  const g = placeKey(guess)
+  if (!g) return false
+  return [name, ...aliases].some((candidate) => placeKey(candidate) === g)
 }
 
 export function matchesPlace(guess: string, name: string, aliases: string[] = []): boolean {
