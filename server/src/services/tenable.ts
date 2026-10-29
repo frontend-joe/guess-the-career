@@ -101,10 +101,25 @@ const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
 // whichever players happen to have career statistics. Fall back to that
 // inference only for clubs with no seasons article.
 //
-// The two sources are never mixed for the same club. Career statistics are
-// sparse and occasionally mislabelled, and one stray row would add a second
-// distinct league to a club-season the article already settles — which the
-// unanimity test below reads as a straddled spell and throws away.
+// The two sources are never mixed for the same club-SEASON. Career statistics
+// are sparse and occasionally mislabelled, and one stray row would add a
+// second distinct league to a club-season the article already settles — which
+// the unanimity test below reads as a straddled spell and throws away.
+//
+// Per season, though, not per club. This used to switch the inference off for
+// every year of any club with an article, however little of the club's history
+// that article covered — and "List of Udinese Calcio seasons" starts at
+// 2000-01. Paolo Poggi's five years at Udinese, 172 appearances, resolved to
+// nothing, and his Serie A total came out as the 83 he made at Torino, Roma
+// and Piacenza. Bierhoff's and Amoroso's career statistics name the league for
+// those very seasons; they were simply never consulted, because the article
+// had an opinion about a different decade.
+//
+// Excluding by season keeps the reason the two were separated in the first
+// place: where the article speaks it still wins outright, and the only rows
+// now admitted cover seasons it says nothing about, which have nothing to
+// contradict. A club_seasons row with no league settles nothing either, so it
+// does not suppress anything.
 export const CLUB_SEASON_LEAGUE = `
   SELECT club, season_year AS yr, league
   FROM club_seasons
@@ -113,9 +128,14 @@ export const CLUB_SEASON_LEAGUE = `
   SELECT REPLACE(club, ' (loan)', '') AS club,
          CAST(SUBSTR(season, 1, 4) AS INTEGER) AS yr,
          COALESCE(league, division) AS league
-  FROM career_statistics
+  FROM career_statistics cst
   WHERE COALESCE(league, division) IS NOT NULL
-    AND REPLACE(club, ' (loan)', '') NOT IN (SELECT club FROM club_seasons)
+    AND NOT EXISTS (
+      SELECT 1 FROM club_seasons a
+      WHERE a.club = REPLACE(cst.club, ' (loan)', '')
+        AND a.season_year = CAST(SUBSTR(cst.season, 1, 4) AS INTEGER)
+        AND a.league IS NOT NULL
+    )
   GROUP BY 1, 2, 3
 `;
 

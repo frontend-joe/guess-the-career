@@ -102,3 +102,39 @@ test('a season scraped WITH an allowed league suppresses the fallback', () => {
   ).run()
   assert.equal(goalsFor(db, 1080), undefined)
 })
+
+// Poggi's shape, which is the same failure one table along: the club's own
+// seasons article covers only part of its history, and that used to switch off
+// the career-statistics inference for the whole club rather than for the
+// seasons the article actually settles.
+test('a seasons article covering only recent years still leaves the older ones to career statistics', () => {
+  const db = new Database(':memory:')
+  db.exec(`
+    CREATE TABLE career_stints (
+      id INTEGER PRIMARY KEY, footballer_id INTEGER, club TEXT, years TEXT,
+      apps INTEGER, goals INTEGER, stint_type TEXT
+    );
+    CREATE TABLE career_statistics (
+      id INTEGER PRIMARY KEY, footballer_id INTEGER, club TEXT, season TEXT,
+      division TEXT, league TEXT, league_apps INTEGER, league_goals INTEGER
+    );
+    CREATE TABLE club_seasons (club TEXT, season_year INTEGER, league TEXT);
+  `)
+  // "List of Udinese Calcio seasons" genuinely begins at 2000-01 — the article
+  // is thin, not mis-scraped.
+  for (let yr = 2000; yr <= 2004; yr++) {
+    db.prepare(`INSERT INTO club_seasons VALUES ('Udinese', ?, 'Serie A')`).run(yr)
+  }
+  // Other players' statistics do name the league for the 1990s, which is the
+  // only record of those seasons anywhere in the database.
+  for (const season of ['1995–96', '1996–97', '1997–98', '1998–99']) {
+    db.prepare(
+      `INSERT INTO career_statistics (footballer_id, club, season, division, league, league_apps, league_goals)
+       VALUES (457, 'Udinese', ?, 'Serie A', 'Serie A', 30, 15)`,
+    ).run(season)
+  }
+  db.prepare(
+    `INSERT INTO career_stints VALUES (1, 419, 'Udinese', '1994–1999', 172, 48, 'senior')`,
+  ).run()
+  assert.equal(goalsFor(db, 419), 48)
+})
