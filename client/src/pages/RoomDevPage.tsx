@@ -13,6 +13,7 @@ import {
   giveUp,
   sendChat,
   submitGuess,
+  allowGuess,
   takeHint,
   RoomApiError,
   type GuessResult,
@@ -155,6 +156,8 @@ export function RoomDevPage() {
   const [error, setError] = useState<string | null>(null)
   const [videoNote, setVideoNote] = useState<string | null>(null)
   const [lastGuess, setLastGuess] = useState<GuessResult | null>(null)
+  // The last answer the list turned down, kept so the host can overrule it.
+  const [rejected, setRejected] = useState<string | null>(null)
 
   // Prefilled from a shared link, so the other three only have to type a name.
   const [joinCode, setJoinCode] = useState(
@@ -235,6 +238,7 @@ export function RoomDevPage() {
   // they fancy, and the categories after Football have no calendar at all.
   useEffect(() => {
     setRoundId('')
+    setRejected(null)
     getTenableRoundPool(category).then(setRounds).catch(() => {})
   }, [category])
 
@@ -686,7 +690,13 @@ export function RoomDevPage() {
                 const raw = guess.trim()
                 if (!raw || !round) return
                 setGuess('')
-                void run(async () => { setLastGuess(await submitGuess(session, round.instanceId, raw)) })
+                void run(async () => {
+                  const result = await submitGuess(session, round.instanceId, raw)
+                  setLastGuess(result)
+                  // Only the host decides, and only on a round with a spare
+                  // slot — a ranked board has no honest rank to invent.
+                  setRejected(isHost && result.verdict === 'miss' && !round.board.ordered ? raw : null)
+                })
               }}
             >
               <input
@@ -703,6 +713,34 @@ export function RoomDevPage() {
                 </span>
               )}
             </form>
+
+            {/* "Count it anyway" — the host overruling the list on a
+                borderline answer. Some rounds are judgement, not fact: there
+                is no authority on the excuses for being late to work, so the
+                list is a dozen good ones and the host decides the rest. */}
+            {rejected && round?.status === 'live' && (
+              <div className="flex items-center gap-2 rounded bg-slate-800 px-3 py-2">
+                <span className="flex-1 truncate text-sm">“{rejected}”</span>
+                <button
+                  type="button"
+                  className="rounded bg-emerald-500 px-3 py-1 text-sm font-semibold text-slate-950"
+                  onClick={() => {
+                    const raw = rejected
+                    setRejected(null)
+                    void run(() => allowGuess(session, round.instanceId, raw))
+                  }}
+                >
+                  Count it
+                </button>
+                <button
+                  type="button"
+                  className="px-2 text-slate-500 hover:text-slate-200"
+                  onClick={() => setRejected(null)}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

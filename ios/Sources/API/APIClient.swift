@@ -175,6 +175,16 @@ enum API {
         let status: String
     }
 
+    /// The host's final say on a borderline answer: count it, in the player's
+    /// own words, in the next free slot.
+    static func allowGuess(seat: Seat, instanceId: Int, raw: String) async throws -> AllowResult {
+        try await post(
+            "api/rooms/\(seat.code)/allow",
+            body: ["instanceId": AnyEncodable(instanceId), "raw": AnyEncodable(raw)],
+            bearer: seat.token
+        )
+    }
+
     static func giveUp(seat: Seat, instanceId: Int) async throws -> GiveUpResult {
         try await post(
             "api/rooms/\(seat.code)/rounds/\(instanceId)/give-up",

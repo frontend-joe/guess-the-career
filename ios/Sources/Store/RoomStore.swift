@@ -555,6 +555,9 @@ final class RoomStore {
     // MARK: - Host actions
 
     func freezeRound(roundId: Int) async {
+        // A new round is a new argument. Whatever the last one turned down is
+        // no longer anybody's decision to make.
+        rejectedGuess = nil
         await act { seat in _ = try await API.freezeRound(seat: seat, roundId: roundId) }
     }
 
@@ -572,9 +575,34 @@ final class RoomStore {
         guard let instanceId = round?.instanceId else { return }
         await act { [weak self] seat in
             let result = try await API.guess(seat: seat, instanceId: instanceId, raw: raw)
-            await MainActor.run { self?.lastGuess = result; self?.showGuessToast(result, raw: raw) }
+            await MainActor.run {
+                self?.lastGuess = result
+                self?.noteRejected(result, raw: raw)
+                self?.showGuessToast(result, raw: raw)
+            }
         }
     }
+
+    /// The last answer the list turned down, kept so the host can overrule it.
+    ///
+    /// Only on an unordered round, and only for the host — nobody else has a
+    /// decision to make, and a ranked round has no slot to invent. It is
+    /// cleared the moment it is used or the round moves on, so the button can
+    /// never be about a guess from two questions ago.
+    private(set) var rejectedGuess: String?
+
+    private func noteRejected(_ result: GuessResult, raw: String) {
+        guard isHost, round?.board.ordered == false, result.verdict == "miss" else { return }
+        rejectedGuess = raw
+    }
+
+    func allowRejectedGuess() async {
+        guard let instanceId = round?.instanceId, let raw = rejectedGuess else { return }
+        rejectedGuess = nil
+        await act { seat in _ = try await API.allowGuess(seat: seat, instanceId: instanceId, raw: raw) }
+    }
+
+    func dismissRejectedGuess() { rejectedGuess = nil }
 
     private func showGuessToast(_ result: GuessResult, raw: String) {
         let text: String

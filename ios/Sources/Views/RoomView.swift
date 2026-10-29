@@ -68,6 +68,12 @@ struct RoomView: View {
                         .background(BoardStyle.background)
                         .clipped()
 
+                    // The host's final say, when the list has just turned
+                    // something down. Sits above the footer rather than in the
+                    // toast, because the toast goes away on its own and this
+                    // is a decision somebody has to make.
+                    hostOverrideBar
+
                     // One row: your own controls, the field, and the menu. It
                     // sits on the very bottom edge, and therefore directly on
                     // top of the keyboard when one is up.
@@ -145,6 +151,55 @@ struct RoomView: View {
                                  : .spring(response: 0.32, dampingFraction: 0.78),
                     value: store.guessToast
                 )
+        }
+    }
+
+    /// "Count it anyway" — the host overruling the list on a borderline answer.
+    ///
+    /// Some rounds are judgement, not fact: there is no authority on the
+    /// excuses for being late to work, so the list is a dozen good ones and
+    /// the host decides the rest. Without this the only way to agree with a
+    /// player is to argue with a database in front of a camera.
+    @ViewBuilder
+    private var hostOverrideBar: some View {
+        if let rejected = store.rejectedGuess, store.round?.isLive == true {
+            HStack(spacing: 10) {
+                Text("“\(rejected)”")
+                    .font(.body(14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                Button("Count it") {
+                    Task { await store.allowRejectedGuess() }
+                }
+                .font(.body(14, weight: .bold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(Capsule().fill(Color(red: 0.29, green: 0.84, blue: 0.50)))
+
+                Button {
+                    store.dismissRejectedGuess()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .frame(width: 28, height: 28)
+                }
+                .accessibilityLabel("Leave it off the board")
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 6)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.08))
+            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.2)
+                             : .spring(response: 0.3, dampingFraction: 0.9),
+                value: store.rejectedGuess,
+            )
         }
     }
 

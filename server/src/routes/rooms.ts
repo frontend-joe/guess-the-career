@@ -15,6 +15,7 @@ import {
   endRoom,
   freezeRound,
   giveUp,
+  allowGuess,
   joinRoom,
   leaveRoom,
   onRoomChanged,
@@ -243,6 +244,33 @@ roomsRouter.post(
     try {
       const result = takeHint(instanceId, me, rank)
       if (!result.replayed) announce(room.code, 'hint')
+      return c.json(result)
+    } catch (err) {
+      return fail(err)
+    }
+  },
+)
+
+// POST /api/rooms/:code/allow — the host's final say on a borderline answer.
+//
+// Host only, and deliberately a separate route from guessing: this does not
+// re-examine the guess, it overrules the list. Some rounds are judgement rather
+// than fact, and the alternative to a button is arguing with a database on
+// camera.
+roomsRouter.post(
+  '/:code/allow',
+  zValidator('json', z.object({
+    instanceId: z.number().int().positive(),
+    raw: z.string().trim().min(1).max(100),
+  })),
+  async (c) => {
+    const room = mustFindRoom(c.req.param('code'))
+    const me = await participantFor(c, room)
+    if (!me) return c.json({ error: 'Not in this room' }, 403)
+    const { instanceId, raw } = c.req.valid('json')
+    try {
+      const result = allowGuess(instanceId, me, raw)
+      announce(room.code, 'allowed')
       return c.json(result)
     } catch (err) {
       return fail(err)

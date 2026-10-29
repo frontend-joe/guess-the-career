@@ -123,6 +123,14 @@ object Api {
         seat.token,
     )
 
+    /** The host's final say on a borderline answer: count it, in the player's
+     *  own words, in the next free slot. */
+    suspend fun allowGuess(seat: Seat, instanceId: Int, raw: String): AllowResult = post(
+        "api/rooms/${seat.code}/allow",
+        buildJsonObject { put("instanceId", instanceId); put("raw", raw) },
+        seat.token,
+    )
+
     suspend fun giveUp(seat: Seat, instanceId: Int): GiveUpResult =
         post("api/rooms/${seat.code}/rounds/$instanceId/give-up", null, seat.token)
 

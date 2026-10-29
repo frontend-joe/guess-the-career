@@ -18,6 +18,8 @@ export interface RoomParticipant {
 export interface RevealedAnswer {
   /** Revealed by giving up rather than guessed. */
   missed?: boolean
+  /** Counted by the host rather than found on the list. */
+  allowed?: boolean
   rank: number
   name: string
   value: number
@@ -187,6 +189,21 @@ export async function freezeRound(session: RoomSession, roundId: number): Promis
     asSeat(session, { method: 'POST', body: JSON.stringify({ roundId }) }),
   )
   return unwrap<{ instanceId: number }>(res)
+}
+
+// The host's final say on a borderline answer: count it, in the player's own
+// words, in the next free slot. Unordered rounds only — a ranked board has no
+// honest slot to invent.
+export async function allowGuess(
+  session: RoomSession,
+  instanceId: number,
+  raw: string,
+): Promise<{ rank: number; name: string; complete: boolean }> {
+  const res = await fetch(
+    `/api/rooms/${session.code}/allow`,
+    asSeat(session, { method: 'POST', body: JSON.stringify({ instanceId, raw }) }),
+  )
+  return unwrap<{ rank: number; name: string; complete: boolean }>(res)
 }
 
 export async function startRound(session: RoomSession, instanceId: number): Promise<RoomState> {

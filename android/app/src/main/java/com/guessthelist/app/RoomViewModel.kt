@@ -499,7 +499,9 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
 
     // MARK: Host actions
 
-    fun freezeRound(roundId: Int) = act { Api.freezeRound(it, roundId) }
+    // A new round is a new argument. Whatever the last one turned down is no
+    // longer anybody's decision to make.
+    fun freezeRound(roundId: Int) = act { rejectedGuess = null; Api.freezeRound(it, roundId) }
 
     /** The round WAITING to be started, which is not always the one on the
      *  board: after a round finishes the board keeps its answers up while the
@@ -531,9 +533,35 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act {
             val result = Api.guess(it, instanceId, raw)
             lastGuess = result
+            noteRejected(result, raw)
             showGuessToast(result, raw)
         }
     }
+
+    /**
+     * The last answer the list turned down, kept so the host can overrule it.
+     *
+     * Only on an unordered round, and only for the host — nobody else has a
+     * decision to make, and a ranked round has no slot to invent. Cleared the
+     * moment it is used or the round moves on, so the button can never be
+     * about a guess from two questions ago.
+     */
+    var rejectedGuess by mutableStateOf<String?>(null); private set
+
+    private fun noteRejected(result: GuessResult, raw: String) {
+        if (isHost && round?.board?.ordered == false && result.verdict == "miss") {
+            rejectedGuess = raw
+        }
+    }
+
+    fun allowRejectedGuess() {
+        val instanceId = round?.instanceId ?: return
+        val raw = rejectedGuess ?: return
+        rejectedGuess = null
+        act { Api.allowGuess(it, instanceId, raw) }
+    }
+
+    fun dismissRejectedGuess() { rejectedGuess = null }
 
     private fun showGuessToast(result: GuessResult, raw: String) {
         val text: String

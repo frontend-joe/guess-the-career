@@ -36,8 +36,12 @@ struct RevealedAnswer: Codable, Equatable {
     /// an older build than the server still decodes the board rather than
     /// failing the whole round.
     let missed: Bool?
+    /// Counted by the host rather than found on the list. Optional so a phone
+    /// on an older build than the server still decodes the board.
+    let allowed: Bool?
 
     var wasMissed: Bool { missed == true }
+    var wasAllowed: Bool { allowed == true }
 }
 
 struct ReplayGuess: Codable, Equatable {
@@ -178,6 +182,12 @@ struct HintResult: Codable {
     let clue: [String: ClueValue]?
     let stateVersion: Int
     let replayed: Bool
+}
+
+struct AllowResult: Codable {
+    let rank: Int
+    let name: String
+    let complete: Bool
 }
 
 struct GiveUpResult: Codable {

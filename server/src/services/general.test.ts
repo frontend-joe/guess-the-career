@@ -259,3 +259,75 @@ test('no round repeats an answer', () => {
     assert.deepEqual([...new Set(names)].length, names.length, `${round.slug} repeats an answer`)
   }
 })
+
+// ── The host's final say ─────────────────────────────────────────────────────
+//
+// Some rounds are judgement, not fact. "Excuses for being late to work" has no
+// authority to appeal to, so the game needs a way to agree with a player rather
+// than argue with a database in front of a camera.
+
+const rooms = await import('./gameRooms.ts')
+
+function liveRound(slug: string) {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get(`host-${slug}@example.com`) as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  rooms.joinRoom(room.code, 'Guest', { platform: 'ios' })
+  const guest = rooms.participantsOf(room.id).find((p) => p.display_name === 'Guest')!
+  const roundId = (sqlite
+    .prepare('SELECT id FROM tenable_rounds WHERE params = ?')
+    .get(JSON.stringify({ round: slug })) as { id: number }).id
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+  return { room, host, guest, inst }
+}
+
+test('the host can count an answer the list did not have', () => {
+  const { room, host, guest, inst } = liveRound('cheese-types')
+  assert.equal(rooms.submitGuess(inst.id, guest, 'g1', 'Pecorino').verdict, 'miss')
+
+  const result = rooms.allowGuess(inst.id, host, 'Pecorino')
+  assert.equal(result.name, 'Pecorino')
+
+  const board = rooms.roomState(rooms.roomByCode(room.code)!).round!.board
+  const row = board.revealed.find((a) => a.name === 'Pecorino')
+  assert.ok(row, 'the answer should be on the board')
+  // Marked, because a board that was judged and a board that was answered are
+  // different things and the recording should be able to tell.
+  assert.equal(row.allowed, true)
+  // Credited to whoever said it, not to the host who allowed it. They were
+  // right; the list was short.
+  assert.equal(row.byParticipantId, guest.id)
+})
+
+test('only the host has the final say', () => {
+  const { guest, inst } = liveRound('board-games')
+  assert.throws(() => rooms.allowGuess(inst.id, guest, 'Jenga'), /Only the host/)
+})
+
+test('a ranked round has no slot to invent', () => {
+  // Third place belongs to whatever is third. There is no honest rank to give
+  // a river that is not on the list, so the override is refused rather than
+  // quietly appended.
+  const { host, inst } = liveRound('rivers-longest')
+  assert.throws(() => rooms.allowGuess(inst.id, host, 'Severn'), /ranked round/)
+})
+
+test('the same answer cannot be counted twice', () => {
+  const { host, inst } = liveRound('card-games')
+  rooms.allowGuess(inst.id, host, 'Gin rummy')
+  assert.throws(() => rooms.allowGuess(inst.id, host, 'gin rummy'), /already up there/)
+})
+
+test('counting the tenth answer finishes the round', () => {
+  const { host, guest, inst } = liveRound('chinese-zodiac')
+  for (const animal of ['Rat', 'Ox', 'Tiger', 'Rabbit', 'Dragon', 'Snake', 'Horse', 'Goat', 'Monkey']) {
+    rooms.submitGuess(inst.id, guest, `z-${animal}`, animal)
+  }
+  const result = rooms.allowGuess(inst.id, host, 'Unicorn')
+  assert.equal(result.complete, true)
+  // And nothing more can be added to a board that is full.
+  assert.throws(() => rooms.allowGuess(inst.id, host, 'Griffin'), /is \w+/)
+})

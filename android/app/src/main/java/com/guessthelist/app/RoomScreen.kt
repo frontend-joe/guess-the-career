@@ -49,6 +49,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.PersonRemove
@@ -222,6 +223,42 @@ fun RoomScreen(model: RoomViewModel) {
                 color = Color(0xFFFF6B6B),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
             )
+        }
+
+        // "Count it anyway" — the host overruling the list on a borderline
+        // answer. Some rounds are judgement, not fact: there is no authority on
+        // the excuses for being late to work, so the list is a dozen good ones
+        // and the host decides the rest. It sits above the controls rather than
+        // in the toast, because the toast goes away on its own and this is a
+        // decision somebody has to make.
+        model.rejectedGuess?.takeIf { model.round?.isLive == true }?.let { rejected ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "\u201C$rejected\u201D",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { model.allowRejectedGuess() }) {
+                    Text("Count it", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4ADE80))
+                }
+                IconButton(onClick = { model.dismissRejectedGuess() }) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Leave it off the board",
+                        tint = Color.White.copy(alpha = 0.6f),
+                    )
+                }
+            }
         }
 
         Row(

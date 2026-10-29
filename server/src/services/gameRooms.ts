@@ -1137,6 +1137,113 @@ export interface GiveUpResult {
 // The answers are marked `missed` so every client can draw them differently.
 // Scoring reads found_at_ms, which stays null here, so giving up cannot be
 // mistaken for finding them.
+export interface AllowResult {
+  rank: number
+  name: string
+  stateVersion: number
+  complete: boolean
+}
+
+/**
+ * The host's final say: count an answer the list did not have.
+ *
+ * Some rounds are judgement, not fact. "Excuses for being late to work" has no
+ * authority to appeal to — the list is a dozen good ones, not every one that
+ * exists — and the first time somebody says "my phone updated overnight" the
+ * game either has a way to agree with them or it spends the next minute
+ * arguing with a database. On camera, that minute is the whole episode.
+ *
+ * So this adds the answer in the player's own words and gives it the next free
+ * slot. Unordered rounds only: a ranked board's slots mean something, and there
+ * is no honest rank to give "the tenth longest river" that isn't one.
+ *
+ * It is a reveal like any other, so the fold and the recording need to know
+ * nothing new — but it carries `allowed`, because a board that was judged and a
+ * board that was answered are different things, and the difference should
+ * survive to whoever watches it back.
+ */
+export function allowGuess(
+  instanceId: number,
+  participant: ParticipantRow,
+  raw: string,
+): AllowResult {
+  const inst = sqlite
+    .prepare('SELECT * FROM game_round_instances WHERE id = ?')
+    .get(instanceId) as InstanceRow | undefined
+  if (!inst) throw new RoomError('Unknown round instance', 404)
+  if (inst.room_id !== participant.room_id) throw new RoomError('Wrong room', 403)
+  if (participant.role !== 'host') throw new RoomError('Only the host can count an answer', 403)
+  if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
+  if (inst.ordered) {
+    throw new RoomError('A ranked round has no spare slot to put it in', 409)
+  }
+
+  const name = raw.trim()
+  if (!name) throw new RoomError('Nothing to count', 400)
+
+  const onBoard = (sqlite
+    .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
+    .get(instanceId) as { n: number }).n
+  if (onBoard >= inst.target) throw new RoomError('The board is already full', 409)
+
+  const normalized = norm(name)
+  const already = sqlite
+    .prepare('SELECT found_at_ms FROM game_round_answers WHERE instance_id = ? AND name_norm = ?')
+    .get(instanceId, normalized) as { found_at_ms: number | null } | undefined
+  if (already?.found_at_ms != null) throw new RoomError('That one is already up there', 409)
+
+  // Whoever said it gets the credit, the same as any other answer. They were
+  // right; the list was short.
+  const guesser = sqlite
+    .prepare('SELECT participant_id FROM game_guesses WHERE instance_id = ? AND raw_norm = ? ORDER BY id DESC LIMIT 1')
+    .get(instanceId, normalized) as { participant_id: number } | undefined
+
+  const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
+  const byParticipantId = guesser?.participant_id ?? participant.id
+
+  const { rank, stateVersion, complete } = sqlite.transaction(() => {
+    const { next } = sqlite
+      .prepare('SELECT COALESCE(MAX(rank), 0) + 1 AS next FROM game_round_answers WHERE instance_id = ?')
+      .get(instanceId) as { next: number }
+
+    sqlite
+      .prepare(
+        `INSERT INTO game_round_answers
+           (instance_id, rank, on_board, footballer_id, name, name_norm, surname_norm,
+            nationality, photo_url, value, unit, display, aliases, clue_json,
+            found_at_ms, found_by_participant_id)
+         VALUES (?, ?, 1, NULL, ?, ?, ?, NULL, NULL, 0, NULL, NULL, NULL, NULL, ?, ?)`,
+      )
+      .run(instanceId, next, name, normalized, surnameOf(normalized), tMs, byParticipantId)
+
+    appendEvent(instanceId, tMs, 'reveal', byParticipantId, {
+      rank: next,
+      name,
+      value: 0,
+      unit: null,
+      display: null,
+      nationality: null,
+      photoUrl: null,
+      footballerId: null,
+      allowed: true,
+    })
+
+    const found = (sqlite
+      .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
+      .get(instanceId) as { n: number }).n
+    const done = found >= inst.target
+    if (done) {
+      sqlite
+        .prepare("UPDATE game_round_instances SET status = 'complete', ended_at_ms = ? WHERE id = ?")
+        .run(tMs, instanceId)
+      appendEvent(instanceId, tMs, 'round_end', null, { reason: 'complete', found, target: inst.target })
+    }
+    return { rank: next, stateVersion: bumpVersion(inst.room_id), complete: done }
+  })()
+
+  return { rank, name, stateVersion, complete }
+}
+
 export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpResult {
   const inst = sqlite
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')

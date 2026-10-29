@@ -42,6 +42,15 @@ data class RevealedAnswer(
     /// Revealed by giving up rather than guessed. Defaulted so a phone running
     /// an older build than the server still decodes the board.
     val missed: Boolean = false,
+    /// Counted by the host rather than found on the list.
+    val allowed: Boolean = false,
+)
+
+@Serializable
+data class AllowResult(
+    val rank: Int = 0,
+    val name: String = "",
+    val complete: Boolean = false,
 )
 
 @Serializable

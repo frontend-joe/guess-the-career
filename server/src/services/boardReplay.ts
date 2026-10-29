@@ -41,6 +41,11 @@ export interface RevealedAnswer {
   /// Revealed by giving up rather than guessed. Every client draws these
   /// differently, and scoring ignores them.
   missed: boolean
+  /// Counted by the host rather than found on the list — a borderline answer
+  /// on a round that is judgement rather than fact. It is as correct as any
+  /// other row; it simply was not written down in advance, and whoever watches
+  /// the recording back should be able to tell.
+  allowed: boolean
 }
 
 export interface ReplayGuess {
@@ -146,6 +151,7 @@ export function reduceEvents(
           tMs: e.t_ms,
           byParticipantId: e.actor_participant_id,
           missed: false,
+          allowed: p.allowed === true,
         })
         break
       // The board changed shape mid-round because a player the database had
@@ -171,6 +177,7 @@ export function reduceEvents(
             tMs: e.t_ms,
             byParticipantId: nullableNum(a.byParticipantId),
             missed: false,
+            allowed: false,
           })
         }
         break
@@ -195,6 +202,7 @@ export function reduceEvents(
             tMs: e.t_ms,
             byParticipantId: null,
             missed: true,
+            allowed: false,
           })
         }
         break
