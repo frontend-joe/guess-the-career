@@ -7,7 +7,8 @@
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc",
     "test": "node --import tsx --test src/services/*.test.ts",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "research": "tsx --env-file=.env src/scripts/market-research.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
