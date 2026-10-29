@@ -68,6 +68,15 @@ final class RoomStore {
     private(set) var cameraOn = false
     private(set) var microphoneOn = false
 
+    // Set the instant a control is tapped, so the button can acknowledge the
+    // tap before the work behind it is done. Turning a camera on is a possible
+    // reconnect, a possible permission prompt and a publish — comfortably over
+    // a second — and for all of it the icon sat exactly as it was. That reads
+    // as a button that missed the tap, so you tap it again, and the second tap
+    // queued another round of the same work behind the first.
+    private(set) var cameraBusy = false
+    private(set) var microphoneBusy = false
+
     /// Players this viewer has blocked, by LiveKit identity.
     ///
     /// Blocking is local and immediate: it unsubscribes from their tracks, so
@@ -322,7 +331,38 @@ final class RoomStore {
         }
     }
 
+    /// Publish, and if the transport turns out not to be there, rebuild the
+    /// connection and publish once more.
+    ///
+    /// `connectionState == .connected` is not a promise that there is anything
+    /// to publish into. The SDK closes its transports and builds new ones
+    /// around a full reconnect — which is what backgrounding the app and
+    /// coming back to it causes — and a publish landing in that gap throws
+    /// "Invalid state (Publisher is nil)" from `requirePublisher()`. Nothing
+    /// announces the gap, so attempting the publish is the only way to find
+    /// it, and a fresh connection is the only way out of it.
+    ///
+    /// Only `.invalidState` is retried. A camera that is genuinely broken
+    /// should say so the first time, not spend a reconnect finding out twice.
+    private func publishing(_ work: (LocalParticipant) async throws -> Void) async throws {
+        guard let room else { return }
+        do {
+            try await work(room.localParticipant)
+        } catch let error as LiveKitError where error.type == .invalidState {
+            self.room = nil
+            await room.disconnect()
+            guard await connectMedia(), let rebuilt = self.room else { throw error }
+            try await work(rebuilt.localParticipant)
+        }
+    }
+
     func setCamera(_ on: Bool) async {
+        // One tap at a time. Without this the taps that the old, unresponsive
+        // button invited each started their own reconnect-and-publish.
+        guard !cameraBusy else { return }
+        cameraBusy = true
+        defer { cameraBusy = false }
+
         // Turning it on is the first time permission is needed, now that the
         // app no longer asks at connect. Denied and not-yet-asked need
         // different messages: one is a trip to Settings, the other is just a
@@ -344,9 +384,9 @@ final class RoomStore {
         // Asked for after the permission prompt, not before: a reconnect takes
         // a second or two, and there is no point spending it for someone who
         // is about to tap Don't Allow.
-        guard await ensureMediaConnected(), let room else { return }
+        guard await ensureMediaConnected() else { return }
         do {
-            try await room.localParticipant.setCamera(enabled: on)
+            try await publishing { try await $0.setCamera(enabled: on) }
             if on { videoNote = nil }
         } catch {
             videoNote = "Could not \(on ? "start" : "stop") your camera: \(error.localizedDescription)"
@@ -356,6 +396,10 @@ final class RoomStore {
     }
 
     func setMicrophone(_ on: Bool) async {
+        guard !microphoneBusy else { return }
+        microphoneBusy = true
+        defer { microphoneBusy = false }
+
         if on {
             switch AVCaptureDevice.authorizationStatus(for: .audio) {
             case .denied, .restricted:
@@ -370,9 +414,9 @@ final class RoomStore {
                 break
             }
         }
-        guard await ensureMediaConnected(), let room else { return }
+        guard await ensureMediaConnected() else { return }
         do {
-            try await room.localParticipant.setMicrophone(enabled: on)
+            try await publishing { try await $0.setMicrophone(enabled: on) }
             if on { videoNote = nil }
         } catch {
             videoNote = "Could not \(on ? "unmute" : "mute"): \(error.localizedDescription)"

@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -223,23 +224,46 @@ fun RoomScreen(model: RoomViewModel) {
             // grey, red and blue at once, which gave the eye no hierarchy.
             IconButton(
                 onClick = { scope.launch { model.setMicrophone(!model.micOn) } },
+                enabled = !model.micBusy,
                 modifier = Modifier.size(42.dp),
             ) {
-                Icon(
-                    if (model.micOn) Icons.Filled.Mic else Icons.Filled.MicOff,
-                    contentDescription = if (model.micOn) "Mute" else "Unmute",
-                    tint = if (model.micOn) Color.White else Color(0xFFFF6B6B),
-                )
+                // The tap has to land on the button straight away. What follows
+                // it — a reconnect, a publish — takes long enough that an
+                // unchanged icon reads as a button that did nothing, which is
+                // what made these two feel sticky and invited the second and
+                // third tap.
+                if (model.micBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White,
+                    )
+                } else {
+                    Icon(
+                        if (model.micOn) Icons.Filled.Mic else Icons.Filled.MicOff,
+                        contentDescription = if (model.micOn) "Mute" else "Unmute",
+                        tint = if (model.micOn) Color.White else Color(0xFFFF6B6B),
+                    )
+                }
             }
             IconButton(
                 onClick = { scope.launch { model.setCamera(!model.cameraOn) } },
+                enabled = !model.cameraBusy,
                 modifier = Modifier.size(42.dp),
             ) {
-                Icon(
-                    if (model.cameraOn) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
-                    contentDescription = if (model.cameraOn) "Turn camera off" else "Turn camera on",
-                    tint = if (model.cameraOn) Color.White else Color(0xFFFF6B6B),
-                )
+                if (model.cameraBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White,
+                    )
+                } else {
+                    Icon(
+                        if (model.cameraOn) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
+                        contentDescription = if (model.cameraOn) "Turn camera off" else "Turn camera on",
+                        tint = if (model.cameraOn) Color.White else Color(0xFFFF6B6B),
+                    )
+                }
             }
             // Everyone types, and the field takes the space the controls do
             // not — instead of sitting on a row of its own under an

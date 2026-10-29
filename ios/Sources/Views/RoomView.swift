@@ -242,21 +242,40 @@ struct RoomView: View {
                 Button {
                     Task { await store.setMicrophone(!store.microphoneOn) }
                 } label: {
-                    Image(systemName: store.microphoneOn ? "mic.fill" : "mic.slash.fill")
-                        .font(.system(size: GlassStyle.symbol))
-                        .foregroundStyle(store.microphoneOn ? .white : .red)
+                    // The tap has to land on the button straight away. What
+                    // follows it — a reconnect, a prompt, a publish — takes
+                    // long enough that an unchanged icon reads as a button
+                    // that did nothing, which is what made these two feel
+                    // sticky and invited the second and third tap.
+                    if store.microphoneBusy {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: store.microphoneOn ? "mic.fill" : "mic.slash.fill")
+                            .font(.system(size: GlassStyle.symbol))
+                            .foregroundStyle(store.microphoneOn ? .white : .red)
+                    }
                 }
                 .buttonStyle(GlassCircleButtonStyle())
+                .disabled(store.microphoneBusy)
                 .accessibilityLabel(store.microphoneOn ? "Mute" : "Unmute")
 
                 Button {
                     Task { await store.setCamera(!store.cameraOn) }
                 } label: {
-                    Image(systemName: store.cameraOn ? "video.fill" : "video.slash.fill")
-                        .font(.system(size: GlassStyle.symbol))
-                        .foregroundStyle(store.cameraOn ? .white : .red)
+                    if store.cameraBusy {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: store.cameraOn ? "video.fill" : "video.slash.fill")
+                            .font(.system(size: GlassStyle.symbol))
+                            .foregroundStyle(store.cameraOn ? .white : .red)
+                    }
                 }
                 .buttonStyle(GlassCircleButtonStyle())
+                .disabled(store.cameraBusy)
                 .accessibilityLabel(store.cameraOn ? "Turn camera off" : "Turn camera on")
 
                 // The field takes the space the controls do not, instead of

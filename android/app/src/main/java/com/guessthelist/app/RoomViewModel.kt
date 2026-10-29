@@ -62,6 +62,15 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     var cameraOn by mutableStateOf(false); private set
     var micOn by mutableStateOf(false); private set
 
+    /** Set the instant a control is tapped, so the button can acknowledge the
+     *  tap before the work behind it is done. Turning a camera on is a
+     *  possible reconnect and a publish — comfortably over a second — and for
+     *  all of it the icon sat exactly as it was. That reads as a button that
+     *  missed the tap, so you tap it again, and the second tap queues another
+     *  round of the same work behind the first. */
+    var cameraBusy by mutableStateOf(false); private set
+    var micBusy by mutableStateOf(false); private set
+
     /** The version already on screen. Higher means we are behind; lower is an
      *  out-of-order message to ignore. */
     private var version = 0
@@ -270,32 +279,70 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     // A throw is not "nothing happened": runCatching used to swallow the
     // reason, so a refused permission and a broken camera looked identical,
     // which is to say they looked like nothing at all.
-    suspend fun setCamera(on: Boolean) {
-        if (on && !hasPermission(Manifest.permission.CAMERA)) {
-            videoNote = "Camera is blocked — allow it for Tenable in Settings."
-            return
+    /**
+     * Publish, and if the transport turns out not to be there, rebuild the
+     * connection and publish once more.
+     *
+     * A connected room is not a promise that there is anything to publish
+     * into. The SDK closes its transports and builds new ones around a full
+     * reconnect — which is what backgrounding the app and coming back to it
+     * causes — and a publish landing in that gap fails on a missing publisher.
+     * Nothing announces the gap, so attempting the publish is the only way to
+     * find it, and a fresh connection is the only way out of it.
+     *
+     * iOS can tell that case apart by its error type and retries only that
+     * one; the Kotlin SDK reports it as a plain exception with no type to
+     * match on, so this retries any publish failure once. The cost of being
+     * wrong is a reconnect before a genuinely broken camera admits it.
+     */
+    private suspend fun publishing(work: suspend (LocalParticipant) -> Unit): Result<Unit> {
+        val current = room ?: return Result.success(Unit)
+        return runCatching { work(current.localParticipant) }.recoverCatching { failure ->
+            room = null
+            runCatching { current.disconnect() }
+            if (!connectMedia()) throw failure
+            work(room?.localParticipant ?: throw failure)
         }
-        if (!ensureMediaConnected()) return
-        val current = room ?: return
-        runCatching { current.localParticipant.setCameraEnabled(on) }
-            .onSuccess { if (on) videoNote = null }
-            .onFailure { videoNote = "Could not start your camera: ${it.message}" }
-        cameraOn = current.localParticipant.isCameraEnabled
-        refreshTiles()
+    }
+
+    suspend fun setCamera(on: Boolean) {
+        // One tap at a time. Without this the taps that the old, unresponsive
+        // button invited each started their own reconnect-and-publish.
+        if (cameraBusy) return
+        cameraBusy = true
+        try {
+            if (on && !hasPermission(Manifest.permission.CAMERA)) {
+                videoNote = "Camera is blocked — allow it for Tenable in Settings."
+                return
+            }
+            if (!ensureMediaConnected()) return
+            publishing { it.setCameraEnabled(on) }
+                .onSuccess { if (on) videoNote = null }
+                .onFailure { videoNote = "Could not start your camera: ${it.message}" }
+            cameraOn = room?.localParticipant?.isCameraEnabled ?: false
+            refreshTiles()
+        } finally {
+            cameraBusy = false
+        }
     }
 
     suspend fun setMicrophone(on: Boolean) {
-        if (on && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
-            videoNote = "Mic is blocked — allow it for Tenable in Settings."
-            return
+        if (micBusy) return
+        micBusy = true
+        try {
+            if (on && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
+                videoNote = "Mic is blocked — allow it for Tenable in Settings."
+                return
+            }
+            if (!ensureMediaConnected()) return
+            publishing { it.setMicrophoneEnabled(on) }
+                .onSuccess { if (on) videoNote = null }
+                .onFailure { videoNote = "Could not unmute: ${it.message}" }
+            micOn = room?.localParticipant?.isMicrophoneEnabled ?: false
+            refreshTiles()
+        } finally {
+            micBusy = false
         }
-        if (!ensureMediaConnected()) return
-        val current = room ?: return
-        runCatching { current.localParticipant.setMicrophoneEnabled(on) }
-            .onSuccess { if (on) videoNote = null }
-            .onFailure { videoNote = "Could not unmute: ${it.message}" }
-        micOn = current.localParticipant.isMicrophoneEnabled
-        refreshTiles()
     }
 
     private fun hasPermission(name: String): Boolean =
