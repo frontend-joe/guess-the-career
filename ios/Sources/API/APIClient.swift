@@ -27,7 +27,13 @@ enum API {
         body: (any Encodable)? = nil,
         bearer: String? = nil
     ) async throws -> Data {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
+        // Resolved as a relative URL rather than appended as a path
+        // component: appendingPathComponent treats the whole string as ONE
+        // component and escapes the reserved characters in it, so a path
+        // carrying a query string became
+        // "api/tenable/rounds%3Fcategory=geography" and 404ed.
+        let url = URL(string: path, relativeTo: baseURL) ?? baseURL.appendingPathComponent(path)
+        var req = URLRequest(url: url)
         req.httpMethod = method
         if let bearer { req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }
         if let body {
