@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
@@ -95,6 +96,7 @@ import io.livekit.android.room.participant.LocalParticipant
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
 
 // The podcast composition, live: board over the top two thirds, faces across
 // the bottom third. Playing layout and recorded layout stay the same, so the
@@ -429,18 +431,34 @@ private fun VideoGrid(model: RoomViewModel) {
         }
         return
     }
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        model.tiles.forEach { tile ->
-            Box(Modifier.weight(1f).fillMaxHeight()) { Tile(model, tile) }
+    // Rooms have no seat limit, so the grid wraps: at most four to a row, then
+    // as many rows as it takes, every tile the same size. Derived from the
+    // count rather than flowed by available width, because the compositor will
+    // lay the recording out from the same rule and the two must not be able to
+    // disagree. Up to four it is still a single row, so the games everybody
+    // has played so far look exactly as they did.
+    val rows = ceil(model.tiles.size / 4.0).toInt().coerceAtLeast(1)
+    val columns = ceil(model.tiles.size / rows.toDouble()).toInt().coerceAtLeast(1)
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        model.tiles.chunked(columns).forEach { row ->
+            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                row.forEach { tile ->
+                    Box(Modifier.weight(1f).fillMaxHeight()) { Tile(model, tile) }
+                }
+                // A short last row keeps its tiles the size of all the others
+                // rather than stretching them to fill the width.
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
         }
     }
 }
 
 // One face, and everything you can do about it.
 //
-// A long press rather than a visible button on every tile: four faces in the
-// bottom third have no room for chrome, and a long press is what Android
-// already uses for "what can I do with this thing".
+// A long press rather than a visible button on every tile: faces in the bottom
+// third have no room for chrome, and the more of them there are the less room
+// there is. A long press is what Android already uses for "what can I do with
+// this thing".
 // combinedClickable is still marked experimental; it is the only way to get a
 // long press on a Box without hand-rolling gesture detection.
 @OptIn(ExperimentalFoundationApi::class)

@@ -1,0 +1,12 @@
+-- Rooms no longer have a seat limit.
+--
+-- game_rooms.max_players was four, chosen when the recording's tile grid was
+-- assumed to be one row across the bottom third. Both apps now wrap the faces
+-- into rows, so the number of people in a game is a layout question rather
+-- than a hard limit, and the fifth person to tap an invite link should get in.
+--
+-- Zero means unlimited. The column stays because a host-set cap is a plausible
+-- thing to want later, and because changing a column's DEFAULT in SQLite means
+-- rebuilding the table and every foreign key pointing at it — createRoom now
+-- writes the 0 explicitly instead, so the old DEFAULT never applies again.
+UPDATE game_rooms SET max_players = 0;

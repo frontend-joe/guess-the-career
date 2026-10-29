@@ -138,8 +138,8 @@ export function createRoom(host: { id: number; displayName: string }, name?: str
       const created = sqlite.transaction(() => {
         const info = sqlite
           .prepare(
-            `INSERT INTO game_rooms (code, livekit_room, host_user_id, name)
-             VALUES (?, ?, ?, ?)`,
+            `INSERT INTO game_rooms (code, livekit_room, host_user_id, name, max_players)
+             VALUES (?, ?, ?, ?, 0)`,
           )
           .run(code, `gtl-${code}-${randomBytes(4).toString('hex')}`, host.id, name ?? null)
         const roomId = Number(info.lastInsertRowid)
@@ -218,11 +218,14 @@ export function joinRoom(
       (sqlite.prepare('SELECT slot FROM game_participants WHERE room_id = ?').all(room.id) as { slot: number }[])
         .map((r) => r.slot),
     )
-    let slot = -1
-    for (let i = 0; i < room.max_players; i++) {
-      if (!taken.has(i)) { slot = i; break }
+    // Lowest free index, with no ceiling unless the room asks for one.
+    // max_players of 0 means unlimited, which is every room — the column is
+    // kept for a host-set cap that does not exist yet.
+    let slot = 0
+    while (taken.has(slot)) slot++
+    if (room.max_players > 0 && slot >= room.max_players) {
+      throw new RoomError('That game is full', 409)
     }
-    if (slot < 0) throw new RoomError('That game is full', 409)
 
     const info = sqlite
       .prepare(

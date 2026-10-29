@@ -1,11 +1,27 @@
 import SwiftUI
 import LiveKit
 
-// Two to four faces across the bottom third. The grid is fixed by count rather
-// than flowing, because the compositor will lay the recording out the same way
-// and the two should not be able to disagree.
+// The faces across the bottom third. Rooms have no seat limit, so the count is
+// not known in advance and the grid wraps: at most four to a row, then as many
+// rows as it takes, every tile the same size.
+//
+// Derived from the count rather than flowed by available width, because the
+// compositor will lay the recording out from the same rule and the two must not
+// be able to disagree. Up to four it is still a single row, so the games
+// everybody has played so far look exactly as they did.
 struct VideoGridView: View {
     let tiles: [RoomStore.Tile]
+
+    // Rows first, then however many columns that needs. The bottom third is
+    // wide and short, so filling a row before starting another keeps tiles as
+    // close to square as the space allows.
+    static func rows(_ count: Int) -> Int {
+        max(1, Int(ceil(Double(count) / 4)))
+    }
+
+    static func columns(_ count: Int) -> Int {
+        max(1, Int(ceil(Double(count) / Double(rows(count)))))
+    }
 
     var body: some View {
         if tiles.isEmpty {
@@ -14,9 +30,21 @@ struct VideoGridView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            HStack(spacing: 4) {
-                ForEach(tiles) { tile in
-                    TileView(tile: tile)
+            let columns = Self.columns(tiles.count)
+            Grid(horizontalSpacing: 4, verticalSpacing: 4) {
+                ForEach(Array(stride(from: 0, to: tiles.count, by: columns)), id: \.self) { start in
+                    GridRow {
+                        ForEach(tiles[start..<min(start + columns, tiles.count)]) { tile in
+                            TileView(tile: tile)
+                        }
+                        // A short last row keeps its tiles the size of all the
+                        // others rather than stretching them to fill the width.
+                        if start + columns > tiles.count {
+                            ForEach(0..<(start + columns - tiles.count), id: \.self) { _ in
+                                Color.clear
+                            }
+                        }
+                    }
                 }
             }
             .padding(4)
@@ -61,9 +89,10 @@ private struct TileView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        // A long press rather than a visible button on every tile: four faces
-        // in the bottom third have no room for chrome, and this is the gesture
-        // iOS already uses for "what can I do with this thing".
+        // A long press rather than a visible button on every tile: faces in
+        // the bottom third have no room for chrome, and the more of them there
+        // are the less room there is. This is the gesture iOS already uses for
+        // "what can I do with this thing".
         .contextMenu { menu }
         .confirmationDialog(
             "Remove \(tile.name) from the game?",

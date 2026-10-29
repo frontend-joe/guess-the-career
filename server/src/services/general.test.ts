@@ -331,3 +331,41 @@ test('counting the tenth answer finishes the round', () => {
   // And nothing more can be added to a board that is full.
   assert.throws(() => rooms.allowGuess(inst.id, host, 'Griffin'), /is \w+/)
 })
+
+// ── Seats ────────────────────────────────────────────────────────────────────
+
+test('a room has no seat limit', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('seats@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Seats')
+
+  // Twenty is not a number anybody will play with; it is well past the four
+  // the room used to stop at, which is the point.
+  for (let i = 1; i <= 20; i++) rooms.joinRoom(room.code, `Guest ${i}`, { platform: 'ios' })
+
+  const seated = rooms.participantsOf(room.id)
+  assert.equal(seated.length, 21)
+  // Slots are the recording's tile order, so they must stay unique and
+  // contiguous however many people turn up.
+  assert.deepEqual(
+    seated.map((p) => p.slot),
+    Array.from({ length: 21 }, (_, i) => i),
+  )
+})
+
+test('a seat is kept rather than reissued when someone comes back', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('rejoin@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Rejoin')
+  rooms.joinRoom(room.code, 'First', { platform: 'ios' })
+  const second = rooms.joinRoom(room.code, 'Second', { platform: 'ios' })
+  rooms.leaveRoom(second.participant.id)
+  rooms.joinRoom(room.code, 'Third', { platform: 'ios' })
+
+  // Third takes slot 3, not the departed Second's slot 2: a tile position that
+  // changes mid-round would reshuffle the faces in whatever gets recorded.
+  const third = rooms.participantsOf(room.id).find((p) => p.display_name === 'Third')!
+  assert.equal(third.slot, 3)
+})
