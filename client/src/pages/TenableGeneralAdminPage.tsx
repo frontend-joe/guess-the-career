@@ -2,25 +2,28 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ArrowLeft, ChevronRight, Loader2, Plus, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getGeographyRounds, type GeographyRound, type GeographyTopic } from '@/api/tenable'
+import { getGeneralRounds, type GeneralRound, type GeneralTopic } from '@/api/tenable'
 
-// Every geography round, grouped by topic. Unlike football's screens there is
+// Every authored round, grouped by subject. Unlike football's screens there is
 // nothing to browse and tick: a round exists because somebody wrote it, so this
 // is a list of what has been written and a button to write another.
-export function TenableGeographyAdminPage() {
+export function TenableGeneralAdminPage() {
   const navigate = useNavigate()
-  const [rounds, setRounds] = useState<GeographyRound[]>([])
-  const [topics, setTopics] = useState<GeographyTopic[]>([])
+  const [rounds, setRounds] = useState<GeneralRound[]>([])
+  const [topics, setTopics] = useState<GeneralTopic[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getGeographyRounds()
+    getGeneralRounds()
       .then(r => { setRounds(r.data); setTopics(r.topics) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  const labelFor = (slug: string) => topics.find(t => t.slug === slug)?.label ?? slug
+  // A topic is free text, so most have no suggested label to look up — show
+  // what was typed, tidied, rather than nothing.
+  const labelFor = (slug: string) =>
+    topics.find(t => t.slug === slug)?.label ?? slug.charAt(0).toUpperCase() + slug.slice(1)
   const byTopic = [...new Set(rounds.map(r => r.topic))].sort()
 
   return (
@@ -34,12 +37,12 @@ export function TenableGeographyAdminPage() {
             <ArrowLeft className="h-3 w-3" />
             Tenable categories
           </button>
-          <h1 className="text-xl font-semibold">Geography Tenable</h1>
+          <h1 className="text-xl font-semibold">General Tenable</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {loading ? 'Loading…' : `${rounds.length} round${rounds.length === 1 ? '' : 's'} across ${byTopic.length} topic${byTopic.length === 1 ? '' : 's'}`}
           </p>
         </div>
-        <Button size="sm" onClick={() => navigate('/admin/tenable/geography/new')}>
+        <Button size="sm" onClick={() => navigate('/admin/tenable/general/new')}>
           <Plus className="h-3.5 w-3.5 mr-1.5" />
           New round
         </Button>
@@ -65,7 +68,7 @@ export function TenableGeographyAdminPage() {
                 {rounds.filter(r => r.topic === topic).map(r => (
                   <button
                     key={r.slug}
-                    onClick={() => navigate(`/admin/tenable/geography/${r.slug}`)}
+                    onClick={() => navigate(`/admin/tenable/general/${r.slug}`)}
                     className="group w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/40 first:rounded-t-xl last:rounded-b-xl"
                   >
                     <div className="min-w-0 flex-1">

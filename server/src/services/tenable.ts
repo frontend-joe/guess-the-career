@@ -1,6 +1,6 @@
 import { normalizeName, sqlite } from "../db/client.ts";
 import { normalizeClubAlias } from "../services/scraper.ts";
-import { geographyType } from "./geography.ts";
+import { generalType } from "./general.ts";
 
 // Football Tenable — 10-answer list rounds.
 //
@@ -309,8 +309,8 @@ export interface TenableType {
    * For types where orderedness is a property of the ROUND rather than of the
    * question shape. A football type is one or the other for good — "most
    * capped" is always a ranking, "name the squad" never is — but an authored
-   * geography round decides for itself, and the ten longest rivers and ten
-   * countries beginning with S are the same type.
+   * round decides for itself, and the ten longest rivers and ten countries
+   * beginning with S are the same type.
    */
   orderedFor?(params: Record<string, string>): boolean;
   candidates(metric: Metric): Candidate[];
@@ -888,7 +888,7 @@ export const TENABLE_TYPES: TenableType[] = [
   worldCupSquad,
   firstName,
   surname,
-  geographyType,
+  generalType,
 ];
 
 export interface TenableCategory {
@@ -907,9 +907,9 @@ export const TENABLE_CATEGORIES: TenableCategory[] = [
     description: "Derived from the footballer database — leagues, clubs, nations, names.",
   },
   {
-    slug: "geography",
-    label: "Geography",
-    description: "Authored lists — countries, cities, rivers, mountains.",
+    slug: "general",
+    label: "General",
+    description: "Authored lists — any subject, answers typed in by hand.",
   },
 ];
 

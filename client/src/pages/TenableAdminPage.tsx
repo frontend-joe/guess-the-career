@@ -13,11 +13,11 @@ import { getTenableCategories, type TenableCategory } from '@/api/tenable'
 //   in the footballer database, so its admin browses that space and ticks the
 //   ones worth playing.
 //
-//   Geography is AUTHORED. Nothing implies the ten longest rivers until somebody
+//   General is AUTHORED. Nothing implies the ten longest rivers until somebody
 //   writes them down, so its admin is an editor.
 const ICONS: Record<string, typeof Trophy> = {
   football: Trophy,
-  geography: Globe2,
+  general: Globe2,
 }
 
 export function TenableAdminPage() {

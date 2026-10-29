@@ -100,10 +100,41 @@ if (effortAt !== -1) {
 
 const adHoc = args.join(' ').trim()
 
+// A one-off answer is also written to disk. These take minutes and cost money
+// per call, so losing one to a closed terminal or a `| tail` is not acceptable.
+function slug(question: string): string {
+  return question
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+}
+
 if (adHoc) {
-  const answer = await ask(adHoc, { effort, instructions: INSTRUCTIONS })
-  console.log(`\n${answer.text}\n`)
-  for (const source of answer.sources) console.log(`  - ${source.title} — ${source.url}`)
+  try {
+    const answer = await ask(adHoc, { effort, instructions: INSTRUCTIONS })
+
+    const sources = answer.sources
+      .map(source => `- [${source.title}](${source.url})${source.date ? ` — ${source.date}` : ''}`)
+      .join('\n')
+    const today = new Date().toISOString().slice(0, 10)
+    const path = resolve(REPO_ROOT, 'docs/market-research', `${today}-${slug(adHoc)}.md`)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(
+      path,
+      `# ${adHoc}\n\nAsked ${today} via Perplexity Agent API (effort "${effort}", routed to ` +
+        `${answer.model}).\n\n${answer.text.replace(/^(#{1,5}) /gm, '#$1 ')}\n` +
+        (sources ? `\n## Sources\n\n${sources}\n` : ''),
+      'utf8',
+    )
+
+    console.log(`\n${answer.text}\n`)
+    console.log(`(${answer.sources.length} sources)`)
+    console.log(`Saved: ${path}`)
+  } catch (e) {
+    console.error(`\n${e instanceof Error ? e.message : e}`)
+    process.exit(1)
+  }
   process.exit(0)
 }
 

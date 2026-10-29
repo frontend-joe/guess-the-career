@@ -4,44 +4,44 @@ import { ArrowLeft, ArrowDown, ArrowUp, Loader2, Plus, Save, Trash2, SortDesc } 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  getGeographyRound,
-  getGeographyRounds,
-  saveGeographyRound,
-  deleteGeographyRound,
-  type GeographyAnswer,
-  type GeographyTopic,
+  getGeneralRound,
+  getGeneralRounds,
+  saveGeneralRound,
+  deleteGeneralRound,
+  type GeneralAnswer,
+  type GeneralTopic,
 } from '@/api/tenable'
 
 const BOARD_SIZE = 10
 
-const blank = (): GeographyAnswer => ({ name: '', aliases: [], value: 0, display: null })
+const blank = (): GeneralAnswer => ({ name: '', aliases: [], value: 0, display: null })
 
-// The editor for one geography round. Writing a round IS creating it — there is
+// The editor for one authored round. Writing a round IS creating it — there is
 // no derivation to discover it — so this screen owns the question, how it is
 // scored, and the answers themselves.
-export function TenableGeographyRoundPage() {
+export function TenableGeneralRoundPage() {
   const { slug = '' } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const isNew = slug === 'new'
 
-  const [topics, setTopics] = useState<GeographyTopic[]>([])
+  const [topics, setTopics] = useState<GeneralTopic[]>([])
   const [title, setTitle] = useState('')
   const [roundSlug, setRoundSlug] = useState('')
   const [topic, setTopic] = useState('countries')
   const [ordered, setOrdered] = useState(true)
   const [unit, setUnit] = useState('')
-  const [answers, setAnswers] = useState<GeographyAnswer[]>(
+  const [answers, setAnswers] = useState<GeneralAnswer[]>(
     Array.from({ length: BOARD_SIZE }, blank),
   )
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => { getGeographyRounds().then(r => setTopics(r.topics)).catch(() => {}) }, [])
+  useEffect(() => { getGeneralRounds().then(r => setTopics(r.topics)).catch(() => {}) }, [])
 
   useEffect(() => {
     if (isNew) return
-    getGeographyRound(slug)
+    getGeneralRound(slug)
       .then(({ round, answers }) => {
         setTitle(round.title)
         setRoundSlug(round.slug)
@@ -60,7 +60,7 @@ export function TenableGeographyRoundPage() {
     s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const effectiveSlug = roundSlug.trim() || slugify(title)
 
-  function patch(i: number, next: Partial<GeographyAnswer>) {
+  function patch(i: number, next: Partial<GeneralAnswer>) {
     setAnswers(a => a.map((row, j) => (j === i ? { ...row, ...next } : row)))
   }
   function move(i: number, by: number) {
@@ -78,18 +78,19 @@ export function TenableGeographyRoundPage() {
   async function save() {
     setError(null)
     if (!title.trim()) return setError('Give the round a question')
+    if (!topic.trim()) return setError('Give the round a topic')
     if (!effectiveSlug) return setError('Give the round a slug')
     setSaving(true)
     try {
-      const saved = await saveGeographyRound(isNew ? effectiveSlug : slug, {
+      const saved = await saveGeneralRound(isNew ? effectiveSlug : slug, {
         slug: effectiveSlug,
-        topic,
+        topic: topic.trim().toLowerCase(),
         title: title.trim(),
         ordered,
         unit: unit.trim() || null,
         answers: answers.filter(a => a.name.trim()),
       })
-      navigate(`/admin/tenable/geography/${saved.slug}`, { replace: true })
+      navigate(`/admin/tenable/general/${saved.slug}`, { replace: true })
       if (!isNew) setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save')
@@ -100,8 +101,8 @@ export function TenableGeographyRoundPage() {
 
   async function remove() {
     if (!confirm(`Delete “${title}”? This removes the round and its answers.`)) return
-    await deleteGeographyRound(slug)
-    navigate('/admin/tenable/geography')
+    await deleteGeneralRound(slug)
+    navigate('/admin/tenable/general')
   }
 
   if (loading) {
@@ -116,11 +117,11 @@ export function TenableGeographyRoundPage() {
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <button
-        onClick={() => navigate('/admin/tenable/geography')}
+        onClick={() => navigate('/admin/tenable/general')}
         className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mb-3"
       >
         <ArrowLeft className="h-3 w-3" />
-        Geography rounds
+        General rounds
       </button>
 
       <div className="space-y-4">
@@ -137,13 +138,20 @@ export function TenableGeographyRoundPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Topic</label>
-            <select
+            {/* Free text with suggestions, not a fixed list. A topic only
+                groups rounds on the list screen, so a round about anything
+                nobody has thought of yet should cost a word here rather than
+                a release. */}
+            <Input
               value={topic}
               onChange={e => setTopic(e.target.value)}
-              className="mt-1 w-full h-9 text-sm border border-input rounded-md px-2 bg-background"
-            >
+              list="general-topics"
+              placeholder="countries"
+              className="mt-1"
+            />
+            <datalist id="general-topics">
               {topics.map(t => <option key={t.slug} value={t.slug}>{t.label}</option>)}
-            </select>
+            </datalist>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Board</label>

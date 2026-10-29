@@ -9,7 +9,7 @@ import { getTenableTypes, bulkSelectTenable, pruneTenableRounds, type TenableTyp
 //
 // This is the shape of admin a DERIVED category needs: the rounds already exist
 // implicitly in the footballer data, and the job is to browse them and pick the
-// good ones. An authored category (see TenableGeographyAdminPage) has nothing to
+// good ones. An authored category (see TenableGeneralAdminPage) has nothing to
 // browse, so it gets an editor instead.
 export function TenableFootballAdminPage() {
   const navigate = useNavigate()

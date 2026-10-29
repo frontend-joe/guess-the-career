@@ -80,8 +80,8 @@ function firstNamesAgree(g: string, p: string): boolean {
 
 // ── Places ───────────────────────────────────────────────────────────────────
 //
-// A geography answer is not a person, and the rules above are entirely about
-// people: a surname is the memorable half of a footballer's name, so they
+// An authored answer is usually a place or a thing, not a person, and the rules
+// above are entirely about people: a surname is the memorable half of a footballer's name, so they
 // accept one on its own. Nothing equivalent is true of places. "York" is not
 // New York, "Africa" is not South Africa, and "Dakota" is two different states
 // — every one of which the surname rule would wave through.

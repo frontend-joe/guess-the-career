@@ -1,27 +1,32 @@
 import { sqlite } from "../db/client.ts";
 import type { Candidate, Metric, TenableAnswer, TenableType } from "./tenable.ts";
 
-// Geography Tenable — rounds whose answers are authored rather than derived.
+// General Tenable — rounds whose answers are authored rather than derived.
 //
-// Football's rounds are a query against the footballer database, so "the ten
-// most capped Scots" improves every time the scraper runs. Nothing can derive
-// the ten longest rivers, so a geography round IS its answer list: typed in
-// through the admin section and stored in geography_rounds / geography_answers
-// (see migration 0096).
+// That is the whole of what the category means. Football's rounds are a query
+// against the footballer database, so "the ten most capped Scots" improves
+// every time the scraper runs. Nothing can derive the ten longest rivers, so a
+// general round IS its answer list: typed in through the admin section and
+// stored in general_rounds / general_answers (see migrations 0096 and 0101).
+//
+// It was called Geography until the rounds stopped all being geography. The
+// subject lives on a round's topic, which is free text for exactly that reason:
+// a new subject should cost somebody a sentence, not a release.
 //
 // Everything downstream of a round — the registry row, the multiplayer freeze,
 // the guess matching, the board — is shared with football. This file is only
 // the part that differs: where the ten answers come from.
 
-export interface GeographyTopic {
+export interface GeneralTopic {
   slug: string;
   label: string;
 }
 
-// Topics group rounds in the admin list. They are deliberately a flat list of
-// labels rather than a table: a topic carries no behaviour, and a round's topic
-// is free to be one of these or something new an admin types in.
-export const GEOGRAPHY_TOPICS: GeographyTopic[] = [
+// Suggestions, not a fixed set. A topic carries no behaviour — it groups rounds
+// on the admin screen and nothing else — so these are offered as autocomplete
+// and a round is free to carry a subject nobody has thought of yet. Adding
+// "Music" should not be a deploy.
+export const GENERAL_TOPICS: GeneralTopic[] = [
   { slug: "countries", label: "Countries" },
   { slug: "cities", label: "Cities" },
   { slug: "rivers", label: "Rivers" },
@@ -29,22 +34,23 @@ export const GEOGRAPHY_TOPICS: GeographyTopic[] = [
   { slug: "lakes", label: "Lakes" },
   { slug: "islands", label: "Islands" },
   { slug: "seas", label: "Seas & oceans" },
+  { slug: "deserts", label: "Deserts" },
   { slug: "states", label: "States & regions" },
-  { slug: "flags", label: "Flags & capitals" },
+  { slug: "capitals", label: "Capitals" },
 ];
 
-export interface GeographyAnswerInput {
+export interface GeneralAnswerInput {
   name: string;
   aliases: string[];
   value: number;
   display: string | null;
 }
 
-export interface GeographyAnswerRow extends GeographyAnswerInput {
+export interface GeneralAnswerRow extends GeneralAnswerInput {
   position: number;
 }
 
-export interface GeographyRoundRow {
+export interface GeneralRoundRow {
   slug: string;
   topic: string;
   title: string;
@@ -59,26 +65,26 @@ const PARAMS = (slug: string) => JSON.stringify({ round: slug });
 
 // ── Reading ──────────────────────────────────────────────────────────────────
 
-export function geographyRounds(): GeographyRoundRow[] {
+export function generalRounds(): GeneralRoundRow[] {
   return sqlite
     .prepare(
       `SELECT g.slug, g.topic, g.title, g.ordered, g.unit,
-              (SELECT COUNT(*) FROM geography_answers a WHERE a.round_slug = g.slug) AS answerCount,
+              (SELECT COUNT(*) FROM general_answers a WHERE a.round_slug = g.slug) AS answerCount,
               (SELECT t.id FROM tenable_rounds t
-                WHERE t.category = 'geography' AND t.type = 'geography'
+                WHERE t.category = 'general' AND t.type = 'general'
                   AND t.params = '{"round":"' || g.slug || '"}') AS roundId
-       FROM geography_rounds g
+       FROM general_rounds g
        ORDER BY g.topic, g.title`,
     )
     .all()
-    .map((r) => ({ ...(r as GeographyRoundRow), ordered: !!(r as { ordered: number }).ordered }));
+    .map((r) => ({ ...(r as GeneralRoundRow), ordered: !!(r as { ordered: number }).ordered }));
 }
 
-export function geographyAnswers(slug: string): GeographyAnswerRow[] {
+export function generalAnswers(slug: string): GeneralAnswerRow[] {
   const rows = sqlite
     .prepare(
       `SELECT position, name, aliases, value, display
-       FROM geography_answers WHERE round_slug = ? ORDER BY position`,
+       FROM general_answers WHERE round_slug = ? ORDER BY position`,
     )
     .all(slug) as { position: number; name: string; aliases: string | null; value: number; display: string | null }[];
   return rows.map((r) => ({
@@ -102,19 +108,19 @@ export function parseAliases(raw: string | null | undefined): string[] {
 
 function roundBySlug(slug: string): { ordered: number; unit: string | null; title: string } | undefined {
   return sqlite
-    .prepare(`SELECT ordered, unit, title FROM geography_rounds WHERE slug = ?`)
+    .prepare(`SELECT ordered, unit, title FROM general_rounds WHERE slug = ?`)
     .get(slug) as { ordered: number; unit: string | null; title: string } | undefined;
 }
 
 // ── Writing ──────────────────────────────────────────────────────────────────
 
-export interface GeographyRoundInput {
+export interface GeneralRoundInput {
   slug: string;
   topic: string;
   title: string;
   ordered: boolean;
   unit: string | null;
-  answers: GeographyAnswerInput[];
+  answers: GeneralAnswerInput[];
 }
 
 /**
@@ -125,7 +131,7 @@ export interface GeographyRoundInput {
  * reconcile. A frozen multiplayer instance is unaffected either way — it took
  * its own copy.
  */
-export function saveGeographyRound(input: GeographyRoundInput): { slug: string; roundId: number } {
+export function saveGeneralRound(input: GeneralRoundInput): { slug: string; roundId: number } {
   const slug = input.slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   if (!slug) throw new Error("A round needs a slug");
   if (!input.title.trim()) throw new Error("A round needs a title");
@@ -133,7 +139,7 @@ export function saveGeographyRound(input: GeographyRoundInput): { slug: string; 
   return sqlite.transaction(() => {
     sqlite
       .prepare(
-        `INSERT INTO geography_rounds (slug, topic, title, ordered, unit)
+        `INSERT INTO general_rounds (slug, topic, title, ordered, unit)
          VALUES (?, ?, ?, ?, ?)
          ON CONFLICT (slug) DO UPDATE
            SET topic = excluded.topic, title = excluded.title,
@@ -141,9 +147,9 @@ export function saveGeographyRound(input: GeographyRoundInput): { slug: string; 
       )
       .run(slug, input.topic, input.title.trim(), input.ordered ? 1 : 0, input.unit || null);
 
-    sqlite.prepare(`DELETE FROM geography_answers WHERE round_slug = ?`).run(slug);
+    sqlite.prepare(`DELETE FROM general_answers WHERE round_slug = ?`).run(slug);
     const insert = sqlite.prepare(
-      `INSERT INTO geography_answers (round_slug, position, name, aliases, value, display)
+      `INSERT INTO general_answers (round_slug, position, name, aliases, value, display)
        VALUES (?, ?, ?, ?, ?, ?)`,
     );
     // An ordered round is a ranked list, so the stored order IS the board and
@@ -160,55 +166,55 @@ export function saveGeographyRound(input: GeographyRoundInput): { slug: string; 
     });
 
     const answerCount = (sqlite
-      .prepare(`SELECT COUNT(*) AS n FROM geography_answers WHERE round_slug = ?`)
+      .prepare(`SELECT COUNT(*) AS n FROM general_answers WHERE round_slug = ?`)
       .get(slug) as { n: number }).n;
 
     sqlite
       .prepare(
         `INSERT INTO tenable_rounds (category, type, params, metric, title, answer_count)
-         VALUES ('geography', 'geography', ?, 'none', ?, ?)
+         VALUES ('general', 'general', ?, 'none', ?, ?)
          ON CONFLICT (type, params, metric) DO UPDATE
            SET title = excluded.title, answer_count = excluded.answer_count`,
       )
       .run(PARAMS(slug), input.title.trim(), answerCount);
 
     const roundId = (sqlite
-      .prepare(`SELECT id FROM tenable_rounds WHERE type = 'geography' AND params = ? AND metric = 'none'`)
+      .prepare(`SELECT id FROM tenable_rounds WHERE type = 'general' AND params = ? AND metric = 'none'`)
       .get(PARAMS(slug)) as { id: number }).id;
 
     return { slug, roundId };
   })();
 }
 
-export function deleteGeographyRound(slug: string): void {
+export function deleteGeneralRound(slug: string): void {
   sqlite.transaction(() => {
     // The registry row goes first: a round nobody can select is a better
     // half-deleted state than answers nobody can reach.
     sqlite
-      .prepare(`DELETE FROM tenable_rounds WHERE type = 'geography' AND params = ?`)
+      .prepare(`DELETE FROM tenable_rounds WHERE type = 'general' AND params = ?`)
       .run(PARAMS(slug));
-    sqlite.prepare(`DELETE FROM geography_answers WHERE round_slug = ?`).run(slug);
-    sqlite.prepare(`DELETE FROM geography_rounds WHERE slug = ?`).run(slug);
+    sqlite.prepare(`DELETE FROM general_answers WHERE round_slug = ?`).run(slug);
+    sqlite.prepare(`DELETE FROM general_rounds WHERE slug = ?`).run(slug);
   })();
 }
 
 // ── The round type ───────────────────────────────────────────────────────────
 //
-// One Tenable type covers every geography round. Football needs a type per
-// question shape because each shape is a different query; here the query is
-// always "this round's answers, in order", and what differs between rounds is
-// data, not code.
+// One Tenable type covers every authored round, whatever its subject. Football
+// needs a type per question shape because each shape is a different query; here
+// the query is always "this round's answers, in order", and what differs
+// between rounds is data, not code.
 
-export const geographyType: TenableType = {
-  slug: "geography",
-  category: "geography",
-  label: "Geography",
-  description: "Authored list rounds — countries, cities, rivers, mountains.",
+export const generalType: TenableType = {
+  slug: "general",
+  category: "general",
+  label: "General",
+  description: "Authored list rounds — any subject, answers typed in by hand.",
   example: "The 10 longest rivers in the world",
   metricless: true,
 
   title(params) {
-    return roundBySlug(params.round ?? "")?.title ?? "Geography round";
+    return roundBySlug(params.round ?? "")?.title ?? "General round";
   },
 
   orderedFor(params) {
@@ -223,7 +229,7 @@ export const geographyType: TenableType = {
     if (!round) return [];
     const rows = sqlite
       .prepare(
-        `SELECT name, aliases, value, display FROM geography_answers
+        `SELECT name, aliases, value, display FROM general_answers
          WHERE round_slug = ? ORDER BY position LIMIT ?`,
       )
       .all(params.round, limit) as {
@@ -241,7 +247,7 @@ export const geographyType: TenableType = {
     }));
   },
 
-  // Geography rounds are authored, not discovered: there is no space of
+  // Authored rounds are not discovered: there is no space of
   // candidates to browse, because every round that could exist already does
   // the moment somebody writes it down. The admin section for this category is
   // an editor rather than a picker.

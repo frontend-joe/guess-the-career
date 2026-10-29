@@ -23,12 +23,12 @@ import {
   type Metric,
 } from "../services/tenable.ts";
 import {
-  GEOGRAPHY_TOPICS,
-  geographyAnswers,
-  geographyRounds,
-  saveGeographyRound,
-  deleteGeographyRound,
-} from "../services/geography.ts";
+  GENERAL_TOPICS,
+  generalAnswers,
+  generalRounds,
+  saveGeneralRound,
+  deleteGeneralRound,
+} from "../services/general.ts";
 
 export const tenableRouter = new Hono();
 
@@ -197,9 +197,9 @@ tenableRouter.post(
 tenableRouter.post("/admin/rounds/prune", (c) => {
   // Football only. Pruning asks "does this round still have ten answers?",
   // which is a question about a derivation that moves underneath you. An
-  // authored round's answers are the round: a geography round with nine
-  // answers is half-written, not stale, and deleting it would throw away
-  // somebody's work in progress.
+  // authored round's answers are the round: one with nine answers is
+  // half-written, not stale, and deleting it would throw away somebody's work
+  // in progress.
   const rounds = sqlite
     .prepare(`SELECT id, type, params, metric FROM tenable_rounds WHERE category = 'football'`)
     .all() as { id: number; type: string; params: string; metric: string }[];
@@ -249,24 +249,24 @@ tenableRouter.get("/admin/rounds", (c) => {
   );
 });
 
-// ── Admin: Geography ─────────────────────────────────────────────────────────
+// ── Admin: General ───────────────────────────────────────────────────────────
 //
 // A different shape of admin from football's, because the rounds are a
-// different shape. Football's screens browse a space of rounds the data
-// already implies and tick the good ones; geography's is an editor, because
-// nothing implies the ten longest rivers until somebody writes them down.
+// different shape. Football's screens browse a space of rounds the data already
+// implies and tick the good ones; this one is an editor, because nothing
+// implies the ten longest rivers until somebody writes them down.
 
-tenableRouter.get("/admin/geography/rounds", (c) =>
-  c.json({ data: geographyRounds(), topics: GEOGRAPHY_TOPICS }));
+tenableRouter.get("/admin/general/rounds", (c) =>
+  c.json({ data: generalRounds(), topics: GENERAL_TOPICS }));
 
-tenableRouter.get("/admin/geography/rounds/:slug", (c) => {
+tenableRouter.get("/admin/general/rounds/:slug", (c) => {
   const slug = c.req.param("slug");
-  const round = geographyRounds().find((r) => r.slug === slug);
+  const round = generalRounds().find((r) => r.slug === slug);
   if (!round) return c.json({ error: "Unknown round" }, 404);
-  return c.json({ round, answers: geographyAnswers(slug) });
+  return c.json({ round, answers: generalAnswers(slug) });
 });
 
-const geographyBody = z.object({
+const generalBody = z.object({
   slug: z.string().min(1),
   topic: z.string().min(1),
   title: z.string().min(1),
@@ -282,10 +282,10 @@ const geographyBody = z.object({
   ),
 });
 
-tenableRouter.put("/admin/geography/rounds/:slug", zValidator("json", geographyBody), (c) => {
+tenableRouter.put("/admin/general/rounds/:slug", zValidator("json", generalBody), (c) => {
   const b = c.req.valid("json");
   try {
-    const saved = saveGeographyRound({
+    const saved = saveGeneralRound({
       slug: c.req.param("slug") === "new" ? b.slug : c.req.param("slug"),
       topic: b.topic,
       title: b.title,
@@ -304,13 +304,13 @@ tenableRouter.put("/admin/geography/rounds/:slug", zValidator("json", geographyB
   }
 });
 
-tenableRouter.delete("/admin/geography/rounds/:slug", (c) => {
-  deleteGeographyRound(c.req.param("slug"));
+tenableRouter.delete("/admin/general/rounds/:slug", (c) => {
+  deleteGeneralRound(c.req.param("slug"));
   return c.json({ ok: true });
 });
 
 // ── The pool a room picks from ───────────────────────────────────────────────
-// GET /api/tenable/rounds?category=geography
+// GET /api/tenable/rounds?category=general
 //
 // Separate from /schedule/rounds, which is the solo web game's calendar and
 // answers "what is today's round". A room does not want a calendar: the host

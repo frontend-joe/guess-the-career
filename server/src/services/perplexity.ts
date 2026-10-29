@@ -83,16 +83,28 @@ function parse(body: ResponseBody): Answer {
   return { text, sources, model: body.model ?? 'unknown' }
 }
 
+// Each level up searches more and writes longer, and a timeout that suits
+// 'medium' aborts 'high' most of the time — so the budget follows the effort
+// rather than being one number for all of them.
+const TIMEOUT_MS: Record<Effort, number> = {
+  fast: 60_000,
+  low: 120_000,
+  medium: 240_000,
+  high: 600_000,
+  xhigh: 900_000,
+}
+
 export interface AskOptions {
   effort?: Effort
   /** A system-style preamble applied to the question. */
   instructions?: string
-  /** Give up after this long. Deep questions genuinely take minutes. */
+  /** Give up after this long. Defaults to a budget that suits the effort. */
   timeoutMs?: number
 }
 
 export async function ask(question: string, options: AskOptions = {}): Promise<Answer> {
-  const { effort = 'medium', instructions, timeoutMs = 180_000 } = options
+  const { effort = 'medium', instructions } = options
+  const timeoutMs = options.timeoutMs ?? TIMEOUT_MS[effort] ?? TIMEOUT_MS.medium
 
   const response = await fetch(ENDPOINT, {
     method: 'POST',

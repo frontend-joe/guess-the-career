@@ -12,7 +12,7 @@ import {
   type Metric,
 } from './tenable.ts'
 import { matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
-import { parseAliases } from './geography.ts'
+import { parseAliases } from './general.ts'
 import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.ts'
 import { resolveOrCreateFootballer } from './playerImport.ts'
 import { moderateMessage } from './moderation.ts'
@@ -490,8 +490,8 @@ interface AnswerRow {
   nationality: string | null
   photo_url: string | null
   /// Null for an answer with no footballer record — a transfer row can name
-  /// somebody the footballers table has never heard of, and a geography answer
-  /// is not a person at all.
+  /// somebody the footballers table has never heard of, and an authored answer
+  /// is often not a person at all.
   footballer_id: number | null
   display: string | null
   aliases: string | null
@@ -590,8 +590,8 @@ export function submitGuess(
   // Which game this round is. Everything in this function that reaches for the
   // footballer database — parking an unknown name for review, looking it up,
   // putting a late-arriving player on the board — is football's and only
-  // football's. A geography round's answers are authored, so a name that is not
-  // among them is simply wrong, and there is nothing to go and find out.
+  // football's. An authored round's answers are the round, so a name that is
+  // not among them is simply wrong, and there is nothing to go and find out.
   const category = categoryOf(inst.type)
   const match = pickAnswer(raw, answers, category)
   let verdict: Verdict

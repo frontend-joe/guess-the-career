@@ -255,16 +255,16 @@ export async function getTenableRoundPool(category: string): Promise<TenablePool
   return res.json()
 }
 
-// ── Geography admin ─────────────────────────────────────────────────────────
+// ── General admin ───────────────────────────────────────────────────────────
 // An editor rather than a picker: nothing implies the ten longest rivers until
 // somebody writes them down.
 
-export interface GeographyTopic {
+export interface GeneralTopic {
   slug: string
   label: string
 }
 
-export interface GeographyRound {
+export interface GeneralRound {
   slug: string
   topic: string
   title: string
@@ -274,7 +274,7 @@ export interface GeographyRound {
   roundId: number | null
 }
 
-export interface GeographyAnswer {
+export interface GeneralAnswer {
   position?: number
   name: string
   aliases: string[]
@@ -282,23 +282,23 @@ export interface GeographyAnswer {
   display: string | null
 }
 
-export async function getGeographyRounds(): Promise<{ data: GeographyRound[]; topics: GeographyTopic[] }> {
-  const res = await fetch('/api/tenable/admin/geography/rounds')
-  if (!res.ok) throw new Error('Failed to load geography rounds')
+export async function getGeneralRounds(): Promise<{ data: GeneralRound[]; topics: GeneralTopic[] }> {
+  const res = await fetch('/api/tenable/admin/general/rounds')
+  if (!res.ok) throw new Error('Failed to load rounds')
   return res.json()
 }
 
-export async function getGeographyRound(slug: string): Promise<{ round: GeographyRound; answers: GeographyAnswer[] }> {
-  const res = await fetch(`/api/tenable/admin/geography/rounds/${encodeURIComponent(slug)}`)
+export async function getGeneralRound(slug: string): Promise<{ round: GeneralRound; answers: GeneralAnswer[] }> {
+  const res = await fetch(`/api/tenable/admin/general/rounds/${encodeURIComponent(slug)}`)
   if (!res.ok) throw new Error('Failed to load round')
   return res.json()
 }
 
-export async function saveGeographyRound(
+export async function saveGeneralRound(
   slug: string,
-  body: Omit<GeographyRound, 'answerCount' | 'roundId'> & { answers: GeographyAnswer[] },
+  body: Omit<GeneralRound, 'answerCount' | 'roundId'> & { answers: GeneralAnswer[] },
 ): Promise<{ slug: string; roundId: number }> {
-  const res = await fetch(`/api/tenable/admin/geography/rounds/${encodeURIComponent(slug)}`, {
+  const res = await fetch(`/api/tenable/admin/general/rounds/${encodeURIComponent(slug)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -307,7 +307,7 @@ export async function saveGeographyRound(
   return res.json()
 }
 
-export async function deleteGeographyRound(slug: string): Promise<void> {
-  const res = await fetch(`/api/tenable/admin/geography/rounds/${encodeURIComponent(slug)}`, { method: 'DELETE' })
+export async function deleteGeneralRound(slug: string): Promise<void> {
+  const res = await fetch(`/api/tenable/admin/general/rounds/${encodeURIComponent(slug)}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete round')
 }
