@@ -26,6 +26,9 @@ export interface RevealedAnswer {
   name: string
   value: number
   unit: string | null
+  /// What the badge should read when the number cannot speak for itself —
+  /// "6,650", "17.1m". Null on football rounds, where it always could.
+  display: string | null
   nationality: string | null
   photoUrl: string | null
   /// Which footballer this row is, so a client can open their career card.
@@ -127,6 +130,7 @@ export function reduceEvents(
           name: str(p.name),
           value: num(p.value),
           unit: nullableStr(p.unit),
+          display: nullableStr(p.display),
           nationality: nullableStr(p.nationality),
           photoUrl: nullableStr(p.photoUrl),
           footballerId: nullableNum(p.footballerId),
@@ -151,6 +155,7 @@ export function reduceEvents(
             name: str(a.name),
             value: num(a.value),
             unit: nullableStr(a.unit),
+            display: nullableStr(a.display),
             nationality: nullableStr(a.nationality),
             photoUrl: nullableStr(a.photoUrl),
             footballerId: nullableNum(a.footballerId),
@@ -174,6 +179,7 @@ export function reduceEvents(
             name: str(a.name),
             value: num(a.value),
             unit: nullableStr(a.unit),
+            display: nullableStr(a.display),
             nationality: nullableStr(a.nationality),
             photoUrl: nullableStr(a.photoUrl),
             footballerId: nullableNum(a.footballerId),

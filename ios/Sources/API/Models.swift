@@ -20,6 +20,11 @@ struct RevealedAnswer: Codable, Equatable {
     let name: String
     let value: Double
     let unit: String?
+    /// What the badge should read when the number cannot speak for itself:
+    /// "6,650", "17.1m". An authored round says so outright, because one
+    /// formatting rule cannot serve river kilometres and country populations
+    /// at once. Null on a football round, where the number always could.
+    let display: String?
     let nationality: String?
     let photoUrl: String?
     /// Who this row is, so tapping it can open their career. Null on an
@@ -225,13 +230,28 @@ struct TokenPair: Codable {
     let refreshToken: String
 }
 
-struct ScheduledRound: Codable, Identifiable, Equatable {
-    let date: String
+/// A round in the pool the host picks from. Named for the schedule it used to
+/// come from; it is now any round of one category, and only Football has a
+/// schedule at all — hence the optional date.
+struct PoolRound: Codable, Identifiable, Equatable {
+    let date: String?
     let roundId: Int
     let title: String
     let metric: String
+    let category: String?
 
     var id: Int { roundId }
+}
+
+/// One of the games Tenable is made of. Served rather than hardcoded, so a new
+/// category does not need an app release.
+struct TenableCategory: Codable, Identifiable, Equatable {
+    let slug: String
+    let label: String
+    let description: String
+    let rounds: Int
+
+    var id: String { slug }
 }
 
 // MARK: - Player card

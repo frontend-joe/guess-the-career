@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { sqlite } from '../db/client.ts'
 import {
   answersForRound,
+  categoryOf,
   cluesForFootballers,
   transferCluesForWindow,
   impliedCluesFor,
@@ -10,7 +11,8 @@ import {
   ROUND_SIZE,
   type Metric,
 } from './tenable.ts'
-import { matchesName, norm, surnameOf } from './nameMatch.ts'
+import { matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
+import { parseAliases } from './geography.ts'
 import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.ts'
 import { resolveOrCreateFootballer } from './playerImport.ts'
 import { moderateMessage } from './moderation.ts'
@@ -354,7 +356,7 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
 
   const params = JSON.parse(round.params) as Record<string, string>
   const metric = round.metric as Metric
-  const ordered = isOrdered(round.type)
+  const ordered = isOrdered(round.type, params)
   const answers = answersForRound(round.type, params, metric, SNAPSHOT_DEPTH)
   if (answers.length < ROUND_SIZE) {
     throw new RoomError(`That round only has ${answers.length} answers right now`, 409)
@@ -399,8 +401,8 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
     const insert = sqlite.prepare(
       `INSERT INTO game_round_answers
          (instance_id, rank, on_board, footballer_id, name, name_norm, surname_norm,
-          nationality, photo_url, value, unit, clue_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          nationality, photo_url, value, unit, display, aliases, clue_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     answers.forEach((a, i) => {
       const rank = i + 1
@@ -413,6 +415,10 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
         id, rank, ordered ? (rank <= ROUND_SIZE ? 1 : 0) : 1,
         a.footballer_id, a.name, normalized, surnameOf(normalized),
         a.nationality, a.photo_url, a.value, a.unit ?? null,
+        // An authored round says how its badge should read; a derived one
+        // leaves it to the client, which has only ever had the number.
+        a.display ?? null,
+        a.aliases?.length ? JSON.stringify(a.aliases) : null,
         clueFor(a, normalized),
       )
     })
@@ -484,8 +490,11 @@ interface AnswerRow {
   nationality: string | null
   photo_url: string | null
   /// Null for an answer with no footballer record — a transfer row can name
-  /// somebody the footballers table has never heard of.
+  /// somebody the footballers table has never heard of, and a geography answer
+  /// is not a person at all.
   footballer_id: number | null
+  display: string | null
+  aliases: string | null
   found_at_ms: number | null
 }
 
@@ -500,11 +509,16 @@ interface AnswerRow {
 // So: an exact full-name match is unambiguous and always wins. Failing that,
 // prefer someone not yet found, so repeating an ambiguous surname moves on to
 // the next player it fits rather than endlessly re-hitting the first.
-function pickAnswer(raw: string, answers: AnswerRow[]): AnswerRow | null {
+function pickAnswer(raw: string, answers: AnswerRow[], category: string): AnswerRow | null {
   const g = norm(raw)
   const exact = answers.filter((a) => a.name_norm === g)
   if (exact.length) return exact.find((a) => a.found_at_ms == null) ?? exact[0]
-  const fuzzy = answers.filter((a) => matchesName(raw, a.name))
+  // Places are matched whole, with their authored aliases; people are matched
+  // by the surname rules. See matchesPlace for why the two cannot be the same
+  // function — "York" is not New York.
+  const fuzzy = category === 'football'
+    ? answers.filter((a) => matchesName(raw, a.name))
+    : answers.filter((a) => matchesPlace(raw, a.name, parseAliases(a.aliases)))
   if (!fuzzy.length) return null
   return fuzzy.find((a) => a.found_at_ms == null) ?? fuzzy[0]
 }
@@ -573,7 +587,13 @@ export function submitGuess(
     .prepare('SELECT * FROM game_round_answers WHERE instance_id = ? ORDER BY rank')
     .all(instanceId) as AnswerRow[]
 
-  const match = pickAnswer(raw, answers)
+  // Which game this round is. Everything in this function that reaches for the
+  // footballer database — parking an unknown name for review, looking it up,
+  // putting a late-arriving player on the board — is football's and only
+  // football's. A geography round's answers are authored, so a name that is not
+  // among them is simply wrong, and there is nothing to go and find out.
+  const category = categoryOf(inst.type)
+  const match = pickAnswer(raw, answers, category)
   let verdict: Verdict
   if (!match) verdict = 'miss'
   else if (!match.on_board) verdict = 'near'
@@ -604,6 +624,7 @@ export function submitGuess(
         name: match.name,
         value: match.value,
         unit: match.unit,
+        display: match.display,
         nationality: match.nationality,
         photoUrl: match.photo_url,
         footballerId: match.footballer_id,
@@ -630,7 +651,7 @@ export function submitGuess(
     // An unrecognised name is parked for review, and looked up in the
     // background once the answer has already gone back — see
     // learnUnknownName, which is fired after this transaction commits.
-    if (verdict === 'miss') {
+    if (verdict === 'miss' && category === 'football') {
       sqlite
         .prepare(
           `INSERT INTO game_guess_reviews (instance_id, raw, raw_norm) VALUES (?, ?, ?)
@@ -646,10 +667,10 @@ export function submitGuess(
     .prepare('SELECT status FROM game_round_instances WHERE id = ?')
     .get(instanceId) as { status: string }
 
-  const known = match ? null : knownPlayerNamed(raw)
+  const known = match || category !== 'football' ? null : knownPlayerNamed(raw)
   let checking = false
 
-  if (verdict === 'miss') {
+  if (verdict === 'miss' && category === 'football') {
     if (known == null) {
       // Nobody has heard of them. Look them up on its own, in the background,
       // after this answer has gone back — nothing waits on Wikipedia.
@@ -1026,8 +1047,9 @@ function reshuffleForPlayer(
     const insert = sqlite.prepare(
       `INSERT INTO game_round_answers
          (instance_id, rank, on_board, footballer_id, name, name_norm, surname_norm,
-          nationality, photo_url, value, unit, clue_json, found_at_ms, found_by_participant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          nationality, photo_url, value, unit, display, aliases, clue_json,
+          found_at_ms, found_by_participant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
 
     const revealed: Record<string, unknown>[] = []
@@ -1042,13 +1064,14 @@ function reshuffleForPlayer(
       insert.run(
         instanceId, rank, rank <= ROUND_SIZE ? 1 : 0, a.footballer_id, a.name, normalized,
         surnameOf(normalized), a.nationality, a.photo_url, a.value, a.unit ?? null,
+        a.display ?? null, a.aliases?.length ? JSON.stringify(a.aliases) : null,
         a.footballer_id != null && clues.has(a.footballer_id) ? JSON.stringify(clues.get(a.footballer_id)) : null,
         foundAt, foundBy,
       )
 
       if (rank <= ROUND_SIZE && foundAt != null) {
         revealed.push({
-          rank, name: a.name, value: a.value, unit: a.unit ?? null,
+          rank, name: a.name, value: a.value, unit: a.unit ?? null, display: a.display ?? null,
           nationality: a.nationality, photoUrl: a.photo_url,
           footballerId: a.footballer_id, byParticipantId: foundBy,
         })
@@ -1122,7 +1145,7 @@ export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpR
 
   const missed = sqlite
     .prepare(
-      `SELECT rank, name, value, unit, nationality, photo_url, footballer_id FROM game_round_answers
+      `SELECT rank, name, value, unit, display, nationality, photo_url, footballer_id FROM game_round_answers
        WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL ORDER BY rank LIMIT ?`,
     )
     .all(instanceId, stillToFill) as {
@@ -1130,6 +1153,7 @@ export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpR
       name: string
       value: number
       unit: string | null
+      display: string | null
       nationality: string | null
       photo_url: string | null
       footballer_id: number | null
@@ -1143,6 +1167,7 @@ export function giveUp(instanceId: number, participant: ParticipantRow): GiveUpR
         name: a.name,
         value: a.value,
         unit: a.unit,
+        display: a.display,
         nationality: a.nationality,
         photoUrl: a.photo_url,
         footballerId: a.footballer_id,

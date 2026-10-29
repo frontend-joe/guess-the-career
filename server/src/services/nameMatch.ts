@@ -77,3 +77,46 @@ function firstNamesAgree(g: string, p: string): boolean {
   if (gf === pf) return true
   return (gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))
 }
+
+// ── Places ───────────────────────────────────────────────────────────────────
+//
+// A geography answer is not a person, and the rules above are entirely about
+// people: a surname is the memorable half of a footballer's name, so they
+// accept one on its own. Nothing equivalent is true of places. "York" is not
+// New York, "Africa" is not South Africa, and "Dakota" is two different states
+// — every one of which the surname rule would wave through.
+//
+// So places match on the WHOLE name, with two kinds of latitude instead:
+//
+//  - the authored alias list, for answers genuinely known by another name
+//    (Huang He, Czech Republic, NYC), which no edit distance reaches; and
+//  - the geographical noise words, which people drop or add freely without
+//    meaning anything by it. "Mt Everest", "Everest", "Lake Baikal", "Baikal",
+//    "River Nile" are all the same answer and all equally correct.
+const PLACE_NOISE = /\b(?:the|mount|mt|lake|river|island|islands|isle|sea|city|and)\b/g
+
+function placeKey(s: string): string {
+  return norm(s)
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(PLACE_NOISE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function matchesPlace(guess: string, name: string, aliases: string[] = []): boolean {
+  const g = placeKey(guess)
+  if (!g) return false
+  for (const candidate of [name, ...aliases]) {
+    const c = placeKey(candidate)
+    if (!c) continue
+    if (g === c) return true
+    // One typo forgiven on an ordinary name, two on a long one — "Saint
+    // Vincent and the Grenadines" is going to be typed wrong by somebody who
+    // knows exactly what they mean. Nothing under five characters gets any
+    // latitude at all: at that length a single edit is a different place.
+    const allowance = c.length >= 12 ? 2 : c.length >= 5 ? 1 : 0
+    if (allowance === 0) continue
+    if (Math.abs(g.length - c.length) <= allowance && damerau(g, c) <= allowance) return true
+  }
+  return false
+}

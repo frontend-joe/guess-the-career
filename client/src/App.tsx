@@ -34,6 +34,9 @@ import { RootLayout } from '@/components/RootLayout'
 import { FootballersPage } from '@/pages/FootballersPage'
 import { NameSplitPage } from '@/pages/NameSplitPage'
 import { TenableAdminPage } from '@/pages/TenableAdminPage'
+import { TenableFootballAdminPage } from '@/pages/TenableFootballAdminPage'
+import { TenableGeographyAdminPage } from '@/pages/TenableGeographyAdminPage'
+import { TenableGeographyRoundPage } from '@/pages/TenableGeographyRoundPage'
 import { TenableTypePage } from '@/pages/TenableTypePage'
 import { TenableSchedulePage } from '@/pages/TenableSchedulePage'
 import { TenablePage } from '@/pages/TenablePage'
@@ -251,7 +254,10 @@ const router = createBrowserRouter([
       { path: 'only-player/schedule', element: <OnlyPlayerSchedulePage /> },
       { path: 'tenable', element: <TenableAdminPage /> },
       { path: 'tenable/schedule', element: <TenableSchedulePage /> },
-      { path: 'tenable/:slug', element: <TenableTypePage /> },
+      { path: 'tenable/football', element: <TenableFootballAdminPage /> },
+      { path: 'tenable/football/:slug', element: <TenableTypePage /> },
+      { path: 'tenable/geography', element: <TenableGeographyAdminPage /> },
+      { path: 'tenable/geography/:slug', element: <TenableGeographyRoundPage /> },
       { path: 'foreigners', element: <ForeignersAdminPage /> },
       { path: 'foreigners/schedule', element: <ForeignersSchedulePage /> },
       { path: 'serie-a', element: <SerieAAdminPage /> },

@@ -1,5 +1,6 @@
 import { normalizeName, sqlite } from "../db/client.ts";
 import { normalizeClubAlias } from "../services/scraper.ts";
+import { geographyType } from "./geography.ts";
 
 // Football Tenable — 10-answer list rounds.
 //
@@ -21,6 +22,21 @@ export interface TenableAnswer {
   value: number;
   /** Shown next to the value, e.g. "apps", "goals", "£m", "#". */
   unit?: string;
+  /**
+   * How the value should READ on the board badge, when the number cannot speak
+   * for itself: "6,650", "17.1m". Football answers have no use for it — a goal
+   * tally is already the number you want — but one formatting rule cannot serve
+   * river kilometres and country populations at once, so an authored round says
+   * what its badge says.
+   */
+  display?: string;
+  /**
+   * Other names this answer is accepted under: the Yellow River is the Huang
+   * He, Czechia is the Czech Republic. Spelling tolerance is the matcher's job;
+   * this is for the answers that are genuinely called something else, which no
+   * amount of edit distance reaches.
+   */
+  aliases?: string[];
 }
 
 export interface Candidate {
@@ -272,6 +288,11 @@ const metricWord = (m: Metric) => (m === "apps" ? "appearances" : "goals");
 
 export interface TenableType {
   slug: string;
+  /**
+   * Which game this type belongs to. Football is the default because every
+   * type written before there was a second category is one of its.
+   */
+  category?: string;
   label: string;
   description: string;
   /** Example question, shown on the admin card. */
@@ -284,6 +305,14 @@ export interface TenableType {
   ordered?: boolean;
   /** Unordered types ignore the metric; set this to run candidates once. */
   metricless?: boolean;
+  /**
+   * For types where orderedness is a property of the ROUND rather than of the
+   * question shape. A football type is one or the other for good — "most
+   * capped" is always a ranking, "name the squad" never is — but an authored
+   * geography round decides for itself, and the ten longest rivers and ten
+   * countries beginning with S are the same type.
+   */
+  orderedFor?(params: Record<string, string>): boolean;
   candidates(metric: Metric): Candidate[];
   answers(params: Record<string, string>, metric: Metric, limit?: number): TenableAnswer[];
   title(params: Record<string, string>, metric: Metric): string;
@@ -859,7 +888,34 @@ export const TENABLE_TYPES: TenableType[] = [
   worldCupSquad,
   firstName,
   surname,
+  geographyType,
 ];
+
+export interface TenableCategory {
+  slug: string;
+  label: string;
+  description: string;
+}
+
+// The games Tenable is made of. One board, one set of rules, more than one
+// subject — and a category is the only thing that tells them apart, from the
+// admin menu down to which rounds a room is offered.
+export const TENABLE_CATEGORIES: TenableCategory[] = [
+  {
+    slug: "football",
+    label: "Football",
+    description: "Derived from the footballer database — leagues, clubs, nations, names.",
+  },
+  {
+    slug: "geography",
+    label: "Geography",
+    description: "Authored lists — countries, cities, rivers, mountains.",
+  },
+];
+
+export function getCategory(slug: string): TenableCategory | undefined {
+  return TENABLE_CATEGORIES.find((c) => c.slug === slug);
+}
 
 export function getType(slug: string): TenableType | undefined {
   return TENABLE_TYPES.find((t) => t.slug === slug);
@@ -891,8 +947,16 @@ export function titleFor(
   }
 }
 
-export function isOrdered(slug: string): boolean {
-  return getType(slug)?.ordered !== false;
+export function isOrdered(slug: string, params?: Record<string, string>): boolean {
+  const t = getType(slug);
+  if (!t) return true;
+  if (t.orderedFor && params) return t.orderedFor(params);
+  return t.ordered !== false;
+}
+
+/** Which game a round belongs to. Anything unrecognised is football's. */
+export function categoryOf(slug: string): string {
+  return getType(slug)?.category ?? "football";
 }
 
 export function answersForRound(

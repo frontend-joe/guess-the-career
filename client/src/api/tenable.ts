@@ -35,6 +35,10 @@ export interface TenableAnswer {
   photo_url: string | null
   value: number
   unit?: string
+  /** What the badge should read when the number cannot speak for itself. */
+  display?: string
+  /** Other names an authored answer is accepted under. */
+  aliases?: string[]
   rank?: number | null
   clue?: TenableClue | null
 }
@@ -85,8 +89,8 @@ export async function getTenableRoundAnswers(roundId: number): Promise<TenableRo
   return res.json()
 }
 
-export async function getTenableTypes(): Promise<{ data: TenableTypeCard[]; minAnswers: number }> {
-  const res = await fetch('/api/tenable/admin/types')
+export async function getTenableTypes(category = 'football'): Promise<{ data: TenableTypeCard[]; minAnswers: number }> {
+  const res = await fetch(`/api/tenable/admin/types?category=${encodeURIComponent(category)}`)
   if (!res.ok) throw new Error('Failed to load Tenable types')
   return res.json()
 }
@@ -218,4 +222,92 @@ export async function autoAssignTenable(): Promise<{ assigned: number; from: str
   })
   if (!res.ok) throw new Error('Failed to auto-assign')
   return res.json()
+}
+
+// ── Categories ───────────────────────────────────────────────────────────────
+// Tenable is more than one game on one board. The list is served rather than
+// hardcoded here, because the admin, the dev harness and both apps all need it
+// and a third category should not mean four releases.
+
+export interface TenableCategory {
+  slug: string
+  label: string
+  description: string
+  rounds: number
+}
+
+export async function getTenableCategories(): Promise<TenableCategory[]> {
+  const res = await fetch('/api/tenable/categories')
+  if (!res.ok) throw new Error('Failed to load categories')
+  return res.json()
+}
+
+/** A round in the pool a room picks from — any category, schedule or not. */
+export interface TenablePoolRound extends Omit<TenablePlayRound, 'date'> {
+  category: string
+  /** Null for a round that has never been on the solo game's calendar. */
+  date: string | null
+}
+
+export async function getTenableRoundPool(category: string): Promise<TenablePoolRound[]> {
+  const res = await fetch(`/api/tenable/rounds?category=${encodeURIComponent(category)}`)
+  if (!res.ok) throw new Error('Failed to load rounds')
+  return res.json()
+}
+
+// ── Geography admin ─────────────────────────────────────────────────────────
+// An editor rather than a picker: nothing implies the ten longest rivers until
+// somebody writes them down.
+
+export interface GeographyTopic {
+  slug: string
+  label: string
+}
+
+export interface GeographyRound {
+  slug: string
+  topic: string
+  title: string
+  ordered: boolean
+  unit: string | null
+  answerCount: number
+  roundId: number | null
+}
+
+export interface GeographyAnswer {
+  position?: number
+  name: string
+  aliases: string[]
+  value: number
+  display: string | null
+}
+
+export async function getGeographyRounds(): Promise<{ data: GeographyRound[]; topics: GeographyTopic[] }> {
+  const res = await fetch('/api/tenable/admin/geography/rounds')
+  if (!res.ok) throw new Error('Failed to load geography rounds')
+  return res.json()
+}
+
+export async function getGeographyRound(slug: string): Promise<{ round: GeographyRound; answers: GeographyAnswer[] }> {
+  const res = await fetch(`/api/tenable/admin/geography/rounds/${encodeURIComponent(slug)}`)
+  if (!res.ok) throw new Error('Failed to load round')
+  return res.json()
+}
+
+export async function saveGeographyRound(
+  slug: string,
+  body: Omit<GeographyRound, 'answerCount' | 'roundId'> & { answers: GeographyAnswer[] },
+): Promise<{ slug: string; roundId: number }> {
+  const res = await fetch(`/api/tenable/admin/geography/rounds/${encodeURIComponent(slug)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Failed to save round')
+  return res.json()
+}
+
+export async function deleteGeographyRound(slug: string): Promise<void> {
+  const res = await fetch(`/api/tenable/admin/geography/rounds/${encodeURIComponent(slug)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to delete round')
 }

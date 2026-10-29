@@ -166,8 +166,18 @@ object Api {
         call("POST", "api/rooms/${seat.code}/end", bearer = seat.token)
     }
 
-    suspend fun scheduledRounds(): List<ScheduledRound> =
-        get("api/tenable/schedule/rounds")
+    /** The games on offer, so the picker needs no app-side knowledge of which
+     *  categories exist. */
+    suspend fun tenableCategories(): List<TenableCategory> =
+        get("api/tenable/categories")
+
+    /**
+     * The rounds of one category. Not the schedule: a room is not playing the
+     * day's round, it is playing whichever round the host picks, and the
+     * categories after Football have no schedule at all.
+     */
+    suspend fun roundPool(category: String): List<PoolRound> =
+        get("api/tenable/rounds?category=$category")
 
     /**
      * A player's career, for the card opened by tapping a found row. No seat

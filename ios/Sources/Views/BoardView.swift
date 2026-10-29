@@ -461,8 +461,17 @@ private struct PyramidRow: View {
         // at a glance and wraps the badge onto two lines; "37.5m" is the
         // number people actually say.
         if answer.unit == "fee" { return BoardStyle.money(answer.value) }
+        // An authored round already knows how its number should read, and the
+        // raw one would not fit the badge: 17098246 km² is not a thing anybody
+        // can take in at a glance.
+        if let display = answer.display, !display.isEmpty { return display }
         let number = String(safeInt(answer.value))
-        guard let unit = answer.unit, !unit.isEmpty else { return number }
+        guard let unit = answer.unit, !unit.isEmpty else {
+            // No unit and no number is an unordered round — "name any ten of
+            // these" is not ranked by anything, and a zero next to a correct
+            // answer reads as having scored nothing.
+            return answer.value == 0 ? nil : number
+        }
         return "\(number) \(unit)"
     }
 

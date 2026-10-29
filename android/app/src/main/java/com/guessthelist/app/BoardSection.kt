@@ -378,9 +378,17 @@ private fun valueText(answer: RevealedAnswer): String? {
     // a glance and wraps the badge onto two lines; "37.5m" is the number
     // people actually say.
     if (answer.unit == "fee") return money(answer.value)
+    // An authored round already knows how its number should read, and the raw
+    // one would not fit the badge: 17098246 km² is not a thing anybody can take
+    // in at a glance.
+    answer.display?.takeIf { it.isNotEmpty() }?.let { return it }
     val number = answer.value.toInt().toString()
     val unit = answer.unit
-    return if (unit.isNullOrEmpty()) number else "$number $unit"
+    // No unit and no number is an unordered round — "name any ten of these" is
+    // not ranked by anything, and a zero next to a correct answer reads as
+    // having scored nothing.
+    if (unit.isNullOrEmpty()) return if (answer.value == 0.0) null else number
+    return "$number $unit"
 }
 
 /** A fee as people say it: 37.5m, 25m, 900k. No currency symbol — the board

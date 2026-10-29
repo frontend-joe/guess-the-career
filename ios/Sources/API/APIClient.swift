@@ -138,8 +138,17 @@ enum API {
         _ = try await request("POST", "api/rooms/\(seat.code)/end", bearer: seat.token)
     }
 
-    static func scheduledRounds() async throws -> [ScheduledRound] {
-        try await get("api/tenable/schedule/rounds")
+    /// The games on offer. One call, so the picker can be built without any
+    /// app-side knowledge of which categories exist.
+    static func tenableCategories() async throws -> [TenableCategory] {
+        try await get("api/tenable/categories")
+    }
+
+    /// The rounds of one category. Not the schedule: a room is not playing the
+    /// day's round, it is playing whichever round the host picks, and the
+    /// categories after Football have no schedule at all.
+    static func roundPool(category: String) async throws -> [PoolRound] {
+        try await get("api/tenable/rounds?category=\(category)")
     }
 
     /// A player's career, for the card opened by tapping a found row. No seat

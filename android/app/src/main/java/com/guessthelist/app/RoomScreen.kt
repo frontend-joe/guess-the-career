@@ -41,6 +41,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -522,18 +525,28 @@ private fun verdictColour(verdict: String): Color = when (verdict) {
     else -> Color(0xFFFF6B6B)
 }
 
+// A couple of thousand football rounds, so this is a filter box over a list —
+// plus a category to filter within, because Tenable is more than one game now
+// and the geography rounds are not findable by typing a club name.
 @Composable
 private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
-    var rounds by remember { mutableStateOf<List<ScheduledRound>>(emptyList()) }
+    var categories by remember { mutableStateOf<List<TenableCategory>>(emptyList()) }
+    var category by remember { mutableStateOf("football") }
+    var rounds by remember { mutableStateOf<List<PoolRound>>(emptyList()) }
     var query by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        rounds = runCatching { Api.scheduledRounds() }.getOrDefault(emptyList())
+        categories = runCatching { Api.tenableCategories() }.getOrDefault(emptyList())
+    }
+    LaunchedEffect(category) {
+        query = ""
+        rounds = runCatching { Api.roundPool(category) }.getOrDefault(emptyList())
     }
 
     val matches = remember(query, rounds) {
         val q = query.trim().lowercase()
-        (if (q.isEmpty()) rounds else rounds.filter { "${it.date} ${it.title}".lowercase().contains(q) })
+        (if (q.isEmpty()) rounds
+         else rounds.filter { "${it.date ?: ""} ${it.title}".lowercase().contains(q) })
             .take(200)
     }
 
@@ -543,6 +556,18 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         text = {
             Column {
+                // Only worth drawing once there is a choice to make.
+                if (categories.size > 1) {
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        categories.forEachIndexed { i, cat ->
+                            SegmentedButton(
+                                selected = category == cat.slug,
+                                onClick = { category = cat.slug },
+                                shape = SegmentedButtonDefaults.itemShape(i, categories.size),
+                            ) { Text(cat.label, fontSize = 13.sp) }
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -550,10 +575,23 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                LazyColumn(Modifier.fillMaxHeight(0.7f)) {
-                    items(matches) { round ->
-                        TextButton(onClick = { onPick(round.roundId) }) {
-                            Text("${round.date} — ${round.title}", fontSize = 13.sp)
+                if (matches.isEmpty()) {
+                    Text(
+                        "No rounds in this category yet.",
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 16.dp),
+                    )
+                } else {
+                    LazyColumn(Modifier.fillMaxHeight(0.7f)) {
+                        items(matches) { round ->
+                            TextButton(onClick = { onPick(round.roundId) }) {
+                                // Only Football's rounds have a date, and only
+                                // because they came off its calendar.
+                                Text(
+                                    round.date?.let { "$it — ${round.title}" } ?: round.title,
+                                    fontSize = 13.sp,
+                                )
+                            }
                         }
                     }
                 }

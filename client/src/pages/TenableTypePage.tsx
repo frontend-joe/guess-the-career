@@ -77,7 +77,7 @@ export function TenableTypePage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-2 mb-4">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/admin/tenable')}>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/admin/tenable/football')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">

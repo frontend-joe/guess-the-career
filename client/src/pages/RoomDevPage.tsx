@@ -20,7 +20,17 @@ import {
   type RoomSession,
   type RoomState,
 } from '@/api/rooms'
-import { getTenablePlayRounds, type TenablePlayRound } from '@/api/tenable'
+import { getTenableCategories, getTenableRoundPool, type TenableCategory, type TenablePoolRound } from '@/api/tenable'
+
+// What goes in the value badge, or nothing at all. An authored round says so
+// outright; a derived one has only the number and its unit; and an unordered
+// round has neither, because it is not ranked by anything — putting "0" next to
+// a correct answer makes it look like it scored nothing.
+function badgeText(a: { value: number; unit: string | null; display: string | null }): string {
+  if (a.display) return a.display
+  if (!a.unit) return a.value === 0 ? '' : String(a.value)
+  return `${a.value} ${a.unit}`
+}
 
 // A development harness for multiplayer Tenable, not a product surface.
 //
@@ -139,7 +149,9 @@ export function RoomDevPage() {
   const [session, setSession] = useState<RoomSession | null>(storedSeat)
   const [state, setState] = useState<RoomState | null>(null)
   const [tiles, setTiles] = useState<Tile[]>([])
-  const [rounds, setRounds] = useState<TenablePlayRound[]>([])
+  const [rounds, setRounds] = useState<TenablePoolRound[]>([])
+  const [categories, setCategories] = useState<TenableCategory[]>([])
+  const [category, setCategory] = useState('football')
   const [error, setError] = useState<string | null>(null)
   const [videoNote, setVideoNote] = useState<string | null>(null)
   const [lastGuess, setLastGuess] = useState<GuessResult | null>(null)
@@ -218,7 +230,13 @@ export function RoomDevPage() {
     }
   }, [exitRoom])
 
-  useEffect(() => { getTenablePlayRounds().then(setRounds).catch(() => {}) }, [])
+  useEffect(() => { getTenableCategories().then(setCategories).catch(() => {}) }, [])
+  // The round pool, not the calendar: the host picks any round of the category
+  // they fancy, and the categories after Football have no calendar at all.
+  useEffect(() => {
+    setRoundId('')
+    getTenableRoundPool(category).then(setRounds).catch(() => {})
+  }, [category])
 
   // Connect to the call, and listen for the server's state broadcasts on the
   // same connection. The broadcast never carries the change itself — only the
@@ -368,7 +386,7 @@ export function RoomDevPage() {
   // open on a phone, and the count tells you when to type more.
   const ROUND_OPTIONS = 200
   const roundMatches = roundQuery.trim()
-    ? rounds.filter((r) => `${r.date} ${r.title}`.toLowerCase().includes(roundQuery.trim().toLowerCase()))
+    ? rounds.filter((r) => `${r.date ?? ''} ${r.title}`.toLowerCase().includes(roundQuery.trim().toLowerCase()))
     : rounds
   const shownRounds = roundMatches.slice(0, ROUND_OPTIONS)
 
@@ -520,7 +538,7 @@ export function RoomDevPage() {
                         {found ? found.name : '— — —'}
                       </span>
                       <span className="text-sm text-slate-400">
-                        {found ? `${found.value}${found.unit ? ` ${found.unit}` : ''}` : ''}
+                        {found ? badgeText(found) : ''}
                       </span>
                       {/* Host only, and only while there is something to clue.
                           The clue goes into the event log, so every tab sees it
@@ -579,6 +597,15 @@ export function RoomDevPage() {
         {isHost && round?.status !== 'live' && (
           <div className="mt-auto space-y-2 border-t border-slate-800 pt-3">
             <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {categories.map((c) => (
+                  <option key={c.slug} value={c.slug}>{c.label} ({c.rounds})</option>
+                ))}
+              </select>
               <input
                 className="w-44 rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm text-white placeholder:text-slate-500"
                 placeholder="Filter rounds…"
@@ -594,7 +621,9 @@ export function RoomDevPage() {
                   {roundMatches.length === 0 ? 'Nothing matches' : `Choose a round… (${roundMatches.length})`}
                 </option>
                 {shownRounds.map((r) => (
-                  <option key={r.roundId} value={r.roundId}>{r.date} — {r.title}</option>
+                  <option key={r.roundId} value={r.roundId}>
+                    {r.date ? `${r.date} — ${r.title}` : r.title}
+                  </option>
                 ))}
               </select>
               {roundMatches.length > ROUND_OPTIONS && (

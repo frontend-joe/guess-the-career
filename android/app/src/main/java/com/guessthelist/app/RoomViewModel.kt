@@ -553,8 +553,12 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                         // `unit` is only set for the odd metrics — a fee, a
                         // shirt number. An ordinary round sends nothing,
                         // because the metric IS the unit.
-                        val unit = result.unit?.takeIf { u -> u.isNotEmpty() }
-                            ?: round?.board?.metric.orEmpty()
+                        //
+                        // "none" is the metric an authored round carries, since
+                        // there was never a choice of metric to make on it. It
+                        // is a marker, not a word to print.
+                        val metric = round?.board?.metric.orEmpty().takeIf { m -> m != "none" }.orEmpty()
+                        val unit = result.unit?.takeIf { u -> u.isNotEmpty() } ?: metric
                         if (unit.isNotEmpty()) append(" $unit")
                     }
                 }

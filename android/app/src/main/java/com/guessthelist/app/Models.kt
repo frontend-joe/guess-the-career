@@ -27,6 +27,11 @@ data class RevealedAnswer(
     val name: String,
     val value: Double,
     val unit: String? = null,
+    /// What the badge should read when the number cannot speak for itself:
+    /// "6,650", "17.1m". An authored round says so outright, because one
+    /// formatting rule cannot serve river kilometres and country populations
+    /// at once. Null on a football round, where the number always could.
+    val display: String? = null,
     val nationality: String? = null,
     val photoUrl: String? = null,
     /// Who this row is, so tapping it can open their career. Null on an answer
@@ -190,12 +195,25 @@ data class TokenPair(
     val refreshToken: String,
 )
 
+/** A round in the pool the host picks from. Only Football has a schedule, so
+ *  the date is optional — a geography round has never been on a calendar. */
 @Serializable
-data class ScheduledRound(
-    val date: String,
+data class PoolRound(
+    val date: String? = null,
     val roundId: Int,
     val title: String,
     val metric: String,
+    val category: String? = null,
+)
+
+/** One of the games Tenable is made of. Served rather than hardcoded, so a new
+ *  category does not need an app release. */
+@Serializable
+data class TenableCategory(
+    val slug: String,
+    val label: String,
+    val description: String = "",
+    val rounds: Int = 0,
 )
 
 @Serializable

@@ -7,6 +7,8 @@ import { replaceCareerStatistics } from "../services/footballers.ts";
 import { scrapeWikipedia } from "../services/scraper.ts";
 import {
   TENABLE_TYPES,
+  TENABLE_CATEGORIES,
+  getCategory,
   candidatesForType,
   answersForRound,
   getType,
@@ -20,21 +22,45 @@ import {
   ROUND_SIZE,
   type Metric,
 } from "../services/tenable.ts";
+import {
+  GEOGRAPHY_TOPICS,
+  geographyAnswers,
+  geographyRounds,
+  saveGeographyRound,
+  deleteGeographyRound,
+} from "../services/geography.ts";
 
 export const tenableRouter = new Hono();
 
 const asMetric = (v: string): Metric => (v === "apps" ? "apps" : "goals");
 
+// ── Categories ───────────────────────────────────────────────────────────────
+// GET /api/tenable/categories — the games Tenable is made of, with how many
+// rounds each has ready to play. Served rather than hardcoded in the clients
+// because there are four of them (web admin, web harness, iOS, Android) and a
+// third category should not mean four releases.
+tenableRouter.get("/categories", (c) => {
+  const counts = new Map(
+    (sqlite
+      .prepare(`SELECT category, COUNT(*) AS n FROM tenable_rounds GROUP BY category`)
+      .all() as { category: string; n: number }[]).map((r) => [r.category, r.n]),
+  );
+  return c.json(
+    TENABLE_CATEGORIES.map((cat) => ({ ...cat, rounds: counts.get(cat.slug) ?? 0 })),
+  );
+});
+
 // ── Admin: the card menu ─────────────────────────────────────────────────────
 // GET /api/tenable/admin/types — one card per question type, with how many
 // rounds currently have >= 10 answers and how many are already selected.
 tenableRouter.get("/admin/types", (c) => {
+  const category = c.req.query("category") ?? "football";
   const enabledCounts = sqlite
     .prepare(`SELECT type, COUNT(*) AS n FROM tenable_rounds GROUP BY type`)
     .all() as { type: string; n: number }[];
   const enabledByType = new Map(enabledCounts.map((r) => [r.type, r.n]));
 
-  const data = TENABLE_TYPES.map((t) => ({
+  const data = TENABLE_TYPES.filter((t) => (t.category ?? "football") === category).map((t) => ({
     slug: t.slug,
     label: t.label,
     description: t.description,
@@ -125,7 +151,12 @@ tenableRouter.post(
   zValidator("json", z.object({ type: z.string().optional(), deselect: z.boolean().optional() })),
   (c) => {
     const { type, deselect } = c.req.valid("json");
-    const slugs = type ? [type] : TENABLE_TYPES.map((t) => t.slug);
+    // Selecting "everything" means everything discoverable, which is a
+    // football idea: an authored category has no pool of unselected rounds to
+    // sweep up, and clearing one would delete the rounds themselves.
+    const slugs = type
+      ? [type]
+      : TENABLE_TYPES.filter((t) => (t.category ?? "football") === "football").map((t) => t.slug);
 
     if (deselect) {
       let removed = 0;
@@ -164,8 +195,13 @@ tenableRouter.post(
 // allow-list changed. Also clears any schedule entries pointing at them, so a
 // scheduled round can never serve an empty board.
 tenableRouter.post("/admin/rounds/prune", (c) => {
+  // Football only. Pruning asks "does this round still have ten answers?",
+  // which is a question about a derivation that moves underneath you. An
+  // authored round's answers are the round: a geography round with nine
+  // answers is half-written, not stale, and deleting it would throw away
+  // somebody's work in progress.
   const rounds = sqlite
-    .prepare(`SELECT id, type, params, metric FROM tenable_rounds`)
+    .prepare(`SELECT id, type, params, metric FROM tenable_rounds WHERE category = 'football'`)
     .all() as { id: number; type: string; params: string; metric: string }[];
 
   const dead: number[] = [];
@@ -198,16 +234,129 @@ tenableRouter.delete("/admin/rounds/:id", (c) => {
 
 // GET /api/tenable/admin/rounds — everything selected (for the schedule picker).
 tenableRouter.get("/admin/rounds", (c) => {
+  const category = c.req.query("category") ?? "football";
   const rows = sqlite
     .prepare(
       `SELECT id, type, params, metric, title, answer_count, enabled
-       FROM tenable_rounds ORDER BY type, title`,
+       FROM tenable_rounds WHERE category = ? ORDER BY type, title`,
     )
-    .all() as { type: string; params: string; metric: string; title: string }[];
+    .all(category) as { type: string; params: string; metric: string; title: string }[];
   return c.json(
     rows.map((r) => {
       const params = JSON.parse(r.params);
       return { ...r, params, title: titleFor(r.type, params, asMetric(r.metric), r.title) };
+    }),
+  );
+});
+
+// ── Admin: Geography ─────────────────────────────────────────────────────────
+//
+// A different shape of admin from football's, because the rounds are a
+// different shape. Football's screens browse a space of rounds the data
+// already implies and tick the good ones; geography's is an editor, because
+// nothing implies the ten longest rivers until somebody writes them down.
+
+tenableRouter.get("/admin/geography/rounds", (c) =>
+  c.json({ data: geographyRounds(), topics: GEOGRAPHY_TOPICS }));
+
+tenableRouter.get("/admin/geography/rounds/:slug", (c) => {
+  const slug = c.req.param("slug");
+  const round = geographyRounds().find((r) => r.slug === slug);
+  if (!round) return c.json({ error: "Unknown round" }, 404);
+  return c.json({ round, answers: geographyAnswers(slug) });
+});
+
+const geographyBody = z.object({
+  slug: z.string().min(1),
+  topic: z.string().min(1),
+  title: z.string().min(1),
+  ordered: z.boolean(),
+  unit: z.string().nullable().optional(),
+  answers: z.array(
+    z.object({
+      name: z.string(),
+      aliases: z.array(z.string()).default([]),
+      value: z.number().default(0),
+      display: z.string().nullable().optional(),
+    }),
+  ),
+});
+
+tenableRouter.put("/admin/geography/rounds/:slug", zValidator("json", geographyBody), (c) => {
+  const b = c.req.valid("json");
+  try {
+    const saved = saveGeographyRound({
+      slug: c.req.param("slug") === "new" ? b.slug : c.req.param("slug"),
+      topic: b.topic,
+      title: b.title,
+      ordered: b.ordered,
+      unit: b.unit ?? null,
+      answers: b.answers.map((a) => ({
+        name: a.name,
+        aliases: a.aliases,
+        value: a.value,
+        display: a.display ?? null,
+      })),
+    });
+    return c.json({ ok: true, ...saved });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "Could not save" }, 400);
+  }
+});
+
+tenableRouter.delete("/admin/geography/rounds/:slug", (c) => {
+  deleteGeographyRound(c.req.param("slug"));
+  return c.json({ ok: true });
+});
+
+// ── The pool a room picks from ───────────────────────────────────────────────
+// GET /api/tenable/rounds?category=geography
+//
+// Separate from /schedule/rounds, which is the solo web game's calendar and
+// answers "what is today's round". A room does not want a calendar: the host
+// picks any round of whichever category they fancy, and the new categories have
+// no schedule at all.
+//
+// Football still comes back scheduled-first so the list opens on the rounds
+// that have been vetted by being scheduled, with the rest behind them — there
+// are a couple of thousand, and the picker is a search box.
+tenableRouter.get("/rounds", (c) => {
+  const category = c.req.query("category") ?? "football";
+  if (!getCategory(category)) return c.json({ error: "Unknown category" }, 404);
+
+  const rows = sqlite
+    .prepare(
+      `SELECT r.id AS round_id, r.type, r.params, r.metric, r.title, r.answer_count,
+              s.date AS date
+       FROM tenable_rounds r
+       LEFT JOIN tenable_schedule s ON s.round_id = r.id
+       WHERE r.category = ?
+       ORDER BY s.date IS NULL, s.date ASC, r.title ASC`,
+    )
+    .all(category) as {
+    round_id: number;
+    type: string;
+    params: string;
+    metric: string;
+    title: string;
+    answer_count: number;
+    date: string | null;
+  }[];
+
+  return c.json(
+    rows.map((r) => {
+      const params = JSON.parse(r.params) as Record<string, string>;
+      return {
+        roundId: r.round_id,
+        category,
+        date: r.date,
+        type: r.type,
+        title: titleFor(r.type, params, asMetric(r.metric), r.title),
+        metric: asMetric(r.metric),
+        ordered: isOrdered(r.type, params),
+        target: ROUND_SIZE,
+        answerCount: r.answer_count,
+      };
     }),
   );
 });
@@ -361,7 +510,7 @@ tenableRouter.post(
     }
 
     const answers = answersForRound(round.type, params, metric);
-    const ordered = isOrdered(round.type);
+    const ordered = isOrdered(round.type, params);
     const valid = answers.some((a) => a.footballer_id === fid);
 
     // Where they actually sit, so a guess just off the board can be told how
@@ -417,7 +566,7 @@ tenableRouter.get("/schedule/rounds", (c) => {
       type: r.type,
       title: titleFor(r.type, JSON.parse(r.params), asMetric(r.metric), r.title),
       metric: asMetric(r.metric),
-      ordered: isOrdered(r.type),
+      ordered: isOrdered(r.type, JSON.parse(r.params)),
       target: ROUND_SIZE,
       answerCount: r.answer_count,
     })),
@@ -440,8 +589,9 @@ tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
   if (!row) return c.json({ error: "Unknown round" }, 404);
 
   const metric = asMetric(row.metric);
-  const ordered = isOrdered(row.type);
-  const answers = answersForRound(row.type, JSON.parse(row.params), metric);
+  const params = JSON.parse(row.params) as Record<string, string>;
+  const ordered = isOrdered(row.type, params);
+  const answers = answersForRound(row.type, params, metric);
 
   const ids = answers.map((a) => a.footballer_id).filter((x): x is number => x != null);
   const clues = cluesForFootballers(ids);

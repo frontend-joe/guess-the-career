@@ -737,6 +737,10 @@ export const game_round_answers = sqliteTable('game_round_answers', {
   photo_url: text('photo_url'),
   value: integer('value').notNull(),
   unit: text('unit'),
+  // JSON array of other names this answer is accepted under, and how the
+  // number should read on the badge — both see 0098.
+  aliases: text('aliases'),
+  display: text('display'),
   clue_json: text('clue_json'),
   found_at_ms: integer('found_at_ms'),
   found_by_participant_id: integer('found_by_participant_id').references(() => game_participants.id, { onDelete: 'set null' }),

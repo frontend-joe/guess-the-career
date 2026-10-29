@@ -22,6 +22,8 @@ export interface RevealedAnswer {
   name: string
   value: number
   unit: string | null
+  /** What the badge should read when the number cannot speak for itself. */
+  display: string | null
   nationality: string | null
   photoUrl: string | null
   tMs: number

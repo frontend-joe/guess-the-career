@@ -592,7 +592,12 @@ final class RoomStore {
                 // `unit` is only set for the odd metrics — a fee, a shirt
                 // number. An ordinary round sends nothing, because the metric
                 // IS the unit, which is how this read "11th, 294".
-                let unit = result.unit?.isEmpty == false ? result.unit! : (round?.board.metric ?? "")
+                //
+                // "none" is the metric an authored round carries, since there
+                // was never a choice of metric to make on it. It is a marker,
+                // not a word to print.
+                let metric = round?.board.metric == "none" ? "" : (round?.board.metric ?? "")
+                let unit = result.unit?.isEmpty == false ? result.unit! : metric
                 if !unit.isEmpty { placing += " \(unit)" }
             }
             text = "\(result.name ?? "That one") · \(placing)"
