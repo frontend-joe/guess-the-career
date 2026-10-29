@@ -37,6 +37,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -96,6 +98,12 @@ import kotlinx.coroutines.launch
 // when the compositor is written.
 @Composable
 fun RoomScreen(model: RoomViewModel) {
+    // The call carries on off screen — see CallService — but the camera
+    // cannot, so it is put away and found again rather than left publishing
+    // frames the system stopped delivering.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { model.onEnterBackground() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { model.onEnterForeground() }
+
     var guess by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     var confirmingGiveUp by remember { mutableStateOf(false) }

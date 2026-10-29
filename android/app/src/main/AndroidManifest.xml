@@ -9,6 +9,9 @@
          someone puts their phone down for a second. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Only so the service's notification is visible. Refusing it does not
+         stop the service, and so does not stop the call. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -48,5 +51,13 @@
                 <data android:scheme="https" android:host="guessthelist.xyz" android:pathPrefix="/join/" />
             </intent-filter>
         </activity>
+
+        <!-- The permissions above were declared for this and then nothing was
+             ever built to use them, so the microphone was cut every time the
+             app went off screen. See CallService for why that is silent. -->
+        <service
+            android:name=".CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
     </application>
 </manifest>

@@ -115,6 +115,8 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         room = null
         tiles = emptyList()
         seat = null; state = null; version = 0; inRoom = false
+        micOn = false; cameraOn = false
+        CallService.stop(getApplication())
         prefs.edit().remove(SEAT_KEY).apply()
 
         viewModelScope.launch {
@@ -339,10 +341,43 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { if (on) videoNote = null }
                 .onFailure { videoNote = "Could not unmute: ${it.message}" }
             micOn = room?.localParticipant?.isMicrophoneEnabled ?: false
+            // Follows what the microphone is actually doing, not what was
+            // asked for: a publish that failed leaves the mic off, and a
+            // service claiming otherwise would sit in the shade saying the
+            // room can hear you when it cannot.
+            if (micOn) CallService.start(getApplication()) else CallService.stop(getApplication())
             refreshTiles()
         } finally {
             micBusy = false
         }
+    }
+
+    /** Whether the camera was on when the app went off screen, so returning
+     *  can put it back exactly as it was found. */
+    private var cameraBeforeBackground = false
+
+    /**
+     * Going off screen keeps the call; it just stops the camera.
+     *
+     * A backgrounded process gets no camera frames, and nothing says so — the
+     * track stays published and everyone else's view of you freezes on your
+     * last frame and holds it. The room then watches a still photograph it
+     * believes is live, which is worse than seeing a camera-off tile, because
+     * a camera-off tile is true. Unpublishing says the true thing.
+     *
+     * The microphone is deliberately left alone: keeping talking while the
+     * phone is in your pocket is the point, and CallService is what makes it
+     * possible.
+     */
+    fun onEnterBackground() {
+        cameraBeforeBackground = cameraOn
+        if (cameraOn) viewModelScope.launch { setCamera(false) }
+    }
+
+    fun onEnterForeground() {
+        if (!cameraBeforeBackground) return
+        cameraBeforeBackground = false
+        viewModelScope.launch { setCamera(true) }
     }
 
     private fun hasPermission(name: String): Boolean =
@@ -629,6 +664,7 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         room?.disconnect()
+        CallService.stop(getApplication())
         super.onCleared()
     }
 

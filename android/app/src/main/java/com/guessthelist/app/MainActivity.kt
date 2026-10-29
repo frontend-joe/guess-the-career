@@ -2,6 +2,7 @@ package com.guessthelist.app
 
 import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
@@ -39,7 +40,18 @@ class MainActivity : ComponentActivity() {
         // the root includes that inset, which is what makes the layout
         // compress as the keyboard comes up instead of hiding behind it.
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        permissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        // POST_NOTIFICATIONS only arrived in API 33, and asking for a
+        // permission the platform has never heard of is an immediate denial
+        // rather than a no-op. It is for the in-a-game notification; refusing
+        // it hides that notification and changes nothing else.
+        val wanted = buildList {
+            add(Manifest.permission.CAMERA)
+            add(Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        permissions.launch(wanted.toTypedArray())
         pendingInvite.value = inviteCode(intent)
 
         setContent {

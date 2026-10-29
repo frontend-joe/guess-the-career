@@ -16,6 +16,7 @@ struct RoomView: View {
     @State private var shareWanted = false
     @State private var sharing: ShareRequest?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     /// Whether the guess field holds the keyboard. The layout changes shape
     /// while you type rather than trying to fit everything at once.
     @FocusState private var typing: Bool
@@ -80,6 +81,16 @@ struct RoomView: View {
         // everything moves twice.
         .ignoresSafeArea(.keyboard)
         .background(BoardStyle.background)
+        // The call carries on off screen — the audio background mode is what
+        // allows that — but the camera cannot, so it is put away and found
+        // again rather than left publishing frames iOS has stopped supplying.
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background: Task { await store.enterBackground() }
+            case .active: Task { await store.enterForeground() }
+            default: break
+            }
+        }
         .sheet(isPresented: $showingRoundPicker) { RoundPickerView() }
         // Giving up cannot be undone and ends the round for everybody, which
         // is the one case that earns a confirmation. Choosing a round does

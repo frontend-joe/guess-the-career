@@ -322,6 +322,36 @@ final class RoomStore {
         return await connectMedia()
     }
 
+    /// Whether the camera was on when the app went off screen, so returning
+    /// can put it back exactly as it was found.
+    private var cameraBeforeBackground = false
+
+    /// Going off screen keeps the call; it just stops the camera.
+    ///
+    /// iOS interrupts the capture session the moment the app is no longer on
+    /// screen, and the published track does not go with it — everyone else's
+    /// view of you freezes on your last frame and holds it. The room then
+    /// watches a still photograph it believes is live, which is worse than
+    /// seeing a camera-off tile, because a camera-off tile is true.
+    ///
+    /// It also keeps the background state honest. `UIBackgroundModes` claims
+    /// `audio` and nothing else, so audio is the only thing iOS will let run
+    /// out here; a video track left publishing is work the system has already
+    /// decided not to do.
+    ///
+    /// The microphone is deliberately left alone. Carrying on talking with the
+    /// phone in your pocket is the point of the whole exercise.
+    func enterBackground() async {
+        cameraBeforeBackground = cameraOn
+        if cameraOn { await setCamera(false) }
+    }
+
+    func enterForeground() async {
+        guard cameraBeforeBackground else { return }
+        cameraBeforeBackground = false
+        await setCamera(true)
+    }
+
     private func permissionNote(camera: Bool, microphone: Bool) -> String? {
         switch (camera, microphone) {
         case (true, true): return nil
