@@ -467,6 +467,7 @@ export function startRound(roomId: number, instanceId: number): InstanceRow {
       title: inst.title,
       target: inst.target,
       ordered: !!inst.ordered,
+      category: categoryOf(inst.type),
       metric: inst.metric,
       impliedClues: JSON.parse(inst.implied_clues),
     })
@@ -1373,6 +1374,7 @@ export function roomState(room: RoomRow): RoomState {
       title: inst.title,
       target: inst.target,
       ordered: !!inst.ordered,
+      category: categoryOf(inst.type),
       metric: inst.metric,
       impliedClues: JSON.parse(inst.implied_clues),
     })

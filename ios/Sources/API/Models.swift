@@ -90,7 +90,13 @@ struct BoardState: Codable, Equatable {
     let title: String
     let target: Int
     let ordered: Bool
+    /// Which game this round is. Optional so a phone on an older build than
+    /// the server still decodes a board; absent means football, which is what
+    /// every round was before there was a second category.
+    let category: String?
     let metric: String
+
+    var isFootball: Bool { (category ?? "football") == "football" }
     let impliedClues: [String]
     let revealed: [RevealedAnswer]
     let hints: [TakenHint]

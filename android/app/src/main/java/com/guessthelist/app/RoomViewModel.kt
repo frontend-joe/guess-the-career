@@ -579,6 +579,10 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                     // board in a few seconds and score. Saying they do not
                     // exist and then adding them is how this read as a bug.
                     ?: if (result.checking) "Never heard of \u201C$raw\u201D \u2014 looking them up"
+                    // An authored round has no database to have never heard of
+                    // them: the answers are a list somebody wrote, and a name
+                    // that is not on it is simply not on it.
+                    else if (round?.board?.category != "football") "\u201C$raw\u201D is not on this list"
                     else "No player called \u201C$raw\u201D"
                 emphatic = false
             }

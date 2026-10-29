@@ -519,7 +519,14 @@ export function RoomDevPage() {
             </p>
             <ol className="space-y-1">
               {Array.from({ length: round.board.target }, (_, i) => i + 1).map((rank) => {
-                const found = round.board.revealed.find((r) => r.rank === rank)
+                // An ordered board is a ranking, so rank IS the slot. An
+                // unordered one has no ranking: its ranks are positions in a
+                // pool longer than the board, so looking a slot up by rank left
+                // most of the board blank and hid answers that had been found.
+                // The server hands them over in the order they should fill.
+                const found = round.board.ordered
+                  ? round.board.revealed.find((r) => r.rank === rank)
+                  : round.board.revealed[rank - 1]
                 const hint = round.board.hints.find((h) => h.rank === rank)
                 return (
                   <li
@@ -543,7 +550,11 @@ export function RoomDevPage() {
                       {/* Host only, and only while there is something to clue.
                           The clue goes into the event log, so every tab sees it
                           and the recording will show it appearing. */}
-                      {isHost && !found && !hint && round.status === 'live' && (
+                      {/* Only football rounds have anything behind a blank
+                          slot — an authored round's answers are a list
+                          somebody typed, with no career to hint at. */}
+                      {isHost && !found && !hint && round.status === 'live'
+                        && (round.board.category ?? 'football') === 'football' && (
                         <button
                           className="text-slate-500 hover:text-slate-200"
                           title="Take a clue on this one"

@@ -80,6 +80,10 @@ data class BoardState(
     val title: String = "",
     val target: Int = 10,
     val ordered: Boolean = true,
+    /** Which game this round is. Defaulted so a phone on an older build than
+     *  the server still decodes a board; absent means football, which is what
+     *  every round was before there was a second category. */
+    val category: String = "football",
     val metric: String = "",
     val impliedClues: List<String> = emptyList(),
     val revealed: List<RevealedAnswer> = emptyList(),

@@ -114,7 +114,11 @@ fun BoardSection(model: RoomViewModel) {
         // ordered board is a ranking: rank 3 belongs in slot 3 and nowhere
         // else. An unordered one — "name any ten of this squad" — has no
         // ranking at all, so the names fill from the top as they are found.
-        val inOrder = round.board.revealed.sortedBy { it.rank }
+        // The server hands them over already in the order the board wants,
+        // which is the only place it can be decided: sorting by rank here made
+        // a later answer appear ABOVE an earlier one, because an unordered
+        // round's ranks are positions in a pool longer than the board.
+        val inOrder = round.board.revealed
         for (rank in 1..round.board.target) {
             val slotAnswer = if (round.board.ordered) {
                 round.board.revealed.firstOrNull { it.rank == rank }
@@ -131,7 +135,10 @@ fun BoardSection(model: RoomViewModel) {
                 showsRank = round.board.ordered,
                 answer = slotAnswer,
                 hasClue = hasClue,
-                canHint = model.isHost && round.isLive,
+                // Only football rounds have anything behind a blank slot. An
+                // authored round's answers are a list somebody typed, with no
+                // career to hint at, so a clue there opens an empty card.
+                canHint = model.isHost && round.isLive && round.board.category == "football",
                 // Bottom to top: rank 10 goes first, rank 1 last. The board
                 // reads downwards, so a wave running the other way is
                 // movement rather than a second way of reading it.

@@ -64,6 +64,13 @@ export interface BoardState {
   title: string
   target: number
   ordered: boolean
+  /**
+   * Which game this round belongs to. Clients need it for the things that are
+   * true of one category and not another — whether a blank slot has a clue
+   * behind it, and whether a name nobody recognises is "no player called that"
+   * or simply not on the list.
+   */
+  category: string
   metric: string
   impliedClues: string[]
   revealed: RevealedAnswer[]
@@ -101,6 +108,7 @@ export function reduceEvents(
     title: '',
     target: 10,
     ordered: true,
+    category: 'football',
     metric: '',
     impliedClues: [],
     revealed: [],
@@ -121,6 +129,7 @@ export function reduceEvents(
         state.title = str(p.title)
         state.target = num(p.target, 10)
         state.ordered = p.ordered !== false
+        state.category = str(p.category, 'football')
         state.metric = str(p.metric)
         state.impliedClues = Array.isArray(p.impliedClues) ? p.impliedClues.filter((x): x is string => typeof x === 'string') : []
         break
@@ -218,7 +227,24 @@ export function reduceEvents(
     }
   }
 
-  state.revealed.sort((a, b) => a.rank - b.rank)
+  // An ordered board is a ranking, so rank IS the slot: third place belongs in
+  // the third row and nowhere else.
+  //
+  // An unordered one is not ranked by anything. Its ranks are only positions in
+  // a pool that is longer than the board — the twenty-sixth country beginning
+  // with S — so sorting by them makes the board fill in an order nobody can
+  // see the logic of: name Emmental and then Gouda, and Gouda appears ABOVE it
+  // and pushes it down a row. The names should fill from the top in the order
+  // they were found, so a new answer lands in the next empty slot and nothing
+  // already on the board ever moves.
+  //
+  // Rank still breaks ties, which is what orders the answers that arrive
+  // together when somebody gives up.
+  state.revealed.sort(
+    state.ordered
+      ? (a, b) => a.rank - b.rank
+      : (a, b) => a.tMs - b.tMs || a.rank - b.rank,
+  )
   state.hints.sort((a, b) => a.rank - b.rank)
   return state
 }

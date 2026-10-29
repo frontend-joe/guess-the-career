@@ -64,6 +64,41 @@ test('revealed rows come back in rank order, not reveal order', () => {
   assert.deepEqual(out.revealed.map((r) => r.rank), [2, 9])
 })
 
+// The counterpart for a board that is not a ranking. Its ranks are positions
+// in a pool longer than the board, so ordering by them means a later answer can
+// appear ABOVE an earlier one and push it down a row — which is what a player
+// sees as the board rearranging itself for no reason.
+test('an unordered board fills in the order answers were found', () => {
+  const start = ev(1, 0, 'round_start', { title: 'Cheeses', target: 10, ordered: false, metric: '' })
+  const out = reduceEvents([
+    start,
+    ev(2, 1000, 'reveal', { rank: 14, name: 'Emmental' }),
+    ev(3, 2000, 'reveal', { rank: 8, name: 'Gouda' }),
+    ev(4, 3000, 'reveal', { rank: 6, name: 'Parmesan' }),
+  ])
+  assert.deepEqual(out.revealed.map((r) => r.name), ['Emmental', 'Gouda', 'Parmesan'])
+})
+
+// Giving up reveals everything left at one instant, so the tie-break is what
+// orders them — otherwise the rows that fill at the end arrive arbitrarily.
+test('answers revealed together fall back to rank order', () => {
+  const start = ev(1, 0, 'round_start', { title: 'Cheeses', target: 10, ordered: false, metric: '' })
+  const out = reduceEvents([
+    start,
+    ev(2, 1000, 'reveal', { rank: 14, name: 'Emmental' }),
+    ev(3, 5000, 'give_up', { answers: [{ rank: 9, name: 'Edam' }, { rank: 2, name: 'Brie' }] }),
+  ])
+  assert.deepEqual(out.revealed.map((r) => r.name), ['Emmental', 'Brie', 'Edam'])
+})
+
+test('a round carries the category it belongs to', () => {
+  const start = ev(1, 0, 'round_start', { title: 'Cheeses', target: 10, ordered: false, category: 'general' })
+  assert.equal(reduceEvents([start]).category, 'general')
+  // Rounds logged before the category existed are football's, which is what
+  // every round was when they were recorded.
+  assert.equal(reduceEvents([LOG[0]]).category, 'football')
+})
+
 test('input order does not matter — (t_ms, seq) is the total order', () => {
   const shuffled = [LOG[4], LOG[0], LOG[6], LOG[2], LOG[5], LOG[1], LOG[3]]
   assert.deepEqual(reduceEvents(shuffled), reduceEvents(LOG))

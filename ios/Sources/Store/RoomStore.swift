@@ -618,6 +618,11 @@ final class RoomStore {
                 // board in a few seconds and score. Saying they do not exist
                 // and then adding them is how this read as a bug.
                 text = "Never heard of \u{201C}\(raw)\u{201D} — looking them up"
+            } else if round?.board.isFootball == false {
+                // An authored round has no database to have never heard of
+                // them: the answers are a list somebody wrote, and a name that
+                // is not on it is simply not on it.
+                text = "\u{201C}\(raw)\u{201D} is not on this list"
             } else {
                 text = "No player called \u{201C}\(raw)\u{201D}"
             }

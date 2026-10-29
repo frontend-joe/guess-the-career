@@ -48,6 +48,8 @@ export interface BoardState {
   title: string
   target: number
   ordered: boolean
+  /** Which game this round is; absent on a board from before categories. */
+  category?: string
   metric: string
   impliedClues: string[]
   revealed: RevealedAnswer[]
