@@ -446,9 +446,11 @@ private fun VideoGrid(model: RoomViewModel) {
     // has played so far look exactly as they did.
     val rows = ceil(model.tiles.size / 4.0).toInt().coerceAtLeast(1)
     val columns = ceil(model.tiles.size / rows.toDouble()).toInt().coerceAtLeast(1)
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // No spacing: the faces meet each other and the edges of the screen, so
+    // the bottom third reads as one band of video rather than a tray of cards.
+    Column(Modifier.fillMaxSize()) {
         model.tiles.chunked(columns).forEach { row ->
-            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth().weight(1f)) {
                 row.forEach { tile ->
                     Box(Modifier.weight(1f).fillMaxHeight()) { Tile(model, tile) }
                 }
@@ -479,7 +481,6 @@ private fun Tile(model: RoomViewModel, tile: RoomViewModel.Tile) {
     Box(
         Modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFF16161A))
             .combinedClickable(onClick = {}, onLongClick = { if (!tile.isLocal) menu = true }),
         contentAlignment = Alignment.Center,

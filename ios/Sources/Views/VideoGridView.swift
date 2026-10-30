@@ -31,7 +31,10 @@ struct VideoGridView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             let columns = Self.columns(tiles.count)
-            Grid(horizontalSpacing: 4, verticalSpacing: 4) {
+            // No spacing and no padding: the faces meet each other and the
+            // edges of the screen, so the bottom third reads as one band of
+            // video rather than a tray of cards.
+            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
                 ForEach(Array(stride(from: 0, to: tiles.count, by: columns)), id: \.self) { start in
                     GridRow {
                         ForEach(tiles[start..<min(start + columns, tiles.count)]) { tile in
@@ -47,7 +50,6 @@ struct VideoGridView: View {
                     }
                 }
             }
-            .padding(4)
         }
     }
 }
@@ -87,8 +89,8 @@ private struct TileView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 4))
                 .padding(4)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .clipped()
+        .contentShape(Rectangle())
         // A long press rather than a visible button on every tile: faces in
         // the bottom third have no room for chrome, and the more of them there
         // are the less room there is. This is the gesture iOS already uses for
