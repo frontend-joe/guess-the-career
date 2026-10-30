@@ -37,7 +37,9 @@ struct RoundPickerView: View {
                     if loading {
                         ProgressView().frame(maxHeight: .infinity)
                     } else if matches.isEmpty {
-                        Text("No rounds in this category yet.")
+                        Text(query.trimmed.isEmpty
+                             ? "No rounds in this category yet."
+                             : "Nothing matches \u{201C}\(query.trimmed)\u{201D}.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .frame(maxHeight: .infinity)
@@ -59,9 +61,13 @@ struct RoundPickerView: View {
                                 }
                             }
                         }
-                        .searchable(text: $query, prompt: "Filter rounds")
                     }
                 }
+                // Searchable lives out here, not on the List: the List is gone
+                // whenever nothing matches, and a search field that leaves the
+                // view tree takes the keyboard — and your half-typed word —
+                // with it.
+                .searchable(text: $query, prompt: "Filter rounds")
             }
             .navigationTitle("Choose a round")
             .navigationBarTitleDisplayMode(.inline)
