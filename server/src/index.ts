@@ -77,7 +77,18 @@ const app = new Hono()
 app.use('*', logger())
 // credentials:true so the httpOnly session cookie is sent/accepted. Falls back
 // to reflecting the request origin when CLIENT_URL isn't set (dev/proxy).
-app.use('*', cors({ origin: process.env.CLIENT_URL ?? ((origin) => origin), credentials: true }))
+//
+// The demo-video token route is the one exception: it is deliberately
+// origin-agnostic, because the whole point of it is to be called from apps that
+// are not this one. It carries no cookie and no session — the request is
+// unauthenticated, rate limited per IP, and the token it mints only ever opens
+// a `demo-` room — so reflecting whatever origin asked gives away nothing that
+// a curl from a terminal would not already have.
+app.use('*', cors({
+  origin: (origin, c) =>
+    c.req.path.startsWith('/api/demo-video/') ? (origin || '*') : (process.env.CLIENT_URL ?? origin),
+  credentials: true,
+}))
 
 app.route('/api/settings', settingsRouter)
 app.route('/api/footballers', footballersRouter)
