@@ -77,13 +77,17 @@ export async function mintJoinToken(
   roomName: string,
   identity: string,
   displayName: string,
+  // Overridable so a caller whose calls are short can mint a token that dies
+  // with them. A token outliving the thing it was minted for is a liability
+  // sitting in a browser tab, and six hours is generous for a demo.
+  ttl: string = TOKEN_TTL,
 ): Promise<string | null> {
   const config = livekitConfig()
   if (!config) return null
   const token = new AccessToken(config.apiKey, config.apiSecret, {
     identity,
     name: displayName,
-    ttl: TOKEN_TTL,
+    ttl,
   })
   token.addGrant({
     roomJoin: true,

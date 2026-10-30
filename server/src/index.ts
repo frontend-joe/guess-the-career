@@ -64,6 +64,7 @@ import { progressRouter } from './routes/progress.ts'
 import { settingsRouter } from './routes/settings.ts'
 import { usersRouter } from './routes/users.ts'
 import { roomsRouter } from './routes/rooms.ts'
+import { demoVideoRouter } from './routes/demoVideo.ts'
 import { livekitMissing } from './services/livekit.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
@@ -139,6 +140,7 @@ app.route('/api/auth', authRouter)
 app.route('/api/progress', progressRouter)
 app.route('/api/users', usersRouter)
 app.route('/api/rooms', roomsRouter)
+app.route('/api/demo-video', demoVideoRouter)
 
 // redeploy trigger: 2026-07-06c
 // `db` is here so a detached volume is visible from outside the container:
