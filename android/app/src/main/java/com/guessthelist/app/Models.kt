@@ -59,6 +59,10 @@ data class ReplayGuess(
     val verdict: String,
     val matchedRank: Int? = null,
     val tMs: Int = 0,
+    /** Who said it. The log has recorded this since guessing stopped being the
+     *  host's alone; the apps simply were not reading it. Null on a round
+     *  played before it was logged. */
+    val byParticipantId: Int? = null,
 )
 
 // A clue field is a string, a number or null, so it stays a JsonElement until

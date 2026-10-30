@@ -87,6 +87,16 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     val isHost: Boolean get() = me?.isHost == true
     val round: RoomRound? get() = state?.round
 
+    /** Who a participant id belongs to, for the things that name a player
+     *  rather than draw their tile — the guess feed, and the recording after
+     *  it. "You" for your own, because a feed of your own name reads oddly
+     *  when half the rows are yours. */
+    fun displayNameOfParticipant(id: Int?): String? {
+        if (id == null) return null
+        if (id == seat?.participantId) return "You"
+        return state?.participants?.firstOrNull { it.id == id }?.displayName?.takeIf { it.isNotEmpty() }
+    }
+
     init { restoreSeat() }
 
     // MARK: Entering and leaving

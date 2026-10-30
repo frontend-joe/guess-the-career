@@ -33,7 +33,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -214,6 +216,11 @@ fun RoomScreen(model: RoomViewModel) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
             VideoGrid(model)
         }
+
+        // Under the faces, because that is the order of the recording: board,
+        // then who is playing, then what they said. It costs the board 50dp
+        // and earns the only record of the wrong answers anybody will see.
+        GuessFeed(model)
 
         // Errors only. A verdict used to live here too, which meant a line of
         // text saying "hit" sat above a board that had just turned a row
@@ -569,6 +576,97 @@ private fun Tile(model: RoomViewModel, tile: RoomViewModel.Tile) {
                 }) { Text("Remove", color = Color(0xFFFF6B6B)) }
             },
             dismissButton = { TextButton(onClick = { confirmingRemove = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+// Every guess as it lands, in a band of its own under the faces.
+//
+// The board says what was RIGHT. It cannot say who said it, and it says
+// nothing at all about the nineteen wrong answers that got you there — which
+// is most of what actually happens in a round, and most of what is worth
+// hearing back on the recording. So the names live here instead: a shallow
+// strip of the last few guesses, newest nearest the edge you read from.
+//
+// 50dp, fixed. One row of pills rather than a scrolling list on purpose: a
+// band this short can show one line well or two badly, and the thing being
+// watched is the newest guess arriving, not the history.
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GuessFeed(model: RoomViewModel) {
+    // More than the eye can follow anyway; the point of the tail is that a
+    // guess you glanced away from has not gone.
+    val window = 12
+    val guesses = model.round?.board?.guesses ?: emptyList()
+    // The log is append-only, so an index is a stable identity — which is what
+    // lets a new guess animate in rather than the whole row redrawing.
+    // Not named `items`: that is also the LazyRow builder's own name, and the
+    // call below resolves to the wrong one.
+    // withIndex is lazy and gives an Iterable, which has no takeLast — hence
+    // the toList before it.
+    val feed = guesses
+        .withIndex()
+        .toList()
+        .takeLast(window)
+        .reversed()
+
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .background(Color(0xFF0A0A0C)),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp),
+    ) {
+        items(feed.size, key = { feed[it].index }) { i ->
+            val guess = feed[i].value
+            // Fired from the item's own first composition, so it is the
+            // arrival that animates. A resync that re-sends the same log
+            // re-uses the same keys and nothing replays.
+            var shown by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) { shown = true }
+            AnimatedVisibility(
+                visible = shown,
+                enter = fadeIn() + scaleIn(initialScale = 0.7f),
+                exit = fadeOut(),
+                modifier = Modifier.animateItem(),
+            ) {
+                GuessPill(model, guess)
+            }
+        }
+    }
+}
+
+// Name first, then what they said. That order because the name is what the
+// board cannot tell you, and because a column of names down the leading edge
+// is scannable in a way a column of guesses is not.
+@Composable
+private fun GuessPill(model: RoomViewModel, guess: ReplayGuess) {
+    val colour = verdictColour(guess.verdict)
+    val name = model.displayNameOfParticipant(guess.byParticipantId)
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(CircleShape)
+            // Tinted by the verdict rather than coloured by it: twelve filled
+            // pills in four colours is a bag of sweets, and the board is
+            // already where colour means something.
+            .background(colour.copy(alpha = 0.16f))
+            .border(1.dp, colour.copy(alpha = 0.35f), CircleShape)
+            .padding(horizontal = 11.dp, vertical = 7.dp),
+    ) {
+        if (name != null) {
+            Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colour, maxLines = 1)
+        }
+        Text(
+            guess.raw,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.White.copy(alpha = 0.92f),
+            maxLines = 1,
         )
     }
 }

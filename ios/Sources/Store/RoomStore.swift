@@ -134,6 +134,17 @@ final class RoomStore {
     var isHost: Bool { me?.isHost == true }
     var round: RoomRound? { state?.round }
 
+    /// Who a participant id belongs to, for the things that name a player
+    /// rather than draw their tile — the guess feed, and the recording after
+    /// it. "You" for your own, because a feed of your own name reads oddly
+    /// when four of the eight rows are yours.
+    func displayName(ofParticipant id: Int?) -> String? {
+        guard let id else { return nil }
+        if id == seat?.participantId { return "You" }
+        let name = state?.participants.first { $0.id == id }?.displayName
+        return name?.isEmpty == false ? name : nil
+    }
+
     // MARK: - Invite links
 
     /// The invite. One shape across all three clients — /join/<CODE> — because

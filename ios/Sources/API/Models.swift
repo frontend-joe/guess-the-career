@@ -49,6 +49,11 @@ struct ReplayGuess: Codable, Equatable {
     let verdict: String
     let matchedRank: Int?
     let tMs: Int
+    /// Who said it. The log has recorded this since guessing stopped being the
+    /// host's alone; the apps simply were not reading it. Optional so a phone
+    /// on an older build than the server still decodes the board, and because
+    /// a round played before this was logged has none.
+    let byParticipantId: Int?
 }
 
 // A clue field can be a string, a number or null, so it needs a decoder of its

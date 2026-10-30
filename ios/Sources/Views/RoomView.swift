@@ -68,6 +68,12 @@ struct RoomView: View {
                         .background(BoardStyle.background)
                         .clipped()
 
+                    // Under the faces, because that is the order of the
+                    // recording: board, then who is playing, then what they
+                    // said. It costs the board 50pt and earns the only record
+                    // of the wrong answers anybody will ever see.
+                    GuessFeedView()
+
                     // The host's final say, when the list has just turned
                     // something down. Sits above the footer rather than in the
                     // toast, because the toast goes away on its own and this

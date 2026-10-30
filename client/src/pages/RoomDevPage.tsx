@@ -409,6 +409,16 @@ export function RoomDevPage() {
   const isHost = me?.role === 'host'
   const round = state?.round ?? null
 
+  // Who said it. The log has recorded this since guessing stopped being the
+  // host's alone, and the feed was throwing it away — which on a four-up board
+  // makes the one thing the board cannot tell you unreadable. "You" for your
+  // own, because a feed of your own name reads oddly when half of it is yours.
+  const guesserName = (participantId: number | null): string | null => {
+    if (participantId == null) return null
+    if (participantId === me?.id) return 'You'
+    return state?.participants.find((p) => p.id === participantId)?.displayName || null
+  }
+
   if (!session) {
     return (
       // The in-room view sets its own dark background; this one needs it too,
@@ -548,6 +558,16 @@ export function RoomDevPage() {
                       <span className={`flex-1 ${found?.missed ? 'text-slate-400' : ''}`}>
                         {found ? found.name : '— — —'}
                       </span>
+                      {/* Who got it. A row turning green says the answer was
+                          found; on a four-up board the half of the news that
+                          matters to the people playing is which of them found
+                          it. Nothing on a row revealed by giving up — nobody
+                          got that one. */}
+                      {found && !found.missed && guesserName(found.byParticipantId) && (
+                        <span className="text-xs text-emerald-400/80">
+                          {guesserName(found.byParticipantId)}
+                        </span>
+                      )}
                       <span className="text-sm text-slate-400">
                         {found ? badgeText(found) : ''}
                       </span>
@@ -581,11 +601,15 @@ export function RoomDevPage() {
             </ol>
 
             <div className="text-xs text-slate-500">
-              {round.board.guesses.slice(-8).reverse().map((g, i) => (
-                <div key={`${g.tMs}-${i}`}>
-                  <span className={VERDICT_STYLE[g.verdict] ?? ''}>{g.verdict}</span> — {g.raw}
-                </div>
-              ))}
+              {round.board.guesses.slice(-8).reverse().map((g, i) => {
+                const who = guesserName(g.byParticipantId)
+                return (
+                  <div key={`${g.tMs}-${i}`}>
+                    <span className={VERDICT_STYLE[g.verdict] ?? ''}>{g.verdict}</span> — {g.raw}
+                    {who && <span className="text-slate-400"> · {who}</span>}
+                  </div>
+                )
+              })}
             </div>
           </>
         )}
