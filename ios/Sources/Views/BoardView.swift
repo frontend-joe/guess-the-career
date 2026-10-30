@@ -77,7 +77,12 @@ struct BoardView: View {
     var body: some View {
         if let round = store.round {
             pyramid(round)
-                .padding(.horizontal, 10)
+                // 32, not 10: the pyramid is 44pt narrower than the screen it
+                // sits on. Every row is a fraction of what is left, so the
+                // widest loses the full 44 and the narrowest about 25, which
+                // keeps the shape of the pyramid while giving the board an
+                // edge to sit inside rather than running to the bezel.
+                .padding(.horizontal, 32)
                 .padding(.vertical, 6)
                 // One timer, not ten. Off entirely under reduced motion: a
                 // repeating sweep across the whole screen is exactly the kind

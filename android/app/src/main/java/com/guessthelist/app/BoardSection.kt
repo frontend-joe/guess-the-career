@@ -106,7 +106,10 @@ fun BoardSection(model: RoomViewModel) {
     }
 
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp),
+        // 32, not 10: the pyramid is 44dp narrower than the screen it sits on,
+        // matching iOS. Every row is a fraction of what is left, so the widest
+        // loses the full 44 and the narrowest about 25.
+        Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
