@@ -436,3 +436,58 @@ test('saving a retired round puts it back in the pool', () => {
   })
   assert.equal(generalRounds().find((r) => r.slug === 'revivable')!.retired, false)
 })
+
+// ── Discarded rounds stay discarded ──────────────────────────────────────────
+
+test('the thirty-eight discarded rounds are not seeded', () => {
+  // 0104 seeded them and 0107 takes them back out. Without 0107 a rebuilt
+  // database resurrects content somebody deliberately threw away, which is the
+  // cost of seeding content through migrations.
+  const discarded = [
+    'avoid-washing-up', 'brits-say-sorry-to', 'car-boot-sale', 'cat-knocks-off-table',
+    'dads-on-holiday', 'dating-profile-lies', 'down-back-of-sofa', 'family-christmas',
+    'famous-last-words', 'hen-do', 'kitchen-junk-drawer', 'nans-handbag',
+    'never-say-to-hairdresser', 'never-self-service', 'pretend-to-understand',
+    'primary-school-playground', 'reasons-to-cancel', 'rubbish-christmas-presents',
+    'rubbish-superpowers', 'seagull-steals', 'self-checkout-says', 'shout-at-a-spider',
+    'signs-getting-old', 'silly-english-words', 'stag-do', 'surprisingly-loud',
+    'things-a-teenager-says', 'things-in-the-shower', 'things-your-mum-says',
+    'toddler-mouth', 'fictional-pigs', 'bad-places-to-sneeze', 'late-to-work-excuses',
+    'should-have-been-an-email', 'brits-talk-about', 'things-that-go-ding',
+    'cry-not-sad', 'ruin-a-nights-sleep',
+  ]
+  const slugs = new Set(generalRounds().map((r) => r.slug))
+  assert.deepEqual(discarded.filter((s) => slugs.has(s)), [])
+  // And nothing is left behind: no orphan answers, no orphan registry row.
+  for (const slug of discarded) {
+    assert.equal(generalAnswers(slug).length, 0, slug)
+    assert.equal(
+      (sqlite.prepare(`SELECT COUNT(*) AS n FROM tenable_rounds WHERE params = ?`)
+        .get(JSON.stringify({ round: slug })) as { n: number }).n,
+      0,
+      slug,
+    )
+  }
+})
+
+test('the cleanup leaves a round alone while a played game points at it', () => {
+  // The same guard 0107 uses, exercised directly: a registry row a round
+  // instance depends on must survive the delete, or the game cannot say what
+  // question it was.
+  saveGeneralRound({
+    slug: 'guarded', topic: 'words', title: 'Guarded', ordered: false, unit: null,
+    answers: Array.from({ length: 12 }, (_, i) => ({
+      name: `Answer ${i + 1}`, aliases: [], value: 0, display: null,
+    })),
+  })
+  liveRound('guarded')
+
+  const removed = sqlite
+    .prepare(
+      `DELETE FROM tenable_rounds
+       WHERE type = 'general' AND params = ?
+         AND id NOT IN (SELECT round_id FROM game_round_instances)`,
+    )
+    .run(JSON.stringify({ round: 'guarded' })).changes
+  assert.equal(removed, 0, 'the registry row should have been protected')
+})
