@@ -124,6 +124,28 @@ export function isPlaceExactly(guess: string, name: string, aliases: string[] = 
   return [name, ...aliases].some((candidate) => placeKey(candidate) === g)
 }
 
+/**
+ * True when two strings are the same but for one swapped pair of neighbours.
+ *
+ * Its own function rather than a damerau() of 1, because a short answer must
+ * not get a general edit allowance and this is the one error worth forgiving
+ * at any length. See matchesPlace.
+ */
+function isTransposition(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  const diffs: number[] = []
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      diffs.push(i)
+      if (diffs.length > 2) return false
+    }
+  }
+  return diffs.length === 2
+    && diffs[1] === diffs[0] + 1
+    && a[diffs[0]] === b[diffs[1]]
+    && a[diffs[1]] === b[diffs[0]]
+}
+
 export function matchesPlace(guess: string, name: string, aliases: string[] = []): boolean {
   const g = placeKey(guess)
   if (!g) return false
@@ -131,10 +153,19 @@ export function matchesPlace(guess: string, name: string, aliases: string[] = []
     const c = placeKey(candidate)
     if (!c) continue
     if (g === c) return true
+    // A swapped pair of neighbours is forgiven at any length, because it is a
+    // different kind of error from the rest. It is what a phone keyboard does
+    // to a word it does not know — Mali autocorrects to Mail, and before this
+    // that was a miss on a round whose whole subject is countries beginning
+    // with M — and unlike a substitution it cannot quietly turn one real
+    // answer into another. The sweep in general.test.ts checks that for every
+    // answer of every round.
+    if (isTransposition(g, c)) return true
     // One typo forgiven on an ordinary name, two on a long one — "Saint
     // Vincent and the Grenadines" is going to be typed wrong by somebody who
     // knows exactly what they mean. Nothing under five characters gets any
-    // latitude at all: at that length a single edit is a different place.
+    // latitude at all: at that length a single edit is a different place, and
+    // Iran and Iraq both answer "countries in Asia".
     const allowance = c.length >= 12 ? 2 : c.length >= 5 ? 1 : 0
     if (allowance === 0) continue
     if (Math.abs(g.length - c.length) <= allowance && damerau(g, c) <= allowance) return true

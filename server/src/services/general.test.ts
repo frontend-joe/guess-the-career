@@ -491,3 +491,68 @@ test('the cleanup leaves a round alone while a played game points at it', () => 
     .run(JSON.stringify({ round: 'guarded' })).changes
   assert.equal(removed, 0, 'the registry row should have been protected')
 })
+
+// ── Typos a phone makes ──────────────────────────────────────────────────────
+
+test('a swapped pair of letters still finds the answer it meant', () => {
+  // Mali is the case that started this: four letters, so no edit allowance,
+  // and "Mail" is what a phone offers instead.
+  assert.equal(matchesPlace('Mail', 'Mali'), true)
+  assert.equal(matchesPlace('Liam', 'Lima'), true)
+  assert.equal(matchesPlace('Oamn', 'Oman'), true)
+  // Still not a licence to be one letter out at that length.
+  assert.equal(matchesPlace('Iraq', 'Iran'), false)
+  assert.equal(matchesPlace('Mal', 'Mali'), false)
+  assert.equal(matchesPlace('Male', 'Mali'), false)
+})
+
+// The test's own reading of "one swapped pair of neighbours", deliberately not
+// imported from nameMatch: a sweep that shares an implementation with the rule
+// it is checking cannot catch a bug in it.
+function transposes(a: string, b: string): boolean {
+  const x = norm(a).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const y = norm(b).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+  if (x.length !== y.length) return false
+  const diffs = [...x].map((ch, i) => (ch === y[i] ? -1 : i)).filter((i) => i >= 0)
+  return diffs.length === 2 && diffs[1] === diffs[0] + 1
+    && x[diffs[0]] === y[diffs[1]] && x[diffs[1]] === y[diffs[0]]
+}
+
+// Captured at load, before any test writes a fixture round of its own.
+const SEEDED = new Set(generalRounds().map((r) => r.slug))
+
+test('no transposed answer is a transposition of a different answer', () => {
+  // The forgiveness above is only safe if swapping two neighbours in an answer
+  // cannot land on another answer of the same round. That is not something to
+  // assume across 139 rounds and 2,298 answers, so it is measured.
+  //
+  // Scoped to what this rule actually changed. Two answers already within the
+  // ordinary edit allowance of each other — Neon and Xenon, Brent and Barnet —
+  // have always been reachable from a typo of the other, and that is the price
+  // of forgiving typos at all. What must not be true is that a transposition
+  // makes a NEW pair reachable.
+  const problems: string[] = []
+  let probes = 0
+  for (const round of generalRounds()) {
+    if (!SEEDED.has(round.slug)) continue
+    const answers = generalAnswers(round.slug)
+    for (const answer of answers) {
+      for (const probe of [answer.name, ...answer.aliases]) {
+        for (let i = 0; i < probe.length - 1; i++) {
+          if (probe[i] === probe[i + 1]) continue
+          const typo = probe.slice(0, i) + probe[i + 1] + probe[i] + probe.slice(i + 2)
+          probes++
+          for (const other of answers) {
+            if (other.position === answer.position) continue
+            const reached = [other.name, ...other.aliases].some(
+              (c) => isPlaceExactly(typo, c) || transposes(typo, c),
+            )
+            if (reached) problems.push(`${round.slug}: "${typo}" (from "${probe}") reaches ${other.name}`)
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(problems, [])
+  assert.ok(probes > 15000, `expected a real sweep, got ${probes} probes`)
+})
