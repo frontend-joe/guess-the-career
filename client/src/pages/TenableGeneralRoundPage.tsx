@@ -36,6 +36,10 @@ export function TenableGeneralRoundPage() {
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** How many played rounds point at this one, which decides whether deleting
+   *  it can mean deleting it. */
+  const [games, setGames] = useState(0)
+  const [retired, setRetired] = useState(false)
 
   useEffect(() => { getGeneralRounds().then(r => setTopics(r.topics)).catch(() => {}) }, [])
 
@@ -49,6 +53,8 @@ export function TenableGeneralRoundPage() {
         setOrdered(round.ordered)
         setUnit(round.unit ?? '')
         setAnswers(answers.length ? answers : Array.from({ length: BOARD_SIZE }, blank))
+        setGames(round.games)
+        setRetired(round.retired)
       })
       .catch(() => setError('Could not load that round'))
       .finally(() => setLoading(false))
@@ -91,6 +97,7 @@ export function TenableGeneralRoundPage() {
         answers: answers.filter(a => a.name.trim()),
       })
       navigate(`/admin/tenable/general/${saved.slug}`, { replace: true })
+      setRetired(false)
       if (!isNew) setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save')
@@ -100,9 +107,28 @@ export function TenableGeneralRoundPage() {
   }
 
   async function remove() {
-    if (!confirm(`Delete “${title}”? This removes the round and its answers.`)) return
-    await deleteGeneralRound(slug)
-    navigate('/admin/tenable/general')
+    // A round that has been played is retired rather than deleted, because the
+    // games that used it point at its registry row. Say so before, not after.
+    const question = games > 0
+      ? `“${title}” has been played in ${games} game${games === 1 ? '' : 's'}.\n\n`
+        + 'It will be retired — taken out of the list hosts pick from, but kept on file, '
+        + 'because those games point at it. Carry on?'
+      : `Delete “${title}”? This removes the round and its answers.`
+    if (!confirm(question)) return
+
+    setError(null)
+    try {
+      const result = await deleteGeneralRound(slug)
+      // Retired is not gone, so staying put and saying so beats bouncing back
+      // to a list where the round is still sitting there.
+      if (result.retired) {
+        setRetired(true)
+        return
+      }
+      navigate('/admin/tenable/general')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete that round')
+    }
   }
 
   if (loading) {
@@ -284,6 +310,13 @@ export function TenableGeneralRoundPage() {
           </p>
         )}
 
+        {retired && (
+          <p className="text-sm text-muted-foreground bg-muted/50 border rounded-lg px-3 py-2">
+            Retired. Hosts will not see this round, but the {games} game{games === 1 ? '' : 's'} played
+            from it still point at it, so it stays on file. Saving puts it back in the list.
+          </p>
+        )}
+
         {error && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {error}
@@ -295,10 +328,10 @@ export function TenableGeneralRoundPage() {
             {saving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
             {isNew ? 'Create round' : 'Save changes'}
           </Button>
-          {!isNew && (
+          {!isNew && !retired && (
             <Button variant="ghost" size="sm" onClick={remove} className="text-red-600 hover:text-red-700">
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              Delete
+              {games > 0 ? 'Retire' : 'Delete'}
             </Button>
           )}
         </div>

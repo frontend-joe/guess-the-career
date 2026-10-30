@@ -305,8 +305,11 @@ tenableRouter.put("/admin/general/rounds/:slug", zValidator("json", generalBody)
 });
 
 tenableRouter.delete("/admin/general/rounds/:slug", (c) => {
-  deleteGeneralRound(c.req.param("slug"));
-  return c.json({ ok: true });
+  try {
+    return c.json({ ok: true, ...deleteGeneralRound(c.req.param("slug")) });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "Could not delete" }, 400);
+  }
 });
 
 // ── The pool a room picks from ───────────────────────────────────────────────
@@ -330,7 +333,7 @@ tenableRouter.get("/rounds", (c) => {
               s.date AS date
        FROM tenable_rounds r
        LEFT JOIN tenable_schedule s ON s.round_id = r.id
-       WHERE r.category = ?
+       WHERE r.category = ? AND r.enabled = 1
        ORDER BY s.date IS NULL, s.date ASC, r.title ASC`,
     )
     .all(category) as {

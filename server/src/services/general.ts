@@ -74,6 +74,10 @@ export interface GeneralRoundRow {
   answerCount: number;
   /** The registry row in tenable_rounds, which is how the game knows it. */
   roundId: number | null;
+  /** Out of the pool a host picks from, but still on file. See deleteGeneralRound. */
+  retired: boolean;
+  /** How many multiplayer rounds have been played from it. */
+  games: number;
 }
 
 const PARAMS = (slug: string) => JSON.stringify({ round: slug });
@@ -85,14 +89,21 @@ export function generalRounds(): GeneralRoundRow[] {
     .prepare(
       `SELECT g.slug, g.topic, g.title, g.ordered, g.unit,
               (SELECT COUNT(*) FROM general_answers a WHERE a.round_slug = g.slug) AS answerCount,
-              (SELECT t.id FROM tenable_rounds t
-                WHERE t.category = 'general' AND t.type = 'general'
-                  AND t.params = '{"round":"' || g.slug || '"}') AS roundId
+              t.id AS roundId,
+              COALESCE(t.enabled, 1) = 0 AS retired,
+              (SELECT COUNT(*) FROM game_round_instances i WHERE i.round_id = t.id) AS games
        FROM general_rounds g
+       LEFT JOIN tenable_rounds t
+         ON t.category = 'general' AND t.type = 'general'
+        AND t.params = '{"round":"' || g.slug || '"}'
        ORDER BY g.topic, g.title`,
     )
     .all()
-    .map((r) => ({ ...(r as GeneralRoundRow), ordered: !!(r as { ordered: number }).ordered }));
+    // SQLite has no booleans, so ordered and retired arrive as 0 or 1.
+    .map((r) => {
+      const row = r as Omit<GeneralRoundRow, "ordered" | "retired"> & { ordered: number; retired: number };
+      return { ...row, ordered: !!row.ordered, retired: !!row.retired };
+    });
 }
 
 export function generalAnswers(slug: string): GeneralAnswerRow[] {
@@ -189,7 +200,10 @@ export function saveGeneralRound(input: GeneralRoundInput): { slug: string; roun
         `INSERT INTO tenable_rounds (category, type, params, metric, title, answer_count)
          VALUES ('general', 'general', ?, 'none', ?, ?)
          ON CONFLICT (type, params, metric) DO UPDATE
-           SET title = excluded.title, answer_count = excluded.answer_count`,
+           -- enabled too: editing and saving a retired round is how you put it
+           -- back in the pool, and silently leaving it retired would look like
+           -- the save had failed.
+           SET title = excluded.title, answer_count = excluded.answer_count, enabled = 1`,
       )
       .run(PARAMS(slug), input.title.trim(), answerCount);
 
@@ -201,8 +215,45 @@ export function saveGeneralRound(input: GeneralRoundInput): { slug: string; roun
   })();
 }
 
-export function deleteGeneralRound(slug: string): void {
-  sqlite.transaction(() => {
+export interface GeneralDeleteResult {
+  /** True when the round was kept on file and taken out of the pool instead. */
+  retired: boolean;
+  /** How many played rounds pointed at it. */
+  games: number;
+}
+
+/**
+ * Remove a round, or retire it if removing it would take a recording with it.
+ *
+ * game_round_instances.round_id is ON DELETE RESTRICT, and rightly: an instance
+ * is the record of a round somebody played, and the registry row is how it
+ * knows which question it was. Deleting out from under it would leave a
+ * recording that cannot say what it was a recording of — and SQLite would
+ * refuse anyway, which is where this used to surface as a bare constraint
+ * error and a "Failed to delete round" with nothing to act on.
+ *
+ * So a round that has never been played is deleted outright, and a round that
+ * has is retired: enabled = 0 takes it out of the pool a host picks from, which
+ * is what deleting it was for, while the games that used it keep working. Its
+ * answers stay, so it can be read back and — by saving it — brought back.
+ */
+export function deleteGeneralRound(slug: string): GeneralDeleteResult {
+  return sqlite.transaction(() => {
+    const registry = sqlite
+      .prepare(`SELECT id FROM tenable_rounds WHERE type = 'general' AND params = ?`)
+      .get(PARAMS(slug)) as { id: number } | undefined;
+
+    const games = registry
+      ? (sqlite
+          .prepare(`SELECT COUNT(*) AS n FROM game_round_instances WHERE round_id = ?`)
+          .get(registry.id) as { n: number }).n
+      : 0;
+
+    if (games > 0) {
+      sqlite.prepare(`UPDATE tenable_rounds SET enabled = 0 WHERE id = ?`).run(registry!.id);
+      return { retired: true, games };
+    }
+
     // The registry row goes first: a round nobody can select is a better
     // half-deleted state than answers nobody can reach.
     sqlite
@@ -210,6 +261,7 @@ export function deleteGeneralRound(slug: string): void {
       .run(PARAMS(slug));
     sqlite.prepare(`DELETE FROM general_answers WHERE round_slug = ?`).run(slug);
     sqlite.prepare(`DELETE FROM general_rounds WHERE slug = ?`).run(slug);
+    return { retired: false, games: 0 };
   })();
 }
 

@@ -272,6 +272,10 @@ export interface GeneralRound {
   unit: string | null
   answerCount: number
   roundId: number | null
+  /** Taken out of the pool a host picks from, but still on file. */
+  retired: boolean
+  /** How many multiplayer rounds have been played from it. */
+  games: number
 }
 
 export interface GeneralAnswer {
@@ -296,7 +300,7 @@ export async function getGeneralRound(slug: string): Promise<{ round: GeneralRou
 
 export async function saveGeneralRound(
   slug: string,
-  body: Omit<GeneralRound, 'answerCount' | 'roundId'> & { answers: GeneralAnswer[] },
+  body: Omit<GeneralRound, 'answerCount' | 'roundId' | 'retired' | 'games'> & { answers: GeneralAnswer[] },
 ): Promise<{ slug: string; roundId: number }> {
   const res = await fetch(`/api/tenable/admin/general/rounds/${encodeURIComponent(slug)}`, {
     method: 'PUT',
@@ -307,7 +311,11 @@ export async function saveGeneralRound(
   return res.json()
 }
 
-export async function deleteGeneralRound(slug: string): Promise<void> {
+// Resolves to what actually happened: a round that has been played is retired
+// rather than deleted, because a recording points at it. See
+// deleteGeneralRound in the general service.
+export async function deleteGeneralRound(slug: string): Promise<{ retired: boolean; games: number }> {
   const res = await fetch(`/api/tenable/admin/general/rounds/${encodeURIComponent(slug)}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error('Failed to delete round')
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Failed to delete round')
+  return res.json()
 }

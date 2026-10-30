@@ -369,3 +369,70 @@ test('a seat is kept rather than reissued when someone comes back', () => {
   const third = rooms.participantsOf(room.id).find((p) => p.display_name === 'Third')!
   assert.equal(third.slot, 3)
 })
+
+// ── Deleting a round ─────────────────────────────────────────────────────────
+
+test('an unplayed round is deleted outright', () => {
+  saveGeneralRound({
+    slug: 'throwaway', topic: 'words', title: 'Throwaway', ordered: false, unit: null,
+    answers: [{ name: 'One', aliases: [], value: 0, display: null }],
+  })
+  assert.ok(generalRounds().some((r) => r.slug === 'throwaway'))
+
+  const result = deleteGeneralRound('throwaway')
+  assert.deepEqual(result, { retired: false, games: 0 })
+  assert.equal(generalRounds().some((r) => r.slug === 'throwaway'), false)
+  // The registry row and the answers go with it, or the round is selectable
+  // with nothing behind it.
+  assert.equal(generalAnswers('throwaway').length, 0)
+  assert.equal(
+    (sqlite.prepare(`SELECT COUNT(*) AS n FROM tenable_rounds WHERE params = ?`)
+      .get(JSON.stringify({ round: 'throwaway' })) as { n: number }).n,
+    0,
+  )
+})
+
+test('a round that has been played is retired rather than deleted', () => {
+  // Its own round rather than a seeded one, so the count of games played from
+  // it is exactly the one this test plays.
+  saveGeneralRound({
+    slug: 'retire-me', topic: 'words', title: 'Retire me', ordered: false, unit: null,
+    answers: Array.from({ length: 12 }, (_, i) => ({
+      name: `Answer ${i + 1}`, aliases: [], value: 0, display: null,
+    })),
+  })
+  const { inst } = liveRound('retire-me')
+
+  // Deleting it would take the registry row that this instance — and whatever
+  // was recorded of it — points at for the question it was.
+  const result = deleteGeneralRound('retire-me')
+  assert.deepEqual(result, { retired: true, games: 1 })
+
+  const round = generalRounds().find((r) => r.slug === 'retire-me')
+  assert.ok(round, 'the round should still be on file')
+  assert.equal(round.retired, true)
+  assert.equal(round.games, 1)
+  assert.equal(generalAnswers('retire-me').length, 12, 'its answers should survive')
+  // And the game that was in progress is untouched.
+  assert.ok(
+    sqlite.prepare('SELECT id FROM game_round_instances WHERE id = ?').get(inst.id),
+  )
+})
+
+test('saving a retired round puts it back in the pool', () => {
+  saveGeneralRound({
+    slug: 'revivable', topic: 'words', title: 'Revivable', ordered: false, unit: null,
+    answers: [{ name: 'One', aliases: [], value: 0, display: null }],
+  })
+  const roundId = (sqlite
+    .prepare(`SELECT id FROM tenable_rounds WHERE params = ?`)
+    .get(JSON.stringify({ round: 'revivable' })) as { id: number }).id
+  sqlite.prepare('UPDATE tenable_rounds SET enabled = 0 WHERE id = ?').run(roundId)
+  assert.equal(generalRounds().find((r) => r.slug === 'revivable')!.retired, true)
+
+  saveGeneralRound({
+    slug: 'revivable', topic: 'words', title: 'Revivable', ordered: false, unit: null,
+    answers: [{ name: 'One', aliases: [], value: 0, display: null }],
+  })
+  assert.equal(generalRounds().find((r) => r.slug === 'revivable')!.retired, false)
+})
