@@ -268,10 +268,15 @@ test('no round repeats an answer', () => {
 
 const rooms = await import('./gameRooms.ts')
 
+// Counts hosts rather than naming them after the round: two tests on the same
+// round are a reasonable thing to write, and they should not collide on an
+// email address to do it.
+let hostNo = 0
+
 function liveRound(slug: string) {
   const user = sqlite
     .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
-    .get(`host-${slug}@example.com`) as { id: number }
+    .get(`host-${slug}-${++hostNo}@example.com`) as { id: number }
   const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
   const host = rooms.participantsOf(room.id)[0]
   rooms.joinRoom(room.code, 'Guest', { platform: 'ios' })
@@ -300,6 +305,25 @@ test('the host can count an answer the list did not have', () => {
   // Credited to whoever said it, not to the host who allowed it. They were
   // right; the list was short.
   assert.equal(row.byParticipantId, guest.id)
+})
+
+test('counting an answer stops the feed calling it wrong', () => {
+  // The guess feed is on screen, next to the faces, for the rest of the game
+  // and for the whole recording. Once the host has ruled that an answer
+  // counts, a pill still showing it in red is the game contradicting its own
+  // host in front of the player who was right.
+  const { room, host, guest, inst } = liveRound('cheese-types')
+  rooms.submitGuess(inst.id, guest, 'g1', 'Pecorino')
+
+  const before = rooms.roomState(rooms.roomByCode(room.code)!).round!.board
+  assert.equal(before.guesses.at(-1)!.verdict, 'miss')
+
+  rooms.allowGuess(inst.id, host, 'Pecorino')
+
+  const after = rooms.roomState(rooms.roomByCode(room.code)!).round!.board
+  const pill = after.guesses.find((g) => g.raw === 'Pecorino')!
+  assert.equal(pill.verdict, 'hit')
+  assert.equal(pill.matchedRank, after.revealed.find((a) => a.name === 'Pecorino')!.rank)
 })
 
 test('only the host has the final say', () => {

@@ -1051,6 +1051,15 @@ function reshuffleForPlayer(
     .prepare('SELECT participant_id FROM game_guesses WHERE instance_id = ? AND raw_norm = ? ORDER BY id DESC LIMIT 1')
     .get(instanceId, rawNorm) as { participant_id: number } | undefined
 
+  // Everyone who said the name, not only the last of them. They were all
+  // right, and the guess feed has been calling them wrong ever since — in red,
+  // next to the answer they supplied, on camera. The verdicts go back and get
+  // corrected, and the raws travel on the event so the fold can correct the
+  // feed it already drew without having to re-match anything.
+  const vindicated = sqlite
+    .prepare('SELECT DISTINCT raw FROM game_guesses WHERE instance_id = ? AND raw_norm = ?')
+    .all(instanceId, rawNorm) as { raw: string }[]
+
   const foundBefore = new Map(current.map((c) => [c.footballer_id, c]))
   const ids = fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
   const clues = cluesForFootballers(ids)
@@ -1092,10 +1101,18 @@ function reshuffleForPlayer(
       }
     })
 
+    sqlite
+      .prepare(
+        "UPDATE game_guesses SET verdict = 'hit', matched_rank = ? WHERE instance_id = ? AND raw_norm = ?",
+      )
+      .run(newIndex + 1, instanceId, rawNorm)
+
     appendEvent(instanceId, tMs, 'board_reshuffle', guesser?.participant_id ?? null, {
       name: fresh[newIndex].name,
       rank: newIndex + 1,
       revealed,
+      vindicated: vindicated.map((v) => v.raw),
+      matchedRank: newIndex + 1,
     })
 
     const remaining = sqlite
@@ -1201,6 +1218,13 @@ export function allowGuess(
     .prepare('SELECT participant_id FROM game_guesses WHERE instance_id = ? AND raw_norm = ? ORDER BY id DESC LIMIT 1')
     .get(instanceId, normalized) as { participant_id: number } | undefined
 
+  // And everyone who said it stops being wrong. The host has just ruled that
+  // the answer counts; a feed still showing it in red is the game arguing with
+  // its own host.
+  const vindicated = sqlite
+    .prepare('SELECT DISTINCT raw FROM game_guesses WHERE instance_id = ? AND raw_norm = ?')
+    .all(instanceId, normalized) as { raw: string }[]
+
   const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
   const byParticipantId = guesser?.participant_id ?? participant.id
 
@@ -1219,6 +1243,12 @@ export function allowGuess(
       )
       .run(instanceId, next, name, normalized, surnameOf(normalized), tMs, byParticipantId)
 
+    sqlite
+      .prepare(
+        "UPDATE game_guesses SET verdict = 'hit', matched_rank = ? WHERE instance_id = ? AND raw_norm = ?",
+      )
+      .run(next, instanceId, normalized)
+
     appendEvent(instanceId, tMs, 'reveal', byParticipantId, {
       rank: next,
       name,
@@ -1229,6 +1259,8 @@ export function allowGuess(
       photoUrl: null,
       footballerId: null,
       allowed: true,
+      vindicated: vindicated.map((v) => v.raw),
+      matchedRank: next,
     })
 
     const found = (sqlite

@@ -98,6 +98,31 @@ const num = (v: unknown, fallback = 0): number => (typeof v === 'number' ? v : f
 const nullableStr = (v: unknown): string | null => (typeof v === 'string' ? v : null)
 const nullableNum = (v: unknown): number | null => (typeof v === 'number' ? v : null)
 
+/**
+ * An answer has just been accepted that the round had already turned down, so
+ * the guesses that said it are not misses any more.
+ *
+ * Without this the feed keeps them red for the rest of the game — sitting in
+ * the same frame as the answer they supplied, telling whoever watches it back
+ * that the player got it wrong. They did not; the list did.
+ *
+ * It matches on the exact raw strings the server put in the event rather than
+ * normalising anything here, which keeps the fold a fold: there is one place
+ * that decides which guesses were vindicated, so the live board and the
+ * recording cannot reach different answers.
+ */
+function vindicate(state: BoardState, p: Record<string, unknown>): void {
+  const raws = (Array.isArray(p.vindicated) ? p.vindicated : []).filter(
+    (v): v is string => typeof v === 'string',
+  )
+  if (raws.length === 0) return
+  const vindicated = new Set(raws)
+  const rank = nullableNum(p.matchedRank) ?? nullableNum(p.rank)
+  state.guesses = state.guesses.map((g) =>
+    vindicated.has(g.raw) ? { ...g, verdict: 'hit', matchedRank: rank } : g,
+  )
+}
+
 // `seed` carries the frozen round metadata from game_round_instances. Without
 // it a round that has been frozen but not started folds to an empty title,
 // because the only event carrying the title is round_start. Seeding cannot
@@ -153,6 +178,7 @@ export function reduceEvents(
           missed: false,
           allowed: p.allowed === true,
         })
+        vindicate(state, p)
         break
       // The board changed shape mid-round because a player the database had
       // never heard of turned out to belong on it. The event carries the
@@ -180,6 +206,7 @@ export function reduceEvents(
             allowed: false,
           })
         }
+        vindicate(state, p)
         break
       }
       // Giving up arrives as ONE event carrying every remaining answer, so
