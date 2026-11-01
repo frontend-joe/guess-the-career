@@ -739,12 +739,27 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
                     LazyColumn(Modifier.fillMaxHeight(0.7f)) {
                         items(matches) { round ->
                             TextButton(onClick = { onPick(round.roundId) }) {
-                                // Only Football's rounds have a date, and only
-                                // because they came off its calendar.
-                                Text(
-                                    round.date?.let { "$it — ${round.title}" } ?: round.title,
-                                    fontSize = 13.sp,
-                                )
+                                Column(Modifier.fillMaxWidth()) {
+                                    // Only Football's rounds have a date, and
+                                    // only because they came off its calendar.
+                                    Text(
+                                        round.date?.let { "$it — ${round.title}" } ?: round.title,
+                                        fontSize = 13.sp,
+                                        // Dimmed rather than hidden or
+                                        // disabled: a round you have played is
+                                        // still a round you might want again,
+                                        // with different people or on a night
+                                        // the first one went badly.
+                                        color = if (round.played) Color(0xFF8A8A93) else Color.Unspecified,
+                                    )
+                                    if (round.played) {
+                                        Text(
+                                            playedLabel(round),
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF8A8A93),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -752,6 +767,29 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
             }
         },
     )
+}
+
+/**
+ * "Played 1 Nov", or how many times if it has come round more than once.
+ *
+ * Reads as a sentence rather than a count on its own, because the host is
+ * scanning a list of a couple of thousand rounds and a bare "3" next to a
+ * title could mean anything.
+ */
+private fun playedLabel(round: PoolRound): String {
+    val times = if (round.playedCount > 1) "Played ${round.playedCount} times" else "Played"
+    // SQLite hands back UTC with a space in the middle, so it is parsed rather
+    // than trusted to any built-in format.
+    val when_ = round.lastPlayedAt?.let {
+        runCatching {
+            java.time.LocalDateTime
+                .parse(it.replace(' ', 'T'))
+                .atZone(java.time.ZoneOffset.UTC)
+                .withZoneSameInstant(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
+        }.getOrNull()
+    } ?: return times
+    return if (round.playedCount > 1) "$times, last $when_" else "Played $when_"
 }
 
 @Suppress("unused")   // off while the Video/Chat tabs are hidden

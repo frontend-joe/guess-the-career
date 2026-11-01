@@ -86,6 +86,17 @@ struct RoomView: View {
                     footer
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
+                // Swipe down ANYWHERE to put the keyboard away, not just on
+                // the field. With the keyboard up the field is a thin strip at
+                // the bottom of the screen and the board is the part you are
+                // looking at, so that is where the hand already is.
+                //
+                // On the container rather than inside it, so a child with a
+                // gesture of its own still wins: the guess feed scrolls
+                // sideways, a tile's long press still opens its menu, and a
+                // found row still takes a tap. The 12pt threshold and the
+                // vertical-dominance check in the modifier do the rest.
+                .swipeDownToDismissKeyboard()
             }
             .background(BoardStyle.background)
         }
@@ -433,9 +444,6 @@ struct RoomView: View {
             }
             .frame(height: GlassStyle.controlHeight)
         }
-        // Swipe down on the field to put the keyboard away, without having to
-        // find a Done button or tap some neutral patch of screen.
-        .swipeDownToDismissKeyboard()
     }
 
     private func submit() {

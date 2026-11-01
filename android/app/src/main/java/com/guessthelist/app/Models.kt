@@ -221,7 +221,13 @@ data class PoolRound(
     val title: String,
     val metric: String,
     val category: String? = null,
-)
+    /** How many times this round has been played, in any room. */
+    val playedCount: Int = 0,
+    /** When it was last played, as a UTC `yyyy-MM-dd HH:mm:ss` from SQLite. */
+    val lastPlayedAt: String? = null,
+) {
+    val played: Boolean get() = playedCount > 0
+}
 
 /** One of the games Tenable is made of. Served rather than hardcoded, so a new
  *  category does not need an app release. */

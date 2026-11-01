@@ -53,10 +53,21 @@ struct RoundPickerView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(round.title)
+                                        // Dimmed rather than hidden or
+                                        // disabled: a round you have played
+                                        // is still a round you might want
+                                        // again, with different people or on
+                                        // a night the first one went badly.
+                                        .foregroundStyle(round.played ? .secondary : .primary)
                                     // Only Football's rounds have a date, and
                                     // only because they came off its calendar.
                                     if let date = round.date {
                                         Text(date).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    if round.played {
+                                        Label(playedLabel(round), systemImage: "checkmark.circle.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
                             }
@@ -86,6 +97,34 @@ struct RoundPickerView: View {
             }
         }
     }
+
+    /// "Played 1 Nov", or how many times if it has come round more than once.
+    ///
+    /// Reads as a sentence rather than a count on its own, because the host is
+    /// scanning a list of a couple of thousand rounds and a bare "3" next to a
+    /// title could mean anything.
+    private func playedLabel(_ round: PoolRound) -> String {
+        let count = round.playedCount ?? 0
+        let when = round.lastPlayedAt.flatMap(Self.day.date(from:)).map(Self.short.string(from:))
+        let times = count > 1 ? "Played \(count) times" : "Played"
+        guard let when else { return times }
+        return count > 1 ? "\(times), last \(when)" : "Played \(when)"
+    }
+
+    // SQLite hands back UTC with a space in the middle, which no built-in
+    // SwiftUI formatter reads.
+    private static let day: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    private static let short: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("d MMM")
+        return f
+    }()
 
     private func load() async {
         loading = true

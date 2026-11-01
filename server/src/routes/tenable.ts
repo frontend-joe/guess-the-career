@@ -327,12 +327,27 @@ tenableRouter.get("/rounds", (c) => {
   const category = c.req.query("category") ?? "football";
   if (!getCategory(category)) return c.json({ error: "Unknown category" }, 404);
 
+  // Which rounds have been played before, across every room rather than this
+  // one. The question the host is actually asking is "have we done this on the
+  // podcast yet", and the answer does not depend on which room they happen to
+  // be sitting in tonight.
+  //
+  // Only instances that started count. Freezing a round and then picking a
+  // different one leaves a `pending` instance behind, and that is a round
+  // nobody has played.
   const rows = sqlite
     .prepare(
       `SELECT r.id AS round_id, r.type, r.params, r.metric, r.title, r.answer_count,
-              s.date AS date
+              s.date AS date,
+              COALESCE(p.n, 0) AS played_count, p.last_at AS last_played_at
        FROM tenable_rounds r
        LEFT JOIN tenable_schedule s ON s.round_id = r.id
+       LEFT JOIN (
+         SELECT round_id, COUNT(*) AS n, MAX(created_at) AS last_at
+         FROM game_round_instances
+         WHERE started_at_ms IS NOT NULL
+         GROUP BY round_id
+       ) p ON p.round_id = r.id
        WHERE r.category = ? AND r.enabled = 1
        ORDER BY s.date IS NULL, s.date ASC, r.title ASC`,
     )
@@ -344,6 +359,8 @@ tenableRouter.get("/rounds", (c) => {
     title: string;
     answer_count: number;
     date: string | null;
+    played_count: number;
+    last_played_at: string | null;
   }[];
 
   return c.json(
@@ -359,6 +376,8 @@ tenableRouter.get("/rounds", (c) => {
         ordered: isOrdered(r.type, params),
         target: ROUND_SIZE,
         answerCount: r.answer_count,
+        playedCount: r.played_count,
+        lastPlayedAt: r.last_played_at,
       };
     }),
   );

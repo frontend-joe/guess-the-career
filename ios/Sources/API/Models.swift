@@ -260,8 +260,15 @@ struct PoolRound: Codable, Identifiable, Equatable {
     let title: String
     let metric: String
     let category: String?
+    /// How many times this round has been played, in any room. Optional so a
+    /// build older than the field still decodes.
+    let playedCount: Int?
+    /// When it was last played, as a UTC `YYYY-MM-DD HH:MM:SS` from SQLite.
+    let lastPlayedAt: String?
 
     var id: Int { roundId }
+
+    var played: Bool { (playedCount ?? 0) > 0 }
 }
 
 /// One of the games Tenable is made of. Served rather than hardcoded, so a new
