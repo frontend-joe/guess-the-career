@@ -775,50 +775,67 @@ const nationalityClub: TenableType = {
 };
 
 // ── 8b. Overseas players at an English club ──────────────────────────────────
-// Mirrors the Overseas Players game: any non-England nationality (so Scots and
-// Welsh count, as they do there) at one of the curated English clubs.
-// Derived from the career data rather than a hardcoded club list: a club counts
-// as English if it has league rows in a division only England has.
+// Which country a club belongs to, for "overseas" to mean anything.
 //
-// "Premier League" is deliberately NOT in this list. England does not own the
-// name: Ukraine's top flight and Russia's are both written that way in a
-// career table, so one row of it was enough to make Shakhtar Donetsk an
-// English club and put "Shakhtar Donetsk's overseas players" in a round built
-// from Chelsea and Everton. Cristiano Lucarelli's 2007–08 season did it.
+// Read off the leagues it has actually played in, and ONLY the leagues one
+// country uses. "Premier League" is deliberately absent: England does not own
+// the name, and a career table writes Ukraine's top flight and Russia's the
+// same way. One such row — Cristiano Lucarelli, Shakhtar Donetsk, 2007-08 —
+// was enough to file Shakhtar as English and drop "Shakhtar Donetsk's
+// overseas players" into a list of rounds built from Chelsea and Everton.
 //
-// Every division below is one only England has ever had, so a club reaching
-// this list reached it on a name nobody else uses. English clubs are not
-// harmed by the omission: they all have Championship or First Division or
-// Div 2 history behind them, and the only four clubs in the database that
-// qualified on "Premier League" alone were Shakhtar and three malformed
-// spellings ("Bolton", "TottenhamHotspur", "Wolverhampton") whose real
-// entries are listed properly elsewhere.
-const ENGLISH_DIVISIONS = [
-  "First Division", "Second Division", "Third Division",
-  "Fourth Division", "EFL Championship", "Championship",
-  "League One", "League Two", "Third Division North", "Third Division South",
-];
-const ENGLISH_CLUBS_SQL = `
-  SELECT DISTINCT REPLACE(club, ' (loan)', '') FROM career_statistics
-  WHERE COALESCE(league, division) IN (${ENGLISH_DIVISIONS.map((d) => `'${d}'`).join(", ")})
+// English clubs lose nothing by the omission: they all have Championship or
+// First Division history behind them. A club with no unambiguous league at
+// all simply has no country, and gets no round, which is the right answer for
+// a club we cannot place.
+const LEAGUE_COUNTRY: Record<string, string> = {
+  "EFL Championship": "England",
+  "First Division": "England",
+  "Serie A": "Italy",
+  "La Liga": "Spain",
+  Bundesliga: "Germany",
+};
+
+const CLUB_COUNTRY = `
+  SELECT club, country FROM (
+    SELECT REPLACE(cs.club, ' (loan)', '') AS club,
+           CASE COALESCE(cs.league, cs.division)
+             ${Object.entries(LEAGUE_COUNTRY)
+               .map(([lg, c]) => `WHEN '${lg}' THEN '${c}'`)
+               .join("\n             ")}
+           END AS country,
+           ROW_NUMBER() OVER (
+             PARTITION BY REPLACE(cs.club, ' (loan)', '')
+             -- Most players decides it, for the handful of clubs that have
+             -- turned out in more than one country's league.
+             ORDER BY COUNT(DISTINCT cs.footballer_id) DESC
+           ) AS rn
+    FROM career_statistics cs
+    WHERE COALESCE(cs.league, cs.division) IN (${Object.keys(LEAGUE_COUNTRY)
+      .map((l) => `'${l}'`)
+      .join(", ")})
+    GROUP BY 1, 2
+  )
+  WHERE rn = 1
 `;
 
 const overseasClub: TenableType = {
   slug: "overseas-club",
-  label: "Overseas at an English club",
-  description: "Non-English players who turned out for an English club.",
+  label: "Overseas players at a club",
+  description: "Players from outside the club's own country who turned out for it.",
   example: "Name 10 overseas players who turned out for Chelsea",
   title: (p, m) => `${possessive(p.club)} overseas players (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
-      `WITH tot AS (${PLAYER_CLUB})
+      `WITH tot AS (${PLAYER_CLUB}), cc AS (${CLUB_COUNTRY})
        SELECT tot.club AS club, COUNT(*) AS n
-       FROM tot JOIN footballers f ON f.id = tot.fid
+       FROM tot
+       JOIN footballers f ON f.id = tot.fid
+       JOIN cc ON cc.club = tot.club
        WHERE tot.${col} > 0
-         AND tot.club IN (${ENGLISH_CLUBS_SQL})
          AND f.nationality IS NOT NULL AND f.nationality <> ''
-         AND LOWER(f.nationality) NOT IN ('england')
+         AND LOWER(f.nationality) <> LOWER(cc.country)
        GROUP BY tot.club
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
@@ -833,12 +850,18 @@ const overseasClub: TenableType = {
   },
   answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
+    // The country is looked up rather than passed in the params: a round
+    // frozen before this was anything but English has only a club name in it,
+    // and the answers still have to come out right.
     return sqlite.prepare(
-      `WITH tot AS (${PLAYER_CLUB})
+      `WITH tot AS (${PLAYER_CLUB}), cc AS (${CLUB_COUNTRY})
        SELECT ${ANSWER_COLS}, tot.${col} AS value
-       FROM tot JOIN footballers f ON f.id = tot.fid
+       FROM tot
+       JOIN footballers f ON f.id = tot.fid
+       JOIN cc ON cc.club = tot.club
        WHERE tot.club = ? AND tot.${col} > 0
-         AND f.nationality IS NOT NULL AND LOWER(f.nationality) NOT IN ('england')
+         AND f.nationality IS NOT NULL
+         AND LOWER(f.nationality) <> LOWER(cc.country)
        ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.club) as TenableAnswer[];
   },
