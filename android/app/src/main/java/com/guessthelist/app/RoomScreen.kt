@@ -220,7 +220,13 @@ fun RoomScreen(model: RoomViewModel) {
         // Under the faces, because that is the order of the recording: board,
         // then who is playing, then what they said. It costs the board 50dp
         // and earns the only record of the wrong answers anybody will see.
-        GuessFeed(model)
+        // The typing bubble floats on the feed rather than taking a row of
+        // its own, so it costs the board no height when nobody is typing —
+        // which is most of the time.
+        Box {
+            GuessFeed(model)
+            TypingBubble(model)
+        }
 
         // Errors only. A verdict used to live here too, which meant a line of
         // text saying "hit" sat above a board that had just turned a row
@@ -344,7 +350,7 @@ fun RoomScreen(model: RoomViewModel) {
             ) {
                 BasicTextField(
                     value = guess,
-                    onValueChange = { guess = it },
+                    onValueChange = { guess = it; model.noteTyping(it) },
                     enabled = live,
                     singleLine = true,
                     textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
@@ -771,6 +777,45 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
             }
         },
     )
+}
+
+/**
+ * "Steve is typing…", floating just above the guesses.
+ *
+ * Worth showing at all because this game is played out loud: knowing somebody
+ * is already putting an answer in is what stops two people racing the same
+ * name into the box, and on a call that race is three seconds of everyone
+ * talking over each other.
+ */
+@Composable
+private fun TypingBubble(model: RoomViewModel) {
+    val names = model.typingNames
+    val text = when (names.size) {
+        0 -> ""
+        1 -> "${names[0]} is typing…"
+        2 -> "${names[0]} and ${names[1]} are typing…"
+        else -> "${names.size} people are typing…"
+    }
+    AnimatedVisibility(
+        visible = names.isNotEmpty(),
+        enter = fadeIn() + scaleIn(initialScale = 0.8f),
+        exit = fadeOut(),
+    ) {
+        Text(
+            text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White.copy(alpha = 0.85f),
+            maxLines = 1,
+            modifier = Modifier
+                .padding(start = 14.dp)
+                .offset(y = (-10).dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.72f))
+                .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+    }
 }
 
 /**
