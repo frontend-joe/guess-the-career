@@ -11,11 +11,42 @@
 #
 # The API key is the part worth guarding: it can upload builds to your
 # account. It is a file on disk and an env var, never anything committed.
+#
+# Set them once in ios/.testflight.env (gitignored) and this picks them up
+# every run:
+#     ASC_KEY_ID=XXXXXXXXXX
+#     ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-: "${ASC_KEY_ID:?Set ASC_KEY_ID — see the comment at the top of this script}"
-: "${ASC_ISSUER_ID:?Set ASC_ISSUER_ID — see the comment at the top of this script}"
+# An env file beats remembering two opaque identifiers before every release.
+# It is gitignored, and it holds identifiers rather than the key itself — the
+# .p8 stays in ~/.appstoreconnect/private_keys and is never copied in here.
+if [ -f .testflight.env ]; then
+  set -a; . ./.testflight.env; set +a
+fi
+
+# Only one key installed? Then that is the one, and there is nothing to set.
+if [ -z "${ASC_KEY_ID:-}" ]; then
+  keys=(~/.appstoreconnect/private_keys/AuthKey_*.p8)
+  if [ "${#keys[@]}" -eq 1 ] && [ -f "${keys[0]}" ]; then
+    ASC_KEY_ID="$(basename "${keys[0]}" .p8)"; ASC_KEY_ID="${ASC_KEY_ID#AuthKey_}"
+    echo "▸ Using the only installed key: $ASC_KEY_ID"
+  fi
+fi
+
+# Everything up to the upload works without these, so --dry-run proves the
+# build and the signing without needing them — which is most of what goes
+# wrong, and all of what went wrong the first time this was tried. The checks
+# therefore come AFTER the flag, or a dry run would demand credentials it is
+# never going to use.
+DRY_RUN=""
+[ "${1:-}" = "--dry-run" ] && DRY_RUN=1
+
+if [ -z "$DRY_RUN" ]; then
+  : "${ASC_KEY_ID:?Set ASC_KEY_ID in ios/.testflight.env — see the top of this script}"
+  : "${ASC_ISSUER_ID:?Set ASC_ISSUER_ID in ios/.testflight.env — the UUID above the key list in App Store Connect → Users and Access → Integrations → Keys}"
+fi
 
 BUILD_DIR="${TMPDIR:-/tmp}/gtl-testflight"
 ARCHIVE="$BUILD_DIR/GuessTheList.xcarchive"
@@ -45,6 +76,13 @@ xcodebuild -exportArchive \
 
 IPA="$(find "$BUILD_DIR/export" -name '*.ipa' | head -1)"
 [ -n "$IPA" ] || { echo "✗ No ipa was produced"; exit 1; }
+
+if [ -n "$DRY_RUN" ]; then
+  echo ""
+  echo "✓ Built and exported $IPA"
+  echo "  Stopping before the upload because --dry-run was passed."
+  exit 0
+fi
 
 echo "▸ Uploading ${IPA}…"
 xcrun altool --upload-app -f "$IPA" -t ios \

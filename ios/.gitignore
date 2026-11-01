@@ -4,3 +4,4 @@ GuessTheList.xcodeproj/
 *.xcworkspace/
 DerivedData/
 .swiftpm/
+.testflight.env
