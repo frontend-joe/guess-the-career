@@ -857,7 +857,13 @@ export function learnUnknownName(raw: string): boolean {
   // anybody, and the resolver would only guess.
   if (normalized.length < 4) return false
 
-  // Skip a name we have already resolved, and a name we failed on RECENTLY.
+  // Skip a name we have already resolved, a name we have REJECTED, and a name
+  // we failed on recently.
+  //
+  // Rejected is permanent on purpose. It means the lookup worked and the
+  // answer was no — an actor, a women's international, somebody real who
+  // cannot be on this board — and no amount of repeating the guess changes
+  // that. Only an outright failure gets another go.
   //
   // Not failed-ever: the first version blacklisted on any failure, so a
   // lookup that died halfway — a crash, a deploy, Wikipedia having a moment —
@@ -869,6 +875,7 @@ export function learnUnknownName(raw: string): boolean {
       `SELECT 1 FROM game_guess_reviews
        WHERE raw_norm = ?
          AND (status = 'resolved'
+              OR status = 'rejected'
               OR (status = 'unresolved' AND created_at > datetime('now', '-1 hour')))
        LIMIT 1`,
     )
@@ -881,6 +888,63 @@ export function learnUnknownName(raw: string): boolean {
   learnQueue.push({ raw, normalized })
   void drainLearnQueue()
   return true
+}
+
+/**
+ * Is this article a man who played association football?
+ *
+ * The auto-scrape used to take whatever Wikipedia's search returned for a name
+ * somebody shouted at a camera, which is how a database of men's footballers
+ * acquires actors and women's internationals. Both are real people with real
+ * articles; neither can ever appear on one of these boards, so creating them
+ * is pure pollution of the table every round is derived from.
+ *
+ * Categories are the test, because they are the thing Wikipedia maintains
+ * deliberately: "English men's footballers", "21st-century American
+ * sportswomen", "American male film actors".
+ *
+ * Note the word boundaries. "women's" CONTAINS the substring "men's", so a
+ * naive check for men's football passes every women's footballer on the site.
+ */
+async function isMensFootballer(wikipediaUrl: string): Promise<boolean> {
+  const title = decodeURIComponent(wikipediaUrl.split('/wiki/').pop() ?? '').replace(/_/g, ' ')
+  if (!title) return false
+
+  const url =
+    `https://en.wikipedia.org/w/api.php?action=query&format=json&redirects=1&prop=categories` +
+    `&cllimit=max&titles=${encodeURIComponent(title)}`
+
+  let cats: string[]
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'guess-the-list/1.0 (tenable round data)' },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) return false
+    const data = (await res.json()) as {
+      query?: { pages?: Record<string, { categories?: { title: string }[] }> }
+    }
+    cats = Object.values(data.query?.pages ?? {}).flatMap((pg) =>
+      (pg.categories ?? []).map((c) => c.title),
+    )
+  } catch {
+    // Unreachable Wikipedia is not evidence of anything. Refusing is the safe
+    // way to be wrong: the name stays a miss and can be looked up again later,
+    // where letting it through writes a row nobody asked for.
+    return false
+  }
+  if (cats.length === 0) return false
+
+  // Rejected outright, before anything else is considered.
+  if (cats.some((c) => /\bwomen'?s\b|sportswomen/i.test(c))) return false
+  // And it has to be football at all, which is what keeps the actors out.
+  return cats.some((c) => /footballer|association football|soccer/i.test(c))
+}
+
+/** Undo a scrape we should not have made. Career rows cascade with the row. */
+function discardScrapedFootballer(id: number, why: string, raw: string): void {
+  sqlite.prepare('DELETE FROM footballers WHERE id = ?').run(id)
+  console.log(`[reviews] discarded "${raw}" (${why})`)
 }
 
 const learnQueue: { raw: string; normalized: string }[] = []
@@ -898,12 +962,38 @@ async function drainLearnQueue(): Promise<void> {
       // guess answering 502 looks like from a phone.
       try {
         let id: number | null = null
+        let created = false
         try {
-          ;({ id } = await resolveOrCreateFootballer(next.raw, ''))
+          ;({ id, created } = await resolveOrCreateFootballer(next.raw, ''))
         } catch (err) {
           console.warn(`[reviews] could not resolve "${next.raw}":`, err)
           id = null
         }
+
+        // What the search found is not necessarily anybody who could be on a
+        // Tenable board. Checked only for rows this scrape CREATED: somebody
+        // already in the database got there by a route that is not this one,
+        // and is not ours to second-guess or delete.
+        if (id != null && created) {
+          const wiki = (sqlite
+            .prepare('SELECT wikipedia_url FROM footballers WHERE id = ?')
+            .get(id) as { wikipedia_url: string | null } | undefined)?.wikipedia_url
+          if (!wiki || !(await isMensFootballer(wiki))) {
+            discardScrapedFootballer(id, 'not a male association footballer', next.raw)
+            id = null
+            created = false
+            // Permanently, not for an hour. An actor will still be an actor
+            // tomorrow, and the retry would cost the same three searches.
+            sqlite
+              .prepare(
+                `UPDATE game_guess_reviews SET status = 'rejected'
+                 WHERE raw_norm = ? AND status = 'pending'`,
+              )
+              .run(next.normalized)
+            continue
+          }
+        }
+
         // Mark every pending row for this name, in whatever room it was said,
         // so the next attempt is skipped whether it worked or not.
         sqlite
@@ -923,12 +1013,30 @@ async function drainLearnQueue(): Promise<void> {
                WHERE r.raw_norm = ? AND i.status = 'live'`,
             )
             .all(next.normalized) as { instance_id: number }[]
+          let placed = false
           for (const row of live) {
             try {
-              reshuffleForPlayer(row.instance_id, id, next.normalized)
+              if (reshuffleForPlayer(row.instance_id, id, next.normalized)) placed = true
             } catch (err) {
               console.error(`[reviews] reshuffle failed for instance ${row.instance_id}:`, err)
             }
+          }
+
+          // Scraped for this round, kept only if it was for this round. A
+          // name shouted at a board it does not belong on is a wrong answer,
+          // and a wrong answer is not a reason to add somebody to the
+          // database every future round is derived from.
+          //
+          // Again, only what this scrape created. And only what it FAILED to
+          // place: a player who did land on the board has earned their row.
+          if (created && !placed) {
+            discardScrapedFootballer(id, 'not on the board of the round that asked', next.raw)
+            sqlite
+              .prepare(
+                `UPDATE game_guess_reviews SET status = 'rejected', resolved_footballer_id = NULL
+                 WHERE raw_norm = ? AND status = 'resolved'`,
+              )
+              .run(next.normalized)
           }
         }
       } catch (err) {
