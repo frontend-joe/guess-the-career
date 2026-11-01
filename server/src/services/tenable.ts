@@ -788,9 +788,21 @@ const nationalityClub: TenableType = {
 // First Division history behind them. A club with no unambiguous league at
 // all simply has no country, and gets no round, which is the right answer for
 // a club we cannot place.
+// Every English tier, not just the two that happen to be in ALLOWED_LEAGUES.
+// Picking from that list alone cost Oldham Athletic its country — a club whose
+// unambiguous history is League One and the old Second Division — and with it
+// a round it had always had.
 const LEAGUE_COUNTRY: Record<string, string> = {
-  "EFL Championship": "England",
   "First Division": "England",
+  "Second Division": "England",
+  "Third Division": "England",
+  "Fourth Division": "England",
+  "Third Division North": "England",
+  "Third Division South": "England",
+  "EFL Championship": "England",
+  Championship: "England",
+  "League One": "England",
+  "League Two": "England",
   "Serie A": "Italy",
   "La Liga": "Spain",
   Bundesliga: "Germany",
