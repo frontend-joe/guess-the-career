@@ -246,12 +246,7 @@ fun RoomScreen(model: RoomViewModel) {
         // The typing bubble floats on the feed rather than taking a row of
         // its own, so it costs the board no height when nobody is typing —
         // which is most of the time.
-        Box(Modifier.clipToBounds()) {
-            GuessFeed(model)
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                TypingBubble(model)
-            }
-        }
+        GuessFeed(model)
 
         // Errors only. A verdict used to live here too, which meant a line of
         // text saying "hit" sat above a board that had just turned a row
@@ -301,8 +296,19 @@ fun RoomScreen(model: RoomViewModel) {
             }
         }
 
+        Box(Modifier.fillMaxWidth()) {
+            // Behind the guess box, bottom edge pinned to its top edge, so it
+            // rises out from behind the box rather than appearing above it.
+            Box(
+                Modifier.fillMaxWidth().align(Alignment.TopCenter).offset(y = (-21).dp),
+                contentAlignment = Alignment.Center,
+            ) { TypingBubble(model) }
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF0A0A0C))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -443,6 +449,7 @@ fun RoomScreen(model: RoomViewModel) {
                     }
                 }
             }
+        }
         }
 
     }
@@ -870,8 +877,7 @@ private fun TypingBubble(model: RoomViewModel) {
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             modifier = Modifier
                 .clip(tab)
-                .background(Color.Black.copy(alpha = 0.72f))
-                .border(1.dp, Color.White.copy(alpha = 0.14f), tab)
+                .background(Color(0xFF292929))
                 .padding(horizontal = 10.dp, vertical = 4.dp),
         ) {
             Text(

@@ -79,12 +79,7 @@ struct RoomView: View {
                         // a few seconds at a time — and left a visible gap
                         // whenever nobody was typing. Overlaid, it costs
                         // nothing when there is nothing to say.
-                        // Clipped so the bubble is invisible until it has
-                        // risen clear — that is what makes it look as though
-                        // it comes out from underneath the guesses rather
-                        // than fading in on top of them.
-                        .overlay(alignment: .top) { typingBubble }
-                        .clipped()
+
 
                     // The host's final say, when the list has just turned
                     // something down. Sits above the footer rather than in the
@@ -96,6 +91,8 @@ struct RoomView: View {
                     // sits on the very bottom edge, and therefore directly on
                     // top of the keyboard when one is up.
                     footer
+                        .background(BoardStyle.background)
+                        .background(alignment: .top) { typingBubble }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 // Swipe down ANYWHERE to put the keyboard away, not just on
@@ -210,14 +207,10 @@ struct RoomView: View {
                 // bottom edge is what makes it look joined on.
                 .background(
                     UnevenRoundedRectangle(topLeadingRadius: 9, topTrailingRadius: 9)
-                        .fill(.black.opacity(0.72))
-                        .overlay(
-                            UnevenRoundedRectangle(topLeadingRadius: 9, topTrailingRadius: 9)
-                                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-                        )
+                        .fill(Color(white: 0.16))
                 )
-                // Sitting ON the feed's top edge rather than hovering above
-                // it, which is what lets it slide out from behind.
+                // Its bottom edge pinned to the guess box's top edge, so
+                // it stands on the box rather than overlapping it.
                 .alignmentGuide(.top) { $0[.bottom] }
                 .transition(
                     reduceMotion
