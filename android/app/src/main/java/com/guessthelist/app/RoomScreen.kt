@@ -740,10 +740,14 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
                         items(matches) { round ->
                             TextButton(onClick = { onPick(round.roundId) }) {
                                 Column(Modifier.fillMaxWidth()) {
-                                    // Only Football's rounds have a date, and
-                                    // only because they came off its calendar.
+                                    // No schedule date. It is the solo web
+                                    // game's calendar talking — a room plays
+                                    // whichever round the host picks, so
+                                    // "2027-07-18" was answering a question
+                                    // nobody in a room is asking. The only
+                                    // date worth a line here is the one below.
                                     Text(
-                                        round.date?.let { "$it — ${round.title}" } ?: round.title,
+                                        round.title,
                                         fontSize = 13.sp,
                                         // Dimmed rather than hidden or
                                         // disabled: a round you have played is

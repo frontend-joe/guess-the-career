@@ -582,7 +582,103 @@ final class RoomStore {
         await act { seat in _ = try await API.startRound(seat: seat, instanceId: instanceId) }
     }
 
+    // MARK: Typing
+
+    /// Who is mid-guess right now, by LiveKit identity, and when to stop
+    /// believing it.
+    ///
+    /// Peer to peer over LiveKit's data channel, never through the server.
+    /// This is the one kind of state in the game that is worthless a second
+    /// later: it does not belong in the event log, it must not bump the state
+    /// version, and nothing about it should survive into the recording.
+    private var typingUntil: [String: Date] = [:]
+    private var typingSweep: Task<Void, Never>?
+    private var lastTypingPing: Date?
+
+    private static let typingTopic = "gtl-typing"
+    /// Long enough to cover a thinking pause, short enough that a dropped
+    /// "stopped" packet clears on its own rather than leaving a ghost.
+    private static let typingTTL: TimeInterval = 5
+    /// One packet every couple of seconds, not one per keystroke.
+    private static let typingPing: TimeInterval = 2
+
+    /// The names to put above the guess box, in a stable order.
+    var typingNames: [String] {
+        let now = Date()
+        return typingUntil
+            .filter { $0.value > now }
+            .keys
+            .sorted()
+            .compactMap { knownName(forIdentity: $0) }
+    }
+
+    /// Called as the guess field changes. Throttled, so holding down a key
+    /// does not become a packet storm.
+    func noteTyping(_ text: String) {
+        guard round?.isLive == true else { return }
+        if text.trimmed.isEmpty {
+            sendTyping(false)
+            lastTypingPing = nil
+            return
+        }
+        let now = Date()
+        if let last = lastTypingPing, now.timeIntervalSince(last) < Self.typingPing { return }
+        lastTypingPing = now
+        sendTyping(true)
+    }
+
+    /// Say the quiet part: they have stopped. Called on send and on dismiss,
+    /// so the indicator goes the moment the guess does.
+    func stoppedTyping() {
+        lastTypingPing = nil
+        sendTyping(false)
+    }
+
+    private func sendTyping(_ typing: Bool) {
+        guard let room, let payload = try? JSONEncoder().encode(["typing": typing]) else { return }
+        Task {
+            // Lossy on purpose. A typing dot is not worth a retransmit, and
+            // reliable delivery would queue these behind the state broadcasts
+            // that actually matter.
+            try? await room.localParticipant.publish(
+                data: payload,
+                options: DataPublishOptions(topic: Self.typingTopic, reliable: false),
+            )
+        }
+    }
+
+    private func handleTyping(_ data: Data, from identity: String?) {
+        guard let identity,
+              let body = try? JSONDecoder().decode([String: Bool].self, from: data) else { return }
+        if body["typing"] == true {
+            typingUntil[identity] = Date().addingTimeInterval(Self.typingTTL)
+            startTypingSweep()
+        } else {
+            typingUntil[identity] = nil
+        }
+    }
+
+    /// Expiry needs a clock of its own: nothing else redraws the screen when a
+    /// packet simply stops arriving, so without this the last "typing" would
+    /// sit there until the next guess.
+    private func startTypingSweep() {
+        guard typingSweep == nil else { return }
+        typingSweep = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self else { return }
+                let now = Date()
+                self.typingUntil = self.typingUntil.filter { $0.value > now }
+                if self.typingUntil.isEmpty {
+                    self.typingSweep = nil
+                    return
+                }
+            }
+        }
+    }
+
     func guess(_ raw: String) async {
+        stoppedTyping()
         guard let instanceId = round?.instanceId else { return }
         await act { [weak self] seat in
             let result = try await API.guess(seat: seat, instanceId: instanceId, raw: raw)
@@ -780,8 +876,15 @@ extension RoomStore: RoomDelegate {
         _ room: Room, participant: RemoteParticipant?, didReceiveData data: Data,
         forTopic topic: String, encryptionType: EncryptionType
     ) {
-        guard topic == "gtl-state" else { return }
-        Task { @MainActor in handleBroadcast(data) }
+        let identity = participant?.identity?.stringValue
+        switch topic {
+        case "gtl-state":
+            Task { @MainActor in handleBroadcast(data) }
+        case "gtl-typing":
+            Task { @MainActor in handleTyping(data, from: identity) }
+        default:
+            return
+        }
     }
 
     // These signatures have to match the protocol exactly. They are optional

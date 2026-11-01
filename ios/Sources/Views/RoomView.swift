@@ -74,6 +74,8 @@ struct RoomView: View {
                     // of the wrong answers anybody will ever see.
                     GuessFeedView()
 
+                    typingLine
+
                     // The host's final say, when the list has just turned
                     // something down. Sits above the footer rather than in the
                     // toast, because the toast goes away on its own and this
@@ -168,6 +170,39 @@ struct RoomView: View {
                                  : .spring(response: 0.32, dampingFraction: 0.78),
                     value: store.guessToast
                 )
+        }
+    }
+
+    /// "Steve is typing…", directly above the box they are typing into.
+    ///
+    /// Worth the row because this game is played out loud: knowing somebody is
+    /// already putting an answer in is what stops two people racing the same
+    /// name into the box, and on a call that race is three seconds of everyone
+    /// talking over each other.
+    ///
+    /// Its height is reserved whether or not anybody is typing, so the board
+    /// above it never jumps by a line as people start and stop.
+    @ViewBuilder
+    private var typingLine: some View {
+        let names = store.typingNames
+        Text(typingText(names))
+            .font(.body(12))
+            .foregroundStyle(.white.opacity(0.55))
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .frame(height: 16)
+            .background(BoardStyle.background)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: names)
+            .accessibilityHidden(names.isEmpty)
+    }
+
+    private func typingText(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return ""
+        case 1: return "\(names[0]) is typing…"
+        case 2: return "\(names[0]) and \(names[1]) are typing…"
+        default: return "\(names.count) people are typing…"
         }
     }
 
@@ -418,6 +453,12 @@ struct RoomView: View {
         return GlassField {
             HStack(spacing: 4) {
                 TextField("Your guess…", text: $guess)
+                    .onChange(of: guess) { _, text in store.noteTyping(text) }
+                    .onChange(of: typing) { _, focused in
+                        // Putting the keyboard away is leaving the guess, even
+                        // with half a word still in the box.
+                        if !focused { store.stoppedTyping() }
+                    }
                     .textFieldStyle(.plain)
                     .font(.body(15))
                     .autocorrectionDisabled()

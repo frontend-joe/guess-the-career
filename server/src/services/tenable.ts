@@ -163,18 +163,70 @@ export const CLUB_SEASON_LEAGUE = `
 // stints at any qualifying club as they are. John Sheridan's 230 Leeds
 // appearances were in the old Second Division, which the league-resolved
 // version below (rightly) can't attribute, and he vanished from Leeds rounds.
+// A club's canonical name, keyed by the Wikipedia article it links to.
+//
+// An infobox spells a club the way it was spelled at the time. Joe Bradford
+// played 1920–35 for "Birmingham", which did not become Birmingham City until
+// 1943 — so his 249 goals, more than anybody has scored for that club, sat in
+// the database unreachable by a round keyed on the modern name. Wikipedia
+// already knows they are one club: the infobox links "Birmingham" straight at
+// Birmingham_City_F.C.
+//
+// So the link is the identity and the text is only a label. `clubs` holds
+// several spellings per article ("Bournemouth", "AFC Bournemouth"), so the one
+// chosen is the one the career-statistics tables actually use — anything else
+// would be a name ALLOWED_CLUBS and club_seasons have never heard of.
+const CLUB_BY_URL = `
+  SELECT url, club FROM (
+    SELECT c.wikipedia_url AS url, c.name AS club,
+           ROW_NUMBER() OVER (
+             PARTITION BY c.wikipedia_url ORDER BY cc.n DESC, c.name
+           ) AS rn
+    FROM clubs c
+    JOIN (
+      SELECT REPLACE(club, ' (loan)', '') AS club, COUNT(*) AS n
+      FROM career_statistics GROUP BY REPLACE(club, ' (loan)', '')
+    ) cc ON cc.club = c.name
+    WHERE c.wikipedia_url IS NOT NULL
+  )
+  WHERE rn = 1
+`;
+
+// Every club name the career-statistics tables use. Not ALLOWED_CLUBS, which
+// is narrower — this is "a name this database recognises at all".
+const KNOWN_CLUBS = `
+  SELECT DISTINCT REPLACE(club, ' (loan)', '') FROM career_statistics
+`;
+
+const STINT_CLUB_RAW = `REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')`;
+
+// A stint's club, under the name the rest of the database uses for it.
+//
+// The article's name is used ONLY where the infobox text is one nothing else
+// recognises. That ordering is deliberate: it makes this change incapable of
+// moving a club that already resolves, so it can only ever rescue a name that
+// currently resolves to nothing.
+const STINT_CLUB = `
+  CASE
+    WHEN cbu.club IS NOT NULL AND ${STINT_CLUB_RAW} NOT IN (${KNOWN_CLUBS})
+      THEN cbu.club
+    ELSE ${STINT_CLUB_RAW}
+  END
+`;
+
 const STINT_CLUB_ANY = `
   SELECT st.footballer_id AS fid,
-         REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
+         ${STINT_CLUB} AS club,
          SUM(COALESCE(st.apps, 0))  AS apps,
          SUM(COALESCE(st.goals, 0)) AS goals
   FROM career_stints st
+  LEFT JOIN (${CLUB_BY_URL}) cbu ON cbu.url = st.club_wikipedia_url
   WHERE st.stint_type = 'senior'
     AND NOT EXISTS (
       SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
     )
-    AND REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') IN (${ALLOWED_CLUBS})
-  GROUP BY st.footballer_id, REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')
+    AND ${STINT_CLUB} IN (${ALLOWED_CLUBS})
+  GROUP BY st.footballer_id, ${STINT_CLUB}
 `;
 
 // A spell's appearances are one career total from the infobox, so a spell that
@@ -195,7 +247,17 @@ const STINT_RESOLVED = `
   WITH spell AS (
     SELECT st.id AS sid,
            st.footballer_id AS fid,
-           REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '') AS club,
+           -- Deliberately the raw infobox spelling, NOT the canonical name
+           -- STINT_CLUB_ANY uses. The rename fix belongs here too in
+           -- principle, but it cannot be afforded: this club is joined to
+           -- club_seasons below, and joining on an expression rather than a
+           -- column defeats the index that join lives on. Measured on the
+           -- real database, a Premier League round went from 119ms to 59
+           -- SECONDS — a freeze that would hang a live game and block every
+           -- other write for a minute. A club that changed its name is
+           -- therefore still missing from LEAGUE rounds; it is on the club
+           -- rounds, which is where it was actually asked for.
+           ${STINT_CLUB_RAW} AS club,
            CAST(SUBSTR(st.years, 1, 4) AS INTEGER) AS y1,
            CAST(SUBSTR(st.years, -4) AS INTEGER) AS y2,
            COALESCE(st.apps, 0) AS apps,

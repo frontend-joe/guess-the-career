@@ -17,6 +17,7 @@ import io.livekit.android.room.Room
 import io.livekit.android.room.participant.Participant
 import io.livekit.android.room.track.VideoTrack
 import io.livekit.android.room.track.Track
+import io.livekit.android.room.track.DataPublishReliability
 import io.livekit.android.room.participant.LocalParticipant
 import io.livekit.android.room.participant.RemoteParticipant
 import io.livekit.android.room.track.RemoteTrackPublication
@@ -225,7 +226,11 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             newRoom.events.collect { event ->
                 when (event) {
                     is RoomEvent.DataReceived -> {
-                        if (event.topic == STATE_TOPIC) handleBroadcast(String(event.data))
+                        when (event.topic) {
+                            STATE_TOPIC -> handleBroadcast(String(event.data))
+                            TYPING_TOPIC ->
+                                handleTyping(String(event.data), event.participant?.identity?.value)
+                        }
                     }
                     is RoomEvent.ParticipantConnected,
                     is RoomEvent.ParticipantDisconnected,
@@ -538,7 +543,94 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     var guessToast by mutableStateOf<GuessToast?>(null); private set
     private var guessToastCount = 0
 
+    // MARK: Typing
+
+    /**
+     * Who is mid-guess right now, by LiveKit identity, and when to stop
+     * believing it.
+     *
+     * Peer to peer over LiveKit's data channel, never through the server.
+     * This is the one kind of state in the game that is worthless a second
+     * later: it does not belong in the event log, it must not bump the state
+     * version, and nothing about it should reach the recording.
+     */
+    private var typingUntil by mutableStateOf<Map<String, Long>>(emptyMap())
+    private var typingSweep: Job? = null
+    private var lastTypingPing = 0L
+
+    /** The names to put above the guess box, in a stable order. */
+    val typingNames: List<String>
+        get() {
+            val now = System.currentTimeMillis()
+            return typingUntil.filterValues { it > now }.keys.sorted().mapNotNull { knownName(it) }
+        }
+
+    /** Called as the guess field changes. Throttled, so holding a key down
+     *  does not become a packet storm. */
+    fun noteTyping(text: String) {
+        if (round?.isLive != true) return
+        if (text.isBlank()) {
+            sendTyping(false)
+            lastTypingPing = 0L
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastTypingPing < TYPING_PING_MS) return
+        lastTypingPing = now
+        sendTyping(true)
+    }
+
+    /** They have stopped. Called on send and on dismiss, so the indicator
+     *  goes the moment the guess does. */
+    fun stoppedTyping() {
+        lastTypingPing = 0L
+        sendTyping(false)
+    }
+
+    private fun sendTyping(typing: Boolean) {
+        val current = room ?: return
+        viewModelScope.launch {
+            runCatching {
+                // Lossy on purpose. A typing dot is not worth a retransmit,
+                // and reliable delivery would queue these behind the state
+                // broadcasts that actually matter.
+                current.localParticipant.publishData(
+                    data = """{"typing":$typing}""".toByteArray(),
+                    reliability = DataPublishReliability.LOSSY,
+                    topic = TYPING_TOPIC,
+                )
+            }
+        }
+    }
+
+    private fun handleTyping(json: String, identity: String?) {
+        if (identity == null) return
+        val typing = json.contains("true")
+        typingUntil = if (typing) {
+            startTypingSweep()
+            typingUntil + (identity to System.currentTimeMillis() + TYPING_TTL_MS)
+        } else {
+            typingUntil - identity
+        }
+    }
+
+    /** Expiry needs a clock of its own: nothing else redraws the screen when
+     *  packets simply stop arriving, so without this the last "typing" would
+     *  sit there until the next guess. */
+    private fun startTypingSweep() {
+        if (typingSweep?.isActive == true) return
+        typingSweep = viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                val now = System.currentTimeMillis()
+                typingUntil = typingUntil.filterValues { it > now }
+                if (typingUntil.isEmpty()) return@launch
+            }
+        }
+    }
+
     fun guess(raw: String) {
+        stoppedTyping()
         val instanceId = round?.instanceId ?: return
         act {
             val result = Api.guess(it, instanceId, raw)
@@ -717,5 +809,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val SEAT_KEY = "seat"
         const val STATE_TOPIC = "gtl-state"
+        const val TYPING_TOPIC = "gtl-typing"
+
+        /** Long enough to cover a thinking pause, short enough that a dropped
+         *  "stopped" packet clears on its own rather than leaving a ghost. */
+        const val TYPING_TTL_MS = 5_000L
+
+        /** One packet every couple of seconds, not one per keystroke. */
+        const val TYPING_PING_MS = 2_000L
     }
 }

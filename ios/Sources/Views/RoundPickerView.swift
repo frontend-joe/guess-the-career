@@ -59,11 +59,12 @@ struct RoundPickerView: View {
                                         // again, with different people or on
                                         // a night the first one went badly.
                                         .foregroundStyle(round.played ? .secondary : .primary)
-                                    // Only Football's rounds have a date, and
-                                    // only because they came off its calendar.
-                                    if let date = round.date {
-                                        Text(date).font(.caption).foregroundStyle(.secondary)
-                                    }
+                                    // No schedule date. It is the solo web
+                                    // game's calendar talking — a room plays
+                                    // whichever round the host picks, so
+                                    // "2027-07-18" was answering a question
+                                    // nobody in a room is asking. The only
+                                    // date worth a line here is the one below.
                                     if round.played {
                                         Label(playedLabel(round), systemImage: "checkmark.circle.fill")
                                             .font(.caption)
