@@ -218,13 +218,24 @@ const STINT_CLUB_RAW = `REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')`;
 // the dominant name by construction, not an arbitrary one.
 const STINT_CLUB = `COALESCE(cbu.club, ${STINT_CLUB_RAW})`;
 
+// How a stint reaches its article. Most stints store no link of their own —
+// the first version of this joined on st.club_wikipedia_url alone and did
+// nothing in production for exactly that reason. I had read Joe Bradford's
+// URL off the footballer-card API, which FILLS ONE IN from the clubs table
+// when the stint has none, and mistook the synthesised value for stored data.
+//
+// So the name is the way in: `clubs` carries "Birmingham" as a name in its own
+// right, pointing at Birmingham_City_F.C., which is the whole chain this needs.
+const STINT_CLUB_URL = `COALESCE(st.club_wikipedia_url, cn.wikipedia_url)`;
+
 const STINT_CLUB_ANY = `
   SELECT st.footballer_id AS fid,
          ${STINT_CLUB} AS club,
          SUM(COALESCE(st.apps, 0))  AS apps,
          SUM(COALESCE(st.goals, 0)) AS goals
   FROM career_stints st
-  LEFT JOIN (${CLUB_BY_URL}) cbu ON cbu.url = st.club_wikipedia_url
+  LEFT JOIN clubs cn ON cn.name = ${STINT_CLUB_RAW}
+  LEFT JOIN (${CLUB_BY_URL}) cbu ON cbu.url = ${STINT_CLUB_URL}
   WHERE st.stint_type = 'senior'
     AND NOT EXISTS (
       SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
