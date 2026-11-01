@@ -794,7 +794,63 @@ const transferWindow: TenableType = {
   },
 };
 
-// ── 10. World Cup squad (unordered — name any 10) ────────────────────────────
+// ── 10. Ballon d'Or ──────────────────────────────────────────────────────────
+//
+// The one round whose ranking was not derived from anything: a jury voted, the
+// order is the order, and no amount of better data will ever move it. That
+// makes it the most stable round in the game — every other football round is
+// an argument with a database that keeps improving underneath it.
+//
+// The board's slot is the position in this list, and the badge is the vote
+// count, because the gap is the story: Ronaldo beat Messi by 165 points in
+// 2008 and that is worth seeing on the board.
+const ballonDor: TenableType = {
+  slug: "ballon-dor",
+  label: "Ballon d'Or",
+  description: "The final voting order of a single Ballon d'Or.",
+  example: "The 2008 Ballon d'Or final ranking",
+  metricless: true,
+  title: (p) => `The ${p.year} Ballon d'Or final ranking`,
+  candidates() {
+    const rows = sqlite.prepare(
+      `SELECT bd.id AS ballonDorId, bd.year AS year, COUNT(*) AS n
+       FROM ballon_dor_players p
+       JOIN ballon_dors bd ON bd.id = p.ballon_dor_id
+       GROUP BY bd.id
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY bd.year DESC`,
+    ).all() as { ballonDorId: number; year: number; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { ballonDorId: String(r.ballonDorId), year: String(r.year) },
+      metric: "goals" as Metric,
+      title: this.title({ year: String(r.year) }, "goals"),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, _metric, limit = ROUND_SIZE) {
+    // The older ballots were reported as an order with no numbers attached.
+    // Those years carry no unit, which is how the board knows to draw the name
+    // alone rather than a badge reading zero next to a correct answer.
+    //
+    // Ties are left exactly as they were voted rather than broken by a rule
+    // the jury never applied. Henry and Zidane both polled 14 in 2001, so they
+    // take the ninth and tenth slots and both badges read 14 — which says
+    // "these two are level" on the board without needing to be explained.
+    return sqlite.prepare(
+      `SELECT p.footballer_id AS footballer_id, p.name AS name,
+              p.nationality AS nationality, f.photo_url AS photo_url,
+              COALESCE(p.points, 0) AS value,
+              CASE WHEN p.points IS NOT NULL THEN 'pts' END AS unit
+       FROM ballon_dor_players p
+       LEFT JOIN footballers f ON f.id = p.footballer_id
+       WHERE p.ballon_dor_id = ?
+       ORDER BY p.rank ASC, p.name ASC LIMIT ${limit}`,
+    ).all(parseInt(p.ballonDorId, 10)) as TenableAnswer[];
+  },
+};
+
+// ── 11. World Cup squad (unordered — name any 10) ────────────────────────────
 const worldCupSquad: TenableType = {
   slug: "world-cup-squad",
   label: "World Cup squad",
@@ -885,6 +941,7 @@ export const TENABLE_TYPES: TenableType[] = [
   nationalityClub,
   overseasClub,
   transferWindow,
+  ballonDor,
   worldCupSquad,
   firstName,
   surname,
