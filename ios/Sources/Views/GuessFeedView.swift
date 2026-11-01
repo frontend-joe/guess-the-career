@@ -17,6 +17,12 @@ struct GuessFeedView: View {
 
     static let height: CGFloat = 50
 
+    /// One height for everything in the row. The typing chip and a guess
+    /// have different contents — three dots against two runs of text — and
+    /// padding alone gave them visibly different heights sitting side by
+    /// side. Stating it once is the only way they stay equal.
+    private static let chipHeight: CGFloat = 32
+
     /// How many fit before the rest is scrolled to. More than the eye can
     /// follow anyway; the point of the tail is that a guess you glanced away
     /// from has not gone.
@@ -38,25 +44,28 @@ struct GuessFeedView: View {
             .reversed()
     }
 
-    /// What the typing line adds to the band while somebody is typing.
-    private static let typingRow: CGFloat = 22
-
     var body: some View {
         let names = store.typingNames
 
-        return VStack(spacing: 0) {
-            // Above the guesses, not tucked under them: it is about the guess
-            // that has not arrived yet, so it belongs on the side the next one
-            // will come from. The band grows to make room rather than stealing
-            // it from the pills, and shrinks back when the room goes quiet.
-            if !names.isEmpty {
-                typingLine(names)
-                    .frame(height: Self.typingRow)
-                    .transition(.opacity)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
+        return ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
+                    // A chip of its own at the head of the row, where the
+                    // guess being typed will land. Nothing in it but the
+                    // dots: the pill it is about to become carries the name,
+                    // and saying it twice three seconds apart is noise. The
+                    // band no longer grows for it either, which is one less
+                    // thing moving while people are reading.
+                    if !names.isEmpty {
+                        typingChip
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .scale(scale: 0.7, anchor: .leading)
+                                        .combined(with: .opacity)
+                            )
+                            .accessibilityLabel(typingText(names))
+                    }
+
                     ForEach(items) { item in
                         pill(item.guess)
                             .transition(
@@ -78,31 +87,30 @@ struct GuessFeedView: View {
                                  : .spring(response: 0.3, dampingFraction: 0.72),
                     value: items.first?.id
                 )
-            }
-
+                // The chip arriving and leaving is its own change, and the
+                // row should close up behind it the same way it opens.
+                .animation(
+                    reduceMotion ? .easeOut(duration: 0.18)
+                                 : .spring(response: 0.3, dampingFraction: 0.72),
+                    value: names.isEmpty
+                )
         }
-        .frame(height: Self.height + (names.isEmpty ? 0 : Self.typingRow))
+        .frame(height: Self.height)
         .background(BoardStyle.background)
-        // The height change and the line arriving are one movement, so they
-        // share one animation — otherwise the row appears a frame before the
-        // space for it does, and the guesses jump.
-        .animation(
-            reduceMotion ? .easeOut(duration: 0.2)
-                         : .spring(response: 0.34, dampingFraction: 0.86),
-            value: names.isEmpty
-        )
     }
 
-    private func typingLine(_ names: [String]) -> some View {
-        HStack(spacing: 5) {
-            Text(typingText(names))
-                .font(.body(13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.62))
-                .lineLimit(1)
-            TypingDots(size: 3, lift: 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
+    /// The same pill a guess gets, in the one colour no verdict uses. It has
+    /// to read as a member of the row — it is standing where the next guess
+    /// will go — without reading as a verdict of its own.
+    private var typingChip: some View {
+        TypingDots(size: 4, lift: 2.5)
+            .padding(.horizontal, 13)
+            .frame(height: Self.chipHeight)
+            .background(
+                Capsule()
+                    .fill(.white.opacity(0.10))
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 1))
+            )
     }
 
     /// No trailing ellipsis in the text: the dots are drawn, and animated.
@@ -134,7 +142,7 @@ struct GuessFeedView: View {
         }
         .lineLimit(1)
         .padding(.horizontal, 11)
-        .padding(.vertical, 7)
+        .frame(height: Self.chipHeight)
         .background(
             Capsule()
                 // Tinted by the verdict rather than coloured by it: twelve

@@ -101,9 +101,6 @@ import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -647,32 +644,35 @@ private fun GuessFeed(model: RoomViewModel) {
         .takeLast(window)
         .reversed()
 
-    // Above the guesses, not tucked under them: it is about the guess that has
-    // not arrived yet, so it belongs on the side the next one will come from.
-    // The band grows to make room rather than stealing it from the pills, and
-    // shrinks back when the room goes quiet. The height change and the line
-    // arriving are one movement, so one animation drives both — otherwise the
-    // row appears a frame before the space for it does and the guesses jump.
     val typing = model.typingNames.isNotEmpty()
-    val height by animateDpAsState(
-        targetValue = if (typing) 72.dp else 50.dp,
-        animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
-        label = "feedHeight",
-    )
 
-    Column(
-        Modifier.fillMaxWidth().height(height).clipToBounds().background(Color(0xFF0A0A0C)),
-    ) {
-        AnimatedVisibility(visible = typing, enter = fadeIn(), exit = fadeOut()) {
-            TypingLine(model, Modifier.height(22.dp))
-        }
+    // A LazyRow keeps whatever offset it had, so anything inserted at the head
+    // lands off the leading edge and is never seen — which is exactly where
+    // both the typing chip and every new guess go. Snap back to the start
+    // whenever the head changes, so the newest thing is always the thing you
+    // are looking at.
+    val listState = rememberLazyListState()
+    LaunchedEffect(typing, feed.firstOrNull()?.index) {
+        listState.animateScrollToItem(0)
+    }
 
     LazyRow(
-        modifier = Modifier.fillMaxWidth().weight(1f),
+        state = listState,
+        modifier = Modifier.fillMaxWidth().height(50.dp).background(Color(0xFF0A0A0C)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         contentPadding = PaddingValues(horizontal = 14.dp),
     ) {
+        // A chip of its own at the head of the row, where the guess being
+        // typed will land. Nothing in it but the dots: the pill it is about
+        // to become carries the name, and saying it twice three seconds apart
+        // is noise. The band no longer grows for it either, which is one less
+        // thing moving while people are reading.
+        if (typing) {
+            item(key = "typing") {
+                TypingChip(Modifier.animateItem())
+            }
+        }
         items(feed.size, key = { feed[it].index }) { i ->
             val guess = feed[i].value
             // Fired from the item's own first composition, so it is the
@@ -690,35 +690,33 @@ private fun GuessFeed(model: RoomViewModel) {
             }
         }
     }
-
-    }
 }
 
+/**
+ * One height for everything in the guess row. The typing chip and a guess
+ * have different contents — three dots against two runs of text — and padding
+ * alone gave them visibly different heights sitting side by side. Stating it
+ * once is the only way they stay equal.
+ */
+private val CHIP_HEIGHT = 32.dp
+
+/**
+ * The same pill a guess gets, in the one colour no verdict uses. It has to
+ * read as a member of the row — it is standing where the next guess will go —
+ * without reading as a verdict of its own.
+ */
 @Composable
-private fun TypingLine(model: RoomViewModel, modifier: Modifier = Modifier) {
-    val names = model.typingNames
-    // No trailing ellipsis in the text: the dots are drawn, and animated.
-    val text = when (names.size) {
-        0 -> ""
-        1 -> "${names[0]} is typing"
-        2 -> "${names[0]} and ${names[1]} are typing"
-        else -> "${names.size} people are typing"
-    }
-    Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+private fun TypingChip(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .height(CHIP_HEIGHT)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.10f))
+            .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape)
+            .padding(horizontal = 13.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        if (names.isNotEmpty()) {
-            Text(
-                text,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.62f),
-                maxLines = 1,
-            )
-            TypingDots(size = 3.dp, lift = 2f)
-        }
+        TypingDots(size = 4.dp, lift = 2.5f)
     }
 }
 
@@ -734,13 +732,14 @@ private fun GuessPill(model: RoomViewModel, guess: ReplayGuess) {
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .height(CHIP_HEIGHT)
             .clip(CircleShape)
             // Tinted by the verdict rather than coloured by it: twelve filled
             // pills in four colours is a bag of sweets, and the board is
             // already where colour means something.
             .background(colour.copy(alpha = 0.16f))
             .border(1.dp, colour.copy(alpha = 0.35f), CircleShape)
-            .padding(horizontal = 11.dp, vertical = 7.dp),
+            .padding(horizontal = 11.dp),
     ) {
         if (name != null) {
             Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colour, maxLines = 1)
