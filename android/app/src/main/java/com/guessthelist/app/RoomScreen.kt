@@ -13,6 +13,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -384,6 +388,20 @@ fun RoomScreen(model: RoomViewModel) {
                     singleLine = true,
                     textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
                     cursorBrush = SolidColor(Color.White),
+                    // The keyboard's action key sends, the same as iOS. It was
+                    // a tick that did nothing, which makes the most obvious
+                    // button on screen the one that does not work.
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Send,
+                        capitalization = KeyboardCapitalization.Words,
+                        autoCorrectEnabled = false,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            val raw = guess.trim()
+                            if (raw.isNotEmpty()) { model.guess(raw); guess = "" }
+                        },
+                    ),
                     modifier = Modifier.weight(1f).padding(start = 14.dp),
                     decorationBox = { inner ->
                         if (guess.isEmpty()) {
