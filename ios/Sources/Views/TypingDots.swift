@@ -14,27 +14,29 @@ import SwiftUI
 struct TypingDots: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    var size: CGFloat = 3.5
+    var lift: CGFloat = 2.5
+
     private static let count = 3
     private static let period: Double = 1.1
-    private static let dot: CGFloat = 3.5
 
     var body: some View {
         if reduceMotion {
             // Still three dots, just still ones. Reduced motion asks for less
             // movement, not less information.
-            HStack(spacing: 3) {
+            HStack(spacing: max(2, size * 0.85)) {
                 ForEach(0..<Self.count, id: \.self) { _ in circle(opacity: 0.6, lift: 0) }
             }
         } else {
             TimelineView(.animation) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
-                HStack(spacing: 3) {
+                HStack(spacing: max(2, size * 0.85)) {
                     ForEach(0..<Self.count, id: \.self) { i in
                         // Each dot a third of a cycle behind the one before it.
                         let phase = (t / Self.period - Double(i) / Double(Self.count))
                             .truncatingRemainder(dividingBy: 1)
                         let wave = max(0, sin(phase * .pi))
-                        circle(opacity: 0.35 + 0.55 * wave, lift: -2.5 * wave)
+                        circle(opacity: 0.35 + 0.55 * wave, lift: -lift * wave)
                     }
                 }
             }
@@ -44,7 +46,7 @@ struct TypingDots: View {
     private func circle(opacity: Double, lift: CGFloat) -> some View {
         Circle()
             .fill(.white.opacity(opacity))
-            .frame(width: Self.dot, height: Self.dot)
+            .frame(width: size, height: size)
             .offset(y: lift)
     }
 }

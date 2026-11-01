@@ -38,34 +38,76 @@ struct GuessFeedView: View {
             .reversed()
     }
 
+    /// The air above and below the pills. Equal, so the row of guesses sits
+    /// in the middle of its band — and deep enough that the typing line can
+    /// live in the bottom of it without the band growing to fit.
+    private static let pad: CGFloat = 12
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(items) { item in
-                    pill(item.guess)
-                        .transition(
-                            reduceMotion
-                                ? .opacity
-                                // In from the edge it arrived at, which is the
-                                // one the eye is already on.
-                                : .scale(scale: 0.7, anchor: .leading)
-                                    .combined(with: .opacity)
-                        )
+        VStack(spacing: 0) {
+            Color.clear.frame(height: Self.pad)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(items) { item in
+                        pill(item.guess)
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    // In from the edge it arrived at, which is
+                                    // the one the eye is already on.
+                                    : .scale(scale: 0.7, anchor: .leading)
+                                        .combined(with: .opacity)
+                            )
+                    }
                 }
+                .padding(.horizontal, 14)
+                // Keyed on the newest id: a guess arriving is the only change
+                // worth animating, and a resync that re-sends the same log
+                // should not replay the whole row.
+                .animation(
+                    reduceMotion ? .easeOut(duration: 0.18)
+                                 : .spring(response: 0.3, dampingFraction: 0.72),
+                    value: items.first?.id
+                )
             }
-            .padding(.horizontal, 14)
-            .frame(height: Self.height)
-            // Keyed on the newest id: a guess arriving is the only change
-            // worth animating, and a resync that re-sends the same log should
-            // not replay the whole row.
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.18)
-                             : .spring(response: 0.3, dampingFraction: 0.72),
-                value: items.first?.id
-            )
+
+            // Tucked into the bottom padding rather than given a row of its
+            // own. The air was already there, and spending real height on a
+            // line that is blank most of the time is what the floating bubble
+            // was invented to avoid — this gets the same for nothing, and
+            // without covering a guess to do it.
+            typingLine.frame(height: Self.pad)
         }
         .frame(height: Self.height)
         .background(BoardStyle.background)
+    }
+
+    @ViewBuilder
+    private var typingLine: some View {
+        let names = store.typingNames
+        HStack(spacing: 4) {
+            if !names.isEmpty {
+                Text(typingText(names))
+                    .font(.body(10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(1)
+                TypingDots(size: 2.5, lift: 1.5)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: names)
+    }
+
+    /// No trailing ellipsis in the text: the dots are drawn, and animated.
+    private func typingText(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return ""
+        case 1: return "\(names[0]) is typing"
+        case 2: return "\(names[0]) and \(names[1]) are typing"
+        default: return "\(names.count) people are typing"
+        }
     }
 
     // Name first, then what they said. That order because the name is what
@@ -87,7 +129,7 @@ struct GuessFeedView: View {
         }
         .lineLimit(1)
         .padding(.horizontal, 11)
-        .padding(.vertical, 7)
+        .padding(.vertical, 5)
         .background(
             Capsule()
                 // Tinted by the verdict rather than coloured by it: twelve

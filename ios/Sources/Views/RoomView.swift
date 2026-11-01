@@ -94,7 +94,6 @@ struct RoomView: View {
                         footer
                     }
                     .background(BoardStyle.background)
-                    .background(alignment: .top) { typingBubble }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 // Swipe down ANYWHERE to put the keyboard away, not just on
@@ -179,59 +178,6 @@ struct RoomView: View {
                                  : .spring(response: 0.32, dampingFraction: 0.78),
                     value: store.guessToast
                 )
-        }
-    }
-
-    /// "Steve is typing…", floating just above the guesses.
-    ///
-    /// Worth showing at all because this game is played out loud: knowing
-    /// somebody is already putting an answer in is what stops two people
-    /// racing the same name into the box, and on a call that race is three
-    /// seconds of everyone talking over each other.
-    ///
-    /// A bubble rather than a row, so it takes no height from the board when
-    /// nobody is typing — which is most of the time.
-    @ViewBuilder
-    private var typingBubble: some View {
-        let names = store.typingNames
-        if !names.isEmpty {
-            HStack(spacing: 5) {
-                Text(typingText(names))
-                    .font(.body(11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
-                TypingDots()
-            }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                // Rounded on top only, so it reads as a tab attached to the
-                // feed rather than a pill floating over it — the square
-                // bottom edge is what makes it look joined on.
-                .background(
-                    UnevenRoundedRectangle(topLeadingRadius: 9, topTrailingRadius: 9)
-                        .fill(Color(white: 0.16))
-                )
-                // Its bottom edge pinned to the panel's top edge, so it
-                // stands on the panel rather than overlapping it.
-                .alignmentGuide(.top) { $0[.bottom] }
-                .transition(
-                    reduceMotion
-                        ? .opacity
-                        : .move(edge: .bottom).combined(with: .opacity)
-                )
-                .animation(.spring(response: 0.3, dampingFraction: 0.78), value: names)
-                // It must never swallow a tap meant for the feed underneath.
-                .allowsHitTesting(false)
-        }
-    }
-
-    /// No trailing ellipsis in the text: the dots are drawn, and animated.
-    private func typingText(_ names: [String]) -> String {
-        switch names.count {
-        case 0: return ""
-        case 1: return "\(names[0]) is typing"
-        case 2: return "\(names[0]) and \(names[1]) are typing"
-        default: return "\(names.count) people are typing"
         }
     }
 

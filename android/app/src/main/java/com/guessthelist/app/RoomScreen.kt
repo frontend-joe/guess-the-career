@@ -7,8 +7,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.shape.CircleShape
@@ -92,6 +90,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
@@ -251,13 +250,6 @@ fun RoomScreen(model: RoomViewModel) {
         // from behind the whole of it — the panel's own background is what
         // hides the tab until it has cleared the top edge, so it slides out
         // rather than fading in on top.
-        Box(Modifier.fillMaxWidth()) {
-            Box(
-                Modifier.fillMaxWidth().align(Alignment.TopCenter).offset(y = (-21).dp),
-                contentAlignment = Alignment.Center,
-            ) { TypingBubble(model) }
-
-        Column(Modifier.fillMaxWidth().background(Color(0xFF0A0A0C))) {
         GuessFeed(model)
 
         // Errors only. A verdict used to live here too, which meant a line of
@@ -367,12 +359,19 @@ fun RoomScreen(model: RoomViewModel) {
             // almost-empty one.
             val live = model.round?.isLive == true
             val canSend = live && guess.isNotBlank()
+            // Matched to iOS's GlassField, value for value: the same 42pt
+            // capsule, the same 0.10 fill, and the same hairline on the edge —
+            // light catching the material, and the cheapest honest imitation
+            // of one. Android was a shade darker with no edge at all, which
+            // read as a hole in the bar rather than a control on it.
+            val fieldShape = RoundedCornerShape(21.dp)
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .height(42.dp)
-                    .clip(RoundedCornerShape(21.dp))
-                    .background(Color.White.copy(alpha = 0.08f)),
+                    .clip(fieldShape)
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.12f), fieldShape),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -404,7 +403,7 @@ fun RoomScreen(model: RoomViewModel) {
                         Icons.Filled.ArrowUpward,
                         contentDescription = "Submit guess",
                         tint = if (canSend) Color.Black else Color.White.copy(alpha = 0.35f),
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(14.dp),
                     )
                 }
             }
@@ -452,8 +451,6 @@ fun RoomScreen(model: RoomViewModel) {
                     }
                 }
             }
-        }
-        }
         }
 
     }
@@ -647,11 +644,18 @@ private fun GuessFeed(model: RoomViewModel) {
         .takeLast(window)
         .reversed()
 
+    // The air above and below the pills. Equal, so the row of guesses sits in
+    // the middle of its band — and deep enough that the typing line can live
+    // in the bottom of it without the band growing to fit.
+    val pad = 12.dp
+
+    Column(
+        Modifier.fillMaxWidth().height(50.dp).background(Color(0xFF0A0A0C)),
+    ) {
+        Spacer(Modifier.height(pad))
+
     LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .background(Color(0xFF0A0A0C)),
+        modifier = Modifier.fillMaxWidth().weight(1f),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         contentPadding = PaddingValues(horizontal = 14.dp),
@@ -671,6 +675,42 @@ private fun GuessFeed(model: RoomViewModel) {
             ) {
                 GuessPill(model, guess)
             }
+        }
+    }
+
+        // Tucked into the bottom padding rather than given a row of its own.
+        // The air was already there, and spending real height on a line that
+        // is blank most of the time is what the floating bubble was invented
+        // to avoid — this gets the same for nothing, and without covering a
+        // guess to do it.
+        TypingLine(model, Modifier.height(pad))
+    }
+}
+
+@Composable
+private fun TypingLine(model: RoomViewModel, modifier: Modifier = Modifier) {
+    val names = model.typingNames
+    // No trailing ellipsis in the text: the dots are drawn, and animated.
+    val text = when (names.size) {
+        0 -> ""
+        1 -> "${names[0]} is typing"
+        2 -> "${names[0]} and ${names[1]} are typing"
+        else -> "${names.size} people are typing"
+    }
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (names.isNotEmpty()) {
+            Text(
+                text,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.5f),
+                maxLines = 1,
+            )
+            TypingDots(size = 2.5.dp, lift = 1.5f)
         }
     }
 }
@@ -823,7 +863,7 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
  * makes the wave stutter on arrival.
  */
 @Composable
-private fun TypingDots() {
+private fun TypingDots(size: Dp = 3.5.dp, lift: Float = 2.5f) {
     val count = 3
     val transition = rememberInfiniteTransition(label = "typing")
     val t by transition.animateFloat(
@@ -832,66 +872,21 @@ private fun TypingDots() {
         animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing)),
         label = "phase",
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(maxOf(2.dp, size * 0.85f)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         repeat(count) { i ->
             // Each dot a third of a cycle behind the one before it.
             val phase = ((t - i.toFloat() / count) % 1f + 1f) % 1f
             val wave = max(0f, sin(phase * PI.toFloat()))
             Box(
                 Modifier
-                    .offset(y = (-2.5f * wave).dp)
-                    .size(3.5.dp)
+                    .offset(y = (-lift * wave).dp)
+                    .size(size)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.35f + 0.55f * wave)),
             )
-        }
-    }
-}
-
-/**
- * "Steve is typing…", floating just above the guesses.
- *
- * Worth showing at all because this game is played out loud: knowing somebody
- * is already putting an answer in is what stops two people racing the same
- * name into the box, and on a call that race is three seconds of everyone
- * talking over each other.
- */
-@Composable
-private fun TypingBubble(model: RoomViewModel) {
-    val names = model.typingNames
-    // No trailing ellipsis in the text: the dots are drawn, and animated.
-    val text = when (names.size) {
-        0 -> ""
-        1 -> "${names[0]} is typing"
-        2 -> "${names[0]} and ${names[1]} are typing"
-        else -> "${names.size} people are typing"
-    }
-    // Rounded on top only, so it reads as a tab attached to the feed rather
-    // than a pill floating over it — the square bottom edge is what makes it
-    // look joined on. It slides up from behind the guesses, which is what the
-    // clipping on the parent is for.
-    val tab = RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp)
-    AnimatedVisibility(
-        visible = names.isNotEmpty(),
-        enter = slideInVertically { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            modifier = Modifier
-                .clip(tab)
-                .background(Color(0xFF292929))
-                .padding(horizontal = 10.dp, vertical = 4.dp),
-        ) {
-            Text(
-                text,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.85f),
-                maxLines = 1,
-            )
-            TypingDots()
         }
     }
 }
