@@ -101,6 +101,9 @@ import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -644,15 +647,25 @@ private fun GuessFeed(model: RoomViewModel) {
         .takeLast(window)
         .reversed()
 
-    // The air above and below the pills. Equal, so the row of guesses sits in
-    // the middle of its band — and deep enough that the typing line can live
-    // in the bottom of it without the band growing to fit.
-    val pad = 12.dp
+    // Above the guesses, not tucked under them: it is about the guess that has
+    // not arrived yet, so it belongs on the side the next one will come from.
+    // The band grows to make room rather than stealing it from the pills, and
+    // shrinks back when the room goes quiet. The height change and the line
+    // arriving are one movement, so one animation drives both — otherwise the
+    // row appears a frame before the space for it does and the guesses jump.
+    val typing = model.typingNames.isNotEmpty()
+    val height by animateDpAsState(
+        targetValue = if (typing) 72.dp else 50.dp,
+        animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+        label = "feedHeight",
+    )
 
     Column(
-        Modifier.fillMaxWidth().height(50.dp).background(Color(0xFF0A0A0C)),
+        Modifier.fillMaxWidth().height(height).clipToBounds().background(Color(0xFF0A0A0C)),
     ) {
-        Spacer(Modifier.height(pad))
+        AnimatedVisibility(visible = typing, enter = fadeIn(), exit = fadeOut()) {
+            TypingLine(model, Modifier.height(22.dp))
+        }
 
     LazyRow(
         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -678,12 +691,6 @@ private fun GuessFeed(model: RoomViewModel) {
         }
     }
 
-        // Tucked into the bottom padding rather than given a row of its own.
-        // The air was already there, and spending real height on a line that
-        // is blank most of the time is what the floating bubble was invented
-        // to avoid — this gets the same for nothing, and without covering a
-        // guess to do it.
-        TypingLine(model, Modifier.height(pad))
     }
 }
 
@@ -705,12 +712,12 @@ private fun TypingLine(model: RoomViewModel, modifier: Modifier = Modifier) {
         if (names.isNotEmpty()) {
             Text(
                 text,
-                fontSize = 10.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.5f),
+                color = Color.White.copy(alpha = 0.62f),
                 maxLines = 1,
             )
-            TypingDots(size = 2.5.dp, lift = 1.5f)
+            TypingDots(size = 3.dp, lift = 2f)
         }
     }
 }

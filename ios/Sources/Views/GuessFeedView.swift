@@ -38,14 +38,22 @@ struct GuessFeedView: View {
             .reversed()
     }
 
-    /// The air above and below the pills. Equal, so the row of guesses sits
-    /// in the middle of its band — and deep enough that the typing line can
-    /// live in the bottom of it without the band growing to fit.
-    private static let pad: CGFloat = 12
+    /// What the typing line adds to the band while somebody is typing.
+    private static let typingRow: CGFloat = 22
 
     var body: some View {
-        VStack(spacing: 0) {
-            Color.clear.frame(height: Self.pad)
+        let names = store.typingNames
+
+        return VStack(spacing: 0) {
+            // Above the guesses, not tucked under them: it is about the guess
+            // that has not arrived yet, so it belongs on the side the next one
+            // will come from. The band grows to make room rather than stealing
+            // it from the pills, and shrinks back when the room goes quiet.
+            if !names.isEmpty {
+                typingLine(names)
+                    .frame(height: Self.typingRow)
+                    .transition(.opacity)
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -72,32 +80,29 @@ struct GuessFeedView: View {
                 )
             }
 
-            // Tucked into the bottom padding rather than given a row of its
-            // own. The air was already there, and spending real height on a
-            // line that is blank most of the time is what the floating bubble
-            // was invented to avoid — this gets the same for nothing, and
-            // without covering a guess to do it.
-            typingLine.frame(height: Self.pad)
         }
-        .frame(height: Self.height)
+        .frame(height: Self.height + (names.isEmpty ? 0 : Self.typingRow))
         .background(BoardStyle.background)
+        // The height change and the line arriving are one movement, so they
+        // share one animation — otherwise the row appears a frame before the
+        // space for it does, and the guesses jump.
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.2)
+                         : .spring(response: 0.34, dampingFraction: 0.86),
+            value: names.isEmpty
+        )
     }
 
-    @ViewBuilder
-    private var typingLine: some View {
-        let names = store.typingNames
-        HStack(spacing: 4) {
-            if !names.isEmpty {
-                Text(typingText(names))
-                    .font(.body(10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(1)
-                TypingDots(size: 2.5, lift: 1.5)
-            }
+    private func typingLine(_ names: [String]) -> some View {
+        HStack(spacing: 5) {
+            Text(typingText(names))
+                .font(.body(13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(1)
+            TypingDots(size: 3, lift: 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: names)
     }
 
     /// No trailing ellipsis in the text: the dots are drawn, and animated.
@@ -129,7 +134,7 @@ struct GuessFeedView: View {
         }
         .lineLimit(1)
         .padding(.horizontal, 11)
-        .padding(.vertical, 5)
+        .padding(.vertical, 7)
         .background(
             Capsule()
                 // Tinted by the verdict rather than coloured by it: twelve
