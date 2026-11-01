@@ -79,7 +79,12 @@ struct RoomView: View {
                         // a few seconds at a time — and left a visible gap
                         // whenever nobody was typing. Overlaid, it costs
                         // nothing when there is nothing to say.
-                        .overlay(alignment: .topLeading) { typingBubble }
+                        // Clipped so the bubble is invisible until it has
+                        // risen clear — that is what makes it look as though
+                        // it comes out from underneath the guesses rather
+                        // than fading in on top of them.
+                        .overlay(alignment: .top) { typingBubble }
+                        .clipped()
 
                     // The host's final say, when the list has just turned
                     // something down. Sits above the footer rather than in the
@@ -191,24 +196,33 @@ struct RoomView: View {
     private var typingBubble: some View {
         let names = store.typingNames
         if !names.isEmpty {
-            Text(typingText(names))
-                .font(.body(11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.85))
-                .lineLimit(1)
+            HStack(spacing: 5) {
+                Text(typingText(names))
+                    .font(.body(11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+                TypingDots()
+            }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
+                // Rounded on top only, so it reads as a tab attached to the
+                // feed rather than a pill floating over it — the square
+                // bottom edge is what makes it look joined on.
                 .background(
-                    Capsule()
+                    UnevenRoundedRectangle(topLeadingRadius: 9, topTrailingRadius: 9)
                         .fill(.black.opacity(0.72))
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 1))
+                        .overlay(
+                            UnevenRoundedRectangle(topLeadingRadius: 9, topTrailingRadius: 9)
+                                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                        )
                 )
-                // Clear of the feed's own top edge, and clear of the pills.
-                .padding(.leading, 14)
-                .offset(y: -10)
+                // Sitting ON the feed's top edge rather than hovering above
+                // it, which is what lets it slide out from behind.
+                .alignmentGuide(.top) { $0[.bottom] }
                 .transition(
                     reduceMotion
                         ? .opacity
-                        : .scale(scale: 0.8, anchor: .bottomLeading).combined(with: .opacity)
+                        : .move(edge: .bottom).combined(with: .opacity)
                 )
                 .animation(.spring(response: 0.3, dampingFraction: 0.78), value: names)
                 // It must never swallow a tap meant for the feed underneath.
@@ -216,12 +230,13 @@ struct RoomView: View {
         }
     }
 
+    /// No trailing ellipsis in the text: the dots are drawn, and animated.
     private func typingText(_ names: [String]) -> String {
         switch names.count {
         case 0: return ""
-        case 1: return "\(names[0]) is typing…"
-        case 2: return "\(names[0]) and \(names[1]) are typing…"
-        default: return "\(names.count) people are typing…"
+        case 1: return "\(names[0]) is typing"
+        case 2: return "\(names[0]) and \(names[1]) are typing"
+        default: return "\(names.count) people are typing"
         }
     }
 
@@ -288,11 +303,12 @@ struct RoomView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                // Its own band, a shade up from the app's background. The
-                // question is not part of the board and not part of the
-                // faces; giving it a surface of its own says which is which
-                // without drawing a line between them.
-                .background(BoardStyle.titleBand)
+                // No band behind it. The question sat on a lighter surface to
+                // separate it from the board and the faces, and all that
+                // actually separated was the colour: a grey stripe across the
+                // middle of the screen. The spacing says the same thing more
+                // quietly, and the board gets the whole background back.
+                .background(BoardStyle.background)
         }
     }
 

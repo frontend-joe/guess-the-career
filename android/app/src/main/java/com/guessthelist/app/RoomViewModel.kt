@@ -438,7 +438,15 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                 name = knownName(identity)
                     ?: p.name?.takeIf { it.isNotEmpty() } ?: mine ?: identity ?: "?",
                 isLocal = p is LocalParticipant,
-                track = p.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack,
+                // A muted camera still HAS its track — muting stops the
+                // frames, it does not unpublish. Handing that track to the
+                // renderer leaves whatever arrived last frozen on screen, so
+                // turning your camera off looked like freezing rather than
+                // leaving. Muted is treated as no track at all, which is what
+                // draws "camera off".
+                track = p.getTrackPublication(Track.Source.CAMERA)
+                    ?.takeIf { !it.muted }
+                    ?.track as? VideoTrack,
                 participant = p,
                 isBlocked = p.identity?.value in blocked,
             )

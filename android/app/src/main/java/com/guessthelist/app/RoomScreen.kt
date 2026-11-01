@@ -7,6 +7,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.shape.CircleShape
@@ -85,6 +87,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -98,7 +101,15 @@ import io.livekit.android.room.participant.LocalParticipant
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
 import kotlinx.coroutines.launch
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import kotlin.math.PI
 import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.sin
 
 // The podcast composition, live: board over the top two thirds, faces across
 // the bottom third. Playing layout and recorded layout stay the same, so the
@@ -132,6 +143,17 @@ fun RoomScreen(model: RoomViewModel) {
             .fillMaxSize()
             .offset { IntOffset(0, -imeBottom) }
             .background(Color(0xFF0A0A0C))
+            // Swipe down ANYWHERE to put the keyboard away, not just on the
+            // field. With the keyboard up the field is a strip at the bottom
+            // and the board is the part you are looking at, so that is where
+            // the hand already is. On the root, so a child with a gesture of
+            // its own still wins: the guess feed scrolls sideways and a tile's
+            // long press still opens its menu.
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { _, dragAmount ->
+                    if (dragAmount > 6f) keyboard?.hide()
+                }
+            }
             .windowInsetsPadding(WindowInsets.systemBars),
     ) {
 
@@ -168,13 +190,14 @@ fun RoomScreen(model: RoomViewModel) {
                 fontFamily = AppFonts.Display,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                // Its own band, a shade up from the app's background. The
-                // question is not part of the board and not part of the
-                // faces; giving it a surface of its own says which is which
-                // without drawing a line between them.
+                // No band behind it. The question sat on a lighter surface to
+                // separate it from the board and the faces, and all that
+                // actually separated was the colour: a grey stripe across the
+                // middle of the screen. The spacing says the same thing more
+                // quietly, and the board gets the whole background back.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF191C23))
+                    .background(Color(0xFF0A0A0C))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             )
         }
@@ -223,9 +246,11 @@ fun RoomScreen(model: RoomViewModel) {
         // The typing bubble floats on the feed rather than taking a row of
         // its own, so it costs the board no height when nobody is typing —
         // which is most of the time.
-        Box {
+        Box(Modifier.clipToBounds()) {
             GuessFeed(model)
-            TypingBubble(model)
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                TypingBubble(model)
+            }
         }
 
         // Errors only. A verdict used to live here too, which meant a line of
@@ -338,13 +363,7 @@ fun RoomScreen(model: RoomViewModel) {
                     .weight(1f)
                     .height(42.dp)
                     .clip(RoundedCornerShape(21.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    // Swipe down on the field to put the keyboard away.
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures { _, dragAmount ->
-                            if (dragAmount > 6f) keyboard?.hide()
-                        }
-                    },
+                    .background(Color.White.copy(alpha = 0.08f)),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -780,6 +799,45 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
 }
 
 /**
+ * The three dots that travel while somebody is typing.
+ *
+ * A drawn ellipsis rather than a "…" in the string, because the point of the
+ * indicator is that something is happening right now — and a full stop that
+ * never moves says the opposite. The wave is what every messaging app uses
+ * for this, so it needs no explaining.
+ *
+ * One infinite clock shared by all three dots rather than three staggered
+ * animations: the bubble is created and destroyed as people start and stop,
+ * and per-dot animations restart from zero each time it reappears, which
+ * makes the wave stutter on arrival.
+ */
+@Composable
+private fun TypingDots() {
+    val count = 3
+    val transition = rememberInfiniteTransition(label = "typing")
+    val t by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing)),
+        label = "phase",
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(count) { i ->
+            // Each dot a third of a cycle behind the one before it.
+            val phase = ((t - i.toFloat() / count) % 1f + 1f) % 1f
+            val wave = max(0f, sin(phase * PI.toFloat()))
+            Box(
+                Modifier
+                    .offset(y = (-2.5f * wave).dp)
+                    .size(3.5.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.35f + 0.55f * wave)),
+            )
+        }
+    }
+}
+
+/**
  * "Steve is typing…", floating just above the guesses.
  *
  * Worth showing at all because this game is played out loud: knowing somebody
@@ -790,31 +848,41 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
 @Composable
 private fun TypingBubble(model: RoomViewModel) {
     val names = model.typingNames
+    // No trailing ellipsis in the text: the dots are drawn, and animated.
     val text = when (names.size) {
         0 -> ""
-        1 -> "${names[0]} is typing…"
-        2 -> "${names[0]} and ${names[1]} are typing…"
-        else -> "${names.size} people are typing…"
+        1 -> "${names[0]} is typing"
+        2 -> "${names[0]} and ${names[1]} are typing"
+        else -> "${names.size} people are typing"
     }
+    // Rounded on top only, so it reads as a tab attached to the feed rather
+    // than a pill floating over it — the square bottom edge is what makes it
+    // look joined on. It slides up from behind the guesses, which is what the
+    // clipping on the parent is for.
+    val tab = RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp)
     AnimatedVisibility(
         visible = names.isNotEmpty(),
-        enter = fadeIn() + scaleIn(initialScale = 0.8f),
-        exit = fadeOut(),
+        enter = slideInVertically { it } + fadeIn(),
+        exit = slideOutVertically { it } + fadeOut(),
     ) {
-        Text(
-            text,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.85f),
-            maxLines = 1,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
             modifier = Modifier
-                .padding(start = 14.dp)
-                .offset(y = (-10).dp)
-                .clip(CircleShape)
+                .clip(tab)
                 .background(Color.Black.copy(alpha = 0.72f))
-                .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.14f), tab)
                 .padding(horizontal = 10.dp, vertical = 4.dp),
-        )
+        ) {
+            Text(
+                text,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.85f),
+                maxLines = 1,
+            )
+            TypingDots()
+        }
     }
 }
 

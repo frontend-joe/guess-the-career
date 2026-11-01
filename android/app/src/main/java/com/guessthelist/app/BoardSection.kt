@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
@@ -245,7 +247,13 @@ private fun ClueDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        // An X, not "Done": there is nothing to be done here. The dialog
+        // shows a clue and the only thing you can do with it is close it.
+        confirmButton = {
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, contentDescription = "Close")
+            }
+        },
     )
 }
 
