@@ -778,14 +778,28 @@ const nationalityClub: TenableType = {
 // Mirrors the Overseas Players game: any non-England nationality (so Scots and
 // Welsh count, as they do there) at one of the curated English clubs.
 // Derived from the career data rather than a hardcoded club list: a club counts
-// as English if it has league rows in an English division.
+// as English if it has league rows in a division only England has.
+//
+// "Premier League" is deliberately NOT in this list. England does not own the
+// name: Ukraine's top flight and Russia's are both written that way in a
+// career table, so one row of it was enough to make Shakhtar Donetsk an
+// English club and put "Shakhtar Donetsk's overseas players" in a round built
+// from Chelsea and Everton. Cristiano Lucarelli's 2007–08 season did it.
+//
+// Every division below is one only England has ever had, so a club reaching
+// this list reached it on a name nobody else uses. English clubs are not
+// harmed by the omission: they all have Championship or First Division or
+// Div 2 history behind them, and the only four clubs in the database that
+// qualified on "Premier League" alone were Shakhtar and three malformed
+// spellings ("Bolton", "TottenhamHotspur", "Wolverhampton") whose real
+// entries are listed properly elsewhere.
 const ENGLISH_DIVISIONS = [
-  "Premier League", "First Division", "Second Division", "Third Division",
+  "First Division", "Second Division", "Third Division",
   "Fourth Division", "EFL Championship", "Championship",
   "League One", "League Two", "Third Division North", "Third Division South",
 ];
 const ENGLISH_CLUBS_SQL = `
-  SELECT DISTINCT club FROM career_statistics
+  SELECT DISTINCT REPLACE(club, ' (loan)', '') FROM career_statistics
   WHERE COALESCE(league, division) IN (${ENGLISH_DIVISIONS.map((d) => `'${d}'`).join(", ")})
 `;
 
