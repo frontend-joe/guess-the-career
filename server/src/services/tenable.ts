@@ -184,8 +184,18 @@ const CLUB_BY_URL = `
            ) AS rn
     FROM clubs c
     JOIN (
-      SELECT REPLACE(club, ' (loan)', '') AS club, COUNT(*) AS n
-      FROM career_statistics GROUP BY REPLACE(club, ' (loan)', '')
+      -- PLAYERS in leagues we build rounds from, not rows in the whole table.
+      -- Row count picked the wrong name in production: something spells
+      -- Birmingham City "Birmingham" often enough to win on rows, while
+      -- having two goalscorers to the real name's hundred-odd. Counting the
+      -- players a round would actually be made of settles it the way the
+      -- rounds do, and restricting to allowed leagues means the name chosen
+      -- is always one ALLOWED_CLUBS contains.
+      SELECT REPLACE(cs.club, ' (loan)', '') AS club,
+             COUNT(DISTINCT cs.footballer_id) AS n
+      FROM career_statistics cs
+      WHERE COALESCE(cs.league, cs.division) IN (${ALLOWED_LEAGUES_SQL})
+      GROUP BY REPLACE(cs.club, ' (loan)', '')
     ) cc ON cc.club = c.name
     WHERE c.wikipedia_url IS NOT NULL
   )

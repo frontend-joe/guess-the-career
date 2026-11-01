@@ -73,8 +73,13 @@ struct RoomView: View {
                     // said. It costs the board 50pt and earns the only record
                     // of the wrong answers anybody will ever see.
                     GuessFeedView()
-
-                    typingLine
+                        // The typing bubble floats on the feed rather than
+                        // taking a row of its own. A whole row cost the board
+                        // height permanently to say something that is true for
+                        // a few seconds at a time — and left a visible gap
+                        // whenever nobody was typing. Overlaid, it costs
+                        // nothing when there is nothing to say.
+                        .overlay(alignment: .topLeading) { typingBubble }
 
                     // The host's final say, when the list has just turned
                     // something down. Sits above the footer rather than in the
@@ -173,28 +178,42 @@ struct RoomView: View {
         }
     }
 
-    /// "Steve is typing…", directly above the box they are typing into.
+    /// "Steve is typing…", floating just above the guesses.
     ///
-    /// Worth the row because this game is played out loud: knowing somebody is
-    /// already putting an answer in is what stops two people racing the same
-    /// name into the box, and on a call that race is three seconds of everyone
-    /// talking over each other.
+    /// Worth showing at all because this game is played out loud: knowing
+    /// somebody is already putting an answer in is what stops two people
+    /// racing the same name into the box, and on a call that race is three
+    /// seconds of everyone talking over each other.
     ///
-    /// Its height is reserved whether or not anybody is typing, so the board
-    /// above it never jumps by a line as people start and stop.
+    /// A bubble rather than a row, so it takes no height from the board when
+    /// nobody is typing — which is most of the time.
     @ViewBuilder
-    private var typingLine: some View {
+    private var typingBubble: some View {
         let names = store.typingNames
-        Text(typingText(names))
-            .font(.body(12))
-            .foregroundStyle(.white.opacity(0.55))
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .frame(height: 16)
-            .background(BoardStyle.background)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: names)
-            .accessibilityHidden(names.isEmpty)
+        if !names.isEmpty {
+            Text(typingText(names))
+                .font(.body(11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(.black.opacity(0.72))
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 1))
+                )
+                // Clear of the feed's own top edge, and clear of the pills.
+                .padding(.leading, 14)
+                .offset(y: -10)
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .scale(scale: 0.8, anchor: .bottomLeading).combined(with: .opacity)
+                )
+                .animation(.spring(response: 0.3, dampingFraction: 0.78), value: names)
+                // It must never swallow a tap meant for the feed underneath.
+                .allowsHitTesting(false)
+        }
     }
 
     private func typingText(_ names: [String]) -> String {

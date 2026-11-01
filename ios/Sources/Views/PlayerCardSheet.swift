@@ -70,8 +70,12 @@ struct PlayerCardSheet: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
             Spacer(minLength: 12)
-            Button("Done") { dismiss() }
-                .font(.body(15, weight: .semibold))
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityLabel("Close")
         }
         .padding(.horizontal, 14)
         .padding(.top, 18)

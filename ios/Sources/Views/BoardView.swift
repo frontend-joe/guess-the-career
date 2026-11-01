@@ -312,7 +312,14 @@ private struct ClueSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    // An X, not "Done": there is nothing to be done here.
+                    // The sheet shows a clue and the only thing you can do
+                    // with it is close it, which is what an X means.
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .accessibilityLabel("Close")
                 }
             }
         }
