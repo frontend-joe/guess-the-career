@@ -246,6 +246,18 @@ fun RoomScreen(model: RoomViewModel) {
         // The typing bubble floats on the feed rather than taking a row of
         // its own, so it costs the board no height when nobody is typing —
         // which is most of the time.
+        // Everything below the faces is one panel: the guesses, the host's
+        // override, and the controls. Grouped because the typing tab rises
+        // from behind the whole of it — the panel's own background is what
+        // hides the tab until it has cleared the top edge, so it slides out
+        // rather than fading in on top.
+        Box(Modifier.fillMaxWidth()) {
+            Box(
+                Modifier.fillMaxWidth().align(Alignment.TopCenter).offset(y = (-21).dp),
+                contentAlignment = Alignment.Center,
+            ) { TypingBubble(model) }
+
+        Column(Modifier.fillMaxWidth().background(Color(0xFF0A0A0C))) {
         GuessFeed(model)
 
         // Errors only. A verdict used to live here too, which meant a line of
@@ -296,18 +308,9 @@ fun RoomScreen(model: RoomViewModel) {
             }
         }
 
-        Box(Modifier.fillMaxWidth()) {
-            // Behind the guess box, bottom edge pinned to its top edge, so it
-            // rises out from behind the box rather than appearing above it.
-            Box(
-                Modifier.fillMaxWidth().align(Alignment.TopCenter).offset(y = (-21).dp),
-                contentAlignment = Alignment.Center,
-            ) { TypingBubble(model) }
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF0A0A0C))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -449,6 +452,7 @@ fun RoomScreen(model: RoomViewModel) {
                     }
                 }
             }
+        }
         }
         }
 

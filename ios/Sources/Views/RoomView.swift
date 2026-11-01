@@ -68,31 +68,33 @@ struct RoomView: View {
                         .background(BoardStyle.background)
                         .clipped()
 
-                    // Under the faces, because that is the order of the
-                    // recording: board, then who is playing, then what they
-                    // said. It costs the board 50pt and earns the only record
-                    // of the wrong answers anybody will ever see.
-                    GuessFeedView()
-                        // The typing bubble floats on the feed rather than
-                        // taking a row of its own. A whole row cost the board
-                        // height permanently to say something that is true for
-                        // a few seconds at a time — and left a visible gap
-                        // whenever nobody was typing. Overlaid, it costs
-                        // nothing when there is nothing to say.
+                    // Everything below the faces is one panel: the guesses,
+                    // the host's override, and the controls. Grouped because
+                    // the typing tab rises from behind the whole of it — the
+                    // panel's own background is what hides the tab until it
+                    // has cleared the top edge, so it slides out rather than
+                    // fading in on top. No clipping, and nothing to keep in
+                    // sync with the tab's height.
+                    VStack(spacing: 0) {
+                        // Under the faces, because that is the order of the
+                        // recording: board, then who is playing, then what
+                        // they said. It costs the board 50pt and earns the
+                        // only record of the wrong answers anybody will see.
+                        GuessFeedView()
 
+                        // The host's final say, when the list has just turned
+                        // something down. Above the footer rather than in the
+                        // toast, because the toast goes away on its own and
+                        // this is a decision somebody has to make.
+                        hostOverrideBar
 
-                    // The host's final say, when the list has just turned
-                    // something down. Sits above the footer rather than in the
-                    // toast, because the toast goes away on its own and this
-                    // is a decision somebody has to make.
-                    hostOverrideBar
-
-                    // One row: your own controls, the field, and the menu. It
-                    // sits on the very bottom edge, and therefore directly on
-                    // top of the keyboard when one is up.
-                    footer
-                        .background(BoardStyle.background)
-                        .background(alignment: .top) { typingBubble }
+                        // One row: your own controls, the field, and the
+                        // menu. It sits on the very bottom edge, and
+                        // therefore directly on top of the keyboard.
+                        footer
+                    }
+                    .background(BoardStyle.background)
+                    .background(alignment: .top) { typingBubble }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 // Swipe down ANYWHERE to put the keyboard away, not just on
@@ -209,8 +211,8 @@ struct RoomView: View {
                     UnevenRoundedRectangle(topLeadingRadius: 9, topTrailingRadius: 9)
                         .fill(Color(white: 0.16))
                 )
-                // Its bottom edge pinned to the guess box's top edge, so
-                // it stands on the box rather than overlapping it.
+                // Its bottom edge pinned to the panel's top edge, so it
+                // stands on the panel rather than overlapping it.
                 .alignmentGuide(.top) { $0[.bottom] }
                 .transition(
                     reduceMotion
