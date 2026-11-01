@@ -17,6 +17,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -390,21 +392,42 @@ fun RoomScreen(model: RoomViewModel) {
                         inner()
                     },
                 )
-                IconButton(
-                    onClick = { val raw = guess.trim(); if (raw.isNotEmpty()) { model.guess(raw); guess = "" } },
-                    enabled = canSend,
-                    modifier = Modifier
+                // Not an IconButton. That applies its own 40dp state-layer
+                // size AFTER the modifier it is handed, so the background set
+                // here drew at 40dp inside a 42dp field — a white disc that
+                // swallowed the whole box. A plain Box takes the size it is
+                // given, which is what iOS's 28pt disc needs.
+                //
+                // The tap target is the 36dp box around it rather than the
+                // disc itself, so it stays reachable at the size it looks.
+                Box(
+                    Modifier
                         .padding(end = 5.dp)
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(if (canSend) Color.White else Color.White.copy(alpha = 0.12f)),
+                        .size(36.dp)
+                        .clickable(
+                            enabled = canSend,
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                        ) {
+                            val raw = guess.trim()
+                            if (raw.isNotEmpty()) { model.guess(raw); guess = "" }
+                        },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Filled.ArrowUpward,
-                        contentDescription = "Submit guess",
-                        tint = if (canSend) Color.Black else Color.White.copy(alpha = 0.35f),
-                        modifier = Modifier.size(14.dp),
-                    )
+                    Box(
+                        Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(if (canSend) Color.White else Color.White.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Filled.ArrowUpward,
+                            contentDescription = "Submit guess",
+                            tint = if (canSend) Color.Black else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
                 }
             }
 
