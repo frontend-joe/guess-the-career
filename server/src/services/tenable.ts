@@ -192,27 +192,21 @@ const CLUB_BY_URL = `
   WHERE rn = 1
 `;
 
-// Every club name the career-statistics tables use. Not ALLOWED_CLUBS, which
-// is narrower — this is "a name this database recognises at all".
-const KNOWN_CLUBS = `
-  SELECT DISTINCT REPLACE(club, ' (loan)', '') FROM career_statistics
-`;
-
 const STINT_CLUB_RAW = `REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')`;
 
 // A stint's club, under the name the rest of the database uses for it.
 //
-// The article's name is used ONLY where the infobox text is one nothing else
-// recognises. That ordering is deliberate: it makes this change incapable of
-// moving a club that already resolves, so it can only ever rescue a name that
-// currently resolves to nothing.
-const STINT_CLUB = `
-  CASE
-    WHEN cbu.club IS NOT NULL AND ${STINT_CLUB_RAW} NOT IN (${KNOWN_CLUBS})
-      THEN cbu.club
-    ELSE ${STINT_CLUB_RAW}
-  END
-`;
+// The article wins outright wherever it gives an answer. An earlier version
+// only used it where the infobox text appeared nowhere in career_statistics,
+// meaning to be conservative, and that guard defeated the whole fix: one
+// single row somewhere spelling the club "Birmingham" was enough to make the
+// old name look "known", and Joe Bradford stayed invisible. It was also the
+// slower of the two.
+//
+// Preferring the article is safe because CLUB_BY_URL already resolves each
+// article to the spelling carrying the MOST career-statistics rows — so it is
+// the dominant name by construction, not an arbitrary one.
+const STINT_CLUB = `COALESCE(cbu.club, ${STINT_CLUB_RAW})`;
 
 const STINT_CLUB_ANY = `
   SELECT st.footballer_id AS fid,
