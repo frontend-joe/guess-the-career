@@ -32,6 +32,15 @@ const BASE_COLUMNS: PersonAdminConfig<Footballer>['extraColumns'] = [
     className: 'hidden xl:table-cell text-sm text-muted-foreground',
     render: (f) => f.height_cm ? `${f.height_cm} cm` : '—',
   },
+  {
+    header: 'Added',
+    className: 'hidden lg:table-cell text-sm text-muted-foreground whitespace-nowrap',
+    // Date only. The time is in the data but it is noise in a column you are
+    // scanning, and the full stamp is one hover away.
+    render: (f) => f.created_at
+      ? <span title={f.created_at}>{f.created_at.slice(0, 10)}</span>
+      : <span className="text-muted-foreground">—</span>,
+  },
 ]
 
 interface BackfillStatus {
@@ -131,6 +140,7 @@ export function FootballersPage() {
   const [nonRetired, setNonRetired] = useState(false)
   const [missingCaps, setMissingCaps] = useState(false)
   const [singleGenericPosition, setSingleGenericPosition] = useState(false)
+  const [sort, setSort] = useState<'name' | 'newest' | 'oldest'>('name')
 
   const config: PersonAdminConfig<Footballer> = {
     label: 'Footballer',
@@ -144,7 +154,7 @@ export function FootballersPage() {
     rescrapeUrl: '/api/footballers/rescrape-all',
     extraColumns: BASE_COLUMNS,
     getPeople: (opts) => getFootballers(opts),
-    getPeoplePaged: (opts) => getFootballersPaginated({ ...opts, missingNationality, missingPhoto, missingCareerStats, nonRetired, missingCaps }),
+    getPeoplePaged: (opts) => getFootballersPaginated({ ...opts, missingNationality, missingPhoto, missingCareerStats, nonRetired, missingCaps, sort }),
     pageSize: 25,
     deletePerson: deleteFootballer,
     deleteAllPeople: deleteAllFootballers,
@@ -175,6 +185,18 @@ export function FootballersPage() {
       : undefined,
     extraFilters: (
       <>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground shrink-0 whitespace-nowrap">
+          Sort
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as 'name' | 'newest' | 'oldest')}
+            className="h-8 rounded-md border bg-white px-2 text-sm text-foreground"
+          >
+            <option value="name">Name</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </label>
         <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0 whitespace-nowrap">
           <input
             type="checkbox"

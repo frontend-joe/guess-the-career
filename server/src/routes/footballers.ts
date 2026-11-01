@@ -125,6 +125,13 @@ footballersRouter.get('/', async (c) => {
   const nonRetired = c.req.query('nonRetired') === 'true'
   const missingCaps = c.req.query('missingCaps') === 'true'
   const missingCareerStats = c.req.query('missingCareerStats') === 'true'
+  // Name is the default because the list is a thing you look names up in.
+  // Newest-first exists because the auto-scrape adds players mid-game, and
+  // "what has just arrived in here" is otherwise unanswerable in a table of
+  // several thousand sorted alphabetically.
+  const sort = c.req.query('sort') === 'newest' ? 'newest'
+    : c.req.query('sort') === 'oldest' ? 'oldest'
+    : 'name'
 
   const conditions = []
 
@@ -207,7 +214,13 @@ footballersRouter.get('/', async (c) => {
     const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeParam ?? '25', 10)))
     const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` }).from(footballers).where(where)
     const data = await db.select().from(footballers).where(where)
-      .orderBy(footballers.name)
+      // id breaks ties on created_at: it is a whole-second string, and a
+      // backfill can insert hundreds inside one second.
+      .orderBy(
+        sort === 'newest' ? sql`${footballers.created_at} DESC, ${footballers.id} DESC`
+        : sort === 'oldest' ? sql`${footballers.created_at} ASC, ${footballers.id} ASC`
+        : footballers.name,
+      )
       .limit(pageSize)
       .offset((page - 1) * pageSize)
     return c.json({ data, total: Number(total) })

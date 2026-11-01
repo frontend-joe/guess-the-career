@@ -101,6 +101,7 @@ export async function getFootballersPaginated(opts: {
   missingCareerStats?: boolean
   nonRetired?: boolean
   missingCaps?: boolean
+  sort?: 'name' | 'newest' | 'oldest'
 }): Promise<{ data: Footballer[]; total: number }> {
   const params = new URLSearchParams()
   params.set('page', String(opts.page))
@@ -111,6 +112,7 @@ export async function getFootballersPaginated(opts: {
   if (opts.missingCareerStats) params.set('missingCareerStats', 'true')
   if (opts.nonRetired) params.set('nonRetired', 'true')
   if (opts.missingCaps) params.set('missingCaps', 'true')
+  if (opts.sort && opts.sort !== 'name') params.set('sort', opts.sort)
   const res = await fetch(`/api/footballers?${params.toString()}`)
   if (!res.ok) throw new Error('Failed to fetch footballers')
   return res.json()
