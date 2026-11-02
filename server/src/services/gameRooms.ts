@@ -709,7 +709,7 @@ export function submitGuess(
       // Synchronous, unlike the scrape, because it is only SQL: a re-derivation
       // and a rewrite, no network. Worth the few hundred milliseconds to
       // answer the guess correctly rather than a beat later.
-      const placed = reshuffleForPlayer(instanceId, known.id, norm(raw))
+      const { placed } = reshuffleForPlayer(instanceId, known.id, norm(raw))
       if (placed) {
         sqlite
           .prepare("UPDATE game_guesses SET verdict = 'hit', matched_rank = ? WHERE instance_id = ? AND client_guess_id = ?")
@@ -1000,6 +1000,17 @@ async function drainLearnQueue(): Promise<void> {
           }
         }
 
+        // Which rounds actually asked for this name — read BEFORE the status
+        // update below clears the pending rows that identify them. Rounds, not
+        // live rounds: a round that ended while Wikipedia was being slow still
+        // asked, and the player is no less an answer to it for that.
+        const asked = sqlite
+          .prepare(
+            `SELECT DISTINCT instance_id FROM game_guess_reviews
+             WHERE raw_norm = ? AND status = 'pending'`,
+          )
+          .all(next.normalized) as { instance_id: number }[]
+
         // Mark every pending row for this name, in whatever room it was said,
         // so the next attempt is skipped whether it worked or not.
         sqlite
@@ -1012,17 +1023,11 @@ async function drainLearnQueue(): Promise<void> {
         if (id != null) {
           console.log(`[reviews] learned "${next.raw}" -> footballer ${id}`)
           // If they belong on a board being played right now, put them there.
-          const live = sqlite
-            .prepare(
-              `SELECT DISTINCT r.instance_id FROM game_guess_reviews r
-               JOIN game_round_instances i ON i.id = r.instance_id
-               WHERE r.raw_norm = ? AND i.status = 'live'`,
-            )
-            .all(next.normalized) as { instance_id: number }[]
-          let placed = false
-          for (const row of live) {
+          let belongs = false
+          for (const row of asked) {
             try {
-              if (reshuffleForPlayer(row.instance_id, id, next.normalized)) placed = true
+              const outcome = reshuffleForPlayer(row.instance_id, id, next.normalized)
+              if (outcome.belongs) belongs = true
             } catch (err) {
               console.error(`[reviews] reshuffle failed for instance ${row.instance_id}:`, err)
             }
@@ -1033,9 +1038,12 @@ async function drainLearnQueue(): Promise<void> {
           // and a wrong answer is not a reason to add somebody to the
           // database every future round is derived from.
           //
-          // Again, only what this scrape created. And only what it FAILED to
-          // place: a player who did land on the board has earned their row.
-          if (created && !placed) {
+          // Again, only what this scrape created. And only what does not
+          // BELONG on the board — not what merely failed to be slotted into
+          // it. A live board can decline a correct answer (see
+          // ReshuffleOutcome), and that is not a reason to delete a real
+          // player from the database every future round is derived from.
+          if (created && !belongs) {
             discardScrapedFootballer(id, 'not on the board of the round that asked', next.raw)
             // 'unresolved', not 'rejected'. Rejection is permanent and global
             // — right for an actor, who will still be an actor tomorrow, and
@@ -1129,6 +1137,30 @@ export async function resolvePendingReviews(roomId: number): Promise<ReviewResol
   return out
 }
 
+/**
+ * Two different questions, which used to be one and should never have been.
+ *
+ * `belongs` is about the PLAYER: are they an answer to this round? That is
+ * what decides whether a scrape is kept, because the rule is that Tenable
+ * only learns people who were on the board of the round that asked.
+ *
+ * `placed` is about the BOARD: was the live one actually rewritten? That is
+ * what decides whether the guess scores, and it can fail for reasons that
+ * say nothing about the player — the round ended while Wikipedia was slow, or
+ * slotting them in would have pushed somebody's found answer off the bottom.
+ *
+ * Conflating them cost us İlkay Gündoğan. He is sixth on Germany's Premier
+ * League goals, the board had an empty sixth slot, and adding him pushed the
+ * already-found tenth off the board — so the reshuffle correctly declined,
+ * and the caller read that as "not on this board" and deleted him.
+ */
+interface ReshuffleOutcome {
+  belongs: boolean
+  placed: { rank: number; name: string; value: number; unit: string | null } | null
+}
+
+const NOT_THIS_ROUND: ReshuffleOutcome = { belongs: false, placed: null }
+
 // A player the database had never heard of turns out to belong on the board.
 //
 // The frozen snapshot exists so answers cannot move under people mid-round,
@@ -1139,26 +1171,38 @@ export async function resolvePendingReviews(roomId: number): Promise<ReviewResol
 //
 // It is ONE event carrying the whole revealed set at its new ranks, so the
 // fold stays a fold and the recording reproduces exactly what players saw.
-function reshuffleForPlayer(
+// Exported for the test that pins the distinction above. Nothing else should
+// call it: the two callers below are the only places it makes sense from.
+export function reshuffleForPlayer(
   instanceId: number,
   footballerId: number,
   rawNorm: string,
-): { rank: number; name: string; value: number; unit: string | null } | null {
+): ReshuffleOutcome {
   const inst = sqlite
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')
     .get(instanceId) as InstanceRow | undefined
-  if (!inst || inst.status !== 'live') return null
-  // Nothing to reshuffle on an unordered round: the answers are a squad list,
-  // not a ranking, and a new player cannot displace anybody from it.
-  if (!inst.ordered) return null
+  if (!inst) return NOT_THIS_ROUND
 
   const params = JSON.parse(inst.params_json) as Record<string, string>
   const fresh = answersForRound(inst.type, params, inst.metric as Metric, SNAPSHOT_DEPTH)
 
   const newIndex = fresh.findIndex((a) => a.footballer_id === footballerId)
-  // Not on the board after all — they qualify for the round but not the top
-  // ten. Nothing to reshuffle; the near-miss feedback already covers it.
-  if (newIndex < 0 || newIndex >= ROUND_SIZE) return null
+  // The same rule the freeze uses: on an ordered round the board is the top
+  // ten, and on an unordered one — "name any ten of this squad" — every
+  // derived answer is on it.
+  const belongs = inst.ordered ? newIndex >= 0 && newIndex < ROUND_SIZE : newIndex >= 0
+  // They qualify for the round but not the board — the near-miss feedback
+  // already covers that, and there is nothing here to keep them for.
+  if (!belongs) return NOT_THIS_ROUND
+
+  // From here they ARE an answer to this round, so the scrape is worth
+  // keeping whatever happens to the live board next.
+  const ONLY_BELONGS: ReshuffleOutcome = { belongs: true, placed: null }
+  // Rewriting a board is a different question from being on it. A round that
+  // has ended cannot be rewritten, and an unordered board has no ranking to
+  // reshuffle — the answers are a squad list, not an order, and a new name
+  // cannot displace anybody from it.
+  if (inst.status !== 'live' || !inst.ordered) return ONLY_BELONGS
 
   const current = sqlite
     .prepare('SELECT footballer_id, found_at_ms, found_by_participant_id FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
@@ -1170,7 +1214,7 @@ function reshuffleForPlayer(
   const onBoardNow = new Set(
     fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null),
   )
-  if (current.some((c) => c.footballer_id != null && !onBoardNow.has(c.footballer_id))) return null
+  if (current.some((c) => c.footballer_id != null && !onBoardNow.has(c.footballer_id))) return ONLY_BELONGS
 
   // Whoever said the name gets the credit for it. They did guess correctly;
   // the database was the one that was wrong.
@@ -1256,8 +1300,11 @@ function reshuffleForPlayer(
   console.log(`[reviews] reshuffled instance ${instanceId}: ${fresh[newIndex].name} is ${newIndex + 1}`)
   roomChanged?.(inst.room_id, 'board_reshuffle')
 
-  const placed = fresh[newIndex]
-  return { rank: newIndex + 1, name: placed.name, value: placed.value, unit: placed.unit ?? null }
+  const landed = fresh[newIndex]
+  return {
+    belongs: true,
+    placed: { rank: newIndex + 1, name: landed.name, value: landed.value, unit: landed.unit ?? null },
+  }
 }
 
 // Set by the router at boot, so this service can tell the room something
