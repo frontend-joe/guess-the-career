@@ -58,6 +58,11 @@ data class ReplayGuess(
     val raw: String,
     val verdict: String,
     val matchedRank: Int? = null,
+    /** The stat behind the rank, so a near miss can say what it was beaten by.
+     *  Null for the same reason [byParticipantId] is: a round played before
+     *  the server logged it has none, and the chip shows the placing alone. */
+    val value: Double? = null,
+    val unit: String? = null,
     val tMs: Int = 0,
     /** Who said it. The log has recorded this since guessing stopped being the
      *  host's alone; the apps simply were not reading it. Null on a round

@@ -776,18 +776,6 @@ final class RoomStore {
         }
     }
 
-    private func ordinal(_ n: Int) -> String {
-        let suffix: String
-        switch (n % 100, n % 10) {
-        case (11, _), (12, _), (13, _): suffix = "th"
-        case (_, 1): suffix = "st"
-        case (_, 2): suffix = "nd"
-        case (_, 3): suffix = "rd"
-        default: suffix = "th"
-        }
-        return "\(n)\(suffix)"
-    }
-
     // Posting bumps the room's version, so the message comes back through the
     // same /state refresh everything else does. Nothing is appended locally:
     // one path from the server's state to the screen, chat included.

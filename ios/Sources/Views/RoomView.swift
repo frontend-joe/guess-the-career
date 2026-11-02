@@ -485,6 +485,20 @@ struct RoomView: View {
     }
 }
 
+/// 1st, 2nd, 3rd, 11th. Free rather than private to a view because the toast
+/// and the near-miss tooltip have to say a placing the same way.
+func ordinal(_ n: Int) -> String {
+    let suffix: String
+    switch (n % 100, n % 10) {
+    case (11, _), (12, _), (13, _): suffix = "th"
+    case (_, 1): suffix = "st"
+    case (_, 2): suffix = "nd"
+    case (_, 3): suffix = "rd"
+    default: suffix = "th"
+    }
+    return "\(n)\(suffix)"
+}
+
 func verdictColour(_ verdict: String) -> Color {
     switch verdict {
     case "hit": return .green

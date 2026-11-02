@@ -737,17 +737,6 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun ordinal(n: Int): String {
-        val suffix = when {
-            n % 100 in 11..13 -> "th"
-            n % 10 == 1 -> "st"
-            n % 10 == 2 -> "nd"
-            n % 10 == 3 -> "rd"
-            else -> "th"
-        }
-        return "$n$suffix"
-    }
-
     // Posting bumps the room's version, so the message comes back through the
     // same refresh everything else does. Nothing is appended locally: one path
     // from the server's state to the screen, chat included.
@@ -826,4 +815,17 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         /** One packet every couple of seconds, not one per keystroke. */
         const val TYPING_PING_MS = 2_000L
     }
+}
+
+/** 1st, 2nd, 3rd, 11th. Top level rather than a member because the toast and
+ *  the near-miss tooltip have to say a placing the same way. */
+internal fun ordinal(n: Int): String {
+    val suffix = when {
+        n % 100 in 11..13 -> "th"
+        n % 10 == 1 -> "st"
+        n % 10 == 2 -> "nd"
+        n % 10 == 3 -> "rd"
+        else -> "th"
+    }
+    return "$n$suffix"
 }

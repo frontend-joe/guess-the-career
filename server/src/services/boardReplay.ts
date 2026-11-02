@@ -52,6 +52,12 @@ export interface ReplayGuess {
   raw: string
   verdict: string
   matchedRank: number | null
+  /// The stat the matched answer carries, for a near miss that wants to say
+  /// "12th (4 goals)". Null on a miss, and on any guess logged before the
+  /// server started recording it — an old round replays without the number
+  /// rather than with a wrong one.
+  value: number | null
+  unit: string | null
   tMs: number
   byParticipantId: number | null
 }
@@ -248,6 +254,8 @@ export function reduceEvents(
           raw: str(p.raw),
           verdict: str(p.verdict),
           matchedRank: nullableNum(p.matchedRank),
+          value: nullableNum(p.value),
+          unit: typeof p.unit === 'string' && p.unit !== '' ? p.unit : null,
           tMs: e.t_ms,
           byParticipantId: e.actor_participant_id,
         })

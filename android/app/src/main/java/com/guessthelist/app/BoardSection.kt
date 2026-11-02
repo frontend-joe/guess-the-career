@@ -411,7 +411,7 @@ private fun valueText(answer: RevealedAnswer): String? {
 
 /** A fee as people say it: 37.5m, 25m, 900k. No currency symbol — the board
  *  carries only the amount, and the written fee is in the clue. */
-private fun money(value: Double): String {
+internal fun money(value: Double): String {
     fun trim(v: Double, suffix: String): String =
         if (v == Math.floor(v)) "${v.toInt()}$suffix" else String.format("%.1f%s", v, suffix)
     return when {

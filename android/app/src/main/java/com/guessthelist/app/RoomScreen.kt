@@ -2,79 +2,78 @@ package com.guessthelist.app
 
 import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PersonRemove
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Icon
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.PersonRemove
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.filled.VideocamOff
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -86,35 +85,45 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import io.livekit.android.compose.ui.VideoTrackView
 import io.livekit.android.room.participant.LocalParticipant
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
-import kotlinx.coroutines.launch
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.sin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // The podcast composition, live: board over the top two thirds, faces across
 // the bottom third. Playing layout and recorded layout stay the same, so the
@@ -697,6 +706,21 @@ private fun GuessFeed(model: RoomViewModel) {
         listState.animateScrollToItem(0)
     }
 
+    // Which chip is showing its placing. The log index, so it stays with the
+    // guess it was opened on as later ones arrive and push the row along.
+    var tipFor by remember { mutableStateOf<Int?>(null) }
+    // Long enough to read five characters and a number, and gone before it
+    // can sit over somebody's face for the recording.
+    LaunchedEffect(tipFor) {
+        if (tipFor != null) {
+            delay(4_000)
+            tipFor = null
+        }
+    }
+    // A new round is a new log, so the index it was anchored to means
+    // something else now.
+    LaunchedEffect(model.round?.instanceId) { tipFor = null }
+
     LazyRow(
         state = listState,
         modifier = Modifier.fillMaxWidth().height(50.dp).background(Color(0xFF0A0A0C)),
@@ -727,7 +751,14 @@ private fun GuessFeed(model: RoomViewModel) {
                 exit = fadeOut(),
                 modifier = Modifier.animateItem(),
             ) {
-                GuessPill(model, guess)
+                GuessPill(
+                    model = model,
+                    guess = guess,
+                    tipShown = tipFor == feed[i].index,
+                    onTap = {
+                        tipFor = if (tipFor == feed[i].index) null else feed[i].index
+                    },
+                )
             }
         }
     }
@@ -765,9 +796,18 @@ private fun TypingChip(modifier: Modifier = Modifier) {
 // board cannot tell you, and because a column of names down the leading edge
 // is scannable in a way a column of guesses is not.
 @Composable
-private fun GuessPill(model: RoomViewModel, guess: ReplayGuess) {
+private fun GuessPill(
+    model: RoomViewModel,
+    guess: ReplayGuess,
+    tipShown: Boolean,
+    onTap: () -> Unit,
+) {
     val colour = verdictColour(guess.verdict)
     val name = model.displayNameOfParticipant(guess.byParticipantId)
+    // Only a near miss has anything to say: it is the one verdict where the
+    // board gives no feedback at all, and "how close was that?" is the
+    // question the whole room asks out loud.
+    val near = guess.verdict == "near"
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -780,6 +820,16 @@ private fun GuessPill(model: RoomViewModel, guess: ReplayGuess) {
             // already where colour means something.
             .background(colour.copy(alpha = 0.16f))
             .border(1.dp, colour.copy(alpha = 0.35f), CircleShape)
+            .then(
+                // No ripple and no indication: the tooltip appearing IS the
+                // feedback, and a ripple inside a 32dp pill reads as the chip
+                // itself being a button to somewhere.
+                if (near) Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onTap,
+                ) else Modifier
+            )
             .padding(horizontal = 11.dp),
     ) {
         if (name != null) {
@@ -792,6 +842,98 @@ private fun GuessPill(model: RoomViewModel, guess: ReplayGuess) {
             color = Color.White.copy(alpha = 0.92f),
             maxLines = 1,
         )
+
+        if (near && tipShown) {
+            // A Popup rather than an overlay inside the row: the band is 50dp
+            // and a LazyRow clips, so anything drawn in place would be cut off
+            // at the top edge. A popup is positioned against the chip's bounds
+            // in window space and escapes both.
+            NearMissTip(placing(model, guess))
+        }
+    }
+}
+
+/** "12th (4 goals)", or just the placing when the round was played before the
+ *  server logged the number. */
+private fun placing(model: RoomViewModel, guess: ReplayGuess): String {
+    val rank = guess.matchedRank ?: return ""
+    val stat = guess.value?.let { stat(model, it, guess.unit) } ?: return ordinal(rank)
+    return "${ordinal(rank)} ($stat)"
+}
+
+/** The same rules the board badge uses, because the two numbers describe the
+ *  same thing and reading differently would make them look unrelated. */
+private fun stat(model: RoomViewModel, value: Double, unit: String?): String? {
+    if (unit == "shirt") return null
+    if (unit == "fee") return money(value)
+    // `unit` is only set for the odd metrics. On an ordinary round the metric
+    // IS the unit — and "none" is the marker an authored round carries, not a
+    // word to print.
+    val metric = model.round?.board?.metric.orEmpty().takeIf { it != "none" }.orEmpty()
+    val word = unit?.takeIf { it.isNotEmpty() } ?: metric
+    val number = value.toInt().toString()
+    return if (word.isEmpty()) number else "$number $word"
+}
+
+private val TIP_GAP = 8.dp
+private val TIP_MARGIN = 10.dp
+
+@Composable
+private fun NearMissTip(text: String) {
+    val gap = with(LocalDensity.current) { TIP_GAP.roundToPx() }
+    val margin = with(LocalDensity.current) { TIP_MARGIN.roundToPx() }
+    val colour = Color(0xFFFBBF24)
+
+    Popup(
+        popupPositionProvider = remember(gap, margin) {
+            object : PopupPositionProvider {
+                override fun calculatePosition(
+                    anchorBounds: IntRect,
+                    windowSize: IntSize,
+                    layoutDirection: LayoutDirection,
+                    popupContentSize: IntSize,
+                ): IntOffset {
+                    val centred = anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+                    // Kept clear of both edges, so a chip at the end of the
+                    // row does not get a tooltip hanging half off the screen.
+                    val limit = windowSize.width - popupContentSize.width - margin
+                    val x = if (limit < margin) margin else centred.coerceIn(margin, limit)
+                    return IntOffset(x, anchorBounds.top - popupContentSize.height - gap)
+                }
+            }
+        },
+        // Non-focusable: a tooltip that took focus would put the keyboard
+        // away mid-round. It closes on a second tap or on its own.
+        properties = PopupProperties(focusable = false),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                maxLines = 1,
+                modifier = Modifier
+                    .height(26.dp)
+                    .clip(CircleShape)
+                    .background(colour.copy(alpha = 0.92f))
+                    .padding(horizontal = 12.dp)
+                    .wrapContentHeight(),
+            )
+            // Pointing at the chip it belongs to. Without it the label floats
+            // over the faces attached to nothing.
+            Canvas(Modifier.size(width = 10.dp, height = 5.dp)) {
+                drawPath(
+                    Path().apply {
+                        moveTo(0f, 0f)
+                        lineTo(size.width, 0f)
+                        lineTo(size.width / 2f, size.height)
+                        close()
+                    },
+                    colour.copy(alpha = 0.92f),
+                )
+            }
+        }
     }
 }
 

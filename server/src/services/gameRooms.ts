@@ -627,6 +627,12 @@ export function submitGuess(
       raw,
       verdict,
       matchedRank: match?.rank ?? null,
+      // The stat behind the rank, so a near miss can say "12th (4 goals)" on
+      // every screen rather than only in the toast the guesser saw. The toast
+      // is three and a half seconds of one person's phone; the feed is the
+      // whole room's, and the recording's.
+      value: match?.value ?? null,
+      unit: match?.unit ?? null,
     })
 
     if (verdict === 'hit' && match) {

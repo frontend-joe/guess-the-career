@@ -191,3 +191,18 @@ test('a reveal carries the footballer id, and an older event folds to null', () 
   ])
   assert.deepEqual(out.revealed.map((r) => r.footballerId), [4821, null])
 })
+
+test('a near miss carries its stat, and an older guess folds to null', () => {
+  const out = reduceEvents([
+    LOG[0],
+    ev(2, 1000, 'guess', { raw: 'Signori', verdict: 'near', matchedRank: 12, value: 4, unit: null }, 7),
+    ev(3, 2000, 'guess', { raw: 'Nesta', verdict: 'near', matchedRank: 18, value: 37_500_000, unit: 'fee' }, 7),
+    // Logged before the stat was recorded. The chip still folds — it simply
+    // has no number to show — because an append-only log cannot be backfilled.
+    ev(4, 3000, 'guess', { raw: 'Boksic', verdict: 'near', matchedRank: 20 }, 7),
+  ])
+  assert.deepEqual(
+    out.guesses.map((g) => [g.matchedRank, g.value, g.unit]),
+    [[12, 4, null], [18, 37_500_000, 'fee'], [20, null, null]],
+  )
+})
