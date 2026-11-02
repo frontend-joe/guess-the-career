@@ -1037,9 +1037,22 @@ async function drainLearnQueue(): Promise<void> {
           // place: a player who did land on the board has earned their row.
           if (created && !placed) {
             discardScrapedFootballer(id, 'not on the board of the round that asked', next.raw)
+            // 'unresolved', not 'rejected'. Rejection is permanent and global
+            // — right for an actor, who will still be an actor tomorrow, and
+            // wrong for this, which says nothing about the person and
+            // everything about the board they were shouted at. Egil Østenstad
+            // is a real footballer with real Premier League goals who was
+            // discarded here because a bug kept Ø out of the O round, and the
+            // permanent skip then meant no amount of guessing him again would
+            // ever try once more.
+            //
+            // The hour window does the job instead: long enough that nobody
+            // re-scrapes him by shouting during the same round, short enough
+            // that the next round gets a fresh look. The row ends with no
+            // footballer attached, which is what unresolved means.
             sqlite
               .prepare(
-                `UPDATE game_guess_reviews SET status = 'rejected', resolved_footballer_id = NULL
+                `UPDATE game_guess_reviews SET status = 'unresolved', resolved_footballer_id = NULL
                  WHERE raw_norm = ? AND status = 'resolved'`,
               )
               .run(next.normalized)

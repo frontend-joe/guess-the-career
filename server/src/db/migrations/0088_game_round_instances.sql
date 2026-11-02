@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS game_guess_reviews (
   instance_id            INTEGER NOT NULL REFERENCES game_round_instances(id) ON DELETE CASCADE,
   raw                    TEXT    NOT NULL,
   raw_norm               TEXT    NOT NULL,
-  status                 TEXT    NOT NULL DEFAULT 'pending',  -- pending|resolved|rejected
+  status                 TEXT    NOT NULL DEFAULT 'pending',  -- pending|resolved|unresolved|rejected
   resolved_footballer_id INTEGER REFERENCES footballers(id) ON DELETE SET NULL,
   created_at             TEXT    NOT NULL DEFAULT (datetime('now')),
   UNIQUE (instance_id, raw_norm)
