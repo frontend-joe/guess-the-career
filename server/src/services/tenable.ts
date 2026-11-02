@@ -436,6 +436,27 @@ const firstName: TenableType = {
 };
 
 // ── 2. Surname initial × league ──────────────────────────────────────────────
+
+// Which letter round a surname belongs to.
+//
+// SQLite's UPPER is ASCII-only, so "Özil" and "Østenstad" bucketed under Ö and
+// Ø — letters that are not BETWEEN 'A' AND 'Z', so those players fell out of
+// every letter round rather than landing in a wrong one. Mesut Özil has 19
+// Premier League goals and was simply absent from the O board.
+//
+// normalize() is the same accent folding the guess matcher uses, which is what
+// makes this right rather than merely different: a name is bucketed by the
+// letter a person would say it starts with, and matched by the same rule.
+//
+// Only the FIRST character goes through it. Folding the whole surname would
+// be the same answer at several times the work, and this runs over every
+// player in the league on each derivation.
+//
+// The outer SUBSTR keeps the result one character. A few letters transliterate
+// to two — ß to "ss", þ to "th" — and "TH" is BETWEEN 'A' AND 'Z', so without
+// it an Icelandic surname would quietly invent a letter round called TH.
+const SURNAME_INITIAL = `UPPER(SUBSTR(normalize(SUBSTR(f.surname, 1, 1)), 1, 1))`;
+
 const surnameInitial: TenableType = {
   slug: "surname-initial",
   label: "Surname letter",
@@ -446,10 +467,10 @@ const surnameInitial: TenableType = {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
       `WITH pl AS (${PLAYER_LEAGUE})
-       SELECT pl.league AS league, UPPER(SUBSTR(f.surname,1,1)) AS letter, COUNT(*) AS n
+       SELECT pl.league AS league, ${SURNAME_INITIAL} AS letter, COUNT(*) AS n
        FROM pl JOIN footballers f ON f.id = pl.fid
        WHERE f.surname IS NOT NULL AND f.surname <> '' AND pl.${col} > 0
-         AND UPPER(SUBSTR(f.surname,1,1)) BETWEEN 'A' AND 'Z'
+         AND ${SURNAME_INITIAL} BETWEEN 'A' AND 'Z'
        GROUP BY pl.league, letter
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
@@ -468,7 +489,7 @@ const surnameInitial: TenableType = {
       `WITH pl AS (${PLAYER_LEAGUE})
        SELECT ${ANSWER_COLS}, pl.${col} AS value
        FROM pl JOIN footballers f ON f.id = pl.fid
-       WHERE pl.league = ? AND UPPER(SUBSTR(f.surname,1,1)) = ? AND pl.${col} > 0
+       WHERE pl.league = ? AND ${SURNAME_INITIAL} = ? AND pl.${col} > 0
        ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.league, p.letter.toUpperCase()) as TenableAnswer[];
   },
@@ -1028,10 +1049,10 @@ const clubSurnameInitial: TenableType = {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
       `WITH pc AS (${PLAYER_CLUB})
-       SELECT pc.club AS club, UPPER(SUBSTR(f.surname, 1, 1)) AS letter, COUNT(*) AS n
+       SELECT pc.club AS club, ${SURNAME_INITIAL} AS letter, COUNT(*) AS n
        FROM pc JOIN footballers f ON f.id = pc.fid
        WHERE pc.${col} > 0 AND f.surname IS NOT NULL AND f.surname <> ''
-         AND UPPER(SUBSTR(f.surname, 1, 1)) BETWEEN 'A' AND 'Z'
+         AND ${SURNAME_INITIAL} BETWEEN 'A' AND 'Z'
        GROUP BY pc.club, letter
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
@@ -1050,7 +1071,7 @@ const clubSurnameInitial: TenableType = {
       `WITH pc AS (${PLAYER_CLUB})
        SELECT ${ANSWER_COLS}, pc.${col} AS value
        FROM pc JOIN footballers f ON f.id = pc.fid
-       WHERE pc.club = ? AND UPPER(SUBSTR(f.surname, 1, 1)) = ? AND pc.${col} > 0
+       WHERE pc.club = ? AND ${SURNAME_INITIAL} = ? AND pc.${col} > 0
        ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
     ).all(p.club, p.letter.toUpperCase()) as TenableAnswer[];
   },
