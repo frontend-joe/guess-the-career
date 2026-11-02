@@ -57,7 +57,7 @@ const roundId = (sqlite
   )
   .get(JSON.stringify({ club: 'Testville' })) as { id: number }).id
 
-test('a correct answer the board cannot take is still a player worth keeping', () => {
+test('a correction goes on the board even though it pushes a find off the bottom', () => {
   const user = sqlite
     .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
     .get('reshuffle-host@example.com') as { id: number }
@@ -80,12 +80,26 @@ test('a correct answer the board cannot take is still a player worth keeping', (
 
   const outcome = rooms.reshuffleForPlayer(inst.id, latecomer, norm('Late Arrival'))
 
-  // The board is right to refuse. Taking a find away from somebody who
-  // earned it is worse than the board being one name short.
-  assert.equal(outcome.placed, null)
-  // But he is on this round's board by every honest reading of it, so he is
-  // the scrape's to keep. This is the assertion that was failing.
   assert.equal(outcome.belongs, true)
+  assert.equal(outcome.placed?.rank, 6)
+
+  const board = rooms.roomState(rooms.roomByCode(room.code)!).round!.board
+  assert.deepEqual(
+    board.revealed.map((r) => r.name),
+    // Sixth is filled, everybody below has shifted down one, and the old
+    // tenth is off the bottom. This is a collaborative board, not a
+    // scoreboard: being right beats protecting a tenth place.
+    ['Tenth Man 1', 'Tenth Man 2', 'Tenth Man 3', 'Tenth Man 4', 'Tenth Man 5',
+     'Late Arrival', 'Tenth Man 7', 'Tenth Man 8', 'Tenth Man 9'],
+  )
+
+  // Nothing is taken off the people who were right. The pushed-off player's
+  // guess is still a hit in the feed and in the recording.
+  assert.equal(board.guesses.find((g) => g.raw === 'Tenth Man 10')!.verdict, 'hit')
+
+  // And the slot that opened at the bottom is one more for the room to fill,
+  // so the round is not over.
+  assert.equal(board.ended, null)
 })
 
 test('a player who is not on the board at all belongs to nobody', () => {

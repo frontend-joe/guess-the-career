@@ -1208,13 +1208,17 @@ export function reshuffleForPlayer(
     .prepare('SELECT footballer_id, found_at_ms, found_by_participant_id FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
     .all(instanceId) as { footballer_id: number | null; found_at_ms: number; found_by_participant_id: number | null }[]
 
-  // Never take a find away. If anybody already on the board would be pushed
-  // off by this, leave the board alone — a correction that deletes somebody's
-  // answer is worse than the board being one name short.
-  const onBoardNow = new Set(
-    fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null),
-  )
-  if (current.some((c) => c.footballer_id != null && !onBoardNow.has(c.footballer_id))) return ONLY_BELONGS
+  // A correction is allowed to push somebody off the bottom, even somebody
+  // who has already been found. This used to leave the board alone rather
+  // than take a find away, on the reasoning that losing an answer you earned
+  // is worse than the board being one name short — which is a scoring
+  // argument, and this is not a scoring game. It is four people filling in a
+  // board together, so the board being RIGHT beats anybody's tenth place.
+  //
+  // Nothing is destroyed by it. The pushed-off player keeps their found_at_ms
+  // on the rewritten row, their guess stays a hit in the feed and in the
+  // recording, and the slot that opens up at the bottom is one more for the
+  // room to fill.
 
   // Whoever said the name gets the credit for it. They did guess correctly;
   // the database was the one that was wrong.
