@@ -513,17 +513,24 @@ interface AnswerRow {
 // So: an exact full-name match is unambiguous and always wins. Failing that,
 // prefer someone not yet found, so repeating an ambiguous surname moves on to
 // the next player it fits rather than endlessly re-hitting the first.
+//
+// With one thing ahead of both: an OPEN SLOT ON THIS BOARD. "Doni" is the
+// whole name of a Roma goalkeeper, 23rd on Serie A four-letter surnames, and
+// also the surname of Cristiano Doni, 8th on it and still unfound. The exact
+// match won, the keeper is not on the board, and a guess that was sitting in
+// an empty slot came back as a near miss. Nobody shouting a name at a board
+// means the man who is not on it.
 function pickAnswer(raw: string, answers: AnswerRow[], category: string): AnswerRow | null {
   const prefer = (rows: AnswerRow[]) => rows.find((a) => a.found_at_ms == null) ?? rows[0]
 
   const g = norm(raw)
   const exact = answers.filter((a) => a.name_norm === g)
-  if (exact.length) return prefer(exact)
 
   // Places are matched whole, with their authored aliases; people are matched
   // by the surname rules. See matchesPlace for why the two cannot be the same
   // function — "York" is not New York.
   if (category !== 'football') {
+    if (exact.length) return prefer(exact)
     // An exact alias before any fuzzy name, or the latitude that forgives a
     // typo lets one answer be credited to another: "The Gambia" is one edit
     // from Zambia and both are on the same board.
@@ -534,6 +541,17 @@ function pickAnswer(raw: string, answers: AnswerRow[], category: string): Answer
   }
 
   const fuzzy = answers.filter((a) => matchesName(raw, a.name))
+
+  // A slot still waiting to be filled, by the strongest reading of the guess
+  // that reaches one. Exactness still breaks the tie — it is only being asked
+  // second, after whether the answer is even in play.
+  const open = (rows: AnswerRow[]) => rows.find((a) => a.on_board && a.found_at_ms == null)
+  const live = open(exact) ?? open(fuzzy)
+  if (live) return live
+
+  // Nothing open fits, so fall back to the old order and let the near-miss
+  // feedback do its job: 23rd with 149 apps is a useful thing to be told.
+  if (exact.length) return prefer(exact)
   return fuzzy.length ? prefer(fuzzy) : null
 }
 
