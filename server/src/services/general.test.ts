@@ -253,6 +253,48 @@ test('no answer or alias in any round is ambiguous', () => {
   assert.deepEqual(problems, [])
 })
 
+// The club rounds (migration 0110) rest on an asymmetry that is easy to undo
+// by accident, because it looks like an oversight in both directions: the
+// endings round aliases the full club name, and the nicknames round aliases
+// nothing at all.
+test('a club name ending is reachable by the club, and a nickname is not', () => {
+  const reach = (slug: string, guess: string) => {
+    const answers = generalAnswers(slug)
+    const exact = answers.filter((a) => isPlaceExactly(guess, a.name, a.aliases))
+    const rows = exact.length ? exact : answers.filter((a) => matchesPlace(guess, a.name, a.aliases))
+    return rows.map((a) => a.name)
+  }
+
+  // Nobody shouts "Argyle" on its own, so the club has to count.
+  assert.deepEqual(reach('club-name-endings', 'Aston Villa'), ['Villa'])
+  assert.deepEqual(reach('club-name-endings', 'Plymouth Argyle'), ['Argyle'])
+  assert.deepEqual(reach('club-name-endings', 'Preston North End'), ['North End'])
+  // And the bare ending, which is what the question literally asks for.
+  assert.deepEqual(reach('club-name-endings', 'Hotspur'), ['Hotspur'])
+
+  // The opposite rule, for the opposite reason: if the club counted, "name 10
+  // nicknames" would be "name 10 clubs" and the round would be pointless.
+  assert.deepEqual(reach('club-nicknames', 'Arsenal'), [])
+  assert.deepEqual(reach('club-nicknames', 'Barnsley'), [])
+  assert.deepEqual(reach('club-nicknames', 'Gunners'), ['The Gunners'])
+  assert.deepEqual(reach('club-nicknames', 'Tykes'), ['The Tykes'])
+
+  // And the clubs are spelled the way the clubs table spells them, with the
+  // short form everybody says kept as an alias.
+  assert.deepEqual(reach('clubs-london', 'Spurs'), ['Tottenham Hotspur'])
+  assert.deepEqual(reach('clubs-london', 'West Ham'), ['West Ham United'])
+})
+
+// 'city' is a noise word in placeKey, which a club round gets the benefit of.
+test('a club called City is reachable without saying City', () => {
+  const answers = generalAnswers('clubs-english-s')
+  const stoke = answers.find((a) => a.name === 'Stoke City')!
+  assert.equal(matchesPlace('Stoke', stoke.name, stoke.aliases), true)
+  // Sheffield, though, is two clubs on this board, so it is nobody's answer.
+  const sheffield = answers.filter((a) => matchesPlace('Sheffield', a.name, a.aliases))
+  assert.deepEqual(sheffield, [])
+})
+
 test('no round repeats an answer', () => {
   for (const round of generalRounds()) {
     const names = generalAnswers(round.slug).map((a) => a.name.toLowerCase())

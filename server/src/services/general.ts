@@ -43,6 +43,7 @@ export const GENERAL_TOPICS: GeneralTopic[] = [
   { slug: "tech", label: "Technology" },
   { slug: "food", label: "Food & drink" },
   { slug: "sport", label: "Sport" },
+  { slug: "football", label: "Football" },
   { slug: "science", label: "Science & nature" },
   { slug: "history", label: "History" },
   { slug: "culture", label: "Culture & tradition" },
