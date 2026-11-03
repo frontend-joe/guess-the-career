@@ -166,7 +166,24 @@ roomsRouter.get('/:code/state', async (c) => {
   const room = mustFindRoom(c.req.param('code'))
   const me = await participantFor(c, room)
   if (!me) return c.json({ error: 'Not in this room' }, 403)
-  return c.json({ ...roomState(room), participantId: me.id, role: me.role })
+  return c.json({
+    ...roomState(room),
+    participantId: me.id,
+    role: me.role,
+    // A fresh token on every poll, so a seat you are sitting in never ages
+    // out from under you. Clients re-read this every ten seconds; before
+    // this, a room left open for a day hit the participant token's expiry
+    // mid-game and every device was told the room was no longer available,
+    // which was a lie — the room was fine, the credential had simply run out.
+    //
+    // It does not weaken revocation. The TTL was never what revoked a seat:
+    // participantFor() re-checks `left_at IS NULL` on every single request,
+    // so a player the host removes is out on their next call whatever their
+    // token says. What the TTL is for is the ABANDONED seat — the token on a
+    // phone nobody opens again — and that still goes stale on schedule,
+    // because nothing is polling to renew it.
+    participantToken: await signParticipantToken(room.id, me.id),
+  })
 })
 
 // POST /api/rooms/:code/rounds — freeze a round's board for this room.

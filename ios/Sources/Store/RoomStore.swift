@@ -221,6 +221,14 @@ final class RoomStore {
                 SeatStore.clear()
                 return
             }
+            // Same renewal as the poll: a seat reopened a few hours before it
+            // would have expired gets another day, rather than a game that
+            // starts fine and drops everyone twenty minutes in.
+            if let renewed = fresh.participantToken, renewed != saved.token {
+                let next = Seat(code: saved.code, participantId: saved.participantId, token: renewed)
+                seat = next
+                SeatStore.save(next)
+            }
             state = fresh
             version = fresh.stateVersion
             phase = .inRoom
@@ -241,6 +249,15 @@ final class RoomStore {
         guard let seat else { return }
         do {
             let next = try await API.roomState(seat: seat)
+            // Renew the seat before anything else can fail. The token has a
+            // life of a day and the poll runs every ten seconds, so a game
+            // that stays open overnight carries on rather than telling four
+            // people the room has gone.
+            if let renewed = next.participantToken, renewed != seat.token {
+                let fresh = Seat(code: seat.code, participantId: seat.participantId, token: renewed)
+                self.seat = fresh
+                SeatStore.save(fresh)
+            }
             guard next.stateVersion >= version else { return }
             version = next.stateVersion
             state = next

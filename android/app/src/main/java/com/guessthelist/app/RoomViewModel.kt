@@ -154,7 +154,14 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                     prefs.edit().remove(SEAT_KEY).apply()
                     return@launch
                 }
-                seat = saved; state = fresh; version = fresh.stateVersion; inRoom = true
+                // Same renewal as the poll: a seat reopened a few hours before
+                // it would have expired gets another day, rather than a game
+                // that starts fine and drops everyone twenty minutes in.
+                val restored = fresh.participantToken
+                    ?.takeIf { it != saved.token }
+                    ?.let { saved.copy(token = it).also(::saveSeat) }
+                    ?: saved
+                seat = restored; state = fresh; version = fresh.stateVersion; inRoom = true
                 startPolling()
                 connectMedia()
             } catch (failure: Api.Failure) {
@@ -175,6 +182,17 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         val current = seat ?: return
         try {
             val next = Api.roomState(current)
+            // Renew the seat before anything else can fail. The token has a
+            // life of a day and the poll runs every ten seconds, so a game
+            // that stays open overnight carries on rather than telling four
+            // people the room has gone.
+            next.participantToken?.let { renewed ->
+                if (renewed != current.token) {
+                    val fresh = current.copy(token = renewed)
+                    seat = fresh
+                    saveSeat(fresh)
+                }
+            }
             if (next.stateVersion < version) return
             version = next.stateVersion
             state = next

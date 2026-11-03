@@ -162,6 +162,10 @@ data class RoomState(
     val participants: List<RoomParticipant> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
     val round: RoomRound? = null,
+    /** A renewed token for the seat this snapshot was fetched with, so sitting
+     *  in a room keeps the seat alive. Only /state sends it; create and join
+     *  hand the seat over whole. */
+    val participantToken: String? = null,
 )
 
 @Serializable

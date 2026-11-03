@@ -154,6 +154,11 @@ struct RoomState: Codable, Equatable {
     let participants: [RoomParticipant]
     let messages: [ChatMessage]
     let round: RoomRound?
+    /// A renewed token for the seat this snapshot was fetched with, so sitting
+    /// in a room keeps the seat alive. Optional because only /state sends it —
+    /// create and join hand the seat over whole, and Swift's synthesised
+    /// Codable has no defaults to fall back on.
+    let participantToken: String?
 }
 
 // What create and join return: the state, plus the seat you were given.
@@ -175,7 +180,8 @@ struct JoinedRoom: Codable {
             code: code, status: status, stateVersion: stateVersion,
             livekitRoom: livekitRoom, hostUserId: hostUserId,
             pendingInstanceId: pendingInstanceId,
-            participants: participants, messages: messages, round: round
+            participants: participants, messages: messages, round: round,
+            participantToken: nil
         )
     }
 }
