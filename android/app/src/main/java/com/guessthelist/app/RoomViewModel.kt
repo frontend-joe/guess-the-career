@@ -111,6 +111,11 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         saveSeat(newSeat)
         startPolling()
         viewModelScope.launch { connectMedia() }
+        // Asked for here, in a room, because this is the first moment
+        // "we'll tell you when the next game starts" explains itself — and
+        // because registering a guest's phone needs the participant token of a
+        // game they are in, which they now have.
+        Push.start(getApplication())
     }
 
     // Leave the screen FIRST, then tell the network. The leave call and
@@ -830,7 +835,11 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
-    private companion object {
+    // Not private, for SEAT_KEY alone: Push reads the stored seat directly,
+    // because a Firebase token arrives on a callback with no view model to
+    // hand, and two spellings of the same preference key is how one of them
+    // quietly stops matching.
+    companion object {
         const val SEAT_KEY = "seat"
         const val STATE_TOPIC = "gtl-state"
         const val TYPING_TOPIC = "gtl-typing"

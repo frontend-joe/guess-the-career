@@ -33,6 +33,7 @@ import {
   type RoomRow,
 } from '../services/gameRooms.ts'
 import { broadcastState, ejectParticipant, livekitConfig, mintJoinToken } from '../services/livekit.ts'
+import { registerDevice, sendInvite } from '../services/push.ts'
 
 export const roomsRouter = new Hono()
 
@@ -114,19 +115,49 @@ roomsRouter.post(
   // explicit null, and only a browser omits the key. Rejecting null here cost
   // an afternoon finding out that "create a room" worked on the web and 400'd
   // on the phone.
-  zValidator('json', z.object({ name: z.string().trim().max(60).nullish() })),
+  zValidator('json', z.object({
+    name: z.string().trim().max(60).nullish(),
+    // The host's own phone, so it can be kept OFF the invite list it is about
+    // to trigger. Registered here rather than left to /api/push/devices
+    // because a host creating a game holds a user session, not the
+    // participant token that endpoint's first registration asks for.
+    pushToken: z.string().trim().min(1).max(512).nullish(),
+    pushPlatform: z.enum(['ios', 'android']).nullish(),
+  })),
   async (c) => {
     const user = await getCurrentUser(c)
     if (!user) return c.json({ error: 'Unauthorized' }, 401)
-    const room = createRoom(
-      { id: user.id, displayName: user.display_name ?? user.email.split('@')[0] },
-      c.req.valid('json').name ?? undefined,
-    )
+    const { name, pushToken, pushPlatform } = c.req.valid('json')
+    const hostName = user.display_name ?? user.email.split('@')[0]
+    const room = createRoom({ id: user.id, displayName: hostName }, name ?? undefined)
     const host = participantsOf(room.id)[0]
+
+    let deviceSecret: string | null = null
+    if (pushToken && pushPlatform) {
+      deviceSecret = registerDevice({
+        platform: pushPlatform,
+        token: pushToken,
+        displayName: hostName,
+        userId: user.id,
+      }).secret
+    }
+
+    // The whole point of the feature: creating a game tells everybody, rather
+    // than the host pasting a link into a group chat and hoping.
+    //
+    // Not awaited. The room is already committed, and putting Apple's and
+    // Google's latency inside this response — or letting their failure turn a
+    // created room into a 500 — would be a bad trade for a message whose
+    // worst case is that the host sends the link by hand, exactly as before.
+    void sendInvite({ code: room.code, hostName, roomName: room.name }, user.id).catch(
+      (err: unknown) => console.warn('push: invite failed:', err),
+    )
+
     return c.json({
       ...roomState(room),
       participantId: host.id,
       participantToken: await signParticipantToken(room.id, host.id),
+      deviceSecret,
     }, 201)
   },
 )
@@ -137,9 +168,15 @@ roomsRouter.post(
   zValidator('json', z.object({
     displayName: z.string().trim().min(1).max(30),
     platform: z.enum(['ios', 'android', 'web']).optional(),
+    // A guest's phone, when the app already has a push token in hand. The
+    // same registration is available on its own at POST /api/push/devices,
+    // which is what an app that only receives its token later in the session
+    // uses; this is the shortcut for the common case where it has one
+    // already, and it saves a round trip on first run.
+    pushToken: z.string().trim().min(1).max(512).nullish(),
   })),
   async (c) => {
-    const { displayName, platform } = c.req.valid('json')
+    const { displayName, platform, pushToken } = c.req.valid('json')
     const user = await getCurrentUser(c)
     try {
       const { room, participant } = joinRoom(c.req.param('code'), displayName, {
@@ -147,10 +184,23 @@ roomsRouter.post(
         platform,
       })
       announce(room.code, 'participant_joined')
+      let deviceSecret: string | null = null
+      if (pushToken && (platform === 'ios' || platform === 'android')) {
+        deviceSecret = registerDevice({
+          platform,
+          token: pushToken,
+          displayName,
+          // Left null even for a signed-in guest: user_id's job here is to
+          // keep a HOST off their own invite, and a signed-in player joining
+          // somebody else's game should still be told about new ones.
+          userId: null,
+        }).secret
+      }
       return c.json({
         ...roomState(room),
         participantId: participant.id,
         participantToken: await signParticipantToken(room.id, participant.id),
+        deviceSecret,
       })
     } catch (err) {
       return fail(err)

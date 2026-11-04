@@ -80,11 +80,24 @@ struct LobbyView: View {
 
     private func create() async throws {
         guard let token = store.accessToken else { return }
-        store.enter(try await API.createRoom(accessToken: token, name: nil))
+        // The push token goes out WITH the create, so the server knows which
+        // phone the host is on before it sends the invite that must skip it.
+        let joined = try await API.createRoom(
+            accessToken: token, name: nil, pushToken: PushStore.shared.tokenForJoin
+        )
+        PushStore.shared.adopt(secret: joined.deviceSecret)
+        store.enter(joined)
     }
 
     private func join() async throws {
-        store.enter(try await API.joinRoom(code: code.trimmed.uppercased(), displayName: displayName.trimmed))
+        let name = displayName.trimmed
+        let joined = try await API.joinRoom(
+            code: code.trimmed.uppercased(), displayName: name,
+            pushToken: PushStore.shared.tokenForJoin
+        )
+        PushStore.shared.adopt(secret: joined.deviceSecret)
+        PushStore.shared.noteDisplayName(name)
+        store.enter(joined)
     }
 
     private func run(_ body: @escaping () async throws -> Void) {

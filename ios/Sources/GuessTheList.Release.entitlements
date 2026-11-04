@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Release builds: TestFlight and anything from App Store Connect.
+
+  There are two of these files because aps-environment decides WHICH Apple
+  gateway the device token this build receives is valid on, and a token from a
+  development build is rejected outright by the production host and the other
+  way round. One file with one value would mean either local builds or
+  TestFlight builds silently never receiving a notification — and "silently" is
+  the problem: the failure is a BadDeviceToken that reads exactly like a phone
+  with the app deleted.
+
+  project.yml points each configuration at its own file, and the server tries
+  both gateways and remembers which answered. See services/pushApns.ts.
+-->
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>production</string>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:guessthelist.xyz</string>
+	</array>
+</dict>
+</plist>

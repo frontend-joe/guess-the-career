@@ -59,5 +59,25 @@
             android:name=".CallService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- Where Firebase delivers an invite. exported="false" with the
+             MESSAGING_EVENT filter is what Firebase's own docs specify: the
+             filter is how the SDK finds the service, not a way in for anyone
+             else. -->
+        <service
+            android:name=".PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Which channel a notification Android draws itself lands in. Our
+             own notifications name the channel directly; this is for the ones
+             built by the system from the FCM payload while the app is in the
+             background, which never reach our code. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="games" />
     </application>
 </manifest>

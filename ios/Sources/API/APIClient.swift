@@ -97,16 +97,31 @@ enum API {
 
     // MARK: - Rooms
 
-    static func createRoom(accessToken: String, name: String?) async throws -> JoinedRoom {
+    static func createRoom(
+        accessToken: String, name: String?, pushToken: String? = nil
+    ) async throws -> JoinedRoom {
         // Omit the key rather than sending null. Swift's synthesised encoder
         // writes an explicit null for a nil Optional, which is a different
         // thing on the wire from "absent" and not every schema treats them
         // alike.
-        try await post("api/rooms", body: name.map { ["name": $0] } ?? [:], bearer: accessToken)
+        var body: [String: String] = [:]
+        if let name { body["name"] = name }
+        // The host's own phone, so the server can keep it off the invite list
+        // it is about to send. Without this you buzz your own pocket every
+        // time you start a game.
+        if let pushToken {
+            body["pushToken"] = pushToken
+            body["pushPlatform"] = "ios"
+        }
+        return try await post("api/rooms", body: body, bearer: accessToken)
     }
 
-    static func joinRoom(code: String, displayName: String) async throws -> JoinedRoom {
-        try await post("api/rooms/\(code)/join", body: ["displayName": displayName, "platform": "ios"])
+    static func joinRoom(
+        code: String, displayName: String, pushToken: String? = nil
+    ) async throws -> JoinedRoom {
+        var body = ["displayName": displayName, "platform": "ios"]
+        if let pushToken { body["pushToken"] = pushToken }
+        return try await post("api/rooms/\(code)/join", body: body)
     }
 
     static func roomState(seat: Seat) async throws -> RoomState {
@@ -229,6 +244,42 @@ enum API {
             body: ChatBody(clientMessageId: UUID().uuidString, body: text),
             bearer: seat.token
         )
+    }
+
+    // MARK: - Notifications
+
+    struct PushRegistration: Decodable {
+        let secret: String
+        let muted: Bool
+    }
+
+    /// Register this phone, or tell the server its token changed.
+    ///
+    /// Exactly one of `secret` and `participantToken` is used: the secret
+    /// where we have registered before, and otherwise the token of a game we
+    /// are sitting in, which is the only proof of invitation a player with no
+    /// account can offer. See routes/push.ts.
+    static func registerPushDevice(
+        token: String, secret: String?, participantToken: String?, displayName: String?
+    ) async throws -> PushRegistration {
+        var body: [String: String] = ["platform": "ios", "token": token]
+        if let secret { body["secret"] = secret }
+        if let displayName { body["displayName"] = displayName }
+        return try await post("api/push/devices", body: body, bearer: participantToken)
+    }
+
+    private struct MuteBody: Encodable {
+        let secret: String
+        let muted: Bool
+    }
+
+    private struct MuteResult: Decodable { let muted: Bool }
+
+    static func setPushMuted(secret: String, muted: Bool) async throws -> Bool {
+        let result: MuteResult = try await post(
+            "api/push/devices/mute", body: MuteBody(secret: secret, muted: muted)
+        )
+        return result.muted
     }
 
     private struct GuessBody: Encodable {

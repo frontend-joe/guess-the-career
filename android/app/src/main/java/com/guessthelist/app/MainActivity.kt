@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         permissions.launch(wanted.toTypedArray())
+        // Before the first notification can be drawn, and creating it twice
+        // is a no-op.
+        Push.ensureChannel(this)
         pendingInvite.value = inviteCode(intent)
 
         setContent {
@@ -70,13 +73,28 @@ class MainActivity : ComponentActivity() {
         inviteCode(intent)?.let { pendingInvite.value = it }
     }
 
-    /// https://guessthelist.xyz/join/<CODE>. Anything else is ignored rather
-    /// than guessed at.
+    /// A code to join, from either of the two ways one arrives.
+    ///
+    /// A tapped LINK brings https://guessthelist.xyz/join/<CODE> as the
+    /// intent's data. A tapped NOTIFICATION brings the code as an extra
+    /// instead, because the notification was built from an FCM payload and
+    /// never had a URL. Both end up in the same place, which is the point:
+    /// there is one way into a room and this is not a second one.
+    ///
+    /// Anything else is ignored rather than guessed at.
     private fun inviteCode(intent: Intent?): String? {
-        val segments = intent?.data?.pathSegments ?: return null
+        if (intent == null) return null
+        val fromNotification = intent.getStringExtra(Push.CODE_KEY)
+        if (fromNotification != null) {
+            return clean(fromNotification)
+        }
+        val segments = intent.data?.pathSegments ?: return null
         if (segments.size < 2 || segments[0] != "join") return null
-        return segments[1].uppercase().filter { it.isLetterOrDigit() }.ifEmpty { null }
+        return clean(segments[1])
     }
+
+    private fun clean(code: String): String? =
+        code.uppercase().filter { it.isLetterOrDigit() }.ifEmpty { null }
 }
 
 @Composable

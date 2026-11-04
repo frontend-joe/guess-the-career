@@ -98,15 +98,66 @@ object Api {
 
     // MARK: Rooms
 
-    suspend fun createRoom(accessToken: String): JoinedRoom =
+    suspend fun createRoom(accessToken: String, pushToken: String? = null): JoinedRoom =
         // An empty object, not {"name": null} — see the commit that taught the
         // server to accept both after iOS sent the null.
-        post("api/rooms", buildJsonObject {}, accessToken)
+        post(
+            "api/rooms",
+            buildJsonObject {
+                // The host's own phone, so the server can keep it off the
+                // invite list it is about to send. Without this you buzz your
+                // own pocket every time you start a game.
+                if (pushToken != null) {
+                    put("pushToken", pushToken); put("pushPlatform", "android")
+                }
+            },
+            accessToken,
+        )
 
-    suspend fun joinRoom(code: String, displayName: String): JoinedRoom = post(
+    suspend fun joinRoom(
+        code: String,
+        displayName: String,
+        pushToken: String? = null,
+    ): JoinedRoom = post(
         "api/rooms/$code/join",
-        buildJsonObject { put("displayName", displayName); put("platform", "android") },
+        buildJsonObject {
+            put("displayName", displayName); put("platform", "android")
+            if (pushToken != null) put("pushToken", pushToken)
+        },
     )
+
+    // MARK: Notifications
+
+    /**
+     * Register this phone, or tell the server its token changed.
+     *
+     * Exactly one of [secret] and [participantToken] is used: the secret where
+     * we have registered before, and otherwise the token of a game we are
+     * sitting in, which is the only proof of invitation a player with no
+     * account can offer. See routes/push.ts.
+     */
+    suspend fun registerPushDevice(
+        token: String,
+        secret: String?,
+        participantToken: String?,
+        displayName: String?,
+    ): PushRegistration = post(
+        "api/push/devices",
+        buildJsonObject {
+            put("platform", "android"); put("token", token)
+            if (secret != null) put("secret", secret)
+            if (displayName != null) put("displayName", displayName)
+        },
+        participantToken,
+    )
+
+    suspend fun setPushMuted(secret: String, muted: Boolean): Boolean {
+        val result: MuteResult = post(
+            "api/push/devices/mute",
+            buildJsonObject { put("secret", secret); put("muted", muted) },
+        )
+        return result.muted
+    }
 
     suspend fun roomState(seat: Seat): RoomState =
         get("api/rooms/${seat.code}/state", seat.token)

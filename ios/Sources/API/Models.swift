@@ -174,6 +174,9 @@ struct JoinedRoom: Codable {
     let round: RoomRound?
     let participantId: Int
     let participantToken: String
+    /// Handed back when the call carried a push token, and the device's
+    /// credential from then on. Absent when notifications are not set up.
+    let deviceSecret: String?
 
     var state: RoomState {
         RoomState(

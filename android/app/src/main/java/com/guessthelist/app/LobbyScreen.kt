@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -41,6 +42,7 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
+    val context = LocalContext.current
 
     fun run(body: suspend () -> Unit) {
         // Every button on this screen commits something, and a commit puts the
@@ -92,7 +94,15 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
             modifier = Modifier.fillMaxWidth(),
         )
         Button(
-            onClick = { run { model.enter(Api.joinRoom(code.trim(), displayName.trim())) } },
+            onClick = {
+                run {
+                    val name = displayName.trim()
+                    val joined = Api.joinRoom(code.trim(), name, Push.token(context))
+                    Push.adoptSecret(context, joined.deviceSecret)
+                    Push.noteDisplayName(context, name)
+                    model.enter(joined)
+                }
+            },
             enabled = !busy && code.isNotBlank() && displayName.isNotBlank(),
         ) { Text("Join") }
 
@@ -124,7 +134,16 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
             ) { Text("Sign in") }
         } else {
             Button(
-                onClick = { run { model.enter(Api.createRoom(model.accessToken!!)) } },
+                onClick = {
+                    run {
+                        // The push token goes out WITH the create, so the
+                        // server knows which phone the host is on before it
+                        // sends the invite that must skip it.
+                        val joined = Api.createRoom(model.accessToken!!, Push.token(context))
+                        Push.adoptSecret(context, joined.deviceSecret)
+                        model.enter(joined)
+                    }
+                },
                 enabled = !busy,
             ) { Text("Create a room") }
         }

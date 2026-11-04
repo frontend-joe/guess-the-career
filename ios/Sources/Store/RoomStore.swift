@@ -197,6 +197,18 @@ final class RoomStore {
         SeatStore.save(seat)
         startPolling()
         Task { await connectMedia() }
+        // Notifications are asked for here, in a room, because this is the
+        // first moment "we'll tell you when the next game starts" explains
+        // itself. iOS gives one chance at that prompt — declined, it never
+        // comes back without a trip to Settings — so it is not spent on a
+        // cold launch before the person has seen what the app is.
+        //
+        // The sync afterwards is what registers a guest's phone: it needs the
+        // participant token of a game they are in, and they have one now.
+        Task {
+            await PushStore.shared.enableIfNeeded()
+            await PushStore.shared.sync()
+        }
     }
 
     // Leave the screen FIRST, then tell the network. Everything that was once

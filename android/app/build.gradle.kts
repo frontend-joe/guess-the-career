@@ -9,6 +9,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Firebase, for push notifications, and only if this checkout has the config.
+//
+// The google-services plugin's whole job is to turn google-services.json into
+// Android resources, and it fails the build outright when the file is missing
+// rather than skipping. That would mean nobody could build the app until a
+// Firebase project existed, so it is applied only when the file is actually
+// there. Without it the app still compiles and runs — Push.start() finds no
+// Firebase and logs that notifications are off. See Push.kt.
+//
+// google-services.json is NOT a secret: it ships inside every copy of the app.
+// The service account that lets the SERVER send is the secret, and that lives
+// in Railway's variables as FCM_SERVICE_ACCOUNT.
+val firebaseConfig = file("google-services.json")
+if (firebaseConfig.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle("google-services.json not found — building without push notifications")
+}
+
 // Signing details live in keystore.properties, which is gitignored. The
 // keystore itself is the one thing here that cannot be regenerated: lose it
 // and every future upload has to go through Play's key reset. Back it up
@@ -88,4 +107,20 @@ dependencies {
     // Same SDK family as the iOS app; the server talks to both the same way.
     implementation("io.livekit:livekit-android:2.18.2")
     implementation("io.livekit:livekit-android-compose-components:1.3.1")
+
+    // Declared unconditionally even though the plugin above is not. The
+    // library resolves from Maven with no config file, and its initialiser
+    // logs a warning rather than throwing when there is no google_app_id — so
+    // a build without google-services.json links and runs, it simply never
+    // receives a token.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
+
+    // Pinned because Firebase drags androidx.fragment down to 1.1.0, and
+    // MainActivity's registerForActivityResult — which is what asks for the
+    // camera, the microphone and notification permission — is documented as
+    // unsafe below 1.3.0. Gradle resolves to the HIGHEST requested version, so
+    // one explicit line settles it; lintVitalRelease catches it either way and
+    // fails the release build, which is how this was found.
+    implementation("androidx.fragment:fragment:1.8.5")
 }

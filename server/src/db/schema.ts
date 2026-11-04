@@ -790,6 +790,21 @@ export const game_messages = sqliteTable('game_messages', {
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
 })
 
+export const push_devices = sqliteTable('push_devices', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  platform: text('platform').notNull(),
+  token: text('token').notNull(),
+  secret: text('secret').notNull(),
+  user_id: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  display_name: text('display_name'),
+  apns_env: text('apns_env'),
+  muted: integer('muted').notNull().default(0),
+  disabled_at: text('disabled_at'),
+  last_push_at: text('last_push_at'),
+  created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updated_at: text('updated_at').notNull().default(sql`(datetime('now'))`),
+})
+
 export type GameRoom = typeof game_rooms.$inferSelect
 export type GameMessage = typeof game_messages.$inferSelect
 export type GameParticipant = typeof game_participants.$inferSelect
@@ -797,3 +812,4 @@ export type GameRoundInstance = typeof game_round_instances.$inferSelect
 export type GameRoundAnswer = typeof game_round_answers.$inferSelect
 export type GameGuess = typeof game_guesses.$inferSelect
 export type GameEvent = typeof game_events.$inferSelect
+export type PushDevice = typeof push_devices.$inferSelect

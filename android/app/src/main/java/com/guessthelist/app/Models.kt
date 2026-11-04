@@ -181,6 +181,9 @@ data class JoinedRoom(
     val round: RoomRound? = null,
     val participantId: Int,
     val participantToken: String,
+    /** Handed back when the call carried a push token, and the device's
+     *  credential from then on. Null when notifications are not set up. */
+    val deviceSecret: String? = null,
 ) {
     val state: RoomState
         get() = RoomState(
@@ -318,3 +321,12 @@ data class FootballerCard(
     val senior: List<CardStint> get() = stints.filter { !it.isInternational }
     val international: List<CardStint> get() = stints.filter { it.isInternational }
 }
+
+@Serializable
+data class PushRegistration(
+    val secret: String,
+    val muted: Boolean = false,
+)
+
+@Serializable
+data class MuteResult(val muted: Boolean = false)

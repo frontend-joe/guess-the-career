@@ -64,7 +64,9 @@ import { progressRouter } from './routes/progress.ts'
 import { settingsRouter } from './routes/settings.ts'
 import { usersRouter } from './routes/users.ts'
 import { roomsRouter } from './routes/rooms.ts'
+import { pushRouter } from './routes/push.ts'
 import { demoVideoRouter } from './routes/demoVideo.ts'
+import { pushConfigured, pushMissing } from './services/push.ts'
 import { livekitMissing } from './services/livekit.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 
@@ -161,6 +163,7 @@ app.route('/api/auth', authRouter)
 app.route('/api/progress', progressRouter)
 app.route('/api/users', usersRouter)
 app.route('/api/rooms', roomsRouter)
+app.route('/api/push', pushRouter)
 app.route('/api/demo-video', demoVideoRouter)
 
 // redeploy trigger: 2026-07-06c
@@ -177,7 +180,19 @@ app.get('/api/health', (c) => {
   // without it "is my fix live yet?" is unanswerable from outside — which is
   // exactly the question that matters after pushing a server-side fix.
   const commit = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? null
-  return c.json({ ok: true, commit, db, video: missing.length === 0, videoMissing: missing })
+  // Same question for notifications, and the same reason: a missing Apple key
+  // or Firebase service account is invisible until a game starts and nobody's
+  // phone buzzes.
+  const pushGaps = pushMissing()
+  return c.json({
+    ok: true,
+    commit,
+    db,
+    video: missing.length === 0,
+    videoMissing: missing,
+    push: pushConfigured(),
+    pushMissing: pushGaps,
+  })
 })
 
 // A rejection nobody caught kills the process by default, and this server
