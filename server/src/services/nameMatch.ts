@@ -24,7 +24,8 @@ export function surnameOf(normalized: string): string {
 }
 
 // Exact match, or a surname match tolerant of one transposition/typo.
-// Surnames under 4 characters never match on their own — see the guard below.
+// Surnames under 4 characters get no latitude, but an exact one still counts
+// when it is the whole surname — see the guard below.
 export function matchesName(guess: string, name: string): boolean {
   const g = norm(guess)
   const p = norm(name)
@@ -41,6 +42,22 @@ export function matchesName(guess: string, name: string): boolean {
   // This is not the short-surname rule in disguise. "Sar" alone is still too
   // little to go on; three words of a four-word name is not.
   if (g.includes(' ') && p.endsWith(` ${g}`)) return true
+  // An exact surname is an exact surname, however short.
+  //
+  // The guard below is about LATITUDE, and denying it to a short surname is
+  // right: at three characters a single edit is a different person. But it sat
+  // in front of the exact-match rules too, so it was also rejecting the
+  // surname typed perfectly — "Flo" was a miss on Håvard Flo, in a round about
+  // surnames beginning with F, while "Havard Flo" scored. The man's whole
+  // surname, spelled correctly, turned down for being three letters.
+  //
+  // Two-word names only, because that is when the last word IS the whole
+  // surname. In "Edwin van der Sar" it is a fragment of one, and "Sar" alone
+  // is still too little to go on — which is the case the guard was written for
+  // and is deliberately left alone. Note this accepts the bare surname and
+  // nothing else: "Tore Flo" still does not match Håvard Flo, because they are
+  // different people.
+  if (p.split(' ').length === 2 && g === pl) return true
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true

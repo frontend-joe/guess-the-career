@@ -28,11 +28,32 @@ test('two errors are not forgiven', () => {
   assert.ok(!matchesName('Zxxga', 'Walter Zenga'))
 })
 
-test('an answer with a short surname never matches on surname alone', () => {
-  // The guard is on the ANSWER's surname: under four characters it is not
-  // distinctive enough to accept on its own, exact or not.
-  assert.ok(!matchesName('Xu', 'Li Xu'))
-  assert.ok(!matchesName('Son', 'Heung-min Son'))
+test('a short surname is accepted exactly, and only exactly', () => {
+  // This used to refuse a short surname outright, "exact or not". It was
+  // reported from a game: "Flo" was a miss on Håvard Flo, in a round about
+  // surnames beginning with F, while "Havard Flo" scored. The man's whole
+  // surname, spelled correctly, turned down for being three letters.
+  //
+  // The length cut-off is really about LATITUDE, not distinctiveness —
+  // ambiguity is already tolerated one character up, where "Cole" is accepted
+  // for both Andy and Joe. Refusing three was the inconsistency.
+  assert.ok(matchesName('Flo', 'Håvard Flo'))
+  assert.ok(matchesName('Son', 'Heung-min Son'))
+  assert.ok(matchesName('Xu', 'Li Xu'))
+
+  // Exactly, though. A short surname gets no spelling allowance at all,
+  // because at three characters one edit is a different person.
+  assert.ok(!matchesName('Fla', 'Håvard Flo'))
+  assert.ok(!matchesName('Flu', 'Håvard Flo'))
+  assert.ok(!matchesName('Sun', 'Heung-min Son'))
+
+  // And it has to be the surname, not a first name that happens to be short.
+  assert.ok(!matchesName('Li', 'Li Xu'))
+
+  // A guess carrying a DIFFERENT first name is still a different person —
+  // Tore André Flo and Jostein Flo are not Håvard.
+  assert.ok(!matchesName('Tore Flo', 'Håvard Flo'))
+
   // The full name still works.
   assert.ok(matchesName('Heung-min Son', 'Heung-min Son'))
 })

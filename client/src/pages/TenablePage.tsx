@@ -55,6 +55,12 @@ function matches(guess: string, name: string): boolean {
   // short surname guard then rejected "van der Sar" — his actual surname,
   // typed in full. "Sar" alone is still too little to go on.
   if (g.includes(' ') && p.endsWith(` ${g}`)) return true
+  // An exact surname is an exact surname, however short. The guard below is
+  // about latitude, and denying that to a short surname is right — but it also
+  // rejected the surname typed perfectly: "Flo" was a miss on Håvard Flo while
+  // "Havard Flo" scored. Two-word names only, so "Sar" alone still does not
+  // reach Edwin van der Sar. Kept in step with the server's matchesName().
+  if (p.split(' ').length === 2 && g === pl) return true
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true
