@@ -7,6 +7,7 @@ import {
   moveCluesFor,
   impliedCluesFor,
   isOrdered,
+  surnamesForFootballers,
   titleFor,
   ROUND_SIZE,
   type Metric,
@@ -344,6 +345,21 @@ export interface InstanceRow {
   ended_at_ms: number | null
 }
 
+// The surname to freeze onto an answer row: the one the database recorded for
+// this player, or the last word of their name when there is no player to ask.
+//
+// See surnamesForFootballers. The fallback is what every board used before and
+// is right most of the time; it is wrong for a multi-part surname, which is
+// exactly the case the lookup covers.
+function surnameFor(
+  footballerId: number | null,
+  normalized: string,
+  surnames: Map<number, string>,
+): string {
+  const known = footballerId != null ? surnames.get(footballerId) : undefined
+  return known ? norm(known) : surnameOf(normalized)
+}
+
 // How a board's clues get written, for whoever is writing one.
 //
 // Most rounds describe the PLAYER — nationality, position, career span, the
@@ -394,6 +410,11 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
 
   const ids = answers.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
   const clueFor = clueWriter(round.type, params, ids)
+  // Frozen with the board, like everything else about it, so a later import
+  // re-splitting somebody's name cannot change what a live round accepts.
+  const surnames = surnamesForFootballers(
+    answers.map((a) => a.footballer_id).filter((x): x is number => x != null),
+  )
 
   const instanceId = sqlite.transaction(() => {
     const { next } = sqlite
@@ -428,7 +449,8 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
         // listed in, and ranking the first ten of a squad list meant the
         // other thirteen players were told they were near misses.
         id, rank, ordered ? (rank <= ROUND_SIZE ? 1 : 0) : 1,
-        a.footballer_id, a.name, normalized, surnameOf(normalized),
+        a.footballer_id, a.name, normalized,
+        surnameFor(a.footballer_id, normalized, surnames),
         a.nationality, a.photo_url, a.value, a.unit ?? null,
         // An authored round says how its badge should read; a derived one
         // leaves it to the client, which has only ever had the number.
@@ -552,7 +574,7 @@ function pickAnswer(raw: string, answers: AnswerRow[], category: string): Answer
     return close.length ? prefer(close) : null
   }
 
-  const fuzzy = answers.filter((a) => matchesName(raw, a.name))
+  const fuzzy = answers.filter((a) => matchesName(raw, a.name, a.surname_norm))
 
   // A slot still waiting to be filled, by the strongest reading of the guess
   // that reaches one. Exactness still breaks the tie — it is only being asked
@@ -1268,6 +1290,9 @@ export function reshuffleForPlayer(
   const foundBefore = new Map(current.map((c) => [c.footballer_id, c]))
   const ids = fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
   const clueFor = clueWriter(inst.type, params, ids)
+  const surnames = surnamesForFootballers(
+    fresh.map((a) => a.footballer_id).filter((x): x is number => x != null),
+  )
   const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
 
   sqlite.transaction(() => {
@@ -1291,7 +1316,8 @@ export function reshuffleForPlayer(
 
       insert.run(
         instanceId, rank, rank <= ROUND_SIZE ? 1 : 0, a.footballer_id, a.name, normalized,
-        surnameOf(normalized), a.nationality, a.photo_url, a.value, a.unit ?? null,
+        surnameFor(a.footballer_id, normalized, surnames),
+        a.nationality, a.photo_url, a.value, a.unit ?? null,
         a.display ?? null, a.aliases?.length ? JSON.stringify(a.aliases) : null,
         clueFor(a, normalized),
         foundAt, foundBy,

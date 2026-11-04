@@ -26,12 +26,21 @@ export function surnameOf(normalized: string): string {
 // Exact match, or a surname match tolerant of one transposition/typo.
 // Surnames under 4 characters get no latitude, but an exact one still counts
 // when it is the whole surname — see the guard below.
-export function matchesName(guess: string, name: string): boolean {
+export function matchesName(guess: string, name: string, surname?: string | null): boolean {
   const g = norm(guess)
   const p = norm(name)
   if (g === p) return true
   const gl = surnameOf(g)
-  const pl = surnameOf(p)
+  // The surname the database recorded when the player was imported, where
+  // there is one, and otherwise the last word of the name.
+  //
+  // Asking beats guessing. The last word is "Sar" for Edwin van der Sar, "Gea"
+  // for David de Gea, "Jr" for Alan Kelly Jr. and "Zhi" for Zheng Zhi — whose
+  // surname is Zheng, the first word. Seventy-seven players in the database
+  // have a surname that is not simply the last word of their name, and it has
+  // been sitting there correctly split the whole time.
+  const known = surname ? norm(surname) : ''
+  const pl = known || surnameOf(p)
   // A guess that is the tail of the full name, in full, is accepted whatever
   // its last word measures. surnameOf takes the final word only, so a Dutch
   // tussenvoegsel is not part of the surname as far as the rules below are
@@ -44,20 +53,34 @@ export function matchesName(guess: string, name: string): boolean {
   if (g.includes(' ') && p.endsWith(` ${g}`)) return true
   // An exact surname is an exact surname, however short.
   //
-  // The guard below is about LATITUDE, and denying it to a short surname is
-  // right: at three characters a single edit is a different person. But it sat
-  // in front of the exact-match rules too, so it was also rejecting the
-  // surname typed perfectly — "Flo" was a miss on Håvard Flo, in a round about
-  // surnames beginning with F, while "Havard Flo" scored. The man's whole
-  // surname, spelled correctly, turned down for being three letters.
+  // The guard below is about LATITUDE, and denying that to a short surname is
+  // right: at two or three characters a single edit is a different person. But
+  // it sat in front of the exact-match rules too, so it also turned down the
+  // surname typed perfectly — "Flo" was a miss on Håvard Flo in a round about
+  // surnames beginning with F, while "Havard Flo" scored.
   //
-  // Two-word names only, because that is when the last word IS the whole
-  // surname. In "Edwin van der Sar" it is a fragment of one, and "Sar" alone
-  // is still too little to go on — which is the case the guard was written for
-  // and is deliberately left alone. Note this accepts the bare surname and
-  // nothing else: "Tore Flo" still does not match Håvard Flo, because they are
-  // different people.
-  if (p.split(' ').length === 2 && g === pl) return true
+  // Length is simply not what makes a surname usable. Ba, Xu, Wu, Flo and Foé
+  // are whole surnames that people say out loud, and the matcher accepted
+  // eight-letter ones in any name it liked while refusing these.
+  //
+  // What DOES disqualify a last word is being only part of the surname, which
+  // is the real complaint against "Sar" for Edwin van der Sar. That is
+  // checkable: a particle in front of it says the surname is multi-part. So
+  // the test is the particle, not the character count — which also means this
+  // holds in a name of any length, where the previous attempt only managed
+  // two-word ones and left "Tore Andre Flo" and "Marc Vivien Foe" missing.
+  // An exact surname counts however short it is: Flo, Ba, Foé, Jô, Obi, Eze
+  // and Tê are whole surnames people say out loud, and the length guard below
+  // was turning them down for being two or three letters while waving through
+  // any eight-letter one. Length buys LATITUDE, not distinctiveness — and the
+  // latitude is still withheld, so "Fla" and "Flu" remain misses.
+  //
+  // When the surname was looked up there is nothing to second-guess. It is
+  // only when falling back to the last word that a particle in front of it
+  // warns the word is a fragment of a longer surname rather than the whole
+  // thing — the "Sar" case — and a bare fragment that short is too little to
+  // go on.
+  if (g === pl && (known !== '' || !hasParticleBeforeSurname(p))) return true
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true
@@ -83,6 +106,24 @@ export function matchesName(guess: string, name: string): boolean {
   // against a board the browser already holds.
   if (gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
   return false
+}
+
+// The words that mark a surname as multi-part, so the final word on its own is
+// a fragment of it rather than the thing itself: van der SAR, di MARIA, de
+// JONG. Not an exhaustive list of the world's nobiliary particles — just the
+// ones that turn up in football, which is the only place this is asked.
+//
+// Deliberately NOT applied to the length-gated rules below it: "Basten" has
+// always been accepted for Marco van Basten and there is no reason to stop,
+// only to avoid EXTENDING that to fragments too short to mean anything.
+const SURNAME_PARTICLES = new Set([
+  'van', 'von', 'der', 'den', 'de', 'del', 'della', 'di', 'da', 'das', 'dos',
+  'do', 'du', 'le', 'la', 'el', 'al', 'ter', 'ten', 'bin', 'ibn', 'y',
+])
+
+function hasParticleBeforeSurname(normalized: string): boolean {
+  const words = normalized.split(' ')
+  return words.length >= 2 && SURNAME_PARTICLES.has(words[words.length - 2])
 }
 
 /// True when either side has no first name to compare, the first names match,

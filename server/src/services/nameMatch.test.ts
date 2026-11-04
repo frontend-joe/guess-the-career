@@ -34,28 +34,61 @@ test('a short surname is accepted exactly, and only exactly', () => {
   // surnames beginning with F, while "Havard Flo" scored. The man's whole
   // surname, spelled correctly, turned down for being three letters.
   //
-  // The length cut-off is really about LATITUDE, not distinctiveness —
-  // ambiguity is already tolerated one character up, where "Cole" is accepted
-  // for both Andy and Joe. Refusing three was the inconsistency.
+  // Length buys LATITUDE, not distinctiveness — ambiguity is already tolerated
+  // one character up, where "Cole" is accepted for both Andy and Joe. These
+  // are all real players in the database, and all whole surnames.
+  assert.ok(matchesName('Flo', 'Håvard Flo', 'Flo'))
+  assert.ok(matchesName('Ba', 'Demba Ba', 'Ba'))
+  assert.ok(matchesName('Foe', 'Marc-Vivien Foé', 'Foé'))
+  assert.ok(matchesName('Obi', 'Mikel John Obi', 'Obi'))
+  assert.ok(matchesName('Te', 'Ricardo Vaz Tê', 'Tê'))
+  // Jô is a whole name of two letters, so it never reaches the surname rules
+  // at all — but it is the case that prompted the question, so it is pinned.
+  assert.ok(matchesName('Jo', 'Jô', 'Jô'))
+
+  // Exactly, though. A short surname gets no spelling allowance, because at
+  // two or three characters one edit is a different person.
+  assert.ok(!matchesName('Fla', 'Håvard Flo', 'Flo'))
+  assert.ok(!matchesName('Flu', 'Håvard Flo', 'Flo'))
+  assert.ok(!matchesName('Bo', 'Demba Ba', 'Ba'))
+
+  // And a different first name is still a different person: Håvard, Jostein
+  // and Tore André Flo are three separate players, all in the database.
+  assert.ok(!matchesName('Tore Flo', 'Håvard Flo', 'Flo'))
+})
+
+test('the recorded surname beats the last word of the name', () => {
+  // Seventy-seven players in the database have a surname that is not simply
+  // the last word of their name, and it has been correctly split there the
+  // whole time. Guessing it from the name gets every one of these wrong.
+  assert.ok(!matchesName('Sar', 'Edwin van der Sar', 'van der Sar'))
+  assert.ok(matchesName('van der Sar', 'Edwin van der Sar', 'van der Sar'))
+  assert.ok(!matchesName('Gea', 'David de Gea', 'de Gea'))
+  assert.ok(matchesName('de Gea', 'David de Gea', 'de Gea'))
+
+  // A generational suffix is not a surname. Nothing about the last word says
+  // so; the recorded surname does.
+  assert.ok(!matchesName('Jr', 'Alan Kelly Jr.', 'Kelly Jr.'))
+  assert.ok(matchesName('Kelly', 'Alan Kelly Jr.', 'Kelly Jr.'))
+
+  // And the surname is not always at the end. Zheng Zhi's is Zheng — the
+  // FIRST word — which no amount of looking at the last one can discover.
+  assert.ok(matchesName('Zheng', 'Zheng Zhi', 'Zheng'))
+  assert.ok(!matchesName('Zhi', 'Zheng Zhi', 'Zheng'))
+})
+
+test('without a recorded surname it falls back to the last word', () => {
+  // Authored answers and scraped transfer rows naming somebody with no
+  // footballer record have no surname to look up. The last word is the best
+  // guess available and is what every board used before.
   assert.ok(matchesName('Flo', 'Håvard Flo'))
-  assert.ok(matchesName('Son', 'Heung-min Son'))
-  assert.ok(matchesName('Xu', 'Li Xu'))
-
-  // Exactly, though. A short surname gets no spelling allowance at all,
-  // because at three characters one edit is a different person.
+  assert.ok(matchesName('Ba', 'Demba Moussa Ba'))
   assert.ok(!matchesName('Fla', 'Håvard Flo'))
-  assert.ok(!matchesName('Flu', 'Håvard Flo'))
-  assert.ok(!matchesName('Sun', 'Heung-min Son'))
 
-  // And it has to be the surname, not a first name that happens to be short.
-  assert.ok(!matchesName('Li', 'Li Xu'))
-
-  // A guess carrying a DIFFERENT first name is still a different person —
-  // Tore André Flo and Jostein Flo are not Håvard.
-  assert.ok(!matchesName('Tore Flo', 'Håvard Flo'))
-
-  // The full name still works.
-  assert.ok(matchesName('Heung-min Son', 'Heung-min Son'))
+  // With one check the name itself can answer: a particle in front of the
+  // last word says it is a fragment of a longer surname.
+  assert.ok(!matchesName('Sar', 'Edwin van der Sar'))
+  assert.ok(!matchesName('Red', 'Rubén de la Red'))
 })
 
 test('a surname typed in full matches, particles and all', () => {

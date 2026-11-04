@@ -1443,6 +1443,31 @@ export function moveCluesFor(
   return null;
 }
 
+/**
+ * The real surnames of these players, as the database records them.
+ *
+ * Worth asking rather than guessing. Taking the last word of a name gets
+ * "Sar" for Edwin van der Sar, "Gea" for David de Gea, "Jr" for Alan Kelly Jr.
+ * and "Zhi" for Zheng Zhi — whose surname is Zheng, the FIRST word. The
+ * footballers table already holds the answer for all of them, split when the
+ * player was imported, so a board can carry it instead of a heuristic.
+ *
+ * Only players have one. An authored answer, or a scraped transfer row naming
+ * somebody with no footballer record, has no id to look up and falls back to
+ * the last word — which is the best available guess and what every board did
+ * before this.
+ */
+export function surnamesForFootballers(ids: number[]): Map<number, string> {
+  if (!ids.length) return new Map()
+  const rows = sqlite
+    .prepare(
+      `SELECT id, surname FROM footballers
+       WHERE id IN (${ids.map(() => '?').join(',')}) AND surname IS NOT NULL AND surname != ''`,
+    )
+    .all(...ids) as { id: number; surname: string }[]
+  return new Map(rows.map((r) => [r.id, r.surname]))
+}
+
 export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {
   const clues = new Map<number, TenableClue>();
   if (!ids.length) return clues;

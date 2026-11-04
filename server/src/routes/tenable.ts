@@ -16,6 +16,7 @@ import {
   titleFor,
   rankOf,
   cluesForFootballers,
+  surnamesForFootballers,
   impliedCluesFor,
   NEAR_MISS_WINDOW,
   MIN_ANSWERS,
@@ -617,6 +618,11 @@ tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
 
   const ids = answers.map((a) => a.footballer_id).filter((x): x is number => x != null);
   const clues = cluesForFootballers(ids);
+  // Sent so the browser's matches() can use the real surname rather than the
+  // last word of the name, exactly as the server's matchesName does. Without
+  // it the solo game and the multiplayer game accept different guesses for the
+  // same board — the drift nameMatch.ts warns about at the top.
+  const surnames = surnamesForFootballers(ids);
 
   return c.json({
     roundId,
@@ -626,6 +632,7 @@ tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
     answers: answers.map((a, i) => ({
       ...a,
       rank: ordered ? i + 1 : null,
+      surname: a.footballer_id != null ? surnames.get(a.footballer_id) ?? null : null,
       clue: a.footballer_id != null ? clues.get(a.footballer_id) ?? null : null,
     })),
   });

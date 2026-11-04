@@ -40,6 +40,10 @@ export interface TenableAnswer {
   /** Other names an authored answer is accepted under. */
   aliases?: string[]
   rank?: number | null
+  /** The surname the database recorded, where the answer is a player. Sent so
+   *  matches() can use the real one rather than the last word of the name:
+   *  Edwin van der Sar's is "van der Sar", Zheng Zhi's is "Zheng". */
+  surname?: string | null
   clue?: TenableClue | null
 }
 
