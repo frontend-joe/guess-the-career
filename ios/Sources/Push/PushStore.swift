@@ -55,6 +55,11 @@ final class PushStore {
             if await isAuthorized() { UIApplication.shared.registerForRemoteNotifications() }
             return
         }
+        // Not asked until the server can actually deliver one. See
+        // API.pushAvailable(); the flag is set only once we commit to asking,
+        // so a build that runs before the credentials exist asks later rather
+        // than never.
+        guard await API.pushAvailable() else { return }
         Defaults.hasAsked = true
         do {
             let granted = try await UNUserNotificationCenter.current()

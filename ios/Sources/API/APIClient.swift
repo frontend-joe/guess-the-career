@@ -253,6 +253,21 @@ enum API {
         let muted: Bool
     }
 
+    private struct Health: Decodable { let push: Bool? }
+
+    /// Can the server actually send a notification?
+    ///
+    /// Asked before the permission prompt, because iOS gives exactly one
+    /// chance at it — declined, it never reappears and the only way back is
+    /// Settings. Spending that on a build whose server has no Apple key
+    /// configured would burn it on a question that could not have worked
+    /// whatever the answer. False on any error, which is the safe direction:
+    /// not asking costs a delay, asking too early costs the prompt.
+    static func pushAvailable() async -> Bool {
+        guard let health: Health = try? await get("api/health") else { return false }
+        return health.push == true
+    }
+
     /// Register this phone, or tell the server its token changed.
     ///
     /// Exactly one of `secret` and `participantToken` is used: the secret
