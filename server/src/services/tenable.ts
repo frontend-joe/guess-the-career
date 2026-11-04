@@ -1077,6 +1077,117 @@ const clubSurnameInitial: TenableType = {
   },
 };
 
+// ── 12. Club record signings / record sales ──────────────────────────────────
+//
+// Both come from the same transfermarkt scrape, mirrored into two sets of
+// tables, and they ask the same question from opposite ends: who a club paid
+// the most for, and who it was paid the most for. One factory, two types.
+//
+// These are ordered, and unusually safe to order. Every other ranked type is a
+// derived aggregate that shifts as the scrape improves; this one arrives
+// already ranked, by fee, from the single source that priced it, so there is no
+// argument about where the ninth-biggest signing sits.
+//
+// What the data has no room for is a TAIL. The scrape stops at ten rows per
+// club, which is exactly the board, so a guess just off it cannot be told it
+// came eleventh — it is a plain miss. Every other ordered type freezes fifty
+// and has that feedback to give. Nothing to fix here: the eleventh-biggest
+// signing is not in the data at all, and inventing a rank for it would be
+// worse than saying nothing.
+const PRICED = `p.fee_value IS NOT NULL AND p.fee_value > 0`;
+
+// Transfermarkt writes "Rangers FC" and "Villarreal CF". Nobody says the suffix
+// out loud, and a round title is read out loud. Title only — the stored club
+// name is what the scrape keys on and is left alone.
+const clubLabel = (name: string) => name.replace(/\s+(?:FC|CF)$/i, "");
+
+// Filled in by recordTransferType below, so the clue lookup at the bottom of
+// the file cannot drift from the type it belongs to.
+const RECORD_TRANSFERS = new Map<string, RecordTransferTables>();
+
+interface RecordTransferTables {
+  /** Table prefix, e.g. 'record_signings'. */
+  tables: string;
+  /**
+   * Which end of the move the OTHER club is. Both tables keep it in the same
+   * `from_club` column: on a signings row it is who the player was bought
+   * from, on a sales row it is who they were sold to.
+   */
+  otherEnd: "fromClub" | "toClub";
+}
+
+function recordTransferType(
+  cfg: RecordTransferTables & {
+    slug: string;
+    label: string;
+    description: string;
+    example: string;
+    /** How the title reads after the club's name. */
+    noun: string;
+  },
+): TenableType {
+  const clubs = `${cfg.tables}_clubs`;
+  const players = `${cfg.tables}_players`;
+  RECORD_TRANSFERS.set(cfg.slug, cfg);
+  return {
+    slug: cfg.slug,
+    label: cfg.label,
+    description: cfg.description,
+    example: cfg.example,
+    // Fee is the only ranking these have, and it is not goals or apps.
+    metricless: true,
+    title: (p) => `${possessive(clubLabel(p.club))} ${cfg.noun}`,
+    candidates() {
+      const rows = sqlite.prepare(
+        `SELECT c.id AS clubId, c.club AS club, COUNT(*) AS n
+         FROM ${players} p JOIN ${clubs} c ON c.id = p.club_id
+         WHERE ${PRICED} AND c.active = 1
+         GROUP BY c.id
+         HAVING n >= ${MIN_ANSWERS}
+         ORDER BY n DESC, c.club ASC`,
+      ).all() as { clubId: number; club: string; n: number }[];
+      return rows.map((r) => ({
+        type: this.slug,
+        params: { clubId: String(r.clubId), club: r.club },
+        metric: "goals" as Metric,
+        title: this.title({ club: r.club }, "goals"),
+        answer_count: r.n,
+      }));
+    },
+    answers(p, _metric, limit = ROUND_SIZE) {
+      return sqlite.prepare(
+        `SELECT p.footballer_id AS footballer_id, p.player_name AS name,
+                p.nationality AS nationality, f.photo_url AS photo_url,
+                p.fee_value AS value, 'fee' AS unit
+         FROM ${players} p
+         LEFT JOIN footballers f ON f.id = p.footballer_id
+         WHERE p.club_id = ? AND ${PRICED}
+         ORDER BY p.fee_value DESC, p.player_name ASC LIMIT ${limit}`,
+      ).all(parseInt(p.clubId, 10)) as TenableAnswer[];
+    },
+  };
+}
+
+const recordSignings = recordTransferType({
+  slug: "record-signings",
+  label: "Club record signings",
+  description: "The most a club has ever paid, ranked by fee.",
+  example: "Arsenal's record signings",
+  tables: "record_signings",
+  otherEnd: "fromClub",
+  noun: "record signings",
+});
+
+const recordSales = recordTransferType({
+  slug: "record-sales",
+  label: "Club record sales",
+  description: "The most a club has ever been paid, ranked by fee.",
+  example: "Southampton's biggest sales",
+  tables: "record_sales",
+  otherEnd: "toClub",
+  noun: "biggest sales",
+});
+
 export const TENABLE_TYPES: TenableType[] = [
   surnameInitial,
   surnameLength,
@@ -1090,6 +1201,8 @@ export const TENABLE_TYPES: TenableType[] = [
   transferWindow,
   ballonDor,
   worldCupSquad,
+  recordSignings,
+  recordSales,
   firstName,
   surname,
   generalType,
@@ -1260,6 +1373,74 @@ export function transferCluesForWindow(windowId: number): Map<string, TenableClu
     });
   }
   return clues;
+}
+
+// Same idea as transferCluesForWindow, for a club's record signings or sales:
+// the question is about the MOVE, so the clue is the move.
+//
+// Keyed by player name for the same reason — a scraped transfer row can name
+// somebody the footballer database has no record of.
+export function recordTransferClues(
+  cfg: RecordTransferTables,
+  clubId: number,
+): Map<string, TenableClue> {
+  const rows = sqlite.prepare(
+    `SELECT player_name, nationality, position, from_club, fee_text, fee_value, season_label
+     FROM ${cfg.tables}_players WHERE club_id = ?`,
+  ).all(clubId) as {
+    player_name: string;
+    nationality: string | null;
+    position: string | null;
+    from_club: string | null;
+    fee_text: string | null;
+    fee_value: number | null;
+    season_label: string | null;
+  }[];
+
+  const clues = new Map<string, TenableClue>();
+  for (const r of rows) {
+    clues.set(normalizeName(r.player_name).trim(), {
+      nationality: r.nationality,
+      position: r.position,
+      // The season the move happened, under the "Years" label both apps
+      // already draw. A single transfer has no career span to put there.
+      years: r.season_label,
+      club: null,
+      clubWikiUrl: null,
+      squadNumber: null,
+      born: null,
+      // Only the FAR end of the move is a clue. The near end is the club in
+      // the question: naming Arsenal on "Arsenal's record signings" tells
+      // nobody anything, and both tables keep the far end in from_club.
+      fromClub: cfg.otherEnd === "fromClub" ? r.from_club : null,
+      toClub: cfg.otherEnd === "toClub" ? r.from_club : null,
+      // The written fee where there is one ("€116.60m"), since it is the
+      // number people remember; the raw value only as a fallback.
+      fee: r.fee_text ?? (r.fee_value != null ? String(r.fee_value) : null),
+    });
+  }
+  return clues;
+}
+
+// Does this round describe moves rather than careers, and if so what are they?
+//
+// One dispatcher rather than a check at each call site, because there is more
+// than one place that writes a board's clues: the freeze, and the rebuild after
+// a guess is counted that the database did not know. The rebuild only knew
+// about career clues, so correcting somebody on a transfer round used to wipe
+// every fee, from and to off the board it had just rewritten.
+export function moveCluesFor(
+  type: string,
+  params: Record<string, string>,
+): Map<string, TenableClue> | null {
+  if (type === "transfer-window" && params.windowId) {
+    return transferCluesForWindow(parseInt(params.windowId, 10));
+  }
+  const record = RECORD_TRANSFERS.get(type);
+  if (record && params.clubId) {
+    return recordTransferClues(record, parseInt(params.clubId, 10));
+  }
+  return null;
 }
 
 export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {

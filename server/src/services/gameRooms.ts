@@ -4,7 +4,7 @@ import {
   answersForRound,
   categoryOf,
   cluesForFootballers,
-  transferCluesForWindow,
+  moveCluesFor,
   impliedCluesFor,
   isOrdered,
   titleFor,
@@ -344,6 +344,33 @@ export interface InstanceRow {
   ended_at_ms: number | null
 }
 
+// How a board's clues get written, for whoever is writing one.
+//
+// Most rounds describe the PLAYER — nationality, position, career span, the
+// club they turned out for most. A transfer round describes the MOVE instead,
+// because the move is the question: on "Arsenal's record signings", "Manchester
+// United, shirt 7" is perfectly true of the player and no help whatsoever.
+//
+// Move clues are keyed by name rather than footballer id, since a scraped
+// transfer row can name somebody the database has no footballer for, and they
+// win over the career clue where both exist.
+function clueWriter(
+  type: string,
+  params: Record<string, string>,
+  ids: number[],
+): (a: { footballer_id: number | null }, normalized: string) => string | null {
+  const careers = cluesForFootballers(ids)
+  const moves = moveCluesFor(type, params)
+  return (a, normalized) => {
+    const move = moves?.get(normalized)
+    if (move) return JSON.stringify(move)
+    if (a.footballer_id != null && careers.has(a.footballer_id)) {
+      return JSON.stringify(careers.get(a.footballer_id))
+    }
+    return null
+  }
+}
+
 // Freeze the board. After this returns, answersForRound() has no further say
 // over this instance — see the comment at the top of migration 0088.
 //
@@ -366,22 +393,7 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
   }
 
   const ids = answers.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
-  const clues = cluesForFootballers(ids)
-  // A transfer round is asking about a MOVE, so its clues describe the move —
-  // fee, from, to — not the player's career. Keyed by name, because a
-  // transfer row can name somebody with no footballer record at all.
-  const transferClues = round.type === 'transfer-window' && params.windowId
-    ? transferCluesForWindow(parseInt(params.windowId, 10))
-    : null
-
-  const clueFor = (a: { footballer_id: number | null }, normalized: string): string | null => {
-    const transfer = transferClues?.get(normalized)
-    if (transfer) return JSON.stringify(transfer)
-    if (a.footballer_id != null && clues.has(a.footballer_id)) {
-      return JSON.stringify(clues.get(a.footballer_id))
-    }
-    return null
-  }
+  const clueFor = clueWriter(round.type, params, ids)
 
   const instanceId = sqlite.transaction(() => {
     const { next } = sqlite
@@ -1255,7 +1267,7 @@ export function reshuffleForPlayer(
 
   const foundBefore = new Map(current.map((c) => [c.footballer_id, c]))
   const ids = fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
-  const clues = cluesForFootballers(ids)
+  const clueFor = clueWriter(inst.type, params, ids)
   const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
 
   sqlite.transaction(() => {
@@ -1281,7 +1293,7 @@ export function reshuffleForPlayer(
         instanceId, rank, rank <= ROUND_SIZE ? 1 : 0, a.footballer_id, a.name, normalized,
         surnameOf(normalized), a.nationality, a.photo_url, a.value, a.unit ?? null,
         a.display ?? null, a.aliases?.length ? JSON.stringify(a.aliases) : null,
-        a.footballer_id != null && clues.has(a.footballer_id) ? JSON.stringify(clues.get(a.footballer_id)) : null,
+        clueFor(a, normalized),
         foundAt, foundBy,
       )
 
