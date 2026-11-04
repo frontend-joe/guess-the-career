@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -80,5 +81,19 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun Root(invite: MutableState<String?>, model: RoomViewModel = viewModel()) {
+    val pending = invite.value
+    // An invite is a move, not a notification.
+    //
+    // Only the lobby reads a pending code, so a link tapped while you were in a
+    // room went nowhere at all — you sat in the old game wondering why the link
+    // was broken. That is at its worst in the one case it matters most: the
+    // room you are in has stopped working and somebody has sent you a new one,
+    // which is the whole reason they sent it.
+    LaunchedEffect(pending, model.inRoom) {
+        if (pending == null || !model.inRoom) return@LaunchedEffect
+        // A link to the room you are already in stays a no-op, because that is
+        // what tapping your own invite should do.
+        if (pending == model.state?.code) invite.value = null else model.leave()
+    }
     if (model.inRoom) RoomScreen(model) else LobbyScreen(model, invite)
 }

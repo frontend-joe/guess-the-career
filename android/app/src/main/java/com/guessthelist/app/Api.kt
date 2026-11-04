@@ -27,9 +27,27 @@ object Api {
      *  phone nobody has updated — which, with no App Store, is every phone. */
     private val json = Json { ignoreUnknownKeys = true }
 
-    class Failure(val status: Int, message: String) : Exception(message) {
-        /** A seat that no longer exists, rather than a bad network moment. */
-        val isGone: Boolean get() = status == 403 || status == 404
+    class Failure(
+        val status: Int,
+        message: String,
+        /** Whether this answer came from our own server, rather than from
+         *  something sitting in front of it. See [isGone]. */
+        val fromServer: Boolean = false,
+    ) : Exception(message) {
+        /** A seat that no longer exists, rather than a bad network moment.
+         *
+         *  The status code is not enough on its own, and trusting it threw four
+         *  people out of a live game at once. A deploy restarts the container,
+         *  and while it is down Railway's edge answers in its place — with a
+         *  404, which is also exactly what this server returns for a room that
+         *  does not exist. So every device read "your room is gone", deleted
+         *  the seat it was sitting in and dropped to the lobby, over a room
+         *  that was perfectly fine.
+         *
+         *  Our 404 and the edge's 404 are the same number. What tells them
+         *  apart is the header, which can only be set by a process the request
+         *  actually reached. */
+        val isGone: Boolean get() = fromServer && (status == 403 || status == 404)
     }
 
     private suspend fun call(
@@ -53,7 +71,7 @@ object Api {
                     (json.parseToJsonElement(text) as JsonObject)["error"]
                         ?.let { (it as JsonPrimitive).content }
                 }.getOrNull() ?: "Request failed (${response.code})"
-                throw Failure(response.code, message)
+                throw Failure(response.code, message, response.header("x-gtl-server") != null)
             }
             text
         }

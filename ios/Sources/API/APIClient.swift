@@ -12,10 +12,25 @@ enum API {
     struct Failure: LocalizedError {
         let message: String
         let status: Int
+        /// Whether this answer came from our own server, rather than from
+        /// something in front of it. See `isGone`.
+        let fromServer: Bool
         var errorDescription: String? { message }
 
         /// A seat that no longer exists, as opposed to a bad network moment.
-        var isGone: Bool { status == 403 || status == 404 }
+        ///
+        /// The status code is not enough on its own, and trusting it threw
+        /// four people out of a live game at once. A deploy restarts the
+        /// container, and while it is down Railway's edge answers in its
+        /// place — with a 404, which is also exactly what this server returns
+        /// for a room that does not exist. So every device read "your room is
+        /// gone", deleted the seat it was sitting in, and dropped to the
+        /// lobby, over a room that was perfectly fine.
+        ///
+        /// Our 404 and the edge's 404 are the same number. What tells them
+        /// apart is the header, which can only be set by a process the
+        /// request actually reached.
+        var isGone: Bool { fromServer && (status == 403 || status == 404) }
     }
 
     private static let decoder: JSONDecoder = JSONDecoder()
@@ -42,11 +57,16 @@ enum API {
         }
 
         let (data, response) = try await URLSession.shared.data(for: req)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let http = response as? HTTPURLResponse
+        let status = http?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             let message = (try? decoder.decode(ServerError.self, from: data))?.error
                 ?? "Request failed (\(status))"
-            throw Failure(message: message, status: status)
+            throw Failure(
+                message: message,
+                status: status,
+                fromServer: http?.value(forHTTPHeaderField: "x-gtl-server") != nil,
+            )
         }
         return data
     }

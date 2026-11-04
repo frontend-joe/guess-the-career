@@ -193,6 +193,9 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
                     saveSeat(fresh)
                 }
             }
+            // A poll that gets through retires whatever the last one said.
+            // Without this, "Reconnecting…" outlives the reconnection.
+            if (error != null) error = null
             if (next.stateVersion < version) return
             version = next.stateVersion
             state = next
@@ -207,6 +210,12 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             if (failure.isGone) {
                 error = "That room is no longer available."
                 leave(announce = false)
+            } else if (!failure.fromServer) {
+                // Something in front of the server answered for it, which in
+                // practice means a deploy is in progress. The game is fine and
+                // the next poll will pick it up, so say that rather than
+                // printing a status code at four people mid-round.
+                error = "Reconnecting…"
             } else {
                 error = failure.message
             }

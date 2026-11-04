@@ -163,7 +163,27 @@ final class RoomStore {
         guard parts.first == "join", let code = parts.dropFirst().first else { return }
         let cleaned = code.uppercased().filter { $0.isLetter || $0.isNumber }
         guard !cleaned.isEmpty else { return }
-        pendingJoinCode = cleaned
+
+        // An invite is a move, not a notification.
+        //
+        // Only the lobby reads a pending code, so a link tapped while you were
+        // in a room went nowhere at all — it set a value on a screen that was
+        // not on screen, and you sat in the old game wondering why the link was
+        // broken. That is at its worst in the one case it matters most: the
+        // room you are in has stopped working and somebody has sent you a new
+        // one, which is the whole reason they sent it.
+        //
+        // A link to the room you are already in stays a no-op, because that is
+        // what tapping your own invite should do.
+        guard phase == .inRoom else {
+            pendingJoinCode = cleaned
+            return
+        }
+        guard cleaned != state?.code else { return }
+        Task {
+            await exit()
+            pendingJoinCode = cleaned
+        }
     }
 
     // MARK: - Entering and leaving
@@ -258,6 +278,9 @@ final class RoomStore {
                 self.seat = fresh
                 SeatStore.save(fresh)
             }
+            // A poll that gets through retires whatever the last one said.
+            // Without this, "Reconnecting…" outlives the reconnection.
+            if error != nil { error = nil }
             guard next.stateVersion >= version else { return }
             version = next.stateVersion
             state = next
@@ -271,6 +294,12 @@ final class RoomStore {
         } catch let failure as API.Failure where failure.isGone {
             error = "That room is no longer available."
             await exit(announce: false)
+        } catch let failure as API.Failure where !failure.fromServer {
+            // Something in front of the server answered for it, which in
+            // practice means a deploy is in progress. The game is fine and the
+            // next poll will pick it up, so say that rather than printing a
+            // status code at four people mid-round.
+            error = "Reconnecting\u{2026}"
         } catch {
             self.error = error.localizedDescription
         }

@@ -72,9 +72,16 @@ runMigrations()
 reportDatabase()
 await bootstrapAdmin()
 
+import { markResponses, MARKER_HEADER } from './services/serverMarker.ts'
+
 const app = new Hono()
 
 app.use('*', logger())
+// Mark every response as ours, so a client can tell our 404 from the edge's
+// while we are mid-deploy. See services/serverMarker.ts — it is the reason a
+// deploy no longer throws everybody out of a live game.
+app.use('*', markResponses)
+
 // credentials:true so the httpOnly session cookie is sent/accepted. Falls back
 // to reflecting the request origin when CLIENT_URL isn't set (dev/proxy).
 //
@@ -88,6 +95,9 @@ app.use('*', cors({
   origin: (origin, c) =>
     c.req.path.startsWith('/api/demo-video/') ? (origin || '*') : (process.env.CLIENT_URL ?? origin),
   credentials: true,
+  // A browser cannot read a response header it has not been handed, and the
+  // marker above is no use to the web client unless it can.
+  exposeHeaders: [MARKER_HEADER],
 }))
 
 app.route('/api/settings', settingsRouter)
