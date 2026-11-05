@@ -3,4 +3,9 @@
     <!-- slate-950, the board's own backdrop. Matches `background` in
          ios/scripts/make-icon.swift. -->
     <color name="ic_launcher_background">#0C122B</color>
+    <!-- The brightest step of the board's green, the same #4ADE80 the top row
+         of the launcher icon is drawn in. Android tints a notification's small
+         icon with this in the shade; the status bar ignores it and draws the
+         silhouette white, which is why the icon cannot rely on colour. -->
+    <color name="notification_accent">#4ADE80</color>
 </resources>

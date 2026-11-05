@@ -79,5 +79,17 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="games" />
+
+        <!-- And which icon they wear. Without this Android falls back to the
+             whole launcher icon, which for a status bar means it keeps only
+             the alpha channel of a fully opaque square and draws a white
+             block. Same payload, same notification, drawn by the system
+             instead of by Push.show — so it has to be told separately. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
     </application>
 </manifest>

@@ -206,7 +206,12 @@ object Push {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            // Ours, not android.R.drawable.ic_dialog_info — which is a stock
+            // system glyph and was only ever a placeholder. See
+            // res/drawable/ic_notification.xml for why it is a separate file
+            // from the launcher's themed layer.
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)

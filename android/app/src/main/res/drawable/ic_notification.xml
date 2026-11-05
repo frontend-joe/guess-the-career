@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The status-bar icon. The same five rows as the launcher's themed layer, but
+  drawn on its own canvas rather than reusing that one.
+
+  A notification icon is 24dp and Android throws away every colour in it: it
+  keeps the alpha channel and tints the result white in the status bar, then
+  to the accent colour in the shade. So the shape has to carry the whole
+  meaning, which the board does and a wordmark would not.
+
+  Not @drawable/ic_launcher_monochrome directly, tempting as that is. An
+  adaptive icon reserves the outer ~18% for the launcher to mask, so its rows
+  only occupy the middle half of the canvas. Reused at 24dp that padding is
+  not cropped away — it is simply blank, and the board comes out half size
+  and illegible in a status bar. These are the same paths scaled by a third
+  and recentred to fill the frame, leaving 1dp of breathing room.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10.306,1 L13.694,1 A1.672,1.672 0 0 1 13.694,4.344 L10.306,4.344 A1.672,1.672 0 0 1 10.306,1 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8.326,5.664 L15.674,5.664 A1.672,1.672 0 0 1 15.674,9.008 L8.326,9.008 A1.672,1.672 0 0 1 8.326,5.664 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M6.489,10.328 L17.511,10.328 A1.672,1.672 0 0 1 17.511,13.672 L6.489,13.672 A1.672,1.672 0 0 1 6.489,10.328 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.509,14.992 L19.491,14.992 A1.672,1.672 0 0 1 19.491,18.336 L4.509,18.336 A1.672,1.672 0 0 1 4.509,14.992 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2.672,19.656 L21.328,19.656 A1.672,1.672 0 0 1 21.328,23 L2.672,23 A1.672,1.672 0 0 1 2.672,19.656 Z" />
+</vector>
