@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "556596688094",
+    "project_id": "tenable-push",
+    "storage_bucket": "tenable-push.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:556596688094:android:a845b6e7f05a4bd6597e4f",
+        "android_client_info": {
+          "package_name": "com.guessthelist.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAiIxBaiqXe8-Q7qcl-eyfQva7Rmeo_Fzg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
