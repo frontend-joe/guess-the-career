@@ -164,7 +164,7 @@ function disable(id: number, reason: string): void {
  * most players there is no user to belong to. At four friends and one
  * household's worth of phones, "everybody else" IS the guest list.
  */
-export function audienceForNewGame(hostUserId: number): PushDeviceRow[] {
+export function audienceExcludingHost(hostUserId: number): PushDeviceRow[] {
   return sqlite
     .prepare(
       `SELECT * FROM push_devices
@@ -177,9 +177,15 @@ export function audienceForNewGame(hostUserId: number): PushDeviceRow[] {
 
 // ── Sending ─────────────────────────────────────────────────────────────────
 
-// One invite replaces the last rather than stacking beneath it. A host who
-// taps Create twice has made the first game irrelevant, and a lock screen
-// holding two live invites is a way to send somebody to the wrong one.
+// One ping replaces the last rather than stacking beneath it. A host who taps
+// Create twice has made the first game irrelevant, and a lock screen holding
+// two live invites is a way to send somebody to the wrong one.
+//
+// Deliberately ONE key across invites and round starts, not one per kind. A
+// ten-round session would otherwise leave ten notifications on the lock
+// screen of somebody who never came, all of them saying the same thing and
+// all of them pointing at the same room. The newest is the only one worth
+// reading, so it takes the place of the one before it.
 const INVITE_COLLAPSE = 'gtl-invite'
 
 export interface Invite {
@@ -199,6 +205,24 @@ export function inviteText(invite: Invite): { title: string; body: string } {
 }
 
 /**
+ * The same ping, for a round beginning rather than a game being created.
+ *
+ * Worded as news rather than as an invitation, because most of the people it
+ * reaches are already in the room — unlike a create, a round start is not
+ * excluded from anybody but the host. The code rides along regardless: the
+ * apps use it to decide whether this is a room to join or the room you are
+ * already sitting in, and the second case is a no-op on both.
+ */
+export function roundText(invite: Invite): { title: string; body: string } {
+  return {
+    title: invite.roomName?.trim()
+      ? `New round in ${invite.roomName.trim()}`
+      : `${invite.hostName} started a new round`,
+    body: `Tap to join — code ${invite.code}`,
+  }
+}
+
+/**
  * Tell every other phone that a game is waiting.
  *
  * The payload carries the code and nothing else that matters, because both
@@ -208,17 +232,38 @@ export function inviteText(invite: Invite): { title: string; body: string } {
  * stale room rather than ignoring you.
  */
 export async function sendInvite(invite: Invite, hostUserId: number): Promise<void> {
+  await fanOut(invite, hostUserId, inviteText(invite), 'invite')
+}
+
+/** A round has begun in a room that already exists. See roundText. */
+export async function sendRoundStarted(invite: Invite, hostUserId: number): Promise<void> {
+  await fanOut(invite, hostUserId, roundText(invite), 'round')
+}
+
+/**
+ * Both pings go to the same people and travel the same way; only the words
+ * and the `kind` differ. Shared rather than duplicated because the part worth
+ * getting right — the two-gateway Apple dance, the dead-token reaping — must
+ * not exist twice and drift.
+ */
+async function fanOut(
+  invite: Invite,
+  hostUserId: number,
+  text: { title: string; body: string },
+  kind: 'invite' | 'round',
+): Promise<void> {
   if (!pushConfigured()) return
-  const devices = audienceForNewGame(hostUserId)
+  const devices = audienceExcludingHost(hostUserId)
   if (!devices.length) return
 
-  const { title, body } = inviteText(invite)
-  const data = { code: invite.code, kind: 'invite' }
-
+  const data = { code: invite.code, kind }
   const android = devices.filter((d) => d.platform === 'android')
   const ios = devices.filter((d) => d.platform === 'ios')
 
-  await Promise.all([sendToAndroid(android, title, body, data), sendToIos(ios, title, body, data)])
+  await Promise.all([
+    sendToAndroid(android, text.title, text.body, data),
+    sendToIos(ios, text.title, text.body, data),
+  ])
 }
 
 async function sendToAndroid(

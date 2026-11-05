@@ -17,8 +17,9 @@ const {
   rotateToken,
   setMuted,
   deviceBySecret,
-  audienceForNewGame,
+  audienceExcludingHost,
   inviteText,
+  roundText,
 } = await import('./push.ts')
 
 const { apnsPayload, providerToken, resetProviderToken } = await import('./pushApns.ts')
@@ -100,7 +101,7 @@ test('an invite goes to everyone but the host, the muted and the dead', () => {
   const dead = registerDevice({ platform: 'android', token: 'aud-dead', displayName: 'Dead' })
   sqlite.prepare("UPDATE push_devices SET disabled_at = datetime('now') WHERE id = ?").run(dead.id)
 
-  const tokens = audienceForNewGame(HOST_ID).map((d) => d.token)
+  const tokens = audienceExcludingHost(HOST_ID).map((d) => d.token)
   assert.deepEqual(tokens, ['aud-guest'])
   // Stated explicitly: buzzing the host's own pocket when they press Create is
   // the single most obvious way for this feature to feel broken.
@@ -111,7 +112,7 @@ test('another host’s game still reaches this host’s phone', () => {
   const otherHost = Number(
     sqlite.prepare("INSERT INTO users (email) VALUES ('other@example.com')").run().lastInsertRowid,
   )
-  const tokens = audienceForNewGame(otherHost).map((d) => d.token)
+  const tokens = audienceExcludingHost(otherHost).map((d) => d.token)
   assert.ok(tokens.includes('aud-host'))
 })
 
@@ -130,6 +131,23 @@ test('the invite names the game when it has a name, and the host when it does no
   assert.equal(
     inviteText({ code: 'ABC123', hostName: 'Joe', roomName: '   ' }).title,
     'Joe started a game',
+  )
+})
+
+test('a round start reads as news, and still carries the code', () => {
+  assert.deepEqual(roundText({ code: 'ABC123', hostName: 'Joe', roomName: null }), {
+    title: 'Joe started a new round',
+    body: 'Tap to join — code ABC123',
+  })
+  // Named rooms lead with the room, because most of the people reading this
+  // are already in one and the name is what tells them whether it is theirs.
+  assert.equal(
+    roundText({ code: 'ABC123', hostName: 'Joe', roomName: 'Friday night' }).title,
+    'New round in Friday night',
+  )
+  assert.equal(
+    roundText({ code: 'ABC123', hostName: 'Joe', roomName: '   ' }).title,
+    'Joe started a new round',
   )
 })
 

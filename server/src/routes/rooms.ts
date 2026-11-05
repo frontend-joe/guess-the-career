@@ -33,7 +33,7 @@ import {
   type RoomRow,
 } from '../services/gameRooms.ts'
 import { broadcastState, ejectParticipant, livekitConfig, mintJoinToken } from '../services/livekit.ts'
-import { registerDevice, sendInvite } from '../services/push.ts'
+import { registerDevice, sendInvite, sendRoundStarted } from '../services/push.ts'
 
 export const roomsRouter = new Hono()
 
@@ -266,6 +266,19 @@ roomsRouter.post('/:code/rounds/:instanceId/start', async (c) => {
   try {
     const inst = startRound(room.id, instanceId)
     announce(room.code, 'round_started')
+
+    // Everybody but the host hears that a round has begun — including the
+    // people already in the room, who are the ones most likely to have put
+    // the phone down between rounds.
+    //
+    // Not awaited, for the same reason the invite on create is not: the round
+    // is live the moment startRound returns, and making the host wait on
+    // Apple and Google — or turning their outage into a 500 on a round that
+    // has already started — would be a bad trade.
+    void sendRoundStarted(
+      { code: room.code, hostName: me.display_name, roomName: room.name },
+      room.host_user_id,
+    ).catch((err: unknown) => console.warn('push: round ping failed:', err))
     return c.json({ ...roomState(roomByCode(room.code)!), instanceId: inst.id })
   } catch (err) {
     return fail(err)
