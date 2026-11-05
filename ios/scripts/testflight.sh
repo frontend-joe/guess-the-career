@@ -59,13 +59,19 @@ xcodegen generate
 
 echo "▸ Archiving (build $BUILD_NUMBER)…"
 rm -rf "$BUILD_DIR"
+# -configuration Release is belt and braces. A synthesised scheme — and
+# project.yml declares none, so this is one — already archives in Release,
+# which is Xcode's default for the Archive action. Stated anyway so that a
+# scheme added to project.yml later cannot quietly change what ships.
 xcodebuild archive \
   -project GuessTheList.xcodeproj \
   -scheme GuessTheList \
+  -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
+
 
 echo "▸ Exporting the ipa…"
 xcodebuild -exportArchive \
@@ -76,6 +82,33 @@ xcodebuild -exportArchive \
 
 IPA="$(find "$BUILD_DIR/export" -name '*.ipa' | head -1)"
 [ -n "$IPA" ] || { echo "✗ No ipa was produced"; exit 1; }
+
+# The ipa, not the archive.
+#
+# Do not be tempted to check the archive instead: it is signed for DEVELOPMENT
+# and reads aps-environment development quite correctly, because Xcode signs
+# an archive with whatever profile builds it and re-signs for distribution
+# here, at export. Checking the archive looks like it has caught a disaster
+# and has caught nothing at all.
+#
+# Worth checking at all because a build signed for the wrong APNs environment
+# cannot be told apart from a phone with the app deleted — both come back
+# BadDeviceToken. That is not a thing to learn from a tester saying
+# notifications do not work.
+echo "▸ Checking the ipa is signed for production push…"
+VERIFY="$BUILD_DIR/verify"
+rm -rf "$VERIFY" && mkdir -p "$VERIFY"
+unzip -q "$IPA" -d "$VERIFY"
+APP="$(find "$VERIFY/Payload" -maxdepth 1 -name '*.app' | head -1)"
+APS="$(codesign -d --entitlements - --xml "$APP" 2>/dev/null \
+  | plutil -extract aps-environment raw -o - - 2>/dev/null)"
+if [ "$APS" != "production" ]; then
+  echo "✗ The ipa has aps-environment '$APS', expected 'production'."
+  echo "  Its push token would only work on Apple's sandbox gateway, and the"
+  echo "  production one would refuse it as BadDeviceToken."
+  exit 1
+fi
+echo "  aps-environment: production"
 
 if [ -n "$DRY_RUN" ]; then
   echo ""
