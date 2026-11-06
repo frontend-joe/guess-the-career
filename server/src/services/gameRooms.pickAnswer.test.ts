@@ -91,3 +91,64 @@ test('an exact full name still beats a surname that fits somebody else', () => {
   assert.equal(result.verdict, 'hit')
   assert.equal(result.name, 'Cristiano Doni')
 })
+
+// ── A forename the whole board shares ───────────────────────────────────────
+//
+// Reported from a real game: "La Liga players named Fernando" was solved by
+// typing Fernando six times. The word fit every row, and picking the first
+// row still unfound handed them over one at a time.
+
+function clubPlayer(name: string, apps: number): void {
+  const id = (sqlite
+    .prepare(
+      `INSERT INTO footballers (name, surname, wikipedia_url, nationality)
+       VALUES (?, ?, ?, 'Spain') RETURNING id`,
+    )
+    .get(name, name.split(' ').at(-1), `https://en.wikipedia.org/wiki/${name.replace(/ /g, '_')}_es`) as { id: number }).id
+  sqlite
+    .prepare(
+      `INSERT INTO career_statistics
+         (footballer_id, club, division, league, season, league_apps, league_goals)
+       VALUES (?, 'Fernandoville', 'La Liga', 'La Liga', '2010-11', ?, 0)`,
+    )
+    .run(id, apps)
+}
+
+for (const [i, surname] of ['Hierro', 'Morientes', 'Caceres', 'Llorente', 'Torres', 'Redondo'].entries()) {
+  clubPlayer(`Fernando ${surname}`, 500 - i)
+}
+for (let i = 1; i <= 4; i++) clubPlayer(`Padding ${i}`, 300 - i)
+
+const sharedRoundId = (sqlite
+  .prepare(
+    `INSERT INTO tenable_rounds (category, type, params, metric, title, answer_count)
+     VALUES ('football', 'club', ?, 'apps', 'Fernandoville players (most appearances)', 10) RETURNING id`,
+  )
+  .get(JSON.stringify({ club: 'Fernandoville' })) as { id: number }).id
+
+function sharedRound() {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get(`shared-${++hostNo}@example.com`) as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  const inst = rooms.freezeRound(room.id, sharedRoundId)
+  rooms.startRound(room.id, inst.id)
+  return { host, inst }
+}
+
+test('a shared forename is not a guess at anybody, however often it is typed', () => {
+  const { host, inst } = sharedRound()
+  for (let i = 0; i < 6; i++) {
+    const result = rooms.submitGuess(inst.id, host, `g${i}`, 'Fernando')
+    assert.equal(result.verdict, 'miss')
+    assert.equal(result.rank, null)
+  }
+})
+
+test('the surname still scores, which is the whole point of the rule', () => {
+  const { host, inst } = sharedRound()
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Torres')
+  assert.equal(result.verdict, 'hit')
+  assert.equal(result.name, 'Fernando Torres')
+})

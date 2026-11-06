@@ -122,3 +122,23 @@ test('transliteration', () => {
   assert.equal(norm('Łukasz Fabiański'), 'lukasz fabianski')
   assert.equal(surnameOf(norm('van der Vaart')), 'vaart')
 })
+
+test('a forename on its own is not a guess at anybody', () => {
+  // The board that forced this: "La Liga players named Fernando", where the
+  // word fits all ten rows and typing it ten times used to clear them.
+  assert.equal(matchesName('Fernando', 'Fernando Torres', 'Torres'), false)
+  assert.equal(matchesName('Fernando', 'Fernando Hierro', 'Hierro'), false)
+  // Raúl is the name people say, and he is now reached by his surname. That
+  // is the price of the rule above, paid knowingly.
+  assert.equal(matchesName('Raul', 'Raul Gonzalez', 'Gonzalez'), false)
+  assert.equal(matchesName('Gonzalez', 'Raul Gonzalez', 'Gonzalez'), true)
+})
+
+test('a player whose whole name is one word is still typed as that word', () => {
+  // Nothing was lost for the players the deleted rule was written for: a
+  // one-name player has that name recorded as their whole name, and the
+  // exact match takes it.
+  assert.equal(matchesName('Kaka', 'Kaká', 'Kaká'), true)
+  assert.equal(matchesName('Ronaldinho', 'Ronaldinho', 'Ronaldinho'), true)
+  assert.equal(matchesName('Doni', 'Doni', 'Doni'), true)
+})

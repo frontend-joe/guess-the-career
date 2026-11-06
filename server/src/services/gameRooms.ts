@@ -881,12 +881,19 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
 function knownPlayerNamed(raw: string): { id: number; name: string } | null {
   const row = sqlite
     .prepare(
-      // Any WHOLE word of the name, padded so the LIKE cannot match a
-      // fragment: ' raul ' is in ' raul gonzalez ' but 'egan' being in
-      // 'keegan' is exactly the false positive this padding prevents.
+      // The whole name, or the surname. Deliberately NOT any word of the
+      // name, which is what this asked before: a bare forename identifies
+      // nobody, and this path can put the player it picks ONTO the board.
+      // "La Liga players named Fernando" was solved by typing Fernando, half
+      // of it through matchesName and the other half through here.
+      //
+      // Matched on the recorded surname rather than the last word of the
+      // name, for the same reason matchesName does — Zheng Zhi's surname is
+      // the first word, and seventy-seven players in the database are like
+      // him.
       `SELECT id, name FROM footballers
        WHERE normalize(name) = normalize(?)
-          OR (' ' || normalize(name) || ' ') LIKE '% ' || normalize(?) || ' %'
+          OR (surname IS NOT NULL AND normalize(surname) = normalize(?))
        LIMIT 1`,
     )
     .get(raw, raw) as { id: number; name: string } | undefined

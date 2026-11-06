@@ -81,17 +81,30 @@ export function matchesName(guess: string, name: string, surname?: string | null
   // thing — the "Sar" case — and a bare fragment that short is too little to
   // go on.
   if (g === pl && (known !== '' || !hasParticleBeforeSurname(p))) return true
+  // A generational suffix is part of the recorded surname — "Kelly Jr." — but
+  // not part of what anybody says out loud, and the man is still a Kelly.
+  //
+  // This used to be carried by the any-word-of-the-name rule removed below,
+  // which happened to catch "Kelly" because it is a word of "Alan Kelly Jr."
+  // That rule is gone, so the case it was quietly covering is handled here,
+  // where it is actually about surnames.
+  if (GENERATIONAL.test(pl) && g === withoutSuffix(pl)) return true
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true
-  // A single-word guess also matches any OTHER whole word of the name, not
-  // just the last one. Players known by one name wear it at the front —
-  // Raúl González, Ronaldinho Gaúcho, Kaká — and "Raul" matched nothing,
-  // because every rule here was looking at the surname.
+  // A forename on its own is NOT accepted, and the rule that used to accept it
+  // is gone. It read any whole word of the name, so that players known by one
+  // name — Raúl González, Ronaldinho Gaúcho — could be typed the way people
+  // say them. What it also did was fit every row of a board built on a shared
+  // first name: "La Liga players named Fernando" was solved by typing
+  // Fernando six times, because the word fits all ten and the caller hands
+  // over whichever is still unfound.
   //
-  // Four characters minimum, same as the surname rule and for the same
-  // reason: "Lee" and "Ian" are first names on half the board.
-  if (!g.includes(' ') && g.length >= 4 && p.split(' ').includes(g)) return true
+  // The rule now is a surname, or the whole name. A player genuinely known by
+  // one word has that word as their whole name — Kaká, Doni, Ronaldinho — and
+  // the exact match at the top of this function already takes it. Raúl is
+  // reached by González, which is the cost, and a cheap one next to a board
+  // that gives itself away.
   // One typo in the surname is forgiven — but NOT when both names carry a
   // first name and the two disagree.
   //
@@ -120,6 +133,14 @@ const SURNAME_PARTICLES = new Set([
   'van', 'von', 'der', 'den', 'de', 'del', 'della', 'di', 'da', 'das', 'dos',
   'do', 'du', 'le', 'la', 'el', 'al', 'ter', 'ten', 'bin', 'ibn', 'y',
 ])
+
+// Jr., Sr. and the regnal numerals. Scoped to the end of a surname, so the
+// Roman numerals cannot eat a name that happens to end in one.
+const GENERATIONAL = /\s+(?:jr|snr|sr|ii|iii|iv)\.?$/
+
+function withoutSuffix(surname: string): string {
+  return surname.replace(GENERATIONAL, '')
+}
 
 function hasParticleBeforeSurname(normalized: string): boolean {
   const words = normalized.split(' ')

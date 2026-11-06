@@ -51,6 +51,8 @@ const SURNAME_PARTICLES = new Set([
   'van', 'von', 'der', 'den', 'de', 'del', 'della', 'di', 'da', 'das', 'dos',
   'do', 'du', 'le', 'la', 'el', 'al', 'ter', 'ten', 'bin', 'ibn', 'y',
 ])
+// Jr., Sr. and the regnal numerals, at the end of a surname only.
+const GENERATIONAL = /\s+(?:jr|snr|sr|ii|iii|iv)\.?$/
 function hasParticleBeforeSurname(normalized: string): boolean {
   const words = normalized.split(' ')
   return words.length >= 2 && SURNAME_PARTICLES.has(words[words.length - 2])
@@ -82,15 +84,19 @@ function matches(guess: string, name: string, surname?: string | null): boolean 
   // last-word fallback needs the particle check, which warns that the word is
   // a fragment of a longer surname — the "Sar" case.
   if (g === pl && (known !== '' || !hasParticleBeforeSurname(p))) return true
+  // A generational suffix is part of the recorded surname — "Kelly Jr." — but
+  // not of what anybody says, and the man is still a Kelly. In step with
+  // nameMatch.ts, which explains why this is its own rule.
+  if (GENERATIONAL.test(pl) && g === pl.replace(GENERATIONAL, '')) return true
   if (pl.length < 4) return false
   if (g === pl) return true
   if (gl === pl) return true
-  // A single-word guess also matches any OTHER whole word of the name.
-  // Players known by one name wear it at the front — Raúl González,
-  // Ronaldinho Gaúcho — and "Raul" matched nothing, because every rule here
-  // was looking at the surname. Four characters minimum, same as below:
-  // "Lee" and "Ian" are first names on half the board.
-  if (!g.includes(' ') && g.length >= 4 && p.split(' ').includes(g)) return true
+  // A forename on its own is not accepted. The rule that used to accept any
+  // whole word of the name fit every row of a board built on a shared first
+  // name — "La Liga players named Fernando" could be solved by typing
+  // Fernando six times. A player genuinely known by one word has that word as
+  // their whole name (Kaká, Doni), which the exact match above already takes.
+  // In step with nameMatch.ts.
   // One typo in the surname is forgiven, but NOT when both names carry a
   // first name and the two disagree — "Leighton Baines" was being credited
   // to John Barnes, whose surname is one edit away.
