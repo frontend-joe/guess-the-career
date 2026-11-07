@@ -1,10 +1,24 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { requestBearer, verifyParticipantToken } from '../services/auth.ts'
-import { deviceBySecret, registerDevice, rotateToken, setMuted } from '../services/push.ts'
+import { requestBearer, requireAdmin, verifyParticipantToken } from '../services/auth.ts'
+import {
+  apnsMissing,
+  deviceBySecret,
+  deviceSummaries,
+  fcmMissing,
+  registerDevice,
+  rotateToken,
+  sendTestPush,
+  setMuted,
+} from '../services/push.ts'
 
 export const pushRouter = new Hono()
+
+// Registered up here, not beside the handlers it guards: Hono applies
+// middleware in registration order, and a use() declared after a route does
+// not run for it — which would leave these endpoints open.
+pushRouter.use('/admin/*', requireAdmin)
 
 // Registering a phone for notifications.
 //
@@ -84,4 +98,36 @@ pushRouter.get('/devices/me', (c) => {
     muted: !!device.muted,
     disabled: device.disabled_at != null,
   })
+})
+
+// ── Diagnostics, for when somebody says push is not working ─────────────────
+//
+// Admin-only, unlike everything above. These two endpoints are the difference
+// between "notifications are broken" and a cause: the registry says whether
+// the phone ever registered and whether we gave up on it, and the test send
+// reports Apple's or Google's own refusal rather than a shrug. Both are read
+// from a terminal by whoever is holding the phone that is not buzzing.
+
+// GET /api/push/admin/devices — every phone we know about, tokens redacted.
+pushRouter.get('/admin/devices', (c) =>
+  c.json({
+    // Reported alongside the devices because a complete, healthy-looking
+    // registry with no credentials behind it is the one failure the rows
+    // themselves cannot show.
+    credentials: { apnsMissing: apnsMissing(), fcmMissing: fcmMissing() },
+    devices: deviceSummaries(),
+  }),
+)
+
+// POST /api/push/admin/devices/:id/test — actually wake that phone up.
+//
+// A 404 here means the id is not in the registry; a 200 with delivered:false
+// means the gateway was reached and refused us, and `attempts` carries its
+// exact word for why.
+pushRouter.post('/admin/devices/:id/test', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.json({ error: 'Not a device id' }, 400)
+  const result = await sendTestPush(id)
+  if (!result) return c.json({ error: 'Unknown device' }, 404)
+  return c.json(result)
 })

@@ -32,6 +32,8 @@ export interface PushDeviceRow {
   apns_env: string | null
   muted: number
   disabled_at: string | null
+  last_push_at: string | null
+  created_at: string | null
 }
 
 export type Platform = 'ios' | 'android'
@@ -40,6 +42,10 @@ export type Platform = 'ios' | 'android'
 export function pushMissing(): string[] {
   return [...apnsMissing(), ...fcmMissing()]
 }
+
+// Re-exported so the diagnostic route can report which credentials are
+// absent without reaching past this file into either gateway's module.
+export { apnsMissing, fcmMissing }
 
 export function pushConfigured(): boolean {
   // Either platform on its own is a working feature. Requiring both would mean
@@ -362,4 +368,141 @@ function markSent(id: number, apnsEnv?: ApnsEnvironment): void {
   } else {
     sqlite.prepare("UPDATE push_devices SET last_push_at = datetime('now') WHERE id = ?").run(id)
   }
+}
+
+// ── Diagnostics ─────────────────────────────────────────────────────────────
+
+// "I'm not getting notifications" has about six causes and they are
+// indistinguishable from the outside: the phone never registered, it muted
+// itself, we disabled it after Apple refused its token, it is the host's own
+// device and so excluded by design, or the push really did go out and iOS
+// dropped it. Everything below exists to tell those apart from a terminal,
+// because the alternative is guessing at somebody else's lock screen.
+
+export interface DeviceSummary {
+  id: number
+  platform: string
+  displayName: string | null
+  /** Enough to recognise a phone, not enough to push to it. */
+  tokenTail: string
+  userId: number | null
+  apnsEnv: string | null
+  muted: boolean
+  disabledAt: string | null
+  lastPushAt: string | null
+  createdAt: string | null
+}
+
+export function deviceSummaries(): DeviceSummary[] {
+  const rows = sqlite
+    .prepare(
+      `SELECT id, platform, display_name, token, user_id, apns_env, muted,
+              disabled_at, last_push_at, created_at
+         FROM push_devices ORDER BY id`,
+    )
+    .all() as PushDeviceRow[]
+  return rows.map((row) => ({
+    id: row.id,
+    platform: row.platform,
+    displayName: row.display_name,
+    // A push token is not a password, but it is the one value that lets a
+    // stranger put words on somebody's lock screen, so it does not leave the
+    // server even for an admin.
+    tokenTail: `…${row.token.slice(-6)}`,
+    userId: row.user_id,
+    apnsEnv: row.apns_env,
+    muted: !!row.muted,
+    disabledAt: row.disabled_at,
+    lastPushAt: row.last_push_at,
+    createdAt: row.created_at,
+  }))
+}
+
+export interface TestAttempt {
+  gateway: string
+  ok: boolean
+  /** Apple's or Google's own word for it, unchanged. */
+  reason?: string
+}
+
+export interface TestResult {
+  deviceId: number
+  platform: string
+  delivered: boolean
+  attempts: TestAttempt[]
+  /** Set when nothing was tried, rather than tried and refused. */
+  skipped?: string
+}
+
+/**
+ * Send one real notification to one device and report what the gateway said.
+ *
+ * Three deliberate differences from the real fan-out, all of them because a
+ * diagnostic must not change the thing it is measuring:
+ *
+ *   - no collapse id, so this cannot silently replace a live invite on
+ *     somebody's lock screen, and cannot itself be replaced by one
+ *   - a muted or disabled device is still sent to, because "why is this
+ *     device disabled" is the exact question being asked. The flags are
+ *     reported, not obeyed.
+ *   - a refusal never calls disable(). A test that reaps the token it was
+ *     sent to test destroys the evidence, and would turn a momentary Apple
+ *     outage into a phone that has to reinstall the app to come back.
+ *
+ * Both iOS gateways are tried, best guess first, because a token that works
+ * on the other one is the single most common cause of this report — a phone
+ * that moved from a Xcode build to TestFlight keeps its row and changes its
+ * gateway.
+ */
+export async function sendTestPush(deviceId: number): Promise<TestResult | null> {
+  const device = sqlite
+    .prepare('SELECT * FROM push_devices WHERE id = ?')
+    .get(deviceId) as PushDeviceRow | undefined
+  if (!device) return null
+
+  const base = { deviceId: device.id, platform: device.platform }
+  const title = 'Tenable test'
+  const body = 'If you can read this, push works on this phone.'
+  // `kind` is read by both apps' tap handlers. 'test' is not a room, so
+  // neither will try to join one when this is tapped.
+  const data = { kind: 'test', code: '' }
+
+  if (device.platform === 'android') {
+    if (fcmMissing().length) {
+      return { ...base, delivered: false, attempts: [], skipped: `fcm not configured: ${fcmMissing().join(', ')}` }
+    }
+    const [result] = await sendFcmBatch([{ token: device.token, title, body, data }])
+    if (result.ok) markSent(device.id)
+    return {
+      ...base,
+      delivered: result.ok,
+      attempts: [{ gateway: 'fcm', ok: result.ok, reason: result.ok ? undefined : result.reason }],
+    }
+  }
+
+  if (apnsMissing().length) {
+    return { ...base, delivered: false, attempts: [], skipped: `apns not configured: ${apnsMissing().join(', ')}` }
+  }
+
+  // Whatever we last learned about this phone, then the other one.
+  const order: ApnsEnvironment[] =
+    device.apns_env === 'development' ? ['development', 'production'] : ['production', 'development']
+
+  const attempts: TestAttempt[] = []
+  for (const environment of order) {
+    const [result] = await sendApnsBatch(
+      [{ token: device.token, title, body, data }],
+      environment,
+    )
+    attempts.push({ gateway: environment, ok: result.ok, reason: result.ok ? undefined : result.reason })
+    if (result.ok) {
+      markSent(device.id, environment)
+      return { ...base, delivered: true, attempts }
+    }
+    // Only a wrong-gateway refusal is worth asking the other host about. A
+    // bad JWT or a missing topic fails identically on both and the second
+    // answer adds nothing but noise.
+    if (!result.retryOtherEnvironment) break
+  }
+  return { ...base, delivered: false, attempts }
 }

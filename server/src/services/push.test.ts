@@ -218,3 +218,52 @@ test('the provider token is reused rather than minted per notification', () => {
   // Apple rate-limits providers that mint a fresh token on every request.
   assert.equal(providerToken(config), providerToken(config))
 })
+
+// ── Diagnostics ─────────────────────────────────────────────────────────────
+
+const { deviceSummaries, sendTestPush } = await import('./push.ts')
+
+test('the registry readout identifies a phone without handing over its token', () => {
+  sqlite.prepare('DELETE FROM push_devices').run()
+  registerDevice({ platform: 'ios', token: 'tok-abcdef123456', displayName: 'Ali' })
+
+  const [summary] = deviceSummaries()
+  assert.equal(summary.displayName, 'Ali')
+  // Enough to tell two phones apart over the phone; not enough to push to one.
+  assert.equal(summary.tokenTail, '…123456')
+  assert.ok(!JSON.stringify(summary).includes('tok-abcdef'))
+})
+
+test('the readout reports the flags that silence a phone', () => {
+  sqlite.prepare('DELETE FROM push_devices').run()
+  const quiet = registerDevice({ platform: 'ios', token: 'tok-quiet', displayName: 'Quiet' })
+  setMuted(quiet.secret, true)
+  const gone = registerDevice({ platform: 'ios', token: 'tok-gone', displayName: 'Gone' })
+  sqlite.prepare("UPDATE push_devices SET disabled_at = datetime('now') WHERE id = ?").run(gone.id)
+
+  const byName = new Map(deviceSummaries().map((d) => [d.displayName, d]))
+  assert.equal(byName.get('Quiet')?.muted, true)
+  assert.ok(byName.get('Gone')?.disabledAt)
+  // Both are still listed. A device that vanishes from the readout when we
+  // give up on it hides the exact thing being investigated.
+  assert.equal(byName.size, 2)
+})
+
+test('a test send never reaps the token it was sent to test', async () => {
+  const device = registerDevice({ platform: 'ios', token: 'tok-under-test', displayName: 'Test' })
+  // No APNS_* in the test environment, so this reports "not configured"
+  // rather than reaching Apple — which is itself the assertion that matters
+  // for a suite that must not touch the network.
+  const result = await sendTestPush(device.id)
+  assert.equal(result?.delivered, false)
+  assert.match(result?.skipped ?? '', /apns not configured/)
+
+  const after = sqlite
+    .prepare('SELECT disabled_at FROM push_devices WHERE id = ?')
+    .get(device.id) as { disabled_at: string | null }
+  assert.equal(after.disabled_at, null)
+})
+
+test('a test send on an unknown device is a 404, not a silent no-op', async () => {
+  assert.equal(await sendTestPush(999_999), null)
+})
