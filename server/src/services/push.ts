@@ -187,11 +187,16 @@ export function audienceExcludingHost(hostUserId: number): PushDeviceRow[] {
 // Create twice has made the first game irrelevant, and a lock screen holding
 // two live invites is a way to send somebody to the wrong one.
 //
-// Deliberately ONE key across invites and round starts, not one per kind. A
+// Deliberately ONE key across all three pings, not one per kind. A
 // ten-round session would otherwise leave ten notifications on the lock
 // screen of somebody who never came, all of them saying the same thing and
 // all of them pointing at the same room. The newest is the only one worth
 // reading, so it takes the place of the one before it.
+//
+// That holds for the quiet-spell ping too, which is why it does not get a key
+// of its own: "somebody is guessing in the kitchen game" and "there is a game
+// in the kitchen" are the same news with the same code and the same tap, and
+// the later one is the true one.
 const INVITE_COLLAPSE = 'gtl-invite'
 
 export interface Invite {
@@ -229,6 +234,23 @@ export function roundText(invite: Invite): { title: string; body: string } {
 }
 
 /**
+ * Somebody is playing again after a long quiet spell.
+ *
+ * `hostName` carries whoever typed the guess, which is not necessarily the
+ * host — the point of this one is that a person is at the board, and naming
+ * them is what makes it worth looking at. Everything else about it is the
+ * invite: the same audience, the same code, the same tap.
+ */
+export function resumedText(invite: Invite): { title: string; body: string } {
+  return {
+    title: invite.roomName?.trim()
+      ? `${invite.hostName} is guessing in ${invite.roomName.trim()}`
+      : `${invite.hostName} has started guessing`,
+    body: `Tap to join — code ${invite.code}`,
+  }
+}
+
+/**
  * Tell every other phone that a game is waiting.
  *
  * The payload carries the code and nothing else that matters, because both
@@ -247,6 +269,18 @@ export async function sendRoundStarted(invite: Invite, hostUserId: number): Prom
 }
 
 /**
+ * A room that had gone quiet is being played again. See resumedText.
+ *
+ * The decision about WHEN — how long the quiet has to have lasted, and that
+ * only the guess that breaks it counts — is the caller's, because it is a
+ * question about the game rather than about notifications. This end just
+ * sends.
+ */
+export async function sendRoomResumed(invite: Invite, hostUserId: number): Promise<void> {
+  await fanOut(invite, hostUserId, resumedText(invite), 'resumed')
+}
+
+/**
  * Both pings go to the same people and travel the same way; only the words
  * and the `kind` differ. Shared rather than duplicated because the part worth
  * getting right — the two-gateway Apple dance, the dead-token reaping — must
@@ -256,7 +290,7 @@ async function fanOut(
   invite: Invite,
   hostUserId: number,
   text: { title: string; body: string },
-  kind: 'invite' | 'round',
+  kind: 'invite' | 'round' | 'resumed',
 ): Promise<void> {
   if (!pushConfigured()) return
   const devices = audienceExcludingHost(hostUserId)

@@ -679,6 +679,55 @@ function sweepAnswers(
   return named.length ? named : [match]
 }
 
+/**
+ * Has this room been sitting untouched long enough that a guess is news?
+ *
+ * Asked immediately BEFORE a guess is recorded, so the guess that breaks the
+ * silence is the one that answers true and every guess after it answers
+ * false. That is what makes the notification one per quiet spell rather than
+ * one per guess — no flag to store and nothing to reset, because the guesses
+ * themselves are the record of when the room was last awake.
+ *
+ * Two kinds of activity count, and leaving either out sends a notification
+ * nobody needed:
+ *
+ *   guesses, which are the game being played; and
+ *   a round starting, which already sent a ping of its own. Without it, a
+ *   round opened after a long gap would be announced twice within seconds —
+ *   once for the round, once for whoever typed first.
+ *
+ * A room that has never been guessed in is NOT quiet. It was created minutes
+ * ago, and creating it told everybody; the first guess of a brand new game is
+ * the game working, not news.
+ */
+export function roomWentQuiet(roomId: number, gapMinutes: number): boolean {
+  const everGuessed = sqlite
+    .prepare(
+      `SELECT 1 FROM game_guesses g
+         JOIN game_round_instances i ON i.id = g.instance_id
+        WHERE i.room_id = ? LIMIT 1`,
+    )
+    .get(roomId)
+  if (!everGuessed) return false
+
+  const recentGuess = sqlite
+    .prepare(
+      `SELECT 1 FROM game_guesses g
+         JOIN game_round_instances i ON i.id = g.instance_id
+        WHERE i.room_id = ? AND g.created_at > datetime('now', ?) LIMIT 1`,
+    )
+    .get(roomId, `-${gapMinutes} minutes`)
+  if (recentGuess) return false
+
+  // Epoch milliseconds here, not a datetime string: started_at_ms is the zero
+  // point every media timestamp in the recording is measured from, and it is
+  // written as Date.now().
+  const recentStart = sqlite
+    .prepare('SELECT 1 FROM game_round_instances WHERE room_id = ? AND started_at_ms > ? LIMIT 1')
+    .get(roomId, Date.now() - gapMinutes * 60_000)
+  return !recentStart
+}
+
 // Anyone in the room may guess. It started host-only — everyone else shouts,
 // one person types — but that made the game unplayable for whoever's
 // microphone had failed, and the same fix that gave them chat should give

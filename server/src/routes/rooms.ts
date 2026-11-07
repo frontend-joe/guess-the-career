@@ -26,6 +26,7 @@ import {
   resolvePendingReviews,
   roomByCode,
   roomState,
+  roomWentQuiet,
   startRound,
   submitGuess,
   takeHint,
@@ -37,10 +38,17 @@ import {
   recordRegistrationAttempt,
   registerDevice,
   sendInvite,
+  sendRoomResumed,
   sendRoundStarted,
 } from '../services/push.ts'
 
 export const roomsRouter = new Hono()
+
+// How long a room has to sit untouched before somebody guessing in it is
+// worth a notification. Half an hour is long enough that nobody is watching
+// the board any more — it is past a round, a chat and a cup of tea — and
+// short enough that a game resumed the same evening still tells people.
+const QUIET_MINUTES = 30
 
 // Private multiplayer rooms.
 //
@@ -323,9 +331,27 @@ roomsRouter.post(
     if (!me) return c.json({ error: 'Not in this room' }, 403)
     const { instanceId, clientGuessId, raw } = c.req.valid('json')
     try {
+      // Asked before the guess is recorded, and with nothing awaited between
+      // the two, so the guess that breaks the silence is the only one that
+      // can see it. See roomWentQuiet.
+      const quiet = roomWentQuiet(room.id, QUIET_MINUTES)
       const result = submitGuess(instanceId, me, clientGuessId, raw)
       // A replayed guess changed nothing, so there is nothing to announce.
       if (!result.replayed) announce(room.code, 'guess')
+
+      // Somebody picked the game back up. Everybody else's phone says so,
+      // because the whole reason a room goes quiet for half an hour is that
+      // the other players put their phones down — and they are the people
+      // who would want to know.
+      //
+      // Not awaited, like the two pings above it: the guess has already
+      // scored, and Apple's latency is not the guesser's problem.
+      if (quiet && !result.replayed) {
+        void sendRoomResumed(
+          { code: room.code, hostName: me.display_name, roomName: room.name },
+          room.host_user_id,
+        ).catch((err: unknown) => console.warn('push: resumed ping failed:', err))
+      }
       return c.json(result)
     } catch (err) {
       return fail(err)
