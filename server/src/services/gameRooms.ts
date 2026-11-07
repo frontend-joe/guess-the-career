@@ -642,6 +642,43 @@ function pickAnswer(raw: string, answers: AnswerRow[], category: string): Answer
   return unclaimed.length ? prefer(unclaimed) : null
 }
 
+// Every open slot the guess names, not just the first of them.
+//
+// A board of Premier League surnames starting C has Andy Cole, Ashley Cole
+// and Joe Cole on it, and "Cole" filled one of them per guess — so you typed
+// the same word three times for three answers you had plainly already got.
+// Nobody shouting "Cole" at that board means one particular Cole; they mean
+// the Coles, and the second and third typing taught the game nothing it did
+// not already know.
+//
+// Two guards, and the same one does both jobs: matchesName with the typo
+// allowance off.
+//
+//   A misspelling never claims a crowd. One edit is forgiven to get a name
+//   onto the board, and forgiving it three times over, on three different
+//   players, is a different and much larger favour than the rule intends.
+//
+//   A guess that can tell them apart still takes one slot. "Andy Cole"
+//   carries a first name the other two contradict, so firstNamesAgree
+//   already rejects them and this returns the one answer it named.
+//
+// Football only. Places are matched whole, so two answers one guess fits are
+// two names for one place rather than two places.
+function sweepAnswers(
+  raw: string,
+  answers: AnswerRow[],
+  category: string,
+  match: AnswerRow,
+): AnswerRow[] {
+  if (category !== 'football') return [match]
+  const named = answers.filter(
+    (a) => a.on_board && a.found_at_ms == null && matchesName(raw, a.name, a.surname_norm, false),
+  )
+  // Empty when the guess only reached its answer through the typo rule, which
+  // is exactly the case that must not sweep.
+  return named.length ? named : [match]
+}
+
 // Anyone in the room may guess. It started host-only — everyone else shouts,
 // one person types — but that made the game unplayable for whoever's
 // microphone had failed, and the same fix that gave them chat should give
@@ -741,19 +778,25 @@ export function submitGuess(
     })
 
     if (verdict === 'hit' && match) {
-      sqlite
-        .prepare('UPDATE game_round_answers SET found_at_ms = ?, found_by_participant_id = ? WHERE id = ?')
-        .run(tMs, participant.id, match.id)
-      appendEvent(instanceId, tMs, 'reveal', participant.id, {
-        rank: match.rank,
-        name: match.name,
-        value: match.value,
-        unit: match.unit,
-        display: match.display,
-        nationality: match.nationality,
-        photoUrl: match.photo_url,
-        footballerId: match.footballer_id,
-      })
+      // Everyone the guess named, which is usually just the one. A reveal
+      // apiece, because the board, the replay and the recording are all
+      // built from these events and a slot that filled without one would be
+      // missing from every screen that was not watching live.
+      for (const answer of sweepAnswers(raw, answers, category, match)) {
+        sqlite
+          .prepare('UPDATE game_round_answers SET found_at_ms = ?, found_by_participant_id = ? WHERE id = ?')
+          .run(tMs, participant.id, answer.id)
+        appendEvent(instanceId, tMs, 'reveal', participant.id, {
+          rank: answer.rank,
+          name: answer.name,
+          value: answer.value,
+          unit: answer.unit,
+          display: answer.display,
+          nationality: answer.nationality,
+          photoUrl: answer.photo_url,
+          footballerId: answer.footballer_id,
+        })
+      }
 
       // Ordered: done when every slot is filled. Unordered: done when enough
       // have been named — there are twenty-three in a squad and only ten

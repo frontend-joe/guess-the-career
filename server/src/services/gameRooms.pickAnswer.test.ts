@@ -255,3 +255,94 @@ test('once the database knows him, his name is never a typo of another', () => {
   assert.equal(result.verdict, 'miss')
   assert.equal(result.known, 'Pedri')
 })
+
+// ── Several of them share a surname ─────────────────────────────────────────
+//
+// Reported from a real game: "Premier League players, surnames starting C"
+// held Andy Cole, Ashley Cole and Joe Cole, and "Cole" filled one of them per
+// guess. Typing the same word three times is not playing the game.
+
+function coleville(name: string, apps: number): void {
+  const id = (sqlite
+    .prepare(
+      `INSERT INTO footballers (name, surname, wikipedia_url, nationality)
+       VALUES (?, ?, ?, 'England') RETURNING id`,
+    )
+    .get(name, name.split(' ').at(-1), `https://en.wikipedia.org/wiki/${name.replace(/ /g, '_')}_c`) as { id: number }).id
+  sqlite
+    .prepare(
+      `INSERT INTO career_statistics
+         (footballer_id, club, division, league, season, league_apps, league_goals)
+       VALUES (?, 'Coleville', 'Premier League', 'Premier League', '2010-11', ?, 0)`,
+    )
+    .run(id, apps)
+}
+
+coleville('Jamie Carragher', 508)
+coleville('Andy Cole', 414)
+coleville('Ashley Cole', 385)
+coleville('Joe Cole', 378)
+// Off the board, so a sweep cannot reach past the ten that are on it.
+for (let i = 1; i <= 8; i++) coleville(`Clearance ${i}`, 300 - i)
+// Deep enough to be frozen but not on the board, and a Cole — the sweep must
+// leave him where he is.
+coleville('Carlton Cole', 120)
+
+const coleRoundId = (sqlite
+  .prepare(
+    `INSERT INTO tenable_rounds (category, type, params, metric, title, answer_count)
+     VALUES ('football', 'club', ?, 'apps', 'Coleville players (most appearances)', 10) RETURNING id`,
+  )
+  .get(JSON.stringify({ club: 'Coleville' })) as { id: number }).id
+
+function coleRound() {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get(`cole-${++hostNo}@example.com`) as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  const inst = rooms.freezeRound(room.id, coleRoundId)
+  rooms.startRound(room.id, inst.id)
+  return { host, inst }
+}
+
+function foundNames(instanceId: number): string[] {
+  return (sqlite
+    .prepare('SELECT name FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL ORDER BY rank')
+    .all(instanceId) as { name: string }[]).map((r) => r.name)
+}
+
+test('one surname fills every open slot it names', () => {
+  const { host, inst } = coleRound()
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Cole')
+  assert.equal(result.verdict, 'hit')
+  // The answer reported back is the highest of them, as it always was.
+  assert.equal(result.name, 'Andy Cole')
+  assert.deepEqual(foundNames(inst.id), ['Andy Cole', 'Ashley Cole', 'Joe Cole'])
+})
+
+test('a sweep does not reach a Cole who is off the board', () => {
+  const { host, inst } = coleRound()
+  rooms.submitGuess(inst.id, host, 'g1', 'Cole')
+  const carlton = (sqlite
+    .prepare("SELECT found_at_ms FROM game_round_answers WHERE instance_id = ? AND name = 'Carlton Cole'")
+    .get(inst.id) as { found_at_ms: number | null })
+  assert.equal(carlton.found_at_ms, null)
+})
+
+test('a first name still names one player', () => {
+  const { host, inst } = coleRound()
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Joe Cole')
+  assert.equal(result.verdict, 'hit')
+  // Andy and Ashley contradict the first name, so they are nobody's to claim.
+  assert.deepEqual(foundNames(inst.id), ['Joe Cole'])
+})
+
+test('a misspelling claims one slot, never a crowd', () => {
+  const { host, inst } = coleRound()
+  // One edit from Cole, and forgiving that across three different players is
+  // a far larger favour than the typo rule intends.
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Colr')
+  assert.equal(result.verdict, 'hit')
+  assert.deepEqual(foundNames(inst.id), ['Andy Cole'])
+})

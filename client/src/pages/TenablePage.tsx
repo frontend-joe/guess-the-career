@@ -66,7 +66,12 @@ function firstNamesAgree(g: string, p: string): boolean {
   if (gf === pf) return true
   return (gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))
 }
-function matches(guess: string, name: string, surname?: string | null): boolean {
+// `allowTypo: false` asks the same question without the one-edit allowance at
+// the bottom — the whole name, its tail, or the surname, spelled right. Used
+// to tell apart the two ways a match can happen. In step with nameMatch.ts.
+function matches(
+  guess: string, name: string, surname?: string | null, allowTypo = true,
+): boolean {
   const g = norm(guess), p = norm(name)
   if (g === p) return true
   const gl = g.split(' ').at(-1) ?? ''
@@ -113,7 +118,7 @@ function matches(guess: string, name: string, surname?: string | null): boolean 
   // One typo in the surname is forgiven, but NOT when both names carry a
   // first name and the two disagree — "Leighton Baines" was being credited
   // to John Barnes, whose surname is one edit away.
-  if (gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
+  if (allowTypo && gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
   return false
 }
 
@@ -289,8 +294,28 @@ export function TenablePage() {
       : answers.find(
           a => a.footballer_id !== null && !foundSet.has(a.footballer_id) && matches(name, a.name, a.surname),
         )
-    if (hit && hit.footballer_id !== null) {
-      const next = new Set(foundSet).add(hit.footballer_id)
+    // A surname board often has several of them on it — Andy, Ashley and Joe
+    // Cole were all answers to Premier League surnames starting C — and
+    // "Cole" naming one of them per attempt meant typing the same word three
+    // times for three answers you had plainly already got.
+    //
+    // Only names spelled right, which is also what stops a misspelling
+    // claiming a crowd: one edit is forgiven to get a name ONTO the board,
+    // and forgiving it across three different players is a far larger favour
+    // than that rule intends. A guess that can tell them apart still takes
+    // one slot, because "Andy Cole" carries a first name the other two
+    // contradict. Free text only — tapping a suggestion names one player.
+    // In step with sweepAnswers() in the server's gameRooms.ts.
+    const swept = picked
+      ? []
+      : answers.filter(
+          a => a.footballer_id !== null && !foundSet.has(a.footballer_id)
+            && matches(name, a.name, a.surname, false),
+        )
+    const filled = swept.length ? swept : hit && hit.footballer_id !== null ? [hit] : []
+    if (filled.length) {
+      const next = new Set(foundSet)
+      for (const a of filled) next.add(a.footballer_id!)
       setFound(p => ({ ...p, [key]: next }))
       persist(key, next, wrong[key] ?? new Set())
       return
