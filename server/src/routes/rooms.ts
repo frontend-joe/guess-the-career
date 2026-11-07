@@ -27,6 +27,7 @@ import {
   roomByCode,
   roomState,
   roomWentQuiet,
+  slotsRemaining,
   startRound,
   submitGuess,
   takeHint,
@@ -38,6 +39,7 @@ import {
   recordRegistrationAttempt,
   registerDevice,
   sendInvite,
+  sendLastSlot,
   sendRoomResumed,
   sendRoundStarted,
 } from '../services/push.ts'
@@ -317,6 +319,18 @@ roomsRouter.post('/:code/rounds/:instanceId/start', async (c) => {
   }
 })
 
+/**
+ * Wake everybody when a round comes down to its last answer.
+ *
+ * Not awaited, like every other ping in this file: the answer has already
+ * scored, and Apple's latency is nobody's problem but Apple's.
+ */
+function notifyIfOneLeft(room: RoomRow, instanceId: number): void {
+  if (slotsRemaining(instanceId) !== 1) return
+  void sendLastSlot(room, room.host_user_id)
+    .catch((err: unknown) => console.warn('push: last-slot ping failed:', err))
+}
+
 // POST /api/rooms/:code/guess — host only; the server decides.
 roomsRouter.post(
   '/:code/guess',
@@ -352,6 +366,16 @@ roomsRouter.post(
           room.host_user_id,
         ).catch((err: unknown) => console.warn('push: resumed ping failed:', err))
       }
+
+      // One slot left. Fires exactly once per round without anything
+      // remembering that it has: only a hit moves the count, and only one hit
+      // in a round can leave it on 1.
+      //
+      // A guess that fills two slots at once — one surname, several players —
+      // steps over it, and that is the right answer rather than a gap. The
+      // round is over by then, and "go help them out" is addressed at a board
+      // that still needs help.
+      if (result.verdict === 'hit' && !result.replayed) notifyIfOneLeft(room, instanceId)
       return c.json(result)
     } catch (err) {
       return fail(err)
@@ -401,6 +425,9 @@ roomsRouter.post(
     try {
       const result = allowGuess(instanceId, me, raw)
       announce(room.code, 'allowed')
+      // The host overruling the list fills a slot like any other answer, so
+      // it can be the thing that leaves one.
+      notifyIfOneLeft(room, instanceId)
       return c.json(result)
     } catch (err) {
       return fail(err)

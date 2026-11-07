@@ -251,6 +251,26 @@ export function resumedText(invite: Invite): { title: string; body: string } {
 }
 
 /**
+ * One slot left on the board.
+ *
+ * The one ping here that is not an invitation. It is addressed to the people
+ * who are not playing — a round one answer from the end is the moment it is
+ * worth picking the phone up for, and the moment it stops being worth it a
+ * minute later. Hence the exclamation mark, which nothing else here has
+ * earned.
+ *
+ * No code in the body, unlike the other three. The sentence is the whole
+ * message and the tap already carries the code, so spelling it out would cost
+ * the line its urgency to say something the phone already knows.
+ */
+export function lastSlotText(roomName: string | null): { title: string; body: string } {
+  return {
+    title: roomName?.trim() ? `${roomName.trim()} is one away` : 'One player left to guess',
+    body: 'Only 1 player to guess in this round, go help them out!',
+  }
+}
+
+/**
  * Tell every other phone that a game is waiting.
  *
  * The payload carries the code and nothing else that matters, because both
@@ -260,12 +280,26 @@ export function resumedText(invite: Invite): { title: string; body: string } {
  * stale room rather than ignoring you.
  */
 export async function sendInvite(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite, hostUserId, inviteText(invite), 'invite')
+  await fanOut(invite.code, hostUserId, inviteText(invite), 'invite')
 }
 
 /** A round has begun in a room that already exists. See roundText. */
 export async function sendRoundStarted(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite, hostUserId, roundText(invite), 'round')
+  await fanOut(invite.code, hostUserId, roundText(invite), 'round')
+}
+
+/**
+ * A round is one answer from the end. See lastSlotText.
+ *
+ * Whether this is the ninth of ten or the ninth of nine is the caller's to
+ * work out — an unordered round counts to its target and a ranked one counts
+ * its empty slots, and only the game knows which it is holding.
+ */
+export async function sendLastSlot(
+  room: { code: string; name: string | null },
+  hostUserId: number,
+): Promise<void> {
+  await fanOut(room.code, hostUserId, lastSlotText(room.name), 'last-slot')
 }
 
 /**
@@ -277,7 +311,7 @@ export async function sendRoundStarted(invite: Invite, hostUserId: number): Prom
  * sends.
  */
 export async function sendRoomResumed(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite, hostUserId, resumedText(invite), 'resumed')
+  await fanOut(invite.code, hostUserId, resumedText(invite), 'resumed')
 }
 
 /**
@@ -287,16 +321,16 @@ export async function sendRoomResumed(invite: Invite, hostUserId: number): Promi
  * not exist twice and drift.
  */
 async function fanOut(
-  invite: Invite,
+  code: string,
   hostUserId: number,
   text: { title: string; body: string },
-  kind: 'invite' | 'round' | 'resumed',
+  kind: 'invite' | 'round' | 'resumed' | 'last-slot',
 ): Promise<void> {
   if (!pushConfigured()) return
   const devices = audienceExcludingHost(hostUserId)
   if (!devices.length) return
 
-  const data = { code: invite.code, kind }
+  const data = { code, kind }
   const android = devices.filter((d) => d.platform === 'android')
   const ios = devices.filter((d) => d.platform === 'ios')
 

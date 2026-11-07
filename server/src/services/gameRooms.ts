@@ -680,6 +680,35 @@ function sweepAnswers(
 }
 
 /**
+ * How many slots on this board are still empty.
+ *
+ * The two ways a round finishes are the two ways to count what is left of it,
+ * and they are not the same sum — see the `done` test in submitGuess, which
+ * this mirrors deliberately. A ranked round wants every slot filled. An
+ * unordered one wants ENOUGH of them: there are twenty-three in a squad and
+ * ten slots, so waiting for all the answers would never end, and an allowed
+ * answer adds a row to the table without adding a slot to the board.
+ *
+ * Zero means the round is over, so a caller asking "is this the last one?"
+ * should ask for exactly 1 rather than anything below 2.
+ */
+export function slotsRemaining(instanceId: number): number {
+  const inst = sqlite
+    .prepare('SELECT ordered, target FROM game_round_instances WHERE id = ?')
+    .get(instanceId) as { ordered: number; target: number } | undefined
+  if (!inst) return 0
+  if (inst.ordered) {
+    return (sqlite
+      .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL')
+      .get(instanceId) as { n: number }).n
+  }
+  const found = (sqlite
+    .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
+    .get(instanceId) as { n: number }).n
+  return Math.max(0, inst.target - found)
+}
+
+/**
  * Has this room been sitting untouched long enough that a guess is news?
  *
  * Asked immediately BEFORE a guess is recorded, so the guess that breaks the

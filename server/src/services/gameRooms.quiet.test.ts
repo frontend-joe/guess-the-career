@@ -120,3 +120,37 @@ test('a round that has just started is not a quiet room', () => {
   rooms.startRound(roomId, second.id)
   assert.equal(rooms.roomWentQuiet(roomId, 30), false)
 })
+
+// ── One slot left ───────────────────────────────────────────────────────────
+//
+// The notification that says "go help them out" fires on whichever answer
+// leaves the board one short, and it has nothing remembering that it fired.
+// slotsRemaining being exactly 1 is the whole trigger, so these are about it
+// passing through 1 once and only once.
+
+test('a board with everything to do is not one away', () => {
+  const { inst } = room()
+  assert.equal(rooms.slotsRemaining(inst.id), 10)
+})
+
+test('the ninth answer leaves one', () => {
+  const { host, inst } = room()
+  const board = sqlite
+    .prepare('SELECT name FROM game_round_answers WHERE instance_id = ? AND on_board = 1 ORDER BY rank')
+    .all(inst.id) as { name: string }[]
+  for (const [i, answer] of board.slice(0, 9).entries()) {
+    rooms.submitGuess(inst.id, host, `g${i}`, answer.name)
+  }
+  assert.equal(rooms.slotsRemaining(inst.id), 1)
+})
+
+test('and the tenth leaves none, so the ping cannot fire twice', () => {
+  const { host, inst } = room()
+  const board = sqlite
+    .prepare('SELECT name FROM game_round_answers WHERE instance_id = ? AND on_board = 1 ORDER BY rank')
+    .all(inst.id) as { name: string }[]
+  for (const [i, answer] of board.entries()) {
+    rooms.submitGuess(inst.id, host, `g${i}`, answer.name)
+  }
+  assert.equal(rooms.slotsRemaining(inst.id), 0)
+})
