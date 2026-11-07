@@ -139,6 +139,14 @@ function sharedRound() {
 
 test('a shared forename is not a guess at anybody, however often it is typed', () => {
   const { host, inst } = sharedRound()
+  // A football miss queues a Wikipedia lookup, and this test is about to make
+  // six of them. Marking the name settled first keeps the suite off the
+  // network — learnUnknownName skips anything already reviewed.
+  sqlite
+    .prepare(
+      "INSERT INTO game_guess_reviews (instance_id, raw, raw_norm, status) VALUES (?, 'Fernando', 'fernando', 'rejected')",
+    )
+    .run(inst.id)
   for (let i = 0; i < 6; i++) {
     const result = rooms.submitGuess(inst.id, host, `g${i}`, 'Fernando')
     assert.equal(result.verdict, 'miss')
@@ -151,4 +159,33 @@ test('the surname still scores, which is the whole point of the rule', () => {
   const result = rooms.submitGuess(inst.id, host, 'g1', 'Torres')
   assert.equal(result.verdict, 'hit')
   assert.equal(result.name, 'Fernando Torres')
+})
+
+// ── A first name that contradicts the board ─────────────────────────────────
+//
+// Reported from a real game: "Marcus Thuram" guessed at a Parma board holding
+// Lilian came back as already found. That is the worst answer available — it
+// tells you the man you named is up there when he is not.
+
+clubPlayer('Lilian Thuram', 400)
+// Known to the database, but he never played for this club, so he is not
+// among the frozen answers at all.
+sqlite
+  .prepare(
+    `INSERT INTO footballers (name, surname, wikipedia_url, nationality)
+     VALUES ('Marcus Thuram', 'Thuram', 'https://en.wikipedia.org/wiki/Marcus_Thuram', 'France')`,
+  )
+  .run()
+
+test('naming a different player with the same surname is wrong, not a duplicate', () => {
+  const { host, inst } = sharedRound()
+
+  assert.equal(rooms.submitGuess(inst.id, host, 'g1', 'Thuram').verdict, 'hit')
+
+  const marcus = rooms.submitGuess(inst.id, host, 'g2', 'Marcus Thuram')
+  assert.equal(marcus.verdict, 'miss')
+  assert.equal(marcus.rank, null)
+  // And because the database does know him, the room can say so rather than
+  // leaving the guesser wondering whether they spelled it wrong.
+  assert.equal(marcus.known, 'Marcus Thuram')
 })

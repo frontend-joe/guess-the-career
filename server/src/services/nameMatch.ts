@@ -91,7 +91,15 @@ export function matchesName(guess: string, name: string, surname?: string | null
   if (GENERATIONAL.test(pl) && g === withoutSuffix(pl)) return true
   if (pl.length < 4) return false
   if (g === pl) return true
-  if (gl === pl) return true
+  // The guess carries a surname of its own, which means it may carry a first
+  // name that CONTRADICTS the board. "Marcus Thuram" is not Lilian Thuram,
+  // and saying so came back as "already found" — the worst possible answer,
+  // because it tells you the man you named is up there when he is not.
+  //
+  // The same check already guarded the typo rule below, for exactly the same
+  // reason (Leighton Baines and John Barnes). It belonged here too: an exact
+  // surname is no more proof of identity than a surname one letter out.
+  if (gl === pl) return firstNamesAgree(g, p)
   // A forename on its own is NOT accepted, and the rule that used to accept it
   // is gone. It read any whole word of the name, so that players known by one
   // name — Raúl González, Ronaldinho Gaúcho — could be typed the way people

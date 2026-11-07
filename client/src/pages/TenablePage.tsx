@@ -57,6 +57,15 @@ function hasParticleBeforeSurname(normalized: string): boolean {
   const words = normalized.split(' ')
   return words.length >= 2 && SURNAME_PARTICLES.has(words[words.length - 2])
 }
+// True when either side has no first name to compare, the first names match,
+// or one is the other's initial ("l baines" and "leighton baines"). In step
+// with nameMatch.ts.
+function firstNamesAgree(g: string, p: string): boolean {
+  const gf = g.split(' ')[0], pf = p.split(' ')[0]
+  if (g.split(' ').length < 2 || p.split(' ').length < 2) return true
+  if (gf === pf) return true
+  return (gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))
+}
 function matches(guess: string, name: string, surname?: string | null): boolean {
   const g = norm(guess), p = norm(name)
   if (g === p) return true
@@ -90,7 +99,11 @@ function matches(guess: string, name: string, surname?: string | null): boolean 
   if (GENERATIONAL.test(pl) && g === pl.replace(GENERATIONAL, '')) return true
   if (pl.length < 4) return false
   if (g === pl) return true
-  if (gl === pl) return true
+  // A guess carrying its own first name may CONTRADICT the board: "Marcus
+  // Thuram" is not Lilian Thuram, and used to come back as already found.
+  // Same check as the typo rule below, which needed it for the same reason.
+  // In step with nameMatch.ts.
+  if (gl === pl) return firstNamesAgree(g, p)
   // A forename on its own is not accepted. The rule that used to accept any
   // whole word of the name fit every row of a board built on a shared first
   // name — "La Liga players named Fernando" could be solved by typing
@@ -100,11 +113,7 @@ function matches(guess: string, name: string, surname?: string | null): boolean 
   // One typo in the surname is forgiven, but NOT when both names carry a
   // first name and the two disagree — "Leighton Baines" was being credited
   // to John Barnes, whose surname is one edit away.
-  if (gl.length >= 4 && damerau(gl, pl) === 1) {
-    const gf = g.split(' ')[0], pf = p.split(' ')[0]
-    if (!g.includes(' ') || !p.includes(' ') || gf === pf) return true
-    return (gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))
-  }
+  if (gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
   return false
 }
 

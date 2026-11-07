@@ -142,3 +142,18 @@ test('a player whose whole name is one word is still typed as that word', () => 
   assert.equal(matchesName('Ronaldinho', 'Ronaldinho', 'Ronaldinho'), true)
   assert.equal(matchesName('Doni', 'Doni', 'Doni'), true)
 })
+
+test('a full name whose first name contradicts the board is not that player', () => {
+  // Reported from a real game: "Marcus Thuram" on a board holding Lilian
+  // came back as already found, which is the worst available answer — it
+  // says the man you named is up there when he is not.
+  assert.equal(matchesName('Marcus Thuram', 'Lilian Thuram', 'Thuram'), false)
+  assert.equal(matchesName('Lilian Thuram', 'Lilian Thuram', 'Thuram'), true)
+  // Naming no first name is not contradicting one. A bare surname is still
+  // the way most people guess.
+  assert.equal(matchesName('Thuram', 'Lilian Thuram', 'Thuram'), true)
+  // Nor is an initial.
+  assert.equal(matchesName('L Thuram', 'Lilian Thuram', 'Thuram'), true)
+  // The same rule the two Zanettis needed, now reached without a typo.
+  assert.equal(matchesName('Cristiano Zanetti', 'Javier Zanetti', 'Zanetti'), false)
+})
