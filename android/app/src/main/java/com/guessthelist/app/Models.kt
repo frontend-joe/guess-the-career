@@ -11,6 +11,11 @@ import kotlinx.serialization.json.JsonPrimitive
 // price of two native codebases; when the server changes, all three change.
 
 @Serializable
+data class Account(
+    @SerialName("display_name") val displayName: String? = null,
+)
+
+@Serializable
 data class RoomParticipant(
     val id: Int,
     val displayName: String,

@@ -135,7 +135,11 @@ export function fcmBody(message: FcmMessage): object {
   return {
     message: {
       token: message.token,
-      notification: { title: message.title, body: message.body },
+      // An empty body is left out rather than sent blank, so a one-line
+      // message shows one line. See apnsPayload.
+      notification: message.body
+        ? { title: message.title, body: message.body }
+        : { title: message.title },
       data: message.data,
       android: {
         // Delivered even in Doze. A game invite is worth nothing an hour late.

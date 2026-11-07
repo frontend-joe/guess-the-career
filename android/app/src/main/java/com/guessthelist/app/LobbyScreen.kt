@@ -40,6 +40,14 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+
+    // The host's name, and the one the server last confirmed. Two of them so
+    // that saving can be skipped when nothing was typed. A signed-in host had
+    // no way to change this at all — the name on their tile was whatever
+    // their email started with, which for the only account that exists is
+    // "admin".
+    var hostName by remember { mutableStateOf("") }
+    var savedHostName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
     val context = LocalContext.current
@@ -73,6 +81,17 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
             // Whatever went wrong with the last room is not news about this
             // link, so a fresh invite clears the slate it lands on.
             invite.value?.let { code = it; invite.value = null; model.error = null }
+        }
+
+        // Whatever the server currently calls this host. Failure is silent on
+        // purpose: not knowing the name yet is no reason to put a red line
+        // across the lobby, and typing one in is the fix for both cases.
+        LaunchedEffect(model.accessToken) {
+            val token = model.accessToken ?: return@LaunchedEffect
+            runCatching { Api.account(token).displayName }.getOrNull()?.let {
+                hostName = it
+                savedHostName = it
+            }
         }
 
         Text("Football Tenable", style = MaterialTheme.typography.headlineMedium)
@@ -133,18 +152,41 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
                 enabled = !busy && email.isNotBlank() && password.isNotEmpty(),
             ) { Text("Sign in") }
         } else {
+            // Editable, and saved on the way into the room rather than behind
+            // a Save button: the only moment anybody cares what their name is,
+            // is the moment before everybody else can see it.
+            OutlinedTextField(
+                value = hostName,
+                onValueChange = { hostName = it },
+                label = { Text("Your name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Button(
                 onClick = {
                     run {
+                        val token = model.accessToken!!
+                        // Before the room, not after: createRoom snapshots the
+                        // name onto the participant row, and a rename landing
+                        // a moment later would leave the host sitting under
+                        // the old one for the whole game.
+                        val name = hostName.trim()
+                        if (name.isNotEmpty() && name != savedHostName) {
+                            Api.setDisplayName(name, token)
+                            savedHostName = name
+                            // So the push registry can say which phone this
+                            // is, the same as the guest path does on join.
+                            Push.noteDisplayName(context, name)
+                        }
                         // The push token goes out WITH the create, so the
                         // server knows which phone the host is on before it
                         // sends the invite that must skip it.
-                        val joined = Api.createRoom(model.accessToken!!, Push.token(context))
+                        val joined = Api.createRoom(token, Push.token(context))
                         Push.adoptSecret(context, joined.deviceSecret)
                         model.enter(joined)
                     }
                 },
-                enabled = !busy,
+                enabled = !busy && hostName.isNotBlank(),
             ) { Text("Create a room") }
         }
 

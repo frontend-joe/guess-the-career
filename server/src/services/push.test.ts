@@ -20,6 +20,7 @@ const {
   audienceExcludingHost,
   inviteText,
   roundText,
+  clueText,
 } = await import('./push.ts')
 
 const { apnsPayload, providerToken, resetProviderToken } = await import('./pushApns.ts')
@@ -317,5 +318,25 @@ test('the most recent attempt comes first', () => {
   assert.deepEqual(
     recentRegistrationAttempts().map((a) => a.outcome),
     ['registered', 'refused'],
+  )
+})
+
+test('a message with nothing to add sends one line, not a blank second one', () => {
+  const payload = JSON.parse(
+    apnsPayload({ token: 't', title: 'Joe just revealed a clue', body: '', data: { kind: 'clue' } }),
+  )
+  assert.equal(payload.aps.alert.title, 'Joe just revealed a clue')
+  assert.equal('body' in payload.aps.alert, false)
+
+  const android = fcmBody({
+    token: 't', title: 'Joe just revealed a clue', body: '', data: { kind: 'clue' },
+  }) as { message: Record<string, any> }
+  assert.equal('body' in android.message.notification, false)
+})
+
+test('the clue ping is the one line and nothing else', () => {
+  assert.deepEqual(
+    clueText({ code: 'ABC123', hostName: 'Joe', roomName: 'Thursday night' }),
+    { title: 'Joe just revealed a clue', body: '' },
   )
 })

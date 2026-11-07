@@ -60,6 +60,7 @@ object Api {
         val payload = body?.toString()?.toRequestBody(JSON_TYPE)
         when (method) {
             "POST" -> builder.post(payload ?: "".toRequestBody(JSON_TYPE))
+            "PATCH" -> builder.patch(payload ?: "".toRequestBody(JSON_TYPE))
             else -> builder.get()
         }
         bearer?.let { builder.header("Authorization", "Bearer $it") }
@@ -95,6 +96,17 @@ object Api {
             put("deviceLabel", "Android"); put("platform", "android")
         },
     )
+
+    /** The signed-in host's own account — where the name on their tile comes
+     *  from. One field of the user row, and nullable: a new account's display
+     *  name is whatever its email started with, which is a thing to offer for
+     *  editing rather than a thing to rely on. */
+    suspend fun account(accessToken: String): Account = get("api/auth/me", accessToken)
+
+    suspend fun setDisplayName(name: String, accessToken: String): Account =
+        json.decodeFromString(
+            call("PATCH", "api/auth/me", buildJsonObject { put("displayName", name) }, accessToken),
+        )
 
     // MARK: Rooms
 

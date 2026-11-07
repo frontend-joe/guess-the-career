@@ -254,17 +254,16 @@ export function resumedText(invite: Invite): { title: string; body: string } {
  * The host has given something away.
  *
  * `hostName` is the host here, unlike resumedText — taking a clue is one of
- * the few things only they can do. Worded as something that happened to the
- * board rather than as an accusation, because needing a clue is the game
- * working.
+ * the few things only they can do.
+ *
+ * One line and no second one. The other three pings spell the join code out
+ * underneath, because they are addressed at somebody who might not be in the
+ * game; this one is for people who are, and it is finished saying what it has
+ * to say. An empty body is dropped from the payload rather than sent blank —
+ * see the gateways — so both phones show the single line.
  */
 export function clueText(invite: Invite): { title: string; body: string } {
-  return {
-    title: invite.roomName?.trim()
-      ? `${invite.hostName} took a clue in ${invite.roomName.trim()}`
-      : `${invite.hostName} took a clue`,
-    body: `Tap to see it — code ${invite.code}`,
-  }
+  return { title: `${invite.hostName} just revealed a clue`, body: '' }
 }
 
 /**

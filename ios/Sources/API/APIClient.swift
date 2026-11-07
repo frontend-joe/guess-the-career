@@ -95,6 +95,28 @@ enum API {
         ])
     }
 
+    /// The signed-in host's own account, which is where the name on their
+    /// video tile comes from.
+    ///
+    /// Only the one field, and optional: the server sends the whole user row
+    /// and a brand new account's display name is whatever its email started
+    /// with, which is a thing to offer for editing rather than a thing to
+    /// rely on.
+    struct Account: Decodable {
+        let displayName: String?
+        enum CodingKeys: String, CodingKey { case displayName = "display_name" }
+    }
+
+    static func account(accessToken: String) async throws -> Account {
+        try await get("api/auth/me", bearer: accessToken)
+    }
+
+    static func setDisplayName(_ name: String, accessToken: String) async throws -> Account {
+        try decoder.decode(Account.self, from: try await request(
+            "PATCH", "api/auth/me", body: ["displayName": name], bearer: accessToken,
+        ))
+    }
+
     // MARK: - Rooms
 
     static func createRoom(

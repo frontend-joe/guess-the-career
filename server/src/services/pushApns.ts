@@ -118,7 +118,10 @@ export function resetProviderToken(): void {
 export function apnsPayload(message: ApnsMessage): string {
   return JSON.stringify({
     aps: {
-      alert: { title: message.title, body: message.body },
+      // An empty body is left out rather than sent blank. A message that
+      // says all it needs to in its title — "Joe just revealed a clue" —
+      // would otherwise show a second, empty line under it.
+      alert: message.body ? { title: message.title, body: message.body } : { title: message.title },
       sound: 'default',
       // Lets the app badge or refresh on arrival. Harmless when it does not.
       'content-available': 1,

@@ -12,13 +12,22 @@ struct LobbyView: View {
     @State private var displayName = ""
     @State private var busy = false
 
+    /// The host's name, and the one the server last confirmed.
+    ///
+    /// Two of them so that saving can be skipped when nothing was typed. A
+    /// signed-in host had no way to change this at all — the name on their
+    /// tile was whatever their email started with, which for the only account
+    /// that exists is "admin".
+    @State private var hostName = ""
+    @State private var savedHostName = ""
+
     /// Which field is up, so an action can put it away. Without this the
     /// password field keeps first responder while signing in swaps the whole
     /// section out from under it, and SwiftUI leaves the keyboard standing —
     /// over the lobby, and then over the room you create next.
     @FocusState private var focus: Field?
 
-    private enum Field { case code, displayName, email, password }
+    private enum Field { case code, displayName, email, password, hostName }
 
     var body: some View {
         NavigationStack {
@@ -48,8 +57,16 @@ struct LobbyView: View {
                         Button("Sign in") { run { try await signIn() } }
                             .disabled(busy || email.trimmed.isEmpty || password.isEmpty)
                     } else {
+                        // Editable, and saved on the way into the room rather
+                        // than behind a Save button: the only moment anybody
+                        // cares what their name is, is the moment before
+                        // everybody else can see it.
+                        TextField("Your name", text: $hostName)
+                            .textInputAutocapitalization(.words)
+                            .focused($focus, equals: .hostName)
+                            .onSubmit { run { try await saveHostName() } }
                         Button("Create a room") { run { try await create() } }
-                            .disabled(busy)
+                            .disabled(busy || hostName.trimmed.isEmpty)
                     }
                 }
 
@@ -61,6 +78,9 @@ struct LobbyView: View {
             .disabled(busy)
             // An invite link fills the code in and leaves the guest with only
             // the one thing they actually have to supply: their name.
+            // A host who was already signed in when the app launched never
+            // passes through signIn(), so the name is fetched here too.
+            .task(id: store.accessToken) { await loadHostName() }
             .onChange(of: store.pendingJoinCode, initial: true) { _, invited in
                 guard let invited else { return }
                 code = invited
@@ -76,10 +96,38 @@ struct LobbyView: View {
         let pair = try await API.signIn(email: email.trimmed, password: password)
         store.accessToken = pair.accessToken
         password = ""
+        await loadHostName()
+    }
+
+    /// What the server currently thinks this host is called.
+    ///
+    /// Failure is deliberately silent. Not knowing the name yet is no reason
+    /// to put a red line across the lobby — the field is editable either way,
+    /// and typing one in is the fix for both cases.
+    private func loadHostName() async {
+        guard let token = store.accessToken else { return }
+        guard let name = try? await API.account(accessToken: token).displayName else { return }
+        hostName = name
+        savedHostName = name
+    }
+
+    private func saveHostName() async throws {
+        guard let token = store.accessToken else { return }
+        let name = hostName.trimmed
+        guard !name.isEmpty, name != savedHostName else { return }
+        _ = try await API.setDisplayName(name, accessToken: token)
+        savedHostName = name
+        // So the push registry can say which phone this is, the same as the
+        // guest path does when somebody joins by name.
+        PushStore.shared.noteDisplayName(name)
     }
 
     private func create() async throws {
         guard let token = store.accessToken else { return }
+        // Before the room, not after: createRoom snapshots the name onto the
+        // participant row, and a rename that lands a moment later would leave
+        // the host sitting under the old one for the whole game.
+        try await saveHostName()
         // The push token goes out WITH the create, so the server knows which
         // phone the host is on before it sends the invite that must skip it.
         let joined = try await API.createRoom(
