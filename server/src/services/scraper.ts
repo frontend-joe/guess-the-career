@@ -3490,6 +3490,11 @@ export interface ClubSeasonRow {
 // "Prem"/"Premier League" is the one genuine collision: Scotland's top flight
 // was also called the Premier League from 1998 to 2013, so the caller has to
 // vouch for the club being English before we accept it.
+// League names we build rounds from that belong to England alone. A non-English
+// club's division cell matching one of these word for word is a coincidence,
+// not a match, and must not be stored as the English competition.
+const ENGLISH_ONLY_LEAGUE_NAMES = ['Premier League', 'EFL Championship', 'First Division']
+
 const SEASON_DIVISION_CANON: { re: RegExp; name: string; englishOnly?: boolean }[] = [
   { re: /^prem(ier\s*league)?$/i, name: 'Premier League', englishOnly: true },
   { re: /^serie\s*a$/i, name: 'Serie A' },
@@ -3502,12 +3507,68 @@ const SEASON_DIVISION_CANON: { re: RegExp; name: string; englishOnly?: boolean }
 // and a bracketed tier ("Div 1 (1)", "Champ ↑"). Strip the decoration so the
 // competition name is all that's left; tableToGrid has already removed the
 // footnote markers along with the <sup> elements.
-function cleanDivisionCell(raw: string): string {
+//
+// The tier is written as a ROMAN numeral on some pages and an Arabic one on
+// others, and only the Arabic form was handled. Valencia's seasons list says
+// "La Liga (I)" and Bochum's says "Bundesliga (I)", so neither matched its
+// canon entry and both were stored under the decorated name. Nothing joins
+// them to the league rounds after that: Amedeo Carboni played 245 La Liga
+// games for Valencia and was not an answer to "Italy La Liga players".
+export function cleanDivisionCell(raw: string): string {
   return raw
     .replace(/[↑↓▲▼]/g, '')
-    .replace(/\((\d|tier\s*\d)\)\s*$/i, '')
+    .replace(/\((\d+|[ivx]+|tier\s*\d+)\)\s*$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+/**
+ * The competition a season belongs to, from an already-cleaned division cell.
+ *
+ * Returns the canonical name for the leagues we build rounds from, and the
+ * cell's own text otherwise — never null, so a caller testing whether a spell
+ * stayed in one league can still see the seasons that fell outside them.
+ *
+ * `isEnglish` vouches for the club's country, which is needed only to tell
+ * England's competitions from the ones elsewhere that share their names.
+ *
+ * Its own function so the rules can be tested without a scrape; the loop that
+ * calls it has an HTML table in front of it and cannot be.
+ */
+export function seasonLeague(divisionRaw: string, year: number, isEnglish: boolean): string {
+  // English pages abbreviate, and "Div 1" means two different competitions:
+  // the top flight until 1991-92, then the second tier (today's Championship)
+  // once the Premier League broke away. Resolve it the same way migration
+  // 0082 resolves the career-statistics rows.
+  if (isEnglish) {
+    const english = /^div(ision)?\s*1$/i.test(divisionRaw)
+      ? year <= 1991
+        ? 'First Division'
+        : year <= 2003
+          ? 'EFL Championship'
+          : null
+      : /^champ(ionship)?$/i.test(divisionRaw)
+        ? 'EFL Championship'
+        : null
+    if (english) return english
+  }
+
+  const hit = SEASON_DIVISION_CANON.find((c) => c.re.test(divisionRaw))
+  // A vetoed match can't fall back to the raw text: Scotland's top flight was
+  // spelt "Premier League" too, so the raw string would collide with the
+  // canonical name we just refused to give it. Qualify it instead.
+  if (hit) return !hit.englishOnly || isEnglish ? hit.name : `${divisionRaw} (non-English)`
+
+  // The same collision reaches the no-hit branch, and stripping the Roman
+  // tier marker in cleanDivisionCell is what exposed it. Brann's cell reads
+  // "First Division (VI)" — the sixth tier of Norwegian football — and that
+  // now cleans down to "First Division", which is the name England's second
+  // tier answers to in ALLOWED_LEAGUES. No canon entry matches it, so it
+  // would be stored verbatim and put Brann's players in English rounds.
+  if (!isEnglish && ENGLISH_ONLY_LEAGUE_NAMES.includes(divisionRaw)) {
+    return `${divisionRaw} (non-English)`
+  }
+  return divisionRaw
 }
 
 /**
@@ -3566,36 +3627,12 @@ export async function scrapeClubSeasons(
       // Wartime and similar gaps put a whole sentence in the division cell.
       if (division_raw.length > 40) continue
 
-      // English pages abbreviate, and "Div 1" means two different competitions:
-      // the top flight until 1991-92, then the second tier (today's
-      // Championship) once the Premier League broke away. Resolve it the same
-      // way migration 0082 resolves the career-statistics rows.
-      if (isEnglish) {
-        const english = /^div(ision)?\s*1$/i.test(division_raw)
-          ? year <= 1991
-            ? 'First Division'
-            : year <= 2003
-              ? 'EFL Championship'
-              : null
-          : /^champ(ionship)?$/i.test(division_raw)
-            ? 'EFL Championship'
-            : null
-        if (english) {
-          rows.push({ season, season_year: year, division_raw, league: english })
-          continue
-        }
-      }
-
-      const hit = SEASON_DIVISION_CANON.find((c) => c.re.test(division_raw))
-      // A vetoed match can't fall back to the raw text: Scotland's top flight
-      // was spelt "Premier League" too, so the raw string would collide with
-      // the canonical name we just refused to give it. Qualify it instead.
-      const league = !hit
-        ? division_raw
-        : !hit.englishOnly || isEnglish
-          ? hit.name
-          : `${division_raw} (non-English)`
-      rows.push({ season, season_year: year, division_raw, league })
+      rows.push({
+        season,
+        season_year: year,
+        division_raw,
+        league: seasonLeague(division_raw, year, isEnglish),
+      })
     }
     // Some pages carry a second, smaller table (top scorers, honours); keep the
     // one that actually looks like the season-by-season record.
