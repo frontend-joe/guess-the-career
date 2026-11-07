@@ -7,6 +7,8 @@ import {
   deviceBySecret,
   deviceSummaries,
   fcmMissing,
+  recentRegistrationAttempts,
+  recordRegistrationAttempt,
   registerDevice,
   rotateToken,
   sendTestPush,
@@ -52,7 +54,11 @@ pushRouter.post('/devices', zValidator('json', registration), async (c) => {
 
   if (secret) {
     const updated = rotateToken(secret, token, displayName ?? null)
-    if (!updated) return c.json({ error: 'Unknown device' }, 404)
+    if (!updated) {
+      recordRegistrationAttempt({ platform, token, outcome: 'unknown-secret' })
+      return c.json({ error: 'Unknown device' }, 404)
+    }
+    recordRegistrationAttempt({ platform, token, outcome: 'rotated', deviceId: updated.id })
     return c.json({ secret: updated.secret, muted: !!updated.muted })
   }
 
@@ -62,10 +68,21 @@ pushRouter.post('/devices', zValidator('json', registration), async (c) => {
     // Deliberately specific. A silent 403 here looks identical to push simply
     // not working, and this is the one failure a developer will hit over and
     // over while wiring an app up.
+    //
+    // Recorded as well as returned, because the person who needs this message
+    // is holding the phone and cannot see its HTTP responses. Without the row
+    // a refusal and a phone that never called are the same empty registry.
+    recordRegistrationAttempt({
+      platform,
+      token,
+      outcome: 'refused',
+      reason: bearer ? 'participant token rejected' : 'no participant token sent',
+    })
     return c.json({ error: 'A first registration needs the participant token of a game you are in' }, 403)
   }
 
   const device = registerDevice({ platform, token, displayName: displayName ?? null })
+  recordRegistrationAttempt({ platform, token, outcome: 'registered', deviceId: device.id })
   return c.json({ secret: device.secret, muted: !!device.muted }, 201)
 })
 
@@ -116,6 +133,11 @@ pushRouter.get('/admin/devices', (c) =>
     // themselves cannot show.
     credentials: { apnsMissing: apnsMissing(), fcmMissing: fcmMissing() },
     devices: deviceSummaries(),
+    // The other half of the question. An empty registry means one of two
+    // opposite things, and only these rows tell them apart: attempts present
+    // means the phone reached us and we turned it away; none means it never
+    // called, which is a permission or a token problem on the phone itself.
+    recentAttempts: recentRegistrationAttempts(),
   }),
 )
 

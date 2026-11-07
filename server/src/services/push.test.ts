@@ -267,3 +267,55 @@ test('a test send never reaps the token it was sent to test', async () => {
 test('a test send on an unknown device is a 404, not a silent no-op', async () => {
   assert.equal(await sendTestPush(999_999), null)
 })
+
+// ── The attempt log ─────────────────────────────────────────────────────────
+
+const { recordRegistrationAttempt, recentRegistrationAttempts } = await import('./push.ts')
+
+test('a refused attempt is recorded, which is the row worth having', () => {
+  sqlite.prepare('DELETE FROM push_registration_attempts').run()
+  recordRegistrationAttempt({
+    platform: 'ios',
+    token: 'tok-refused-abc123',
+    outcome: 'refused',
+    reason: 'no participant token sent',
+  })
+  const [attempt] = recentRegistrationAttempts()
+  assert.equal(attempt.outcome, 'refused')
+  assert.equal(attempt.reason, 'no participant token sent')
+  // The whole point: a phone that was turned away can be told apart from one
+  // that never called, and neither leaves a device row behind.
+  assert.equal(attempt.deviceId, null)
+  assert.equal(attempt.tokenTail, '…abc123')
+})
+
+test('the log keeps the token out of itself', () => {
+  sqlite.prepare('DELETE FROM push_registration_attempts').run()
+  recordRegistrationAttempt({ platform: 'ios', token: 'tok-secret-value', outcome: 'registered' })
+  assert.ok(!JSON.stringify(recentRegistrationAttempts()).includes('tok-secret'))
+})
+
+test('the log is a tail, not a history', () => {
+  sqlite.prepare('DELETE FROM push_registration_attempts').run()
+  for (let i = 0; i < 230; i++) {
+    recordRegistrationAttempt({ platform: 'ios', token: `tok-${i}`, outcome: 'registered' })
+  }
+  const { n } = sqlite
+    .prepare('SELECT COUNT(*) AS n FROM push_registration_attempts')
+    .get() as { n: number }
+  // Trimmed on insert. A diagnostic that grows without bound is a slow leak
+  // in a database that holds a game.
+  assert.ok(n <= 200, `kept ${n}`)
+  // Newest first, and the newest is the one just written.
+  assert.equal(recentRegistrationAttempts(1)[0].tokenTail, '…ok-229')
+})
+
+test('the most recent attempt comes first', () => {
+  sqlite.prepare('DELETE FROM push_registration_attempts').run()
+  recordRegistrationAttempt({ platform: 'ios', token: 'tok-older', outcome: 'refused' })
+  recordRegistrationAttempt({ platform: 'ios', token: 'tok-newer', outcome: 'registered' })
+  assert.deepEqual(
+    recentRegistrationAttempts().map((a) => a.outcome),
+    ['registered', 'refused'],
+  )
+})

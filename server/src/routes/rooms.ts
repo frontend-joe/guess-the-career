@@ -33,7 +33,12 @@ import {
   type RoomRow,
 } from '../services/gameRooms.ts'
 import { broadcastState, ejectParticipant, livekitConfig, mintJoinToken } from '../services/livekit.ts'
-import { registerDevice, sendInvite, sendRoundStarted } from '../services/push.ts'
+import {
+  recordRegistrationAttempt,
+  registerDevice,
+  sendInvite,
+  sendRoundStarted,
+} from '../services/push.ts'
 
 export const roomsRouter = new Hono()
 
@@ -134,12 +139,23 @@ roomsRouter.post(
 
     let deviceSecret: string | null = null
     if (pushToken && pushPlatform) {
-      deviceSecret = registerDevice({
+      const device = registerDevice({
         platform: pushPlatform,
         token: pushToken,
         displayName: hostName,
         userId: user.id,
-      }).secret
+      })
+      deviceSecret = device.secret
+      // Logged like the ones through /api/push/devices, because this is a
+      // second door into the same registry and a phone that came through it
+      // must not be invisible to the diagnostic.
+      recordRegistrationAttempt({
+        platform: pushPlatform,
+        token: pushToken,
+        outcome: 'registered',
+        reason: 'on room create',
+        deviceId: device.id,
+      })
     }
 
     // The whole point of the feature: creating a game tells everybody, rather
@@ -186,7 +202,7 @@ roomsRouter.post(
       announce(room.code, 'participant_joined')
       let deviceSecret: string | null = null
       if (pushToken && (platform === 'ios' || platform === 'android')) {
-        deviceSecret = registerDevice({
+        const device = registerDevice({
           platform,
           token: pushToken,
           displayName,
@@ -194,7 +210,15 @@ roomsRouter.post(
           // keep a HOST off their own invite, and a signed-in player joining
           // somebody else's game should still be told about new ones.
           userId: null,
-        }).secret
+        })
+        deviceSecret = device.secret
+        recordRegistrationAttempt({
+          platform,
+          token: pushToken,
+          outcome: 'registered',
+          reason: 'on room join',
+          deviceId: device.id,
+        })
       }
       return c.json({
         ...roomState(room),

@@ -506,3 +506,76 @@ export async function sendTestPush(deviceId: number): Promise<TestResult | null>
   }
   return { ...base, delivered: false, attempts }
 }
+
+// ── The attempt log ─────────────────────────────────────────────────────────
+
+// See 0113_push_registration_attempts.sql. The registry can only describe
+// phones that made it in; this is how a phone that did not gets a say.
+
+export type RegistrationOutcome = 'registered' | 'rotated' | 'refused' | 'unknown-secret'
+
+/** Bounded on purpose. This is a tail to read, not a history to keep. */
+const ATTEMPTS_KEPT = 200
+
+export function recordRegistrationAttempt(attempt: {
+  platform: string | null
+  token: string | null
+  outcome: RegistrationOutcome
+  reason?: string | null
+  deviceId?: number | null
+}): void {
+  sqlite
+    .prepare(
+      `INSERT INTO push_registration_attempts (platform, token_tail, outcome, reason, device_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(
+      attempt.platform,
+      attempt.token ? `…${attempt.token.slice(-6)}` : null,
+      attempt.outcome,
+      attempt.reason ?? null,
+      attempt.deviceId ?? null,
+    )
+  sqlite
+    .prepare(
+      `DELETE FROM push_registration_attempts
+        WHERE id <= (SELECT MAX(id) - ? FROM push_registration_attempts)`,
+    )
+    .run(ATTEMPTS_KEPT)
+}
+
+export interface RegistrationAttempt {
+  id: number
+  platform: string | null
+  tokenTail: string | null
+  outcome: string
+  reason: string | null
+  deviceId: number | null
+  at: string
+}
+
+export function recentRegistrationAttempts(limit = 25): RegistrationAttempt[] {
+  const rows = sqlite
+    .prepare(
+      `SELECT id, platform, token_tail, outcome, reason, device_id, created_at
+         FROM push_registration_attempts ORDER BY id DESC LIMIT ?`,
+    )
+    .all(limit) as {
+    id: number
+    platform: string | null
+    token_tail: string | null
+    outcome: string
+    reason: string | null
+    device_id: number | null
+    created_at: string
+  }[]
+  return rows.map((row) => ({
+    id: row.id,
+    platform: row.platform,
+    tokenTail: row.token_tail,
+    outcome: row.outcome,
+    reason: row.reason,
+    deviceId: row.device_id,
+    at: row.created_at,
+  }))
+}
