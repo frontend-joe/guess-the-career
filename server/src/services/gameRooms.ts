@@ -570,11 +570,43 @@ function pickAnswer(raw: string, answers: AnswerRow[], category: string): Answer
     // from Zambia and both are on the same board.
     const alias = answers.filter((a) => isPlaceExactly(raw, a.name, parseAliases(a.aliases)))
     if (alias.length) return prefer(alias)
-    const close = answers.filter((a) => matchesPlace(raw, a.name, parseAliases(a.aliases)))
+    // Unfound only, for the reason spelled out on the football branch below.
+    // The hazard is already named above: Zambia is one edit from The Gambia,
+    // and once Zambia is up there a guess at The Gambia must not be told it
+    // is a repeat of it.
+    const close = answers
+      .filter((a) => matchesPlace(raw, a.name, parseAliases(a.aliases)))
+      .filter((a) => a.found_at_ms == null)
     return close.length ? prefer(close) : null
   }
 
-  const fuzzy = answers.filter((a) => matchesName(raw, a.name, a.surname_norm))
+  // Somebody whose WHOLE name is exactly what was typed. Not the surname
+  // rule knownPlayerNamed uses: "Thuram" names a real surname and must stay
+  // free to reach Lilian, while "Pedri" is a complete name of its own.
+  const named = sqlite
+    .prepare('SELECT id FROM footballers WHERE normalize(name) = normalize(?) LIMIT 1')
+    .get(raw) as { id: number } | undefined
+
+  const fuzzy = answers
+    .filter((a) => matchesName(raw, a.name, a.surname_norm))
+    // A guess that is exactly somebody's name is not a misspelling of
+    // somebody else's. Without this, Pedri stays a typo of Pedro even after
+    // the miss below has taught the database he exists — the fix would have
+    // been half a fix, right up until the first unfound Pedro.
+    //
+    // Scoped to answers reached ONLY by the typo rule, which is the whole
+    // point: "Doni" is the exact surname of Cristiano Doni AND the exact
+    // whole name of the Roma keeper, and the bare surname must still fill
+    // Cristiano's open slot. Spelled right, it is not a misspelling of
+    // anybody. Only where the answer has a footballer of its own to
+    // disagree with, so authored answers keep the latitude they had.
+    .filter(
+      (a) =>
+        matchesName(raw, a.name, a.surname_norm, false) ||
+        !named ||
+        a.footballer_id == null ||
+        a.footballer_id === named.id,
+    )
 
   // A slot still waiting to be filled, by the strongest reading of the guess
   // that reaches one. Exactness still breaks the tie — it is only being asked
@@ -585,8 +617,29 @@ function pickAnswer(raw: string, answers: AnswerRow[], category: string): Answer
 
   // Nothing open fits, so fall back to the old order and let the near-miss
   // feedback do its job: 23rd with 149 apps is a useful thing to be told.
+  //
+  // An exact name may still come back as a duplicate — typing "Pedro" when
+  // Pedro is up there deserves to be told so.
   if (exact.length) return prefer(exact)
-  return fuzzy.length ? prefer(fuzzy) : null
+
+  // A SPELLING is not allowed to, and this is the whole fix. Forgiving a typo
+  // exists to get a name onto the board; once the answer is already found,
+  // forgiving one buys nothing — nobody needs "you already had that" to be
+  // spelling-tolerant — and it costs the case this was reported for: "Pedri"
+  // is one edit from "Pedro", so a correct guess at a different player came
+  // back as a duplicate. That is the same objection as a contradicting first
+  // name, reached by another route — it asserts the man you named is on the
+  // board when he is not.
+  //
+  // It also unblocks learning him. A football guess that matches nothing is
+  // queued for a Wikipedia lookup, so swallowing it as a duplicate meant
+  // Pedri could never be discovered: the guess that would have taught us he
+  // exists was being credited to somebody else.
+  //
+  // A near miss is unaffected. Rank 23 is not found either, so it still
+  // answers, and that is where the fuzzy latitude earns its keep.
+  const unclaimed = fuzzy.filter((a) => a.found_at_ms == null)
+  return unclaimed.length ? prefer(unclaimed) : null
 }
 
 // Anyone in the room may guess. It started host-only — everyone else shouts,

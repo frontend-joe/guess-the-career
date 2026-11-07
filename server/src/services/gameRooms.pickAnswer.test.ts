@@ -189,3 +189,69 @@ test('naming a different player with the same surname is wrong, not a duplicate'
   // leaving the guesser wondering whether they spelled it wrong.
   assert.equal(marcus.known, 'Marcus Thuram')
 })
+
+// ── A real name one letter from a found one ─────────────────────────────────
+//
+// Reported from a real game: a Barcelona board with Pedro already up, and
+// "Pedri" came back as already found. They are two different footballers
+// whose names differ by a single character, and the board was telling the
+// guesser that the man they named was on it.
+
+clubPlayer('Pedro', 450)
+
+test('a spelling cannot claim an answer somebody has already found', () => {
+  const { host, inst } = sharedRound()
+  // Pedri is unknown to this database, exactly as he was to the real one, so
+  // the miss would otherwise queue a Wikipedia lookup. See the Fernando test.
+  sqlite
+    .prepare(
+      "INSERT INTO game_guess_reviews (instance_id, raw, raw_norm, status) VALUES (?, 'Pedri', 'pedri', 'rejected')",
+    )
+    .run(inst.id)
+
+  assert.equal(rooms.submitGuess(inst.id, host, 'g1', 'Pedro').verdict, 'hit')
+
+  const pedri = rooms.submitGuess(inst.id, host, 'g2', 'Pedri')
+  assert.equal(pedri.verdict, 'miss')
+  assert.equal(pedri.rank, null)
+})
+
+test('an exact name is still told it is already up there', () => {
+  const { host, inst } = sharedRound()
+  assert.equal(rooms.submitGuess(inst.id, host, 'g1', 'Pedro').verdict, 'hit')
+  // Only spellings lost the duplicate path. Typing the name itself a second
+  // time deserves the answer it always gave.
+  assert.equal(rooms.submitGuess(inst.id, host, 'g2', 'Pedro').verdict, 'duplicate')
+})
+
+test('a typo is still forgiven while the slot is open', () => {
+  const { host, inst } = sharedRound()
+  sqlite
+    .prepare(
+      "INSERT INTO game_guess_reviews (instance_id, raw, raw_norm, status) VALUES (?, 'Pedrq', 'pedrq', 'rejected')",
+    )
+    .run(inst.id)
+  // The latitude is not removed, only stopped from claiming a taken slot.
+  // "Pedrq" is nobody, so it is still read as a misspelling of Pedro.
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Pedrq')
+  assert.equal(result.verdict, 'hit')
+  assert.equal(result.name, 'Pedro')
+})
+
+test('once the database knows him, his name is never a typo of another', () => {
+  // The second half of the fix, and the reason the miss above matters: an
+  // unmatched guess is queued for a Wikipedia lookup, so a swallowed "Pedri"
+  // could never teach us he exists. Here he has been learned.
+  sqlite
+    .prepare(
+      `INSERT INTO footballers (name, surname, wikipedia_url, nationality)
+       VALUES ('Pedri', 'Pedri', 'https://en.wikipedia.org/wiki/Pedri', 'Spain')`,
+    )
+    .run()
+  const { host, inst } = sharedRound()
+  // Pedro is UNFOUND this time, so the found-answer rule cannot be what saves
+  // it. Being a real name of his own is.
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Pedri')
+  assert.equal(result.verdict, 'miss')
+  assert.equal(result.known, 'Pedri')
+})

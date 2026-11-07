@@ -26,7 +26,21 @@ export function surnameOf(normalized: string): string {
 // Exact match, or a surname match tolerant of one transposition/typo.
 // Surnames under 4 characters get no latitude, but an exact one still counts
 // when it is the whole surname — see the guard below.
-export function matchesName(guess: string, name: string, surname?: string | null): boolean {
+/**
+ * `allowTypo: false` asks the same question without the one-edit allowance at
+ * the bottom — the whole name, the tail of it, or the surname, spelled right.
+ *
+ * Only the server needs it, and only to tell apart the two ways a match can
+ * happen. Default true, so the behaviour every caller already relied on is
+ * unchanged and this stays the character-for-character port of the client's
+ * matches() that the comment above requires.
+ */
+export function matchesName(
+  guess: string,
+  name: string,
+  surname?: string | null,
+  allowTypo = true,
+): boolean {
   const g = norm(guess)
   const p = norm(name)
   if (g === p) return true
@@ -125,7 +139,7 @@ export function matchesName(guess: string, name: string, surname?: string | null
   // This is the one place the server knowingly differs from the solo game's
   // matches(), which has no second name to compare because it is matching
   // against a board the browser already holds.
-  if (gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
+  if (allowTypo && gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
   return false
 }
 
