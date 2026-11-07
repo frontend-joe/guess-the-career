@@ -154,3 +154,30 @@ test('and the tenth leaves none, so the ping cannot fire twice', () => {
   }
   assert.equal(rooms.slotsRemaining(inst.id), 0)
 })
+
+// ── The first clue of a round ───────────────────────────────────────────────
+//
+// Everybody but the host is told when the board gives something away, once
+// per round. Asked before the clue is taken, so the first one sees a board
+// with no clue on it and the rest do not.
+
+test('a round nobody has taken a clue in has no clue in it', () => {
+  const { inst } = room()
+  assert.equal(rooms.clueAlreadyTaken(inst.id), false)
+})
+
+test('the second clue is not the first', () => {
+  const { host, inst } = room()
+  rooms.takeHint(inst.id, host, 1)
+  assert.equal(rooms.clueAlreadyTaken(inst.id), true)
+})
+
+test('asking for the same clue twice is not a second clue', () => {
+  const { host, inst } = room()
+  rooms.takeHint(inst.id, host, 1)
+  // takeHint already refuses to write a second event for a slot that has
+  // one, which is what keeps a recording from blinking. The ping rides on
+  // the same fact.
+  assert.equal(rooms.takeHint(inst.id, host, 1).replayed, true)
+  assert.equal(rooms.clueAlreadyTaken(inst.id), true)
+})

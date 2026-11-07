@@ -11,6 +11,7 @@ import {
 } from '../services/auth.ts'
 import {
   RoomError,
+  clueAlreadyTaken,
   createRoom,
   endRoom,
   freezeRound,
@@ -38,6 +39,7 @@ import { broadcastState, ejectParticipant, livekitConfig, mintJoinToken } from '
 import {
   recordRegistrationAttempt,
   registerDevice,
+  sendClueTaken,
   sendInvite,
   sendLastSlot,
   sendRoomResumed,
@@ -396,8 +398,23 @@ roomsRouter.post(
     if (!me) return c.json({ error: 'Not in this room' }, 403)
     const { instanceId, rank } = c.req.valid('json')
     try {
+      // Asked before the clue is given, so only the first one in the round
+      // can see a board with no clue on it. See clueAlreadyTaken.
+      const first = !clueAlreadyTaken(instanceId)
       const result = takeHint(instanceId, me, rank)
       if (!result.replayed) announce(room.code, 'hint')
+
+      // Everybody but the host hears that the board gave something away. The
+      // first clue only: the second and third are more of the same, and a
+      // notification per clue is how a useful one gets ignored.
+      //
+      // Not awaited, like every other ping in this file.
+      if (first && !result.replayed) {
+        void sendClueTaken(
+          { code: room.code, hostName: me.display_name, roomName: room.name },
+          room.host_user_id,
+        ).catch((err: unknown) => console.warn('push: clue ping failed:', err))
+      }
       return c.json(result)
     } catch (err) {
       return fail(err)

@@ -251,6 +251,23 @@ export function resumedText(invite: Invite): { title: string; body: string } {
 }
 
 /**
+ * The host has given something away.
+ *
+ * `hostName` is the host here, unlike resumedText — taking a clue is one of
+ * the few things only they can do. Worded as something that happened to the
+ * board rather than as an accusation, because needing a clue is the game
+ * working.
+ */
+export function clueText(invite: Invite): { title: string; body: string } {
+  return {
+    title: invite.roomName?.trim()
+      ? `${invite.hostName} took a clue in ${invite.roomName.trim()}`
+      : `${invite.hostName} took a clue`,
+    body: `Tap to see it — code ${invite.code}`,
+  }
+}
+
+/**
  * One slot left on the board.
  *
  * The one ping here that is not an invitation. It is addressed to the people
@@ -289,6 +306,17 @@ export async function sendRoundStarted(invite: Invite, hostUserId: number): Prom
 }
 
 /**
+ * The first clue of a round has just gone up. See clueText.
+ *
+ * Which clue, and whether it is the first, is the caller's to know. This end
+ * just sends — and sends to everybody but the host, who is the one person in
+ * the room who already knows.
+ */
+export async function sendClueTaken(invite: Invite, hostUserId: number): Promise<void> {
+  await fanOut(invite.code, hostUserId, clueText(invite), 'clue')
+}
+
+/**
  * A round is one answer from the end. See lastSlotText.
  *
  * Whether this is the ninth of ten or the ninth of nine is the caller's to
@@ -324,7 +352,7 @@ async function fanOut(
   code: string,
   hostUserId: number,
   text: { title: string; body: string },
-  kind: 'invite' | 'round' | 'resumed' | 'last-slot',
+  kind: 'invite' | 'round' | 'resumed' | 'last-slot' | 'clue',
 ): Promise<void> {
   if (!pushConfigured()) return
   const devices = audienceExcludingHost(hostUserId)

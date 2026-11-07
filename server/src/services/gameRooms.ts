@@ -680,6 +680,27 @@ function sweepAnswers(
 }
 
 /**
+ * Has anybody taken a clue in this round yet?
+ *
+ * Asked immediately BEFORE a clue is given, so the first one answers false
+ * and every one after it answers true — the same trick roomWentQuiet uses,
+ * and for the same reason: the events are already the record of what has
+ * happened, so there is no flag to keep and nothing to reset when the next
+ * round starts.
+ *
+ * Reading the event log rather than a counter because that is where a clue
+ * lives. takeHint writes nothing else, deliberately — the board, the replay
+ * and the recording are all rebuilt from these events, so a clue that was not
+ * one would be a clue the recording never shows.
+ */
+export function clueAlreadyTaken(instanceId: number): boolean {
+  const taken = sqlite
+    .prepare("SELECT 1 FROM game_events WHERE instance_id = ? AND type = 'hint' LIMIT 1")
+    .get(instanceId)
+  return !!taken
+}
+
+/**
  * How many slots on this board are still empty.
  *
  * The two ways a round finishes are the two ways to count what is left of it,
