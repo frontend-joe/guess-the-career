@@ -197,18 +197,30 @@ final class RoomStore {
         SeatStore.save(seat)
         startPolling()
         Task { await connectMedia() }
-        // Notifications are asked for here, in a room, because this is the
-        // first moment "we'll tell you when the next game starts" explains
-        // itself. iOS gives one chance at that prompt — declined, it never
-        // comes back without a trip to Settings — so it is not spent on a
-        // cold launch before the person has seen what the app is.
-        //
-        // The sync afterwards is what registers a guest's phone: it needs the
-        // participant token of a game they are in, and they have one now.
-        Task {
-            await PushStore.shared.enableIfNeeded()
-            await PushStore.shared.sync()
-        }
+        Task { await armNotifications() }
+    }
+
+    /// Ask for notifications, and register this phone.
+    ///
+    /// Done from a room, because that is the first moment "we'll tell you when
+    /// the next game starts" explains itself. iOS gives one chance at that
+    /// prompt — declined, it never comes back without a trip to Settings — so
+    /// it is not spent on a cold launch before the person has seen what the
+    /// app is.
+    ///
+    /// The sync afterwards is what registers a guest's phone: it needs the
+    /// participant token of a game they are in, and they have one now.
+    ///
+    /// Called from BOTH ways into a room. It used to live inline in enter(),
+    /// which is the fresh-join path only, so anybody whose seat was restored
+    /// from a previous launch walked straight back into the room and was never
+    /// asked and never registered — and since the prompt is the visible part,
+    /// it looked like notifications were simply broken. That is the shape the
+    /// first real report of this took: a phone holding a seat, no asked flag,
+    /// no device row, and nothing anywhere saying why.
+    private func armNotifications() async {
+        await PushStore.shared.enableIfNeeded()
+        await PushStore.shared.sync()
     }
 
     // Leave the screen FIRST, then tell the network. Everything that was once
@@ -265,6 +277,10 @@ final class RoomStore {
             version = fresh.stateVersion
             phase = .inRoom
             startPolling()
+            // Before the media connect, which is slow and can fail: this is
+            // the one chance a returning player gets, and it must not be
+            // behind anything that might not finish.
+            Task { await armNotifications() }
             await connectMedia()
         } catch let failure as API.Failure where failure.isGone {
             seat = nil
