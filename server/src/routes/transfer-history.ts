@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { db, sqlite, normalizeName } from '../db/client.ts'
 import {
   transfer_windows,
@@ -14,6 +14,7 @@ import {
   scrapeTransfermarktTransfers,
   scrapeWikipedia,
   normalizeClubAlias,
+  wikiUrlVariants,
 } from '../services/scraper.ts'
 import { clubWikiUrl } from "../services/clubs.ts";
 import { replaceCareerStatistics, applyNameSplit } from '../services/footballers.ts'
@@ -192,23 +193,29 @@ function dbFootballerByName(name: string): number | null {
   return row?.id ?? null
 }
 
-async function insertScrapedFootballer(wikiUrl: string): Promise<number | null> {
-  // Avoid a unique-constraint clash if the canonical URL already exists.
-  const [existing] = await db
+// Every spelling of the article's URL, not just the one we happen to hold.
+// Matching on the string alone made a second Lothar Matthäus, because the
+// row on file was ".../Lothar_Matthäus" and the lookup asked for
+// ".../Lothar_Matth%C3%A4us" — the same page, the same man, two records with
+// identical career statistics, and a board that listed him twice.
+async function footballerByWikiUrl(wikiUrl: string): Promise<number | null> {
+  const [row] = await db
     .select({ id: footballers.id })
     .from(footballers)
-    .where(eq(footballers.wikipedia_url, wikiUrl))
+    .where(inArray(footballers.wikipedia_url, wikiUrlVariants(wikiUrl)))
     .limit(1)
-  if (existing) return existing.id
+  return row?.id ?? null
+}
+
+async function insertScrapedFootballer(wikiUrl: string): Promise<number | null> {
+  // Avoid a unique-constraint clash if the canonical URL already exists.
+  const existing = await footballerByWikiUrl(wikiUrl)
+  if (existing) return existing
 
   const scraped = await scrapeWikipedia(wikiUrl)
 
-  const [byScrapedUrl] = await db
-    .select({ id: footballers.id })
-    .from(footballers)
-    .where(eq(footballers.wikipedia_url, scraped.wikipedia_url))
-    .limit(1)
-  if (byScrapedUrl) return byScrapedUrl.id
+  const byScrapedUrl = await footballerByWikiUrl(scraped.wikipedia_url)
+  if (byScrapedUrl) return byScrapedUrl
 
   const [created] = await db
     .insert(footballers)

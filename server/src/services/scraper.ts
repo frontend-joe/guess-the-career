@@ -1497,6 +1497,25 @@ export function deriveCompetition(matchName: string): string {
     .trim();
 }
 
+// Wikipedia answers to a title under two spellings — the raw-unicode slug
+// ("Lothar_Matthäus") and the percent-encoded one ("Lothar_Matth%C3%A4us")
+// — and this codebase has stored both over the years. String equality on the
+// URL therefore misses, which is how a second Lothar Matthäus came to exist
+// and then appeared twice on the same Tenable board. Every spelling of the
+// same article, so a lookup can ask for all of them at once.
+export function wikiUrlVariants(url: string): string[] {
+  const [base, slug] = url.split("/wiki/");
+  if (!slug) return [url];
+  let decoded = slug;
+  try {
+    decoded = decodeURIComponent(slug);
+  } catch {
+    // A slug with a stray % is not percent-encoding; take it as written.
+  }
+  const forms = new Set([slug, decoded, encodeURIComponent(decoded).replace(/%2F/gi, "/")]);
+  return [...forms].map((f) => `${base}/wiki/${f}`);
+}
+
 export function normalizeClubAlias(club: string): string {
   const stripped = club.replace(/^→\s*/, "").replace(/\s*\((loan|trial)\)\s*$/i, "").trim();
   return CLUB_ALIASES[stripped] ?? stripped;

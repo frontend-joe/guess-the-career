@@ -1276,13 +1276,41 @@ export function categoryOf(slug: string): string {
   return getType(slug)?.category ?? "football";
 }
 
+// One person, one slot. The database occasionally holds the same player
+// twice — Wikipedia serves an article under both a raw-unicode URL and a
+// percent-encoded one, so a scrape that looked up ".../Lothar_Matth%C3%A4us"
+// did not find ".../Lothar_Matthäus" and made a second Lothar Matthäus. The
+// two records carry identical career statistics, so the derivation ranked
+// them side by side and a Germany Serie A board showed him on 115 twice.
+//
+// The URL comparison is fixed where the duplicate is created, but a board is
+// worth defending in its own right: whatever the data says, a name cannot
+// occupy two slots, because a guess reveals a NAME and nobody can say which
+// of the two rows they meant. Overfetch, drop the repeats, then cut to size,
+// so losing one still leaves a full ten.
+const DUPLICATE_MARGIN = 10;
+
+function dedupeByName(rows: TenableAnswer[]): TenableAnswer[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    // Authored rounds are left alone: their answers are typed by hand, and a
+    // repeat there is somebody's deliberate list, not a scraping accident.
+    if (r.footballer_id == null) return true;
+    const key = normalizeName(r.name);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function answersForRound(
   type: string,
   params: Record<string, string>,
   metric: Metric,
   limit = ROUND_SIZE,
 ): TenableAnswer[] {
-  return getType(type)?.answers(params, metric, limit) ?? [];
+  const rows = getType(type)?.answers(params, metric, limit + DUPLICATE_MARGIN) ?? [];
+  return dedupeByName(rows).slice(0, limit);
 }
 
 // Where a player actually sits in the full ordering, so a guess just off the
