@@ -114,8 +114,10 @@ struct BoardView: View {
                         )
                         .presentationDetents([.height(300)])
                         .presentationDragIndicator(.visible)
-                    case .player(let id, let name):
-                        PlayerCardSheet(footballerId: id, name: name)
+                    case .player(let id, let name, let badge, let round):
+                        PlayerCardSheet(
+                            footballerId: id, name: name, badge: badge, round: round,
+                        )
                             .presentationDragIndicator(.visible)
                     }
                 }
@@ -216,7 +218,12 @@ struct BoardView: View {
     /// alike from the far side of the screen.
     private func tap(slot: Int, round: RoomRound) {
         guard let answer = answer(slot: slot, round: round) else { return }
-        showingClue = .player(id: answer.footballerId, name: answer.name)
+        showingClue = .player(
+            id: answer.footballerId,
+            name: answer.name,
+            badge: valueText(answer),
+            round: round.board.title,
+        )
     }
 
     /// The host takes a clue; everyone's screen then opens it. Anyone may
@@ -246,12 +253,15 @@ private enum BoardSheet: Identifiable {
     /// The id is optional: a row can carry a name the board cannot put a
     /// footballer to. The name is the identity here, because that is the only
     /// thing such a row has.
-    case player(id: Int?, name: String)
+    ///
+    /// `badge` and `round` travel with it so the card can say what the number
+    /// beside the name was counting — see the scoreline in PlayerCardSheet.
+    case player(id: Int?, name: String, badge: String?, round: String)
 
     var id: String {
         switch self {
         case .clue(let rank): "clue-\(rank)"
-        case .player(_, let name): "player-\(name)"
+        case .player(_, let name, _, _): "player-\(name)"
         }
     }
 }
@@ -324,6 +334,31 @@ private struct ClueSheet: View {
             }
         }
     }
+}
+
+/// What goes in the badge, or nothing at all.
+private func valueText(_ answer: RevealedAnswer) -> String? {
+    // A shirt number is not a score. On a squad round the board is not
+    // ranked by it — it is not ranked by anything — so putting "8 shirt"
+    // next to a name states a fact nobody asked for and makes the row
+    // look like it placed eighth.
+    if answer.unit == "shirt" { return nil }
+    // A transfer fee is a price, not a count. "37500000 fee" is unreadable
+    // at a glance and wraps the badge onto two lines; "37.5m" is the
+    // number people actually say.
+    if answer.unit == "fee" { return BoardStyle.money(answer.value) }
+    // An authored round already knows how its number should read, and the
+    // raw one would not fit the badge: 17098246 km² is not a thing anybody
+    // can take in at a glance.
+    if let display = answer.display, !display.isEmpty { return display }
+    let number = String(safeInt(answer.value))
+    guard let unit = answer.unit, !unit.isEmpty else {
+        // No unit and no number is an unordered round — "name any ten of
+        // these" is not ranked by anything, and a zero next to a correct
+        // answer reads as having scored nothing.
+        return answer.value == 0 ? nil : number
+    }
+    return "\(number) \(unit)"
 }
 
 private struct PyramidRow: View {
@@ -469,30 +504,4 @@ private struct PyramidRow: View {
             }
         }
     }
-
-    /// What goes in the badge, or nothing at all.
-    private func valueText(_ answer: RevealedAnswer) -> String? {
-        // A shirt number is not a score. On a squad round the board is not
-        // ranked by it — it is not ranked by anything — so putting "8 shirt"
-        // next to a name states a fact nobody asked for and makes the row
-        // look like it placed eighth.
-        if answer.unit == "shirt" { return nil }
-        // A transfer fee is a price, not a count. "37500000 fee" is unreadable
-        // at a glance and wraps the badge onto two lines; "37.5m" is the
-        // number people actually say.
-        if answer.unit == "fee" { return BoardStyle.money(answer.value) }
-        // An authored round already knows how its number should read, and the
-        // raw one would not fit the badge: 17098246 km² is not a thing anybody
-        // can take in at a glance.
-        if let display = answer.display, !display.isEmpty { return display }
-        let number = String(safeInt(answer.value))
-        guard let unit = answer.unit, !unit.isEmpty else {
-            // No unit and no number is an unordered round — "name any ten of
-            // these" is not ranked by anything, and a zero next to a correct
-            // answer reads as having scored nothing.
-            return answer.value == 0 ? nil : number
-        }
-        return "\(number) \(unit)"
-    }
-
 }

@@ -82,7 +82,7 @@ fun BoardSection(model: RoomViewModel) {
     // the name while the career loads.
     // The id is nullable: a row can carry a name the board cannot put a
     // footballer to, and that row still opens and says so.
-    var showingPlayer by remember { mutableStateOf<Pair<Int?, String>?>(null) }
+    var showingPlayer by remember { mutableStateOf<TappedAnswer?>(null) }
     // Drives the wave. Counts up forever; each row works out its own moment
     // from it, so there is one timer for the board rather than ten.
     var wave by remember { mutableIntStateOf(0) }
@@ -171,7 +171,13 @@ fun BoardSection(model: RoomViewModel) {
                 // cannot identify: a row that looks tappable and does nothing
                 // is worse than one that opens and says it knows nothing.
                 onClick = {
-                    slotAnswer?.let { showingPlayer = it.footballerId to it.name }
+                    slotAnswer?.let {
+                        // The badge and the question travel with the tap so
+                        // the card can say what the number was counting.
+                        showingPlayer = TappedAnswer(
+                            it.footballerId, it.name, valueText(it), round.board.title,
+                        )
+                    }
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(widthFraction(rank)),
             )
@@ -202,10 +208,26 @@ fun BoardSection(model: RoomViewModel) {
         )
     }
 
-    showingPlayer?.let { (id, name) ->
-        PlayerCardDialog(footballerId = id, name = name, onDismiss = { showingPlayer = null })
+    showingPlayer?.let { tapped ->
+        PlayerCardDialog(
+            footballerId = tapped.footballerId,
+            name = tapped.name,
+            badge = tapped.badge,
+            round = tapped.round,
+            onDismiss = { showingPlayer = null },
+        )
     }
 }
+
+/** A row the player has just tapped, and the two things the board knew about
+ *  it that the career card does not: the number on its badge, and the question
+ *  that put it there. */
+private data class TappedAnswer(
+    val footballerId: Int?,
+    val name: String,
+    val badge: String?,
+    val round: String,
+)
 
 // A clue, laid out as the few facts it actually is. The capsule version ran
 // them together on one line inside a shape that had no room for them, at a
