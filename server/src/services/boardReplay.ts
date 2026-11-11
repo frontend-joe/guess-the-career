@@ -212,6 +212,23 @@ export function reduceEvents(
             allowed: false,
           })
         }
+        // Clues follow their players down the board, so the reshuffle carries
+        // the whole corrected set rather than leaving each hint sitting on
+        // the slot it was taken on, describing whoever moved into it.
+        if (Array.isArray(p.hints)) {
+          state.hints = []
+          for (const raw of p.hints) {
+            if (!raw || typeof raw !== 'object') continue
+            const h = raw as Record<string, unknown>
+            state.hints.push({
+              rank: num(h.rank),
+              clue: h.clue && typeof h.clue === 'object'
+                ? (h.clue as Record<string, string | number | null>)
+                : null,
+              tMs: e.t_ms,
+            })
+          }
+        }
         vindicate(state, p)
         break
       }

@@ -119,3 +119,56 @@ test('a player who is not on the board at all belongs to nobody', () => {
   assert.equal(outcome.belongs, false)
   assert.equal(outcome.placed, null)
 })
+
+// A clue is about a player, not about a row of the pyramid. Importing Pablo
+// Armero pushed the Colombia Serie A board down a slot below him, and the
+// clues already taken stayed on the slots they were taken on — so the clue on
+// 9 described the man who had just moved to 10, and taking the clue on 10
+// produced the same man a second time.
+test('clues follow their player when the board is rewritten under them', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('reshuffle-host-3@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+
+  // The ninth man, clued while he is still the ninth man.
+  const ninth = rooms.takeHint(inst.id, host, 9)
+  assert.equal(ninth.replayed, false)
+
+  // A latecomer lands above him, so he is the tenth man now.
+  rooms.reshuffleForPlayer(inst.id, striker('Late Comer', 55), norm('Late Comer'))
+
+  const hints = rooms.roomState(rooms.roomByCode(room.code)!).round!.board.hints
+  assert.equal(hints.length, 1)
+  assert.equal(hints[0].rank, 10, 'his clue moved down with him')
+  assert.deepEqual(hints[0].clue, ninth.clue)
+
+  // The ninth slot belongs to somebody else now, and nobody has paid for a
+  // clue on him — so asking is a new clue, not a replay of the old one.
+  // (These fixtures all carry the same bare clue, so it is the replayed flag
+  // and the ranks below, not the clue's contents, that say which man it is.)
+  assert.equal(rooms.takeHint(inst.id, host, 9).replayed, false)
+
+  const after = rooms.roomState(rooms.roomByCode(room.code)!).round!.board.hints
+  assert.deepEqual(after.map((h) => h.rank), [9, 10])
+})
+
+// Whoever gets pushed off the bottom takes their clue with them, rather than
+// leaving it on a slot that is now somebody else's.
+test('a clue on a player pushed off the board goes with them', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('reshuffle-host-4@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+
+  rooms.takeHint(inst.id, host, 10)
+  rooms.reshuffleForPlayer(inst.id, striker('Queue Jumper', 55), norm('Queue Jumper'))
+
+  assert.deepEqual(rooms.roomState(rooms.roomByCode(room.code)!).round!.board.hints, [])
+})

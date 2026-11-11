@@ -1018,6 +1018,23 @@ export interface HintResult {
 // itself is not the host's: the moment it is taken it goes in the event log,
 // every client sees it on the next state, and every client opens it. Nobody
 // has to read it out.
+// The clues this round is currently showing, folded from the event log the
+// same way every client folds it. Reading the hint events directly would miss
+// the corrections a board reshuffle writes into them.
+function foldedHints(inst: InstanceRow): { rank: number }[] {
+  const events = sqlite
+    .prepare('SELECT seq, t_ms, type, actor_participant_id, payload FROM game_events WHERE instance_id = ? ORDER BY t_ms, seq')
+    .all(inst.id) as ReplayEvent[]
+  return reduceEvents(events, Number.POSITIVE_INFINITY, {
+    title: inst.title,
+    target: inst.target,
+    ordered: !!inst.ordered,
+    category: categoryOf(inst.type),
+    metric: inst.metric,
+    impliedClues: JSON.parse(inst.implied_clues),
+  }).hints
+}
+
 export function takeHint(instanceId: number, participant: ParticipantRow, rank: number): HintResult {
   const inst = sqlite
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')
@@ -1032,14 +1049,16 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   // still missing rather than about rank N of a squad list.
   const answer = (inst.ordered
     ? sqlite
-        .prepare('SELECT rank, on_board, clue_json, found_at_ms FROM game_round_answers WHERE instance_id = ? AND rank = ?')
+        .prepare('SELECT rank, on_board, clue_json, found_at_ms, footballer_id FROM game_round_answers WHERE instance_id = ? AND rank = ?')
         .get(instanceId, rank)
     : sqlite
         .prepare(
-          `SELECT rank, on_board, clue_json, found_at_ms FROM game_round_answers
+          `SELECT rank, on_board, clue_json, found_at_ms, footballer_id FROM game_round_answers
            WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NULL ORDER BY rank LIMIT 1`,
         )
-        .get(instanceId)) as { rank: number; on_board: number; clue_json: string | null; found_at_ms: number | null } | undefined
+        .get(instanceId)) as
+    | { rank: number; on_board: number; clue_json: string | null; found_at_ms: number | null; footballer_id: number | null }
+    | undefined
   if (!answer || !answer.on_board) throw new RoomError('No such slot on this board', 404)
   if (answer.found_at_ms != null) throw new RoomError('That one is already found', 409)
 
@@ -1055,13 +1074,24 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
 
   // Asking twice is not a second clue, and must not move the version — the
   // board already shows it, and a recording should not blink.
-  const existing = sqlite
-    .prepare("SELECT 1 FROM game_events WHERE instance_id = ? AND type = 'hint' AND json_extract(payload, '$.rank') = ?")
-    .get(instanceId, clued)
-  if (existing) return { rank: clued, clue, stateVersion: room.state_version, replayed: true }
+  //
+  // Asked of the fold rather than of the raw events, because a reshuffle moves
+  // clues between slots: the hint event says rank 9 and the board now shows it
+  // on 10, and only the fold knows that. This is the same answer every client
+  // is looking at, which is the point — the live board and the replayed board
+  // are one function.
+  if (foldedHints(inst).some((h) => h.rank === clued)) {
+    return { rank: clued, clue, stateVersion: room.state_version, replayed: true }
+  }
 
   const stateVersion = sqlite.transaction(() => {
-    appendEvent(instanceId, Date.now() - (inst.started_at_ms ?? Date.now()), 'hint', participant.id, { rank: clued, clue })
+    // Who the clue is about, so it can follow them if the board is rewritten
+    // underneath it. See reshuffleForPlayer.
+    appendEvent(instanceId, Date.now() - (inst.started_at_ms ?? Date.now()), 'hint', participant.id, {
+      rank: clued,
+      clue,
+      footballerId: answer.footballer_id,
+    })
     return bumpVersion(inst.room_id)
   })()
 
@@ -1462,6 +1492,38 @@ export function reshuffleForPlayer(
     .prepare('SELECT footballer_id, found_at_ms, found_by_participant_id FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
     .all(instanceId) as { footballer_id: number | null; found_at_ms: number; found_by_participant_id: number | null }[]
 
+  // A clue is about a PLAYER, not about a row of the pyramid. Importing Pablo
+  // Armero pushed everyone below him down a slot, and the clues already taken
+  // stayed on the slots they were taken on — so the clue on 9 still described
+  // the man who had just moved to 10, and taking the clue on 10 produced the
+  // same man a second time. The hints travel with the players they were
+  // about, and anybody pushed off the bottom takes their clue with them.
+  const wasAt = new Map(
+    (
+      sqlite
+        .prepare('SELECT rank, footballer_id FROM game_round_answers WHERE instance_id = ?')
+        .all(instanceId) as { rank: number; footballer_id: number | null }[]
+    ).map((r) => [r.rank, r.footballer_id] as const),
+  )
+  const nowAt = new Map(
+    fresh
+      .map((a, i) => [a.footballer_id, i + 1] as const)
+      .filter((pair): pair is readonly [number, number] => pair[0] != null),
+  )
+  const correctedHints = (
+    sqlite
+      .prepare("SELECT payload FROM game_events WHERE instance_id = ? AND type = 'hint' ORDER BY seq")
+      .all(instanceId) as { payload: string }[]
+  ).flatMap((row) => {
+    const p = JSON.parse(row.payload) as { rank: number; clue: unknown; footballerId?: number | null }
+    // Hints taken before this field existed say only which slot they were on,
+    // and the board as it stands says who was in it.
+    const who = p.footballerId ?? wasAt.get(p.rank) ?? null
+    // An authored answer has no footballer to follow, so its clue stays put.
+    const rank = who == null ? p.rank : nowAt.get(who)
+    return rank != null && rank <= ROUND_SIZE ? [{ rank, clue: p.clue, footballerId: who }] : []
+  })
+
   // A correction is allowed to push somebody off the bottom, even somebody
   // who has already been found. This used to leave the board alone rather
   // than take a find away, on the reasoning that losing an answer you earned
@@ -1546,6 +1608,7 @@ export function reshuffleForPlayer(
       revealed,
       vindicated: vindicated.map((v) => v.raw),
       matchedRank: newIndex + 1,
+      hints: correctedHints,
     })
 
     const remaining = sqlite
