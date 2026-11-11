@@ -1529,6 +1529,12 @@ export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {
   for (const m of meta) {
     const mine = stints.filter((s) => s.footballer_id === m.id);
     const years = mine.flatMap((s) => (s.years.match(/\d{4}/g) ?? []).map(Number));
+    // An infobox writes an unfinished spell "2020–", with nothing after the
+    // dash, and that open end is the only thing on file that says a player
+    // has not retired. Without it the span closed on the year they joined
+    // their CURRENT club: Patrik Schick, at Leverkusen since 2020 and still
+    // scoring, read "2014–2020", which is a clue about a career that ended.
+    const stillPlaying = mine.some((s) => /\d{4}\s*[–—-]\s*$/.test(s.years));
     const main = mine.slice().sort((a, b) => b.apps - a.apps)[0];
     const num = numbers.find((n) => n.footballer_id === m.id);
     const club = main ? main.club.replace(/^→ /, "").replace(/ \(loan\)$/, "") : null;
@@ -1538,7 +1544,11 @@ export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {
     clues.set(m.id, {
       nationality: m.nationality,
       position: m.position,
-      years: years.length ? `${Math.min(...years)}–${Math.max(...years)}` : null,
+      years: years.length
+        ? stillPlaying
+          ? `${Math.min(...years)}–`
+          : `${Math.min(...years)}–${Math.max(...years)}`
+        : null,
       club,
       clubWikiUrl: crest?.wikipedia_url ?? null,
       squadNumber: num?.n ?? null,
