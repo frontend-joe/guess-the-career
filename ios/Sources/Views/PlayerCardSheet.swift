@@ -19,10 +19,6 @@ struct PlayerCardSheet: View {
     /// Shown while the card loads, so the sheet opens with the name already
     /// on it rather than a title that arrives half a second later.
     let name: String
-    /// The number on the board's badge, and the question that put it there.
-    /// Null on a row with no badge — a squad round ranks by nothing.
-    var badge: String? = nil
-    var round: String? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var card: FootballerCard?
@@ -34,7 +30,6 @@ struct PlayerCardSheet: View {
             ScrollView {
                 VStack(spacing: 0) {
                     if let card {
-                        scoreline
                         bio(card)
                         career("Senior career", card.senior)
                         career("International career", card.international, international: true)
@@ -93,30 +88,6 @@ struct PlayerCardSheet: View {
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 60)
-    }
-
-    /// What the board was counting, said out loud.
-    ///
-    /// The badge on the pyramid is a bare number and the career table below is
-    /// a different number entirely: Kubilay Türkyilmaz sat on 11 while his
-    /// Bologna line read 83 (24). Both are right — the board counts goals in
-    /// one league, the table counts every goal at every club in every
-    /// competition — but nothing on the card said so, so it read as the card
-    /// contradicting the board a player had just been marked correct against.
-    @ViewBuilder
-    private var scoreline: some View {
-        if let badge, let round {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(badge).font(.display(16))
-                Text(round).font(.body(11)).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(.fill.tertiary)
-            .overlay(alignment: .bottom) { Divider() }
-            .overlay(alignment: .top) { Divider() }
-        }
     }
 
     @ViewBuilder

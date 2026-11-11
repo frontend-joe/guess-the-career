@@ -58,10 +58,6 @@ fun PlayerCardDialog(
     /** Shown while the card loads, so the dialog opens with the name on it
      *  rather than a title that arrives half a second later. */
     name: String,
-    /** The number on the board's badge, and the question that put it there.
-     *  Null on a row with no badge — a squad round ranks by nothing. */
-    badge: String? = null,
-    round: String? = null,
     onDismiss: () -> Unit,
 ) {
     var card by remember(footballerId) { mutableStateOf<FootballerCard?>(null) }
@@ -100,7 +96,6 @@ fun PlayerCardDialog(
 
                 when {
                     card != null -> card?.let { loaded ->
-                        Scoreline(badge, round)
                         BioRow("Full name", loaded.fullName)
                         BioRow("Date of birth", bornLong(loaded.born))
                         BioRow("Birth place", loaded.birthplace)
@@ -121,36 +116,6 @@ fun PlayerCardDialog(
             }
         }
     }
-}
-
-/** What the board was counting, said out loud.
- *
- *  The badge on the pyramid is a bare number and the career table below is a
- *  different number entirely: Kubilay Türkyilmaz sat on 11 while his Bologna
- *  line read 83 (24). Both are right — the board counts goals in one league,
- *  the table counts every goal at every club in every competition — but
- *  nothing on the card said so, so it read as the card contradicting the board
- *  a player had just been marked correct against.
- */
-@Composable
-private fun Scoreline(badge: String?, round: String?) {
-    if (badge.isNullOrEmpty() || round.isNullOrEmpty()) return
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Text(
-            badge,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(round, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 }
 
 @Composable
