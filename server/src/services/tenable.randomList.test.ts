@@ -81,3 +81,56 @@ test('a clue is there for the whole pool, not just the first ten', () => {
   const hint = rooms.takeHint(inst.id, host, 1)
   assert.ok(hint.clue, 'the clue is not empty')
 })
+
+// A position string is a list in priority order, and reading the whole of it
+// threw out the best answers on these boards. Fernando Hierro — "Defender,
+// defensive midfielder", 127 career goals — is the first name anybody shouts
+// at "scoring defenders", and was not a defender to it.
+test('a defender who could also play midfield is still a defender', async () => {
+  const { qualifyCandidate } = await import('./randomLists.ts')
+  const base = {
+    id: 0, name: 'Fernando Hierro', photo_url: null, nationality: 'Spain',
+    height_cm: null, seniorGoals: 127, seniorApps: 600, englandCaps: 0, playedInEngland: false,
+  }
+  assert.ok(qualifyCandidate('defender-50-goals', { ...base, position: 'Defender, defensive midfielder' }))
+  // What he was comes first; a midfielder who could fill in at the back is
+  // still a midfielder.
+  assert.equal(qualifyCandidate('defender-50-goals', { ...base, position: 'Defensive midfielder, defender' }), null)
+  assert.ok(qualifyCandidate('midfield-100-goals', { ...base, position: 'Defensive midfielder, defender' }))
+})
+
+// An unordered board is the one board a late answer is entirely safe on —
+// nothing is ranked, so nobody can be pushed off — and it was the only one
+// refusing them.
+test('a late answer joins an unordered board instead of being turned away', () => {
+  // The same round the clue test picked; it is unique on (type, params, metric).
+  const roundId = (sqlite
+    .prepare("SELECT id FROM tenable_rounds WHERE type = 'random-list' AND params = ?")
+    .get(JSON.stringify(PARAMS)) as { id: number }).id
+
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('latecomer-host@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+
+  // Somebody the board never knew about, who qualifies for the list.
+  sqlite
+    .prepare(
+      `INSERT INTO footballers (name, surname, wikipedia_url, nationality, position, height_cm)
+       VALUES ('Late Giant', 'Giant', 'https://en.wikipedia.org/wiki/Late_Giant', 'England', 'Goalkeeper', 201)`,
+    )
+    .run()
+  const guess = rooms.submitGuess(inst.id, host, 'late-1', 'Late Giant')
+
+  assert.equal(guess.verdict, 'hit', 'the board takes him rather than calling him wrong')
+
+  const board = rooms.roomState(rooms.roomByCode(room.code)!).round!.board
+  assert.ok(board.revealed.some((r) => r.name === 'Late Giant'))
+  // And nobody already on the board moved to make room, because there was
+  // never an order to make room in.
+  assert.equal(board.revealed.length, 1)
+  assert.equal(board.guesses.find((g) => g.raw === 'Late Giant')!.verdict, 'hit')
+})

@@ -1,6 +1,7 @@
 import { sqlite } from "../db/client.ts";
 import { normalizeClubAlias, type ScrapeResult } from "./scraper.ts";
 import { reserveRe, isEnglishClub } from "./football.ts";
+import { isFrom } from "./continents.ts";
 
 // ── Random Lists: bespoke, DB-derived player lists (one per round) ────────────
 // Each list has a stable id + title/subtitle and a derive() that computes its
@@ -129,18 +130,27 @@ const isCentreBack = (p: string | null) => {
   const s = lc(p).trim();
   return /^cent(re|er)[ -]?back/.test(s) || s.startsWith("central defender") || /^cent(re|er)[ -]?half/.test(s);
 };
-// A pure midfielder — has "midfield" but is not also listed as a forward/striker.
-const isMidfielder = (p: string | null) =>
-  lc(p).includes("midfield") && !lc(p).includes("forward") && !lc(p).includes("striker");
+// A position string is a list in priority order, which is the rule
+// isCentreBack above already goes by: what somebody WAS is the first thing
+// written down, and the rest is what else they could do.
+//
+// These two used to read the whole string and reject on any mention of
+// another role, which threw out the best answers on both boards. Fernando
+// Hierro — "Defender, defensive midfielder", 127 career goals, the first name
+// anybody shouts at "scoring defenders" — was not a defender to it. Neither
+// was Ronald Koeman. A player good enough at two jobs to have both listed is
+// precisely the player these lists are asking about.
+const primaryPosition = (p: string | null) => lc(p).split(",")[0]?.trim() ?? "";
+const isMidfielder = (p: string | null) => primaryPosition(p).includes("midfield");
 const isDefender = (p: string | null) => {
-  const s = lc(p);
-  const def =
+  const s = primaryPosition(p);
+  return (
     /back\b/.test(s) ||
     s.includes("defender") ||
     s.includes("sweeper") ||
     s.includes("libero") ||
-    /cent(re|er)[ -]?half/.test(s);
-  return def && !s.includes("midfield") && !s.includes("forward") && !s.includes("striker") && !s.includes("winger");
+    /cent(re|er)[ -]?half/.test(s)
+  );
 };
 
 // ft'in" from centimetres, e.g. 188 → 6'2"
@@ -193,36 +203,12 @@ function nameMatches(name: string, words: string[]): boolean {
   return tokens.some((t) => words.some((w) => t.includes(w)));
 }
 
-// ── Africa nationalities (no continent map exists in the codebase) ────────────
-// Matched against the stored nationality noun/demonym, lowercased.
-const AFRICA_NATIONS = new Set(
-  [
-    "Nigeria", "Nigerian", "Senegal", "Senegalese", "Ivory Coast", "Ivorian",
-    "Cameroon", "Cameroonian", "Ghana", "Ghanaian", "Morocco", "Moroccan",
-    "Mali", "Malian", "South Africa", "South African", "Algeria", "Algerian",
-    "Egypt", "Egyptian", "Tunisia", "Tunisian", "DR Congo", "Congolese",
-    "Congo", "Zimbabwe", "Zimbabwean", "Liberia", "Liberian", "Togo", "Togolese",
-    "Sierra Leone", "Cape Verde", "Cape Verdean", "Guinea", "Guinean", "Gabon",
-    "Gabonese", "Angola", "Angolan", "Zambia", "Zambian", "Kenya", "Kenyan",
-    "Uganda", "Ugandan", "Burkina Faso", "Burkinabé", "Benin", "Beninese",
-    "Mozambique", "Namibia", "Namibian", "Tanzania", "Tanzanian", "Sudan",
-    "Sudanese", "Ethiopia", "Ethiopian", "Madagascar", "Malagasy", "Gambia",
-    "Gambian", "Equatorial Guinea", "Guinea-Bissau", "Comoros", "Comorian",
-  ].map((n) => n.toLowerCase()),
-);
-const isAfrican = (nat: string | null) => !!nat && AFRICA_NATIONS.has(nat.trim().toLowerCase());
-
-// South America (CONMEBOL) nationalities, matched against the stored noun/demonym.
-const SOUTH_AMERICA_NATIONS = new Set(
-  [
-    "Brazil", "Brazilian", "Argentina", "Argentine", "Argentinian",
-    "Uruguay", "Uruguayan", "Colombia", "Colombian", "Chile", "Chilean",
-    "Peru", "Peruvian", "Paraguay", "Paraguayan", "Ecuador", "Ecuadorian",
-    "Bolivia", "Bolivian", "Venezuela", "Venezuelan",
-  ].map((n) => n.toLowerCase()),
-);
-const isSouthAmerican = (nat: string | null) =>
-  !!nat && SOUTH_AMERICA_NATIONS.has(nat.trim().toLowerCase());
+// Africa and South America used to be two hand-kept nationality sets right
+// here, each carrying nouns and demonyms, each maintained alone. They are one
+// map now, in continents.ts, which the Tenable continent rounds read too — so
+// a country added for a round is a country these lists learn as well.
+const isAfrican = (nat: string | null) => isFrom("africa", nat);
+const isSouthAmerican = (nat: string | null) => isFrom("south-america", nat);
 
 // ── The 10 lists ──────────────────────────────────────────────────────────────
 

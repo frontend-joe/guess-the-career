@@ -2,6 +2,7 @@ import { normalizeName, sqlite } from "../db/client.ts";
 import { normalizeClubAlias } from "../services/scraper.ts";
 import { generalType } from "./general.ts";
 import { deriveList, getListDef, listSummaries } from "./randomLists.ts";
+import { CONTINENTS, getContinent } from "./continents.ts";
 
 // Football Tenable — 10-answer list rounds.
 //
@@ -796,6 +797,65 @@ const nationalityClub: TenableType = {
   },
 };
 
+// ── 8c. Continent at a club ──────────────────────────────────────────────────
+//
+// "South American Arsenal players", "African Roma players". The nationality
+// round next door asks one country at a time, which at a club is often a
+// question with four answers and no board — but a club's Africans or its South
+// Americans are a group everybody who follows it can picture, and nobody can
+// list.
+//
+// Europe is deliberately not among them: see Continent.asksRounds.
+const continentClub: TenableType = {
+  slug: "continent-club",
+  label: "Continent at a club",
+  description: "Players from one continent who turned out for one club.",
+  example: "Name 10 South American players who turned out for Arsenal",
+  title: (p, m) =>
+    `${getContinent(p.continent)?.adjective ?? p.continent} ${p.club} players (most ${metricWord(m)})`,
+  candidates(metric) {
+    const col = metricCol(metric);
+    const out: Candidate[] = [];
+    for (const cont of CONTINENTS) {
+      if (!cont.asksRounds) continue;
+      const ph = cont.nations.map(() => "?").join(", ");
+      const rows = sqlite.prepare(
+        `WITH tot AS (${PLAYER_CLUB})
+         SELECT tot.club AS club, COUNT(*) AS n
+         FROM tot JOIN footballers f ON f.id = tot.fid
+         WHERE f.nationality IS NOT NULL AND LOWER(f.nationality) IN (${ph})
+           AND tot.${col} > 0
+         GROUP BY tot.club
+         HAVING n >= ${MIN_ANSWERS}
+         ORDER BY n DESC`,
+      ).all(...cont.nations.map((n) => n.toLowerCase())) as { club: string; n: number }[];
+      for (const r of rows) {
+        out.push({
+          type: this.slug,
+          params: { continent: cont.slug, club: r.club },
+          metric,
+          title: this.title({ continent: cont.slug, club: r.club }, metric),
+          answer_count: r.n,
+        });
+      }
+    }
+    return out;
+  },
+  answers(p, metric, limit = ROUND_SIZE) {
+    const col = metricCol(metric);
+    const cont = getContinent(p.continent);
+    if (!cont) return [];
+    const ph = cont.nations.map(() => "?").join(", ");
+    return sqlite.prepare(
+      `WITH tot AS (${PLAYER_CLUB})
+       SELECT ${ANSWER_COLS}, tot.${col} AS value
+       FROM tot JOIN footballers f ON f.id = tot.fid
+       WHERE tot.club = ? AND LOWER(f.nationality) IN (${ph}) AND tot.${col} > 0
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
+    ).all(p.club, ...cont.nations.map((n) => n.toLowerCase())) as TenableAnswer[];
+  },
+};
+
 // ── 8b. Overseas players at an English club ──────────────────────────────────
 // Which country a club belongs to, for "overseas" to mean anything.
 //
@@ -1244,6 +1304,7 @@ export const TENABLE_TYPES: TenableType[] = [
   leagueAllTime,
   twoClubs,
   nationalityClub,
+  continentClub,
   overseasClub,
   transferWindow,
   ballonDor,
@@ -1414,7 +1475,7 @@ export function impliedCluesFor(type: string, params?: Record<string, string>): 
     return getListDef(params.listId)?.impliedClues ?? [];
   }
   if (["nationality", "nationality-club", "world-cup-squad"].includes(type)) implied.push("nationality");
-  if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial"].includes(type)) implied.push("club");
+  if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial", "continent-club"].includes(type)) implied.push("club");
   if (["surname-length", "surname-initial", "surname", "club-surname-initial"].includes(type)) implied.push("surname");
   return implied;
 }

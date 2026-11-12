@@ -11,6 +11,7 @@ import {
   titleFor,
   ROUND_SIZE,
   type Metric,
+  type TenableAnswer,
 } from './tenable.ts'
 import { isPlaceExactly, matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
 import { parseAliases } from './general.ts'
@@ -1450,6 +1451,108 @@ interface ReshuffleOutcome {
 
 const NOT_THIS_ROUND: ReshuffleOutcome = { belongs: false, placed: null }
 
+// A late answer joining an unordered board.
+//
+// Nothing moves: the name is appended to the pool, takes the next slot, and
+// everybody already on the board stays exactly where they are. It goes out as
+// a board_reshuffle rather than a plain reveal so the guess feed gets its
+// correction too — everyone who said the name has been shown in red next to
+// the right answer, on camera, and they were right all along.
+function placeOnUnorderedBoard(
+  inst: InstanceRow,
+  answer: TenableAnswer,
+  rawNorm: string,
+): ReshuffleOutcome {
+  const instanceId = inst.id
+  const already = sqlite
+    .prepare('SELECT 1 FROM game_round_answers WHERE instance_id = ? AND footballer_id = ?')
+    .get(instanceId, answer.footballer_id)
+  if (already) return { belongs: true, placed: null }
+
+  const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
+  const guesser = sqlite
+    .prepare('SELECT participant_id FROM game_guesses WHERE instance_id = ? AND raw_norm = ? ORDER BY id DESC LIMIT 1')
+    .get(instanceId, rawNorm) as { participant_id: number } | undefined
+  const vindicated = sqlite
+    .prepare('SELECT DISTINCT raw FROM game_guesses WHERE instance_id = ? AND raw_norm = ?')
+    .all(instanceId, rawNorm) as { raw: string }[]
+
+  const params = JSON.parse(inst.params_json) as Record<string, string>
+  const normalized = norm(answer.name)
+  const ids = answer.footballer_id != null ? [answer.footballer_id] : []
+  const clueFor = clueWriter(inst.type, params, ids)
+  const surnames = surnamesForFootballers(ids)
+
+  const rank = sqlite.transaction(() => {
+    const { next } = sqlite
+      .prepare('SELECT COALESCE(MAX(rank), 0) + 1 AS next FROM game_round_answers WHERE instance_id = ?')
+      .get(instanceId) as { next: number }
+
+    sqlite
+      .prepare(
+        `INSERT INTO game_round_answers
+           (instance_id, rank, on_board, footballer_id, name, name_norm, surname_norm,
+            nationality, photo_url, value, unit, display, aliases, clue_json,
+            found_at_ms, found_by_participant_id)
+         VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        instanceId, next, answer.footballer_id, answer.name, normalized,
+        surnameFor(answer.footballer_id, normalized, surnames),
+        answer.nationality, answer.photo_url, answer.value, answer.unit ?? null,
+        answer.display ?? null, answer.aliases?.length ? JSON.stringify(answer.aliases) : null,
+        clueFor(answer, normalized),
+        tMs, guesser?.participant_id ?? null,
+      )
+
+    sqlite
+      .prepare("UPDATE game_guesses SET verdict = 'hit', matched_rank = ? WHERE instance_id = ? AND raw_norm = ?")
+      .run(next, instanceId, rawNorm)
+
+    // The whole revealed set at its ranks, in the order it was found, because
+    // that is the order an unordered board shows. No hints travel with it:
+    // nothing was renumbered, so every clue is still about the same player.
+    const revealed = sqlite
+      .prepare(
+        `SELECT rank, name, value, unit, display, nationality, photo_url, footballer_id,
+                found_by_participant_id
+         FROM game_round_answers
+         WHERE instance_id = ? AND on_board = 1 AND found_at_ms IS NOT NULL
+         ORDER BY found_at_ms, rank`,
+      )
+      .all(instanceId) as {
+        rank: number; name: string; value: number; unit: string | null; display: string | null
+        nationality: string | null; photo_url: string | null; footballer_id: number | null
+        found_by_participant_id: number | null
+      }[]
+
+    appendEvent(instanceId, tMs, 'board_reshuffle', guesser?.participant_id ?? null, {
+      name: answer.name,
+      rank: next,
+      revealed: revealed.map((r) => ({
+        rank: r.rank, name: r.name, value: r.value, unit: r.unit, display: r.display,
+        nationality: r.nationality, photoUrl: r.photo_url, footballerId: r.footballer_id,
+        byParticipantId: r.found_by_participant_id,
+      })),
+      vindicated: vindicated.map((v) => v.raw),
+      matchedRank: next,
+    })
+
+    if (revealed.length >= inst.target) {
+      sqlite.prepare("UPDATE game_round_instances SET status = 'complete', ended_at_ms = ? WHERE id = ?").run(tMs, instanceId)
+      appendEvent(instanceId, tMs, 'round_end', null, { reason: 'complete', found: inst.target, target: inst.target })
+    }
+
+    bumpVersion(inst.room_id)
+    return next
+  })()
+
+  return {
+    belongs: true,
+    placed: { rank, name: answer.name, value: answer.value, unit: answer.unit ?? null },
+  }
+}
+
 // A player the database had never heard of turns out to belong on the board.
 //
 // The frozen snapshot exists so answers cannot move under people mid-round,
@@ -1487,11 +1590,19 @@ export function reshuffleForPlayer(
   // From here they ARE an answer to this round, so the scrape is worth
   // keeping whatever happens to the live board next.
   const ONLY_BELONGS: ReshuffleOutcome = { belongs: true, placed: null }
-  // Rewriting a board is a different question from being on it. A round that
-  // has ended cannot be rewritten, and an unordered board has no ranking to
-  // reshuffle — the answers are a squad list, not an order, and a new name
-  // cannot displace anybody from it.
-  if (inst.status !== 'live' || !inst.ordered) return ONLY_BELONGS
+  // Rewriting a board is a different question from being on it, and a round
+  // that has ended cannot be rewritten.
+  if (inst.status !== 'live') return ONLY_BELONGS
+
+  // An unordered board has no ranking to reshuffle, which used to mean a
+  // correct answer arriving late could never get on one at all. But that cuts
+  // the other way: with nothing ranked, nobody can be pushed off, so the name
+  // simply joins the pool and takes the next empty slot. This is the only
+  // board a late answer is entirely safe on, and it was the only one refusing
+  // them — Fernando Hierro, a defender with 127 goals that the position rule
+  // had filed under midfielder, shouted at "Defenders with 50+ senior career
+  // goals" and told he was wrong.
+  if (!inst.ordered) return placeOnUnorderedBoard(inst, fresh[newIndex], rawNorm)
 
   const current = sqlite
     .prepare('SELECT footballer_id, found_at_ms, found_by_participant_id FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
