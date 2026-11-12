@@ -1,6 +1,7 @@
 import { normalizeName, sqlite } from "../db/client.ts";
 import { normalizeClubAlias } from "../services/scraper.ts";
 import { generalType } from "./general.ts";
+import { deriveList, getListDef, listSummaries } from "./randomLists.ts";
 
 // Football Tenable — 10-answer list rounds.
 //
@@ -1037,6 +1038,52 @@ const worldCupSquad: TenableType = {
   },
 };
 
+// ── 12. Random list (unordered — name any 10) ────────────────────────────────
+//
+// The Random Lists mode already asks the best questions in the database —
+// full-backs over 6ft, players with an animal in their name — and they were
+// only ever playable on their own, one list a day, alone in a browser. They
+// are a Tenable round in every respect that matters: a rule, a pool of players
+// it is true of, and no sensible way to rank them. So they become one.
+//
+// Unordered, like a World Cup squad: the pool is 23 to 200 deep and nobody is
+// going to name all of it, so finding any ten wins. The list's own stat goes
+// on the badge, because "6'2"" is the point of a height list and 188 is not.
+const randomList: TenableType = {
+  slug: "random-list",
+  label: "Random list",
+  description: "Name any 10 players a bespoke rule is true of.",
+  example: "Full-backs taller than 6ft (183cm)",
+  ordered: false,
+  metricless: true,
+  // The subtitle, not the title. "An animal in their name" is a joke you have
+  // to be in on; "Players with an animal hiding in their name" is the rule,
+  // and on a board where a wrong answer goes red the rule is what is owed.
+  title: (p) => getListDef(p.listId)?.subtitle ?? p.listId,
+  candidates() {
+    return listSummaries()
+      .filter((l) => l.poolCount >= MIN_ANSWERS)
+      .map((l) => ({
+        type: this.slug,
+        params: { listId: l.id },
+        metric: "goals" as Metric,
+        title: l.subtitle,
+        answer_count: l.poolCount,
+      }));
+  },
+  answers(p) {
+    // The WHOLE pool, like a squad: every one of them is a right answer.
+    return (deriveList(p.listId) ?? []).map((pl) => ({
+      footballer_id: pl.id,
+      name: pl.name,
+      nationality: pl.nationality,
+      photo_url: pl.photo_url,
+      value: pl.value,
+      display: pl.stat,
+    }));
+  },
+};
+
 // ── 5b. Club × surname initial ───────────────────────────────────────────────
 const clubSurnameInitial: TenableType = {
   slug: "club-surname-initial",
@@ -1201,6 +1248,7 @@ export const TENABLE_TYPES: TenableType[] = [
   transferWindow,
   ballonDor,
   worldCupSquad,
+  randomList,
   recordSignings,
   recordSales,
   firstName,
@@ -1310,7 +1358,13 @@ export function answersForRound(
   limit = ROUND_SIZE,
 ): TenableAnswer[] {
   const rows = getType(type)?.answers(params, metric, limit + DUPLICATE_MARGIN) ?? [];
-  return dedupeByName(rows).slice(0, limit);
+  const deduped = dedupeByName(rows);
+  // A limit is a cut-off in a RANKING: the top ten, and a tail kept to tell a
+  // near miss how near it was. An unordered round has no ranking to cut — its
+  // answers are a pool and every one of them is right — so cutting it would
+  // quietly turn correct answers into wrong ones. Two hundred Africans who
+  // played in England are two hundred right answers.
+  return isOrdered(type, params) ? deduped.slice(0, limit) : deduped;
 }
 
 // Where a player actually sits in the full ordering, so a guess just off the
@@ -1351,8 +1405,14 @@ export interface TenableClue {
 
 // Anything the question already gives away is suppressed — no point "hinting"
 // the nationality on a Norway round.
-export function impliedCluesFor(type: string): string[] {
+export function impliedCluesFor(type: string, params?: Record<string, string>): string[] {
   const implied: string[] = [];
+  // A random list carries its own, because the giveaway is the RULE and not
+  // the shape of the question: "Full-backs over 6ft" hands you the position,
+  // "An animal in their name" hands you nothing.
+  if (type === "random-list" && params?.listId) {
+    return getListDef(params.listId)?.impliedClues ?? [];
+  }
   if (["nationality", "nationality-club", "world-cup-squad"].includes(type)) implied.push("nationality");
   if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial"].includes(type)) implied.push("club");
   if (["surname-length", "surname-initial", "surname", "club-surname-initial"].includes(type)) implied.push("surname");

@@ -14,6 +14,12 @@ export interface ListPlayer {
   nationality: string | null;
   position: string | null;
   stat: string; // right-aligned display value (e.g. "6'2\"", "112 goals", "3 caps")
+  /**
+   * The number behind the stat, which the string version has spent. A Tenable
+   * board wants both: the figure to rank and compare by, and the words to
+   * print on the badge, because 188 is not how anybody says a height.
+   */
+  value: number;
 }
 
 // A normalized view of a player used by every list's qualify/metric/stat, so the
@@ -40,6 +46,12 @@ export interface ListDef {
   metric: (c: Candidate) => number;
   dir: "asc" | "desc";
   stat: (c: Candidate) => string;
+  /**
+   * Clue fields this list's question has already given away. A clue reading
+   * "Position: Right-back" on "Full-backs over 6ft" is the question read back,
+   * and a board where the clue is worthless is a board with nine slots.
+   */
+  impliedClues?: string[];
 }
 
 // ── Shared data loaders ───────────────────────────────────────────────────────
@@ -272,16 +284,16 @@ const appsStat = (c: Candidate) => `${c.seniorApps} apps`;
 export const LIST_DEFS: ListDef[] = [
   { id: "fullbacks-6ft", title: "Full-backs over 6ft", subtitle: "Full-backs taller than 6ft (183cm)",
     qualifies: (c) => c.height_cm != null && c.height_cm > 183 && isFullBack(c.position),
-    metric: (c) => c.height_cm ?? 0, dir: "desc", stat: heightStat },
+    metric: (c) => c.height_cm ?? 0, dir: "desc", stat: heightStat, impliedClues: ["position"] },
   { id: "centrebacks-under-6ft", title: "Centre-backs under 6ft", subtitle: "Centre-backs shorter than 6ft (183cm)",
     qualifies: (c) => c.height_cm != null && c.height_cm < 183 && isCentreBack(c.position),
-    metric: (c) => c.height_cm ?? 0, dir: "asc", stat: heightStat },
+    metric: (c) => c.height_cm ?? 0, dir: "asc", stat: heightStat, impliedClues: ["position"] },
   { id: "midfield-100-goals", title: "Midfield marksmen", subtitle: "Midfielders with 100+ senior career goals",
     qualifies: (c) => isMidfielder(c.position) && c.seniorGoals >= 100,
-    metric: (c) => c.seniorGoals, dir: "desc", stat: (c) => `${c.seniorGoals} goals` },
+    metric: (c) => c.seniorGoals, dir: "desc", stat: (c) => `${c.seniorGoals} goals`, impliedClues: ["position"] },
   { id: "defender-50-goals", title: "Scoring defenders", subtitle: "Defenders with 50+ senior career goals",
     qualifies: (c) => isDefender(c.position) && c.seniorGoals >= 50,
-    metric: (c) => c.seniorGoals, dir: "desc", stat: (c) => `${c.seniorGoals} goals` },
+    metric: (c) => c.seniorGoals, dir: "desc", stat: (c) => `${c.seniorGoals} goals`, impliedClues: ["position"] },
   { id: "africans-in-england", title: "Africans in England", subtitle: "African players who played in England",
     qualifies: (c) => isAfrican(c.nationality) && c.playedInEngland,
     metric: (c) => c.seniorApps, dir: "desc", stat: appsStat },
@@ -308,7 +320,7 @@ export const LIST_DEFS: ListDef[] = [
 const LIST_BY_ID = new Map(LIST_DEFS.map((d) => [d.id, d]));
 
 function toListPlayer(def: ListDef, c: Candidate): ListPlayer {
-  return { id: c.id, name: c.name, photo_url: c.photo_url, nationality: c.nationality, position: c.position, stat: def.stat(c) };
+  return { id: c.id, name: c.name, photo_url: c.photo_url, nationality: c.nationality, position: c.position, stat: def.stat(c), value: def.metric(c) };
 }
 
 export function deriveList(id: string): ListPlayer[] | null {

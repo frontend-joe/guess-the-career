@@ -628,7 +628,7 @@ tenableRouter.get("/schedule/rounds/:roundId/answers", (c) => {
     roundId,
     ordered,
     target: ROUND_SIZE,
-    impliedClues: impliedCluesFor(row.type),
+    impliedClues: impliedCluesFor(row.type, params),
     answers: answers.map((a, i) => ({
       ...a,
       rank: ordered ? i + 1 : null,

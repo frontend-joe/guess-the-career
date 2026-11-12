@@ -408,7 +408,12 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
     throw new RoomError(`That round only has ${answers.length} answers right now`, 409)
   }
 
-  const ids = answers.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
+  // Clues for everybody who can be clued, which on an unordered round is the
+  // whole pool — a squad is twenty-three deep and a random list two hundred,
+  // and once the first ten ranks were found the next clue came back blank.
+  const ids = (ordered ? answers.slice(0, ROUND_SIZE) : answers)
+    .map((a) => a.footballer_id)
+    .filter((x): x is number => x != null)
   const clueFor = clueWriter(round.type, params, ids)
   // Frozen with the board, like everything else about it, so a later import
   // re-splitting somebody's name cannot change what a live round accepts.
@@ -430,7 +435,7 @@ export function freezeRound(roomId: number, roundId: number): InstanceRow {
       .run(
         roomId, roundId, next, round.type, round.params, metric,
         titleFor(round.type, params, metric, round.title),
-        ordered ? 1 : 0, ROUND_SIZE, JSON.stringify(impliedCluesFor(round.type)),
+        ordered ? 1 : 0, ROUND_SIZE, JSON.stringify(impliedCluesFor(round.type, params)),
       )
     const id = Number(info.lastInsertRowid)
 
