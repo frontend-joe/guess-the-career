@@ -1360,17 +1360,34 @@ export function candidatesForType(slug: string): Candidate[] {
 
 // Render a round's title from its type + params, so wording changes apply to
 // rounds already selected without having to re-pick them.
+//
+// A ranked round says so. Ten slots under "Defenders with 50+ senior career
+// goals" read as THE ten defenders, when it is any ten of forty-eight — and
+// "England Bundesliga players (most appearances)" read the same way while
+// being a strict top ten where the fourth-best name in the room is wrong.
+// They are different games and the caption was the same either way.
+//
+// A label with a colon, not a grammatical prefix, because several of these
+// titles are possessive and "Top 10 Arsenal's record signings" is not
+// English. "Top 10: Arsenal's record signings" is, and so is every other one.
+//
+// Only the derived football rounds. An authored title is somebody's own
+// sentence — "The 10 longest rivers in the world" already says what it is,
+// and does not want a label bolted onto the front of it.
 export function titleFor(
   type: string,
   params: Record<string, string>,
   metric: Metric,
   fallback: string,
 ): string {
+  let title: string;
   try {
-    return getType(type)?.title(params, metric) ?? fallback;
+    title = getType(type)?.title(params, metric) ?? fallback;
   } catch {
     return fallback;
   }
+  if (categoryOf(type) !== "football" || !isOrdered(type, params)) return title;
+  return `Top 10: ${title}`;
 }
 
 export function isOrdered(slug: string, params?: Record<string, string>): boolean {

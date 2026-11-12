@@ -61,10 +61,13 @@ test('a club needs ten PRICED transfers to be a round', () => {
 
 test("the title drops a suffix nobody says out loud", () => {
   const params = { clubId: String(signings.full), club: 'Rangers FC' }
-  assert.equal(titleFor('record-signings', params, 'goals', 'x'), "Rangers' record signings")
-  assert.equal(titleFor('record-sales', params, 'goals', 'x'), "Rangers' biggest sales")
+  // A ranked round says it is ranked. The label carries a colon because these
+  // titles are possessive, and "Top 10 Rangers' record signings" is not
+  // English.
+  assert.equal(titleFor('record-signings', params, 'goals', 'x'), "Top 10: Rangers' record signings")
+  assert.equal(titleFor('record-sales', params, 'goals', 'x'), "Top 10: Rangers' biggest sales")
   // And a club that does not end in s keeps its apostrophe-s.
-  assert.equal(titleFor('record-signings', { club: 'Arsenal' }, 'goals', 'x'), "Arsenal's record signings")
+  assert.equal(titleFor('record-signings', { club: 'Arsenal' }, 'goals', 'x'), "Top 10: Arsenal's record signings")
 })
 
 test('the board is the priced transfers, most expensive first', () => {

@@ -134,3 +134,35 @@ test('a late answer joins an unordered board instead of being turned away', () =
   assert.equal(board.revealed.length, 1)
   assert.equal(board.guesses.find((g) => g.raw === 'Late Giant')!.verdict, 'hit')
 })
+
+// Ten slots under "Defenders with 50+ senior career goals" read as THE ten
+// defenders, when it is any ten of forty-eight. "England Bundesliga players
+// (most appearances)" read exactly the same way while being a strict top ten
+// where the fourth-best name in the room is wrong. They are different games
+// and the caption was the same either way.
+test('a ranked round says it is ranked, and a pool round does not', async () => {
+  const { titleFor } = await import('./tenable.ts')
+
+  assert.equal(
+    titleFor('random-list', PARAMS, 'goals', 'x'),
+    'Players 6\'6" (197cm) and over',
+    'any ten of a pool keeps its plain wording',
+  )
+  assert.equal(
+    titleFor('nationality', { nationality: 'England', league: 'Bundesliga' }, 'apps', 'x'),
+    'Top 10: England Bundesliga players (most appearances)',
+  )
+
+  // An authored title is somebody's own sentence and already says what it is.
+  const slug = 'rivers'
+  sqlite
+    .prepare(
+      `INSERT INTO general_rounds (slug, topic, title, ordered)
+       VALUES (?, 'Geography', 'The 10 longest rivers in the world', 1)`,
+    )
+    .run(slug)
+  assert.equal(
+    titleFor('general', { round: slug }, 'goals', 'x'),
+    'The 10 longest rivers in the world',
+  )
+})
