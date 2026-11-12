@@ -136,21 +136,20 @@ test('a late answer joins an unordered board instead of being turned away', () =
 })
 
 // Ten slots under "Defenders with 50+ senior career goals" read as THE ten
-// defenders, when it is any ten of forty-eight. "England Bundesliga players
-// (most appearances)" read exactly the same way while being a strict top ten
-// where the fourth-best name in the room is wrong. They are different games
-// and the caption was the same either way.
-test('a ranked round says it is ranked, and a pool round does not', async () => {
+// defenders, when it is any ten of forty-eight. The round has to say which
+// game it is — but only where the title does not already say it, and on a
+// ranked round it always does.
+test('a pool round says so, and a ranked round already has', async () => {
   const { titleFor } = await import('./tenable.ts')
 
   assert.equal(
     titleFor('random-list', PARAMS, 'goals', 'x'),
-    'Players 6\'6" (197cm) and over',
-    'any ten of a pool keeps its plain wording',
+    'Name any 10: Players 6\'6" (197cm) and over',
   )
+  // "(most appearances)" is the ranking, said once.
   assert.equal(
     titleFor('nationality', { nationality: 'England', league: 'Bundesliga' }, 'apps', 'x'),
-    'Top 10: England Bundesliga players (most appearances)',
+    'England Bundesliga players (most appearances)',
   )
 
   // An authored title is somebody's own sentence and already says what it is.
