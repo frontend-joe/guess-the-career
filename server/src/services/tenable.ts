@@ -2,7 +2,7 @@ import { normalizeName, sqlite } from "../db/client.ts";
 import { normalizeClubAlias } from "../services/scraper.ts";
 import { generalType } from "./general.ts";
 import { deriveList, getListDef, listSummaries } from "./randomLists.ts";
-import { CONTINENTS, getContinent } from "./continents.ts";
+import { ROUND_GROUPS, getGroup } from "./continents.ts";
 
 // Football Tenable — 10-answer list rounds.
 //
@@ -797,7 +797,7 @@ const nationalityClub: TenableType = {
   },
 };
 
-// ── 8c. Continent at a club ──────────────────────────────────────────────────
+// ── 8c. Continent or region at a club ──────────────────────────────────────────────────
 //
 // "South American Arsenal players", "African Roma players". The nationality
 // round next door asks one country at a time, which at a club is often a
@@ -808,16 +808,15 @@ const nationalityClub: TenableType = {
 // Europe is deliberately not among them: see Continent.asksRounds.
 const continentClub: TenableType = {
   slug: "continent-club",
-  label: "Continent at a club",
-  description: "Players from one continent who turned out for one club.",
+  label: "Where they are from, at a club",
+  description: "Players from one continent or region who turned out for one club.",
   example: "Name 10 South American players who turned out for Arsenal",
   title: (p, m) =>
-    `${getContinent(p.continent)?.adjective ?? p.continent} ${p.club} players (most ${metricWord(m)})`,
+    `${getGroup(p.continent)?.adjective ?? p.continent} ${p.club} players (most ${metricWord(m)})`,
   candidates(metric) {
     const col = metricCol(metric);
     const out: Candidate[] = [];
-    for (const cont of CONTINENTS) {
-      if (!cont.asksRounds) continue;
+    for (const cont of ROUND_GROUPS) {
       const ph = cont.nations.map(() => "?").join(", ");
       const rows = sqlite.prepare(
         `WITH tot AS (${PLAYER_CLUB})
@@ -843,7 +842,7 @@ const continentClub: TenableType = {
   },
   answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
-    const cont = getContinent(p.continent);
+    const cont = getGroup(p.continent);
     if (!cont) return [];
     const ph = cont.nations.map(() => "?").join(", ");
     return sqlite.prepare(

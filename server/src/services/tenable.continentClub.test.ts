@@ -72,3 +72,54 @@ test('a country that has since been renamed is still on its continent', () => {
   assert.equal(continentOf('U.S.'), 'north-america')
   assert.equal(continentOf('Atlantis'), null)
 })
+
+// A region is not a continent: they overlap it and each other. A Dane is
+// European AND Scandinavian AND Nordic, and only the first of those is a
+// continent — which is why continentOf keeps to the partition and isFrom
+// asks the group.
+test('a region overlaps the continent it sits in', async () => {
+  const { isFrom } = await import('./continents.ts')
+
+  for (const group of ['europe', 'scandinavia', 'nordic']) {
+    assert.equal(isFrom(group, 'Denmark'), true, `a Dane is ${group}`)
+  }
+  assert.equal(continentOf('Denmark'), 'europe', 'but only one of them is their continent')
+
+  // Scandinavia is the three, strictly. A board titled "Scandinavian" turning
+  // up Jari Litmanen would be the game being wrong, not the player — so Finns
+  // and Icelanders are Nordic instead.
+  assert.equal(isFrom('scandinavia', 'Finland'), false)
+  assert.equal(isFrom('nordic', 'Finland'), true)
+  assert.equal(isFrom('nordic', 'Iceland'), true)
+
+  // Eastern Europe takes the Cold War line, which is the one people mean.
+  for (const nat of ['Russia', 'Croatia', 'Czechoslovakia', 'Yugoslavia', 'East Germany', 'Poland']) {
+    assert.equal(isFrom('eastern-europe', nat), true, nat)
+  }
+  assert.equal(isFrom('eastern-europe', 'Austria'), false)
+})
+
+test('a club with enough Scandinavians is a round', () => {
+  const NORDICS: [string, string][] = [
+    ['Denmark', 'Peter Keeper'], ['Denmark', 'Michael Brother'], ['Norway', 'Ole Manager'],
+    ['Sweden', 'Henrik Striker'], ['Sweden', 'Freddie Winger'], ['Norway', 'Tore Target'],
+    ['Denmark', 'Jesper Flank'], ['Sweden', 'Olof Sweeper'], ['Norway', 'Erik Stopper'],
+    ['Denmark', 'Thomas Anchor'],
+  ]
+  NORDICS.forEach(([nat, name], i) => player(name, nat, 'Boldton', 30 - i))
+  // Two Finns, who are Nordic but not Scandinavian.
+  player('Jari Finn', 'Finland', 'Boldton', 29)
+  player('Sami Second', 'Finland', 'Boldton', 28)
+
+  const cands = candidatesForType('continent-club')
+  const scand = cands.find((c) => c.params.club === 'Boldton' && c.params.continent === 'scandinavia')
+  assert.ok(scand)
+  assert.equal(scand.answer_count, 10)
+  assert.equal(scand.title, 'Scandinavian Boldton players (most goals)')
+
+  const nordic = cands.find((c) => c.params.club === 'Boldton' && c.params.continent === 'nordic')
+  assert.equal(nordic?.answer_count, 12, 'the Finns count here and only here')
+
+  const answers = answersForRound('continent-club', { continent: 'scandinavia', club: 'Boldton' }, 'goals')
+  assert.equal(answers.some((a) => a.name === 'Jari Finn'), false)
+})

@@ -1,4 +1,4 @@
-// Which continent a nationality belongs to.
+// Which continent — or which region — a nationality belongs to.
 //
 // There was no continent map in this codebase, so Random Lists grew two
 // half-copies of one — an Africa set and a South America set, each carrying
@@ -139,13 +139,76 @@ export const CONTINENTS: Continent[] = [
   },
 ];
 
+// Groups that are not continents.
+//
+// A continent is a partition — every country sits in exactly one, which is
+// what makes continentOf a function. These overlap it and each other, so they
+// live apart: a Dane is European AND Scandinavian, and asking continentOf to
+// pick between them would be asking it the wrong question.
+//
+// Scandinavia is the three, strictly. Plenty of people say it meaning Finland
+// and Iceland too, so Nordic is here as its own group rather than quietly
+// widening a word that has a meaning — a board titled "Scandinavian" turning
+// up Jari Litmanen would be the game being wrong, not the player.
+//
+// Eastern Europe takes the Cold War line, because that is the one people mean
+// by it: the Balkans and the ex-Soviet states included, Croatia and Slovenia
+// with them even though an atlas files them centrally.
+export const REGIONS: Continent[] = [
+  {
+    slug: "scandinavia",
+    label: "Scandinavia",
+    adjective: "Scandinavian",
+    asksRounds: true,
+    nations: ["Denmark", "Norway", "Sweden", "Danish", "Norwegian", "Swedish"],
+  },
+  {
+    slug: "nordic",
+    label: "Nordic countries",
+    adjective: "Nordic",
+    asksRounds: true,
+    nations: [
+      "Denmark", "Norway", "Sweden", "Finland", "Iceland", "Faroe Islands",
+      "Greenland", "Åland", "Danish", "Norwegian", "Swedish", "Finnish",
+      "Icelandic", "Faroese",
+    ],
+  },
+  {
+    slug: "eastern-europe",
+    label: "Eastern Europe",
+    adjective: "Eastern European",
+    asksRounds: true,
+    nations: [
+      "Albania", "Armenia", "Azerbaijan", "Belarus",
+      "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Czech Republic",
+      "Czechoslovakia", "East Germany", "Estonia", "Georgia", "Hungary",
+      "Kosovo", "Latvia", "Lithuania", "Macedonia", "Moldova", "Montenegro",
+      "North Macedonia", "Poland", "Romania", "Russia", "Serbia",
+      "Serbia and Montenegro", "Slovakia", "Slovenia", "Soviet Union",
+      "Ukraine", "Yugoslavia",
+      "Bulgarian", "Croatian", "Czech", "Hungarian", "Polish", "Romanian",
+      "Russian", "Serbian", "Slovak", "Slovenian", "Ukrainian",
+    ],
+  },
+];
+
+// Everything a round can be asked about: the continents that ask rounds, plus
+// the regions, which exist for no other reason.
+export const ROUND_GROUPS: Continent[] = [
+  ...CONTINENTS.filter((c) => c.asksRounds),
+  ...REGIONS,
+];
+
+const MEMBERS = new Map<string, Set<string>>();
+
 const BY_NATION = new Map<string, string>();
 for (const c of CONTINENTS) {
   for (const n of c.nations) BY_NATION.set(n.trim().toLowerCase(), c.slug);
 }
 
-export function getContinent(slug: string): Continent | undefined {
-  return CONTINENTS.find((c) => c.slug === slug);
+/** A continent or a region — whatever a round was asked about. */
+export function getGroup(slug: string): Continent | undefined {
+  return CONTINENTS.find((c) => c.slug === slug) ?? REGIONS.find((r) => r.slug === slug);
 }
 
 /** The continent slug for a stored nationality, or null for one we cannot place. */
@@ -154,6 +217,21 @@ export function continentOf(nationality: string | null): string | null {
   return BY_NATION.get(nationality.trim().toLowerCase()) ?? null;
 }
 
+/**
+ * Is this nationality in that continent or region? Asked of the group rather
+ * than of continentOf, because a Dane answers yes to Europe, to Scandinavia
+ * and to the Nordics, and only one of those three is their continent.
+ */
 export function isFrom(slug: string, nationality: string | null): boolean {
-  return continentOf(nationality) === slug;
+  if (!nationality) return false;
+  let set = MEMBERS.get(slug);
+  if (!set) {
+    const group = getGroup(slug);
+    if (!group) return false;
+    // Built once and kept: the Random Lists derivation asks this of every
+    // footballer in the database, twice.
+    set = new Set(group.nations.map((n) => n.trim().toLowerCase()));
+    MEMBERS.set(slug, set);
+  }
+  return set.has(nationality.trim().toLowerCase());
 }
