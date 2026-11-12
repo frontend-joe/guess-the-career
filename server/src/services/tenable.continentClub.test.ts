@@ -33,6 +33,24 @@ function player(name: string, nationality: string, club: string, goals: number) 
   return id
 }
 
+// The league-shaped twin of player(), for the league rounds below.
+function leaguePlayer(name: string, nationality: string, league: string, goals: number) {
+  const id = (sqlite
+    .prepare(
+      `INSERT INTO footballers (name, surname, wikipedia_url, nationality)
+       VALUES (?, ?, ?, ?) RETURNING id`,
+    )
+    .get(name, name.split(' ').at(-1), `https://en.wikipedia.org/wiki/${name.replace(/ /g, '_')}`, nationality) as { id: number }).id
+  sqlite
+    .prepare(
+      `INSERT INTO career_statistics
+         (footballer_id, club, division, league, season, league_apps, league_goals)
+       VALUES (?, 'Some Club', ?, ?, '2020-21', 30, ?)`,
+    )
+    .run(id, league, league, goals)
+  return id
+}
+
 // Eleven Africans from eight countries, so no single nationality could carry
 // the board on its own — which is the reason this round exists.
 const AFRICANS: [string, string][] = [
@@ -122,4 +140,36 @@ test('a club with enough Scandinavians is a round', () => {
 
   const answers = answersForRound('continent-club', { continent: 'scandinavia', club: 'Boldton' }, 'goals')
   assert.equal(answers.some((a) => a.name === 'Jari Finn'), false)
+})
+
+// The same question asked of a league. A league is the wider net of the two —
+// a club's Scandinavians are a handful, a league's are a generation — so it is
+// where the smaller regions get boards at all.
+test('a league can be asked for a region too', () => {
+  const EASTERN: [string, string][] = [
+    ['Croatia', 'Zvonimir Winger'], ['Serbia', 'Dejan Anchor'], ['Russia', 'Igor Keeper'],
+    ['Poland', 'Robert Striker'], ['Czech Republic', 'Pavel Flank'], ['Romania', 'Gheorghe Playmaker'],
+    ['Bulgaria', 'Hristo Forward'], ['Ukraine', 'Andriy Target'], ['Yugoslavia', 'Dragan Historic'],
+    ['Hungary', 'Ferenc Legend'], ['Slovenia', 'Zlatko Spare'],
+  ]
+  EASTERN.forEach(([nat, name], i) => leaguePlayer(name, nat, 'Serie A', 40 - i))
+  // And a crowd from elsewhere in the same league, who must not turn up.
+  for (let i = 0; i < 12; i++) leaguePlayer(`Italian Lad ${i}`, 'Italy', 'Serie A', 90)
+
+  const cands = candidatesForType('continent-league')
+  const serie = cands.find(
+    (c) => c.params.league === 'Serie A' && c.params.continent === 'eastern-europe' && c.metric === 'goals',
+  )
+  assert.ok(serie)
+  assert.equal(serie.title, 'Eastern European Serie A players (most goals)')
+  assert.equal(serie.answer_count, EASTERN.length)
+
+  const answers = answersForRound('continent-league', { continent: 'eastern-europe', league: 'Serie A' }, 'goals')
+  assert.equal(answers.length, 10)
+  assert.equal(answers[0].name, 'Zvonimir Winger')
+  assert.equal(answers.some((a) => a.name.startsWith('Italian Lad')), false)
+
+  // Being European in a European league is not a question, so Europe maps
+  // nationalities here as everywhere and asks nothing.
+  assert.equal(cands.some((c) => c.params.continent === 'europe'), false)
 })

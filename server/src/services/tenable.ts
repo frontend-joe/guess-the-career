@@ -632,6 +632,62 @@ const nationality: TenableType = {
   },
 };
 
+// ── 4b. Continent or region × league ─────────────────────────────────────────
+//
+// The same question as the club one next door, asked of a league: "Eastern
+// European Serie A players", "Scandinavian Premier League players". A league
+// is the wider net of the two — a club's Scandinavians are a handful, a
+// league's are a generation — so this is where the smaller regions get boards
+// at all.
+const continentLeague: TenableType = {
+  slug: "continent-league",
+  label: "Where they are from, in a league",
+  description: "Top of a league filtered to one continent or region.",
+  example: "Most Serie A appearances by Eastern European players",
+  title: (p, m) =>
+    `${getGroup(p.continent)?.adjective ?? p.continent} ${p.league} players (most ${metricWord(m)})`,
+  candidates(metric) {
+    const col = metricCol(metric);
+    const out: Candidate[] = [];
+    for (const group of ROUND_GROUPS) {
+      const ph = group.nations.map(() => "?").join(", ");
+      const rows = sqlite.prepare(
+        `WITH pl AS (${PLAYER_LEAGUE})
+         SELECT pl.league AS league, COUNT(*) AS n
+         FROM pl JOIN footballers f ON f.id = pl.fid
+         WHERE f.nationality IS NOT NULL AND LOWER(f.nationality) IN (${ph})
+           AND pl.${col} > 0
+         GROUP BY pl.league
+         HAVING n >= ${MIN_ANSWERS}
+         ORDER BY n DESC`,
+      ).all(...group.nations.map((n) => n.toLowerCase())) as { league: string; n: number }[];
+      for (const r of rows) {
+        out.push({
+          type: this.slug,
+          params: { continent: group.slug, league: r.league },
+          metric,
+          title: this.title({ continent: group.slug, league: r.league }, metric),
+          answer_count: r.n,
+        });
+      }
+    }
+    return out;
+  },
+  answers(p, metric, limit = ROUND_SIZE) {
+    const col = metricCol(metric);
+    const group = getGroup(p.continent);
+    if (!group) return [];
+    const ph = group.nations.map(() => "?").join(", ");
+    return sqlite.prepare(
+      `WITH pl AS (${PLAYER_LEAGUE})
+       SELECT ${ANSWER_COLS}, pl.${col} AS value
+       FROM pl JOIN footballers f ON f.id = pl.fid
+       WHERE pl.league = ? AND LOWER(f.nationality) IN (${ph}) AND pl.${col} > 0
+       ORDER BY value DESC, f.name ASC LIMIT ${limit}`,
+    ).all(p.league, ...group.nations.map((n) => n.toLowerCase())) as TenableAnswer[];
+  },
+};
+
 // ── 5. Club ──────────────────────────────────────────────────────────────────
 const club: TenableType = {
   slug: "club",
@@ -1298,6 +1354,7 @@ export const TENABLE_TYPES: TenableType[] = [
   surnameInitial,
   surnameLength,
   nationality,
+  continentLeague,
   club,
   clubSurnameInitial,
   leagueAllTime,
