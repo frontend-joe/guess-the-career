@@ -216,22 +216,52 @@ tenableRouter.post("/admin/rounds/prune", (c) => {
     if (n < MIN_ANSWERS) dead.push(r.id);
   }
 
+  // A round per transaction, not one transaction for the lot: a round a game
+  // has played cannot be deleted, and inside a single transaction that one
+  // failure would roll back every other round's prune with it.
   let unscheduled = 0;
-  const tx = sqlite.transaction(() => {
-    for (const id of dead) {
-      unscheduled += sqlite.prepare(`DELETE FROM tenable_schedule WHERE round_id = ?`).run(id).changes;
-      sqlite.prepare(`DELETE FROM tenable_rounds WHERE id = ?`).run(id);
-    }
-  });
-  tx();
+  let disabled = 0;
+  for (const id of dead) {
+    const r = dropRound(id);
+    unscheduled += r.unscheduled;
+    if (!r.deleted) disabled += 1;
+  }
 
-  return c.json({ checked: rounds.length, pruned: dead.length, unscheduled });
+  return c.json({
+    checked: rounds.length,
+    pruned: dead.length - disabled,
+    disabled,
+    unscheduled,
+  });
 });
 
 tenableRouter.delete("/admin/rounds/:id", (c) => {
-  sqlite.prepare(`DELETE FROM tenable_rounds WHERE id = ?`).run(parseInt(c.req.param("id"), 10));
-  return c.json({ ok: true });
+  const id = parseInt(c.req.param("id"), 10);
+  return c.json(dropRound(id));
 });
+
+// Taking a round out of the pool. Deleting the row is the usual way, but a
+// round a game has already played CANNOT be deleted — game_round_instances
+// references it ON DELETE RESTRICT, deliberately, so a recording keeps the
+// round it was a recording of. Deselecting it does the job the caller actually
+// wanted: the round stops being offered, and the game that played it still
+// knows what it played.
+export function dropRound(id: number): { ok: true; deleted: boolean; unscheduled: number } {
+  const tx = sqlite.transaction(() => {
+    // Either way the schedule must let go of it first, or a scheduled date
+    // points at a round that is gone or no longer served.
+    const unscheduled = sqlite
+      .prepare(`DELETE FROM tenable_schedule WHERE round_id = ?`).run(id).changes;
+    try {
+      sqlite.prepare(`DELETE FROM tenable_rounds WHERE id = ?`).run(id);
+      return { ok: true as const, deleted: true, unscheduled };
+    } catch {
+      sqlite.prepare(`UPDATE tenable_rounds SET enabled = 0 WHERE id = ?`).run(id);
+      return { ok: true as const, deleted: false, unscheduled };
+    }
+  });
+  return tx();
+}
 
 // GET /api/tenable/admin/rounds — everything selected (for the schedule picker).
 tenableRouter.get("/admin/rounds", (c) => {
