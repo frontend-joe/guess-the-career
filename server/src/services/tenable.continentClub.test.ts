@@ -115,6 +115,21 @@ test('a region overlaps the continent it sits in', async () => {
     assert.equal(isFrom('eastern-europe', nat), true, nat)
   }
   assert.equal(isFrom('eastern-europe', 'Austria'), false)
+
+  // The Caribbean sits inside North America the same way Scandinavia sits
+  // inside Europe.
+  for (const nat of ['Jamaica', 'Trinidad and Tobago', 'Haiti', 'Curaçao', 'Barbados']) {
+    assert.equal(isFrom('caribbean', nat), true, nat)
+    assert.equal(isFrom('north-america', nat), true, `${nat} is also North American`)
+    assert.equal(continentOf(nat), 'north-america', `${nat} has one continent`)
+  }
+  // The islands, not the Caribbean zone of CONCACAF. Guyana and Suriname play
+  // in it and sit in CARICOM, but they are on the South American mainland;
+  // Bermuda is in the North Atlantic, which costs this board Shaun Goater and
+  // Nahki Wells.
+  for (const nat of ['Guyana', 'Suriname', 'Bermuda', 'Mexico', 'Costa Rica']) {
+    assert.equal(isFrom('caribbean', nat), false, nat)
+  }
 })
 
 test('a club with enough Scandinavians is a round', () => {

@@ -154,6 +154,14 @@ export const CONTINENTS: Continent[] = [
 // Eastern Europe takes the Cold War line, because that is the one people mean
 // by it: the Balkans and the ex-Soviet states included, Croatia and Slovenia
 // with them even though an atlas files them centrally.
+//
+// The Caribbean is the islands. Guyana and Suriname play in the Caribbean
+// zone and sit in CARICOM, but they are on the South American mainland and a
+// board calling them Caribbean would be the game being wrong in the same way
+// a Scandinavian board turning up a Finn would be. Bermuda is the one that
+// costs something — Clyde Best, Shaun Goater and Nahki Wells all qualify by
+// football and none of them by geography, and geography is what this file
+// decides by everywhere else.
 export const REGIONS: Continent[] = [
   {
     slug: "scandinavia",
@@ -188,6 +196,21 @@ export const REGIONS: Continent[] = [
       "Ukraine", "Yugoslavia",
       "Bulgarian", "Croatian", "Czech", "Hungarian", "Polish", "Romanian",
       "Russian", "Serbian", "Slovak", "Slovenian", "Ukrainian",
+    ],
+  },
+  {
+    slug: "caribbean",
+    label: "the Caribbean",
+    adjective: "Caribbean",
+    asksRounds: true,
+    nations: [
+      "Antigua and Barbuda", "Aruba", "Bahamas", "Barbados",
+      "Cayman Islands", "Cuba", "Curaçao", "Dominica", "Dominican Republic",
+      "Grenada", "Guadeloupe", "Haiti", "Jamaica", "Martinique", "Montserrat",
+      "Netherlands Antilles", "Puerto Rico", "Saint Kitts and Nevis",
+      "Saint Lucia", "Saint Vincent and the Grenadines",
+      "Trinidad and Tobago",
+      "Jamaican", "Haitian", "Cuban", "Trinidadian", "Barbadian",
     ],
   },
 ];
