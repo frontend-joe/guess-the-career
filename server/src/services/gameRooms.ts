@@ -1243,6 +1243,36 @@ function discardScrapedFootballer(id: number, why: string, raw: string): void {
   console.log(`[reviews] discarded "${raw}" (${why})`)
 }
 
+// What the round can tell Wikipedia about the name being looked up.
+//
+// A surname on its own identifies nobody: "Ivanovic" shouted at "Eastern
+// European Chelsea players" went to the search with nothing attached, came
+// back as a different Ivanović entirely, and — being correctly judged not to
+// be on that board — was discarded, so the guess was wrong and typing
+// "Branislav Ivanović" in full was the only way through. The round knows it is
+// a Chelsea round. The solo game has always passed this hint; this path never
+// did.
+export function hintFor(normalized: string): string {
+  const row = sqlite
+    .prepare(
+      `SELECT i.params_json AS params
+       FROM game_guess_reviews r
+       JOIN game_round_instances i ON i.id = r.instance_id
+       WHERE r.raw_norm = ? AND r.status = 'pending'
+       ORDER BY r.id DESC LIMIT 1`,
+    )
+    .get(normalized) as { params: string } | undefined
+  if (!row) return ''
+  try {
+    const p = JSON.parse(row.params) as Record<string, string>
+    // A club names a squad, so it narrows hardest. A league is weaker but
+    // still better than nothing, and a round with neither gives nothing.
+    return p.club ?? p.clubA ?? p.league ?? ''
+  } catch {
+    return ''
+  }
+}
+
 const learnQueue: { raw: string; normalized: string }[] = []
 let learning = false
 
@@ -1260,7 +1290,7 @@ async function drainLearnQueue(): Promise<void> {
         let id: number | null = null
         let created = false
         try {
-          ;({ id, created } = await resolveOrCreateFootballer(next.raw, ''))
+          ;({ id, created } = await resolveOrCreateFootballer(next.raw, hintFor(next.normalized)))
         } catch (err) {
           console.warn(`[reviews] could not resolve "${next.raw}":`, err)
           id = null
