@@ -123,11 +123,23 @@ test('a region overlaps the continent it sits in', async () => {
     assert.equal(isFrom('north-america', nat), true, `${nat} is also North American`)
     assert.equal(continentOf(nat), 'north-america', `${nat} has one continent`)
   }
-  // The islands, not the Caribbean zone of CONCACAF. Guyana and Suriname play
-  // in it and sit in CARICOM, but they are on the South American mainland;
-  // Bermuda is in the North Atlantic, which costs this board Shaun Goater and
-  // Nahki Wells.
-  for (const nat of ['Guyana', 'Suriname', 'Bermuda', 'Mexico', 'Costa Rica']) {
+
+  // It is football's Caribbean, not the atlas's: the Caribbean Football Union.
+  // Guyana and Suriname are on the South American mainland and Bermuda is out
+  // in the North Atlantic, and all three play Caribbean football, which is
+  // what a fan means by the word — and what gets Clyde Best, Shaun Goater and
+  // Nahki Wells onto the board.
+  for (const nat of ['Bermuda', 'Guyana', 'Suriname', 'French Guiana']) {
+    assert.equal(isFrom('caribbean', nat), true, nat)
+  }
+  // Their continent is untouched by that. The region overlaps the partition;
+  // it does not redraw it.
+  assert.equal(continentOf('Guyana'), 'south-america')
+  assert.equal(continentOf('Suriname'), 'south-america')
+  assert.equal(continentOf('Bermuda'), 'north-america')
+
+  // The mainland proper is still not the Caribbean, CONCACAF or otherwise.
+  for (const nat of ['Mexico', 'Costa Rica', 'Panama', 'Honduras', 'Brazil']) {
     assert.equal(isFrom('caribbean', nat), false, nat)
   }
 })

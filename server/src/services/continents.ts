@@ -155,13 +155,19 @@ export const CONTINENTS: Continent[] = [
 // by it: the Balkans and the ex-Soviet states included, Croatia and Slovenia
 // with them even though an atlas files them centrally.
 //
-// The Caribbean is the islands. Guyana and Suriname play in the Caribbean
-// zone and sit in CARICOM, but they are on the South American mainland and a
-// board calling them Caribbean would be the game being wrong in the same way
-// a Scandinavian board turning up a Finn would be. Bermuda is the one that
-// costs something — Clyde Best, Shaun Goater and Nahki Wells all qualify by
-// football and none of them by geography, and geography is what this file
-// decides by everywhere else.
+// The Caribbean is football's Caribbean: the Caribbean Football Union, which
+// is the one a fan means. It is the single place in this file where the game's
+// own map beats the atlas, and deliberately — Guyana and Suriname are on the
+// South American mainland and Bermuda is a thousand miles out in the North
+// Atlantic, but all three play Caribbean football, and leaving them out would
+// cost this board Clyde Best, Shaun Goater and Nahki Wells, who are exactly
+// the players somebody shouts at a Caribbean round.
+//
+// Note what this does NOT do: Guyana and Suriname stay South American and
+// Bermuda stays North American, because continentOf is a partition and the
+// atlas still decides that. A Guyanese is South American AND Caribbean, the
+// same way a Dane is European AND Scandinavian. Overlapping is the whole
+// reason regions live apart from continents.
 export const REGIONS: Continent[] = [
   {
     slug: "scandinavia",
@@ -210,7 +216,10 @@ export const REGIONS: Continent[] = [
       "Netherlands Antilles", "Puerto Rico", "Saint Kitts and Nevis",
       "Saint Lucia", "Saint Vincent and the Grenadines",
       "Trinidad and Tobago",
+      // The mainland and Atlantic members the CFU has and the atlas does not.
+      "Bermuda", "Guyana", "Suriname", "French Guiana",
       "Jamaican", "Haitian", "Cuban", "Trinidadian", "Barbadian",
+      "Bermudian", "Guyanese", "Surinamese",
     ],
   },
 ];
