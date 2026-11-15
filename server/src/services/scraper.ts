@@ -554,22 +554,38 @@ function classifyPage($: CheerioAPI): PageKind {
   return "unknown";
 }
 
+// States that stopped existing. A player who went on to turn out for the
+// country that replaced one belongs to the replacement: forty-three caps for
+// Czechoslovakia do not outrank six for the Czech Republic, because by then
+// there was no Czechoslovakia left to play for. A player who only ever played
+// for the defunct state keeps it — a nationality is whatever the infobox said
+// at the time, which is the same rule continents.ts files Yugoslavia and Zaire
+// under. East and West Germany are absent because COUNTRY_NORMALIZE already
+// folds both into Germany.
+const DISSOLVED_NATIONS = new Set([
+  "Czechoslovakia",
+  "Soviet Union",
+  "USSR",
+  "Yugoslavia",
+  "Serbia and Montenegro",
+]);
+
 // Which country a player belongs to, read off their international career.
 //
-// Only countries in FOOTBALLING_NATIONS count, so that "Great Britain",
-// "Basque Country", "West Germany" and "Italy B" don't pollute the field.
+// Senior caps only, most of them wins, ties to the last one listed — and a
+// country that still exists beats one that does not.
 //
-// The country they played MOST for, falling back to the last one listed.
+// This took the last row outright, to handle players who switched allegiance.
+// For a switcher that is right, but the infobox writes a guest appearance
+// exactly like a spell: Michel Platini turned out once for Kuwait in a 1988
+// friendly, a year after retiring, and that one novelty cap outranked
+// seventy-two for France, putting 147 Juventus appearances at rank 3 of
+// "Asian Serie A players". Caps tell the two apart.
 //
-// This took the last one outright, to handle players who switched allegiance —
-// and for a switcher that is right: Declan Rice, Diego Costa and Munir all have
-// more caps for the country they moved to than the one they left. But the
-// infobox lists a guest appearance exactly like a spell, and Michel Platini
-// turned out once for Kuwait in a 1988 friendly, a year after retiring. One
-// novelty cap listed last outranked seventy-two for France, and 147 Juventus
-// appearances turned up at rank 3 of "Asian Serie A players". Caps are what
-// tells the two apart: a switch brings a career with it, a guest appearance is
-// one game.
+// Senior only, because youth caps are how a switcher piles up numbers for the
+// country they LEFT. Twenty England U21 appearances and then ten for Nigeria
+// is a Nigerian, and counting the youth games would have called him English —
+// which is the very case the old rule existed to get right.
 export function nationalityFromInternationals(
   stints: { club: string; apps: number | null; stint_type: string }[],
 ): string | null {
@@ -577,6 +593,7 @@ export function nationalityFromInternationals(
   const listed: string[] = [];
   for (const s of stints) {
     if (s.stint_type !== "international") continue;
+    if (NOT_THE_SENIOR_SIDE.test(stripCitations(s.club).replace(/\s*\([^)]*\)\s*$/, "").trim())) continue;
     const raw = extractCountryFromTeam(s.club);
     if (raw === null || !FOOTBALLING_NATIONS.has(raw)) continue;
     const country = COUNTRY_NORMALIZE[raw] ?? raw;
@@ -586,12 +603,14 @@ export function nationalityFromInternationals(
     caps.set(country, (caps.get(country) ?? 0) + (s.apps ?? 1));
     listed.push(country);
   }
+  const live = listed.filter((c) => !DISSOLVED_NATIONS.has(c));
+  const candidates = live.length > 0 ? live : listed;
   // Walking the rows backwards makes a tie go to the LAST one listed, which is
   // the old rule and still the right answer for somebody mid-switch with the
   // same number of caps either side.
   let best: string | null = null;
-  for (let i = listed.length - 1; i >= 0; i--) {
-    if (best === null || (caps.get(listed[i]) ?? 0) > (caps.get(best) ?? 0)) best = listed[i];
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    if (best === null || (caps.get(candidates[i]) ?? 0) > (caps.get(best) ?? 0)) best = candidates[i];
   }
   return best;
 }
@@ -2426,13 +2445,16 @@ function stripCitations(text: string): string {
   return text.replace(/\s*\[[^\]]*\]/g, "").trim();
 }
 
+// "England U21", "Italy B", "France Olympic" — a national team that is not THE
+// national team. Named once because two callers need it for opposite reasons:
+// extractCountryFromTeam strips it to find the country, and the nationality
+// rule below uses it to throw the row away.
+const NOT_THE_SENIOR_SIDE = /\s+(U[-\s]?\d+|Under[-\s]?\d+|B|XI|Olympics?|Olympic\s+[Tt]eam)$/i;
+
 function extractCountryFromTeam(team: string): string | null {
   const cleaned = stripCitations(team)
     .replace(/\s*\([^)]*\)\s*$/, "") // strip trailing parentheticals e.g. "(O.P.)", "(beach)"
-    .replace(
-      /\s+(U[-\s]?\d+|Under[-\s]?\d+|B|XI|Olympics?|Olympic\s+[Tt]eam)$/i,
-      "",
-    )
+    .replace(NOT_THE_SENIOR_SIDE, "")
     .trim();
   return cleaned.length > 0 ? cleaned : null;
 }
