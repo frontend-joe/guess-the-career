@@ -554,6 +554,48 @@ function classifyPage($: CheerioAPI): PageKind {
   return "unknown";
 }
 
+// Which country a player belongs to, read off their international career.
+//
+// Only countries in FOOTBALLING_NATIONS count, so that "Great Britain",
+// "Basque Country", "West Germany" and "Italy B" don't pollute the field.
+//
+// The country they played MOST for, falling back to the last one listed.
+//
+// This took the last one outright, to handle players who switched allegiance —
+// and for a switcher that is right: Declan Rice, Diego Costa and Munir all have
+// more caps for the country they moved to than the one they left. But the
+// infobox lists a guest appearance exactly like a spell, and Michel Platini
+// turned out once for Kuwait in a 1988 friendly, a year after retiring. One
+// novelty cap listed last outranked seventy-two for France, and 147 Juventus
+// appearances turned up at rank 3 of "Asian Serie A players". Caps are what
+// tells the two apart: a switch brings a career with it, a guest appearance is
+// one game.
+export function nationalityFromInternationals(
+  stints: { club: string; apps: number | null; stint_type: string }[],
+): string | null {
+  const caps = new Map<string, number>();
+  const listed: string[] = [];
+  for (const s of stints) {
+    if (s.stint_type !== "international") continue;
+    const raw = extractCountryFromTeam(s.club);
+    if (raw === null || !FOOTBALLING_NATIONS.has(raw)) continue;
+    const country = COUNTRY_NORMALIZE[raw] ?? raw;
+    // An unknown apps count is not zero caps — it is a spell we cannot weigh,
+    // and discarding it would hand the decision to whichever row happened to
+    // have a number. Count it as one so it still registers.
+    caps.set(country, (caps.get(country) ?? 0) + (s.apps ?? 1));
+    listed.push(country);
+  }
+  // Walking the rows backwards makes a tie go to the LAST one listed, which is
+  // the old rule and still the right answer for somebody mid-switch with the
+  // same number of caps either side.
+  let best: string | null = null;
+  for (let i = listed.length - 1; i >= 0; i--) {
+    if (best === null || (caps.get(listed[i]) ?? 0) > (caps.get(best) ?? 0)) best = listed[i];
+  }
+  return best;
+}
+
 export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   if (!url.includes("wikipedia.org/wiki/")) {
     throw new Error("URL must be a Wikipedia article URL");
@@ -805,20 +847,8 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     });
   });
 
-  // Derive nationality from international career — highest priority.
-  // Only accepts countries that appear in the FOOTBALLING_NATIONS list so that
-  // "Great Britain", "Basque Country", "West Germany", "Italy B" etc. don't pollute the field.
-  // Takes the last matching country to handle players who switched allegiance.
-  const intlStints = stints.filter((s) => s.stint_type === "international");
-  if (intlStints.length > 0) {
-    const countries = intlStints
-      .map((s) => extractCountryFromTeam(s.club))
-      .filter((c): c is string => c !== null && FOOTBALLING_NATIONS.has(c))
-      .map((c) => COUNTRY_NORMALIZE[c] ?? c);
-    if (countries.length > 0) {
-      nationality = countries[countries.length - 1];
-    }
-  }
+  const fromInternationals = nationalityFromInternationals(stints);
+  if (fromInternationals) nationality = fromInternationals;
 
   // Final fallback: if nationality is still unset, scan each comma-segment of the birthplace
   // against FOOTBALLING_NATIONS (last-to-first, so "Piacenza, Emilia-Romagna, Italy" → "Italy")
