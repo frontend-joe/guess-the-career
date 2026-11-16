@@ -14,10 +14,23 @@ export const CLUB_ALIASES: Record<string, string> = {
   Wolves: "Wolverhampton Wanderers",
   QPR: "Queens Park Rangers",
   PSG: "Paris Saint-Germain",
-  // Inter Milan
+  // Inter Milan. "Internazionale Milano" is the one the career tables actually
+  // use — Dario Šimić's four seasons there were written that way, and with
+  // every other spelling mapped and that one missed, ninety-four appearances
+  // sat outside every Inter round there has ever been.
   Internazionale: "Inter Milan",
+  Inter: "Inter Milan",
+  "Internazionale Milano": "Inter Milan",
   "FC Internazionale": "Inter Milan",
   "FC Internazionale Milano": "Inter Milan",
+  // Deportivo. Both spellings carry a Liga career — fourteen players under one
+  // and nineteen under the other — and neither the alias map nor the clubs
+  // table knew they were the same place, so each had half a board.
+  Deportivo: "Deportivo La Coruña",
+  "Deportivo A Coruña": "Deportivo La Coruña",
+  "Deportivo la Coruña": "Deportivo La Coruña",
+  "RC Deportivo": "Deportivo La Coruña",
+  "RC Deportivo de La Coruña": "Deportivo La Coruña",
   // AC Milan
   "A.C. Milan": "AC Milan",
   Milan: "AC Milan",

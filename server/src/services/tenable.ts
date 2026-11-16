@@ -91,11 +91,6 @@ const IN_ALLOWED = `COALESCE(cs.league, cs.division) IN (${ALLOWED_LEAGUES_SQL})
 // by league threw away 200 of Bryan Hughes' 248 appearances. The allow-list
 // still decides WHICH CLUBS get rounds — a club qualifies if it ever played in
 // one of the five — but not which of its rows count.
-const ALLOWED_CLUBS = `
-  SELECT DISTINCT REPLACE(club, ' (loan)', '') AS club
-  FROM career_statistics
-  WHERE COALESCE(league, division) IN (${ALLOWED_LEAGUES_SQL})
-`;
 // Some sources spell leagues differently ("LaLiga" in the transfer windows), so
 // match on a squashed, lower-cased form.
 const ALLOWED_LEAGUES_LOOSE = ALLOWED_LEAGUES.map(
@@ -202,6 +197,45 @@ const CLUB_BY_URL = `
     WHERE c.wikipedia_url IS NOT NULL
   )
   WHERE rn = 1
+`;
+
+// A career-statistics row's club, under the name the rest of the database uses
+// for it — the same chain the stint branch below has had all along, finally
+// applied to the table the boards are actually built from.
+//
+// Strip the loan arrow and marker, fold the alias map, then let the club's
+// ARTICLE settle the spelling. Without it the boards took career_statistics
+// at its word, and one club written two ways was two clubs: Hellas Verona and
+// Verona each had their own round with half the players on it, and Dario
+// Šimić's four seasons at "Internazionale Milano" were not Inter Milan's as
+// far as any round was concerned.
+const CS_CLUB_RAW = `normalize_club_alias(REPLACE(REPLACE(cs.club, '→ ', ''), ' (loan)', ''))`;
+// The same two ways in a stint has: the row's own link, or the name's entry in
+// the clubs table. Aliased first, so "Internazionale Milano" asks the clubs
+// table about "Inter Milan" rather than about a name it has never heard of.
+const CS_CLUB_URL = `COALESCE(cs.club_wikipedia_url, ccn.wikipedia_url)`;
+const CS_CLUB = `COALESCE(ccbu.club, ${CS_CLUB_RAW})`;
+const CS_CLUB_JOINS = `
+  LEFT JOIN clubs ccn ON ccn.name = ${CS_CLUB_RAW}
+  LEFT JOIN (${CLUB_BY_URL}) ccbu ON ccbu.url = ${CS_CLUB_URL}
+`;
+
+// Club rounds ask "most appearances FOR THIS CLUB", so they count every league
+// appearance for that club, not only the ones in our five leagues. Birmingham
+// City's second tier was called "First Division" until 2004, so filtering rows
+// by league threw away 200 of Bryan Hughes' 248 appearances. The allow-list
+// still decides WHICH CLUBS get rounds — a club qualifies if it ever played in
+// one of the five — but not which of its rows count.
+//
+// Canonical names only, for the same reason PLAYER_CLUB uses them: a club that
+// qualified under one spelling and was counted under another would vanish from
+// the rounds entirely. CLUB_BY_URL picks the name carrying the most players in
+// these leagues, so whatever it picks is a name this list already holds.
+const ALLOWED_CLUBS = `
+  SELECT DISTINCT ${CS_CLUB} AS club
+  FROM career_statistics cs
+  ${CS_CLUB_JOINS}
+  WHERE COALESCE(cs.league, cs.division) IN (${ALLOWED_LEAGUES_SQL})
 `;
 
 const STINT_CLUB_RAW = `REPLACE(REPLACE(st.club, '→ ', ''), ' (loan)', '')`;
@@ -342,14 +376,15 @@ const PLAYER_CLUB = `
     -- figure reads as plain wrong against the number everyone knows.
     -- COALESCE down to the league column for the ~1% of rows with no total.
     SELECT cs.footballer_id AS fid,
-           REPLACE(cs.club, ' (loan)', '') AS club,
+           ${CS_CLUB} AS club,
            SUM(COALESCE(cs.total_apps,  cs.league_apps,  0)) AS apps,
            SUM(COALESCE(cs.total_goals, cs.league_goals, 0)) AS goals
     FROM career_statistics cs
+    ${CS_CLUB_JOINS}
     WHERE cs.club IS NOT NULL
-      AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")}
-      AND REPLACE(cs.club, ' (loan)', '') IN (${ALLOWED_CLUBS})
-    GROUP BY cs.footballer_id, REPLACE(cs.club, ' (loan)', '')
+      AND ${NOT_RESERVE(CS_CLUB)}
+      AND ${CS_CLUB} IN (${ALLOWED_CLUBS})
+    GROUP BY cs.footballer_id, ${CS_CLUB}
     UNION ALL
     SELECT sc.fid, sc.club, sc.apps, sc.goals
     FROM (${STINT_CLUB_ANY}) sc
@@ -765,11 +800,12 @@ const leagueAllTime: TenableType = {
 // Distinct player/club pairs, loans excluded, used by both two-clubs and
 // nationality-club.
 const PLAYER_CLUB_DISTINCT = `
-  SELECT DISTINCT cs.footballer_id AS fid, REPLACE(cs.club, ' (loan)', '') AS club
+  SELECT DISTINCT cs.footballer_id AS fid, ${CS_CLUB} AS club
   FROM career_statistics cs
+  ${CS_CLUB_JOINS}
   WHERE cs.club IS NOT NULL
-    AND ${NOT_RESERVE("REPLACE(cs.club, ' (loan)', '')")}
-    AND REPLACE(cs.club, ' (loan)', '') IN (${ALLOWED_CLUBS})
+    AND ${NOT_RESERVE(CS_CLUB)}
+    AND ${CS_CLUB} IN (${ALLOWED_CLUBS})
 `;
 
 const twoClubs: TenableType = {
