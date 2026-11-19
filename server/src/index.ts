@@ -69,9 +69,11 @@ import { demoVideoRouter } from './routes/demoVideo.ts'
 import { pushConfigured, pushMissing } from './services/push.ts'
 import { livekitMissing } from './services/livekit.ts'
 import { bootstrapAdmin } from './services/auth.ts'
+import { clearLookupCooldowns } from './services/gameRooms.ts'
 
 runMigrations()
 reportDatabase()
+clearLookupCooldowns()
 await bootstrapAdmin()
 
 import { markResponses, MARKER_HEADER } from './services/serverMarker.ts'

@@ -102,7 +102,7 @@ test('a correction goes on the board even though it pushes a find off the bottom
   assert.equal(board.ended, null)
 })
 
-test('a player who is not on the board at all belongs to nobody', () => {
+test('a player below the board is still an answer to the round', () => {
   const user = sqlite
     .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
     .get('reshuffle-host-2@example.com') as { id: number }
@@ -111,13 +111,69 @@ test('a player who is not on the board at all belongs to nobody', () => {
   rooms.startRound(room.id, inst.id)
 
   // One goal: real, qualifies for the round, nowhere near the top ten. The
-  // rule the user asked for — only learn people who were on the board — still
-  // has to throw this one away.
+  // board does not move for him and he scores nothing — but he IS an answer
+  // to the question that was asked, which is what decides whether the scrape
+  // that found him is kept.
+  //
+  // Judging that by `belongs` alone is how the game kept losing Neven
+  // Subotić: 232 Bundesliga appearances against a board that cut at 235, so
+  // eleventh, so deleted, so red, every single time he was shouted.
   const nobody = striker('Barely There', 1)
   const outcome = rooms.reshuffleForPlayer(inst.id, nobody, norm('Barely There'))
 
-  assert.equal(outcome.belongs, false)
+  assert.equal(outcome.belongs, false, 'nothing on the board moves for him')
   assert.equal(outcome.placed, null)
+  assert.equal(outcome.inRound, true, 'but he is an answer, so the scrape is worth keeping')
+})
+
+// Somebody outside the frozen fifty is not an answer to anything, and that is
+// the only case the discard rule is actually for.
+test('a player the round never derived at all is nobody', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('reshuffle-host-nobody@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+
+  // A striker at a different club entirely: no row ties him to Testville.
+  const elsewhere = (sqlite
+    .prepare(
+      `INSERT INTO footballers (name, surname, wikipedia_url, nationality)
+       VALUES ('Other Club', 'Club', 'https://en.wikipedia.org/wiki/Other_Club', 'England') RETURNING id`,
+    )
+    .get() as { id: number }).id
+
+  const outcome = rooms.reshuffleForPlayer(inst.id, elsewhere, norm('Other Club'))
+  assert.equal(outcome.belongs, false)
+  assert.equal(outcome.inRound, false)
+})
+
+// Everyone who was right goes green, not only whoever's spelling happened to
+// fire the correction. "Dejan stefanovic" and "Stefanovic" are two raws with
+// two raw_norms, and correcting the one that fired left the other in red
+// beside it — in the feed and in the recording, for good.
+test('a correction vindicates every spelling of the name, not just its own', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('reshuffle-host-vindicate@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+
+  // Said in full and said by surname, before the database has heard of him.
+  assert.equal(rooms.submitGuess(inst.id, host, 'v1', 'Vindicated Hero').verdict, 'miss')
+  assert.equal(rooms.submitGuess(inst.id, host, 'v2', 'Hero').verdict, 'miss')
+
+  const late = striker('Vindicated Hero', 55)
+  // Earlier tests leave other 55-goal strikers in this database, so which slot
+  // he lands in is incidental. That he lands at all is the precondition.
+  assert.ok(rooms.reshuffleForPlayer(inst.id, late, norm('Vindicated Hero')).placed)
+
+  const guesses = rooms.roomState(rooms.roomByCode(room.code)!).round!.board.guesses
+  assert.equal(guesses.find((g) => g.raw === 'Vindicated Hero')!.verdict, 'hit')
+  assert.equal(guesses.find((g) => g.raw === 'Hero')!.verdict, 'hit', 'the surname was right too')
 })
 
 // A clue is about a player, not about a row of the pyramid. Importing Pablo

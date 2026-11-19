@@ -16,7 +16,7 @@ import {
 import { isPlaceExactly, matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
 import { parseAliases } from './general.ts'
 import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.ts'
-import { resolveOrCreateFootballer } from './playerImport.ts'
+import { resolveOrCreateFootballer, careerMatchesHint } from './playerImport.ts'
 import { moderateMessage } from './moderation.ts'
 
 // Private multiplayer rooms. See migrations 0087-0089 for the data model and
@@ -940,7 +940,25 @@ export function submitGuess(
     .prepare('SELECT status FROM game_round_instances WHERE id = ?')
     .get(instanceId) as { status: string }
 
-  const known = match || category !== 'football' ? null : knownPlayerNamed(raw)
+  const named = match || category !== 'football' ? null : knownPlayerNamed(raw)
+  // Knowing SOMEBODY of that surname is not knowing THIS somebody. The
+  // database held exactly one Gueye — a Senegalese teenager at Génération
+  // Foot — so "Gueye" shouted at an African Everton board matched his surname,
+  // counted as a name we already knew, and went straight to a miss without
+  // ever looking anybody up. Idrissa Gana Gueye, second on that board, was
+  // unreachable behind a namesake who had never played in England.
+  //
+  // So a SURNAME still has to fit the round that asked, and one that does not
+  // is treated as a name we have never heard — which is what it is: somebody
+  // of that name exists, it is not the one meant, and the one meant has yet to
+  // be found.
+  //
+  // A whole name is left alone. "Marcus Thuram" at a Parma board holding
+  // Lilian names Marcus exactly, and the useful answer there is "Marcus
+  // Thuram is not on this list" — not a Wikipedia search for a second Marcus
+  // Thuram who does not exist.
+  const hint = named == null || named.whole ? '' : hintForInstance(instanceId)
+  const known = named != null && hint !== '' && !careerMatchesHint(named.id, hint) ? null : named
   let checking = false
 
   if (verdict === 'miss' && category === 'football') {
@@ -1109,7 +1127,7 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
 // Matched on the whole name or on the surname as a WHOLE WORD — `LIKE '%egan'`
 // would have answered "Kevin Keegan" to "Egan", which is precisely the
 // confusion this is meant to clear up.
-function knownPlayerNamed(raw: string): { id: number; name: string } | null {
+function knownPlayerNamed(raw: string): { id: number; name: string; whole: boolean } | null {
   const row = sqlite
     .prepare(
       // The whole name, or the surname. Deliberately NOT any word of the
@@ -1122,13 +1140,18 @@ function knownPlayerNamed(raw: string): { id: number; name: string } | null {
       // name, for the same reason matchesName does — Zheng Zhi's surname is
       // the first word, and seventy-seven players in the database are like
       // him.
-      `SELECT id, name FROM footballers
+      // Which of the two it was matters to the caller: a whole name is an
+      // identification and a bare surname is a guess at one, so they are
+      // reported apart. The ordering says the same thing — if both kinds of
+      // match exist, the whole name is the one meant.
+      `SELECT id, name, normalize(name) = normalize(?) AS whole FROM footballers
        WHERE normalize(name) = normalize(?)
           OR (surname IS NOT NULL AND normalize(surname) = normalize(?))
+       ORDER BY whole DESC
        LIMIT 1`,
     )
-    .get(raw, raw) as { id: number; name: string } | undefined
-  return row ?? null
+    .get(raw, raw, raw) as { id: number; name: string; whole: number } | undefined
+  return row ? { id: row.id, name: row.name, whole: row.whole === 1 } : null
 }
 
 // ── Unknown names ───────────────────────────────────────────────────────────
@@ -1255,13 +1278,21 @@ function discardScrapedFootballer(id: number, why: string, raw: string): void {
 export function hintFor(normalized: string): string {
   const row = sqlite
     .prepare(
-      `SELECT i.params_json AS params
+      `SELECT r.instance_id AS id
        FROM game_guess_reviews r
-       JOIN game_round_instances i ON i.id = r.instance_id
        WHERE r.raw_norm = ? AND r.status = 'pending'
        ORDER BY r.id DESC LIMIT 1`,
     )
-    .get(normalized) as { params: string } | undefined
+    .get(normalized) as { id: number } | undefined
+  return row ? hintForInstance(row.id) : ''
+}
+
+// The same question asked of a round directly, for the callers that have one
+// in their hand and do not need to go looking through the reviews.
+export function hintForInstance(instanceId: number): string {
+  const row = sqlite
+    .prepare('SELECT params_json AS params FROM game_round_instances WHERE id = ?')
+    .get(instanceId) as { params: string } | undefined
   if (!row) return ''
   try {
     const p = JSON.parse(row.params) as Record<string, string>
@@ -1271,6 +1302,27 @@ export function hintFor(normalized: string): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * Forget the hour-long skips, because this process is new.
+ *
+ * An `unresolved` review buys a name an hour off, so that shouting it again
+ * during the same round does not start the same doomed search. That is right
+ * for a round and wrong for a deploy: the lookups most likely to be sitting
+ * in that window are the ones that just failed, and the reason a deploy
+ * happened is usually that they should not have. Fixing the resolver and then
+ * being unable to prove it for an hour — on exactly the names that exposed
+ * the bug — is the wrong way round.
+ *
+ * Only `unresolved`. `rejected` means the lookup worked and the answer was no;
+ * restarting the server does not make somebody a footballer.
+ */
+export function clearLookupCooldowns(): void {
+  const { changes } = sqlite
+    .prepare(`DELETE FROM game_guess_reviews WHERE status = 'unresolved'`)
+    .run()
+  if (changes > 0) console.log(`[reviews] cleared ${changes} lookup cooldown(s) on boot`)
 }
 
 const learnQueue: { raw: string; normalized: string }[] = []
@@ -1347,21 +1399,26 @@ async function drainLearnQueue(): Promise<void> {
           for (const row of asked) {
             try {
               const outcome = reshuffleForPlayer(row.instance_id, id, next.normalized)
-              if (outcome.belongs) belongs = true
+              if (outcome.belongs || outcome.inRound) belongs = true
             } catch (err) {
               console.error(`[reviews] reshuffle failed for instance ${row.instance_id}:`, err)
             }
           }
 
           // Scraped for this round, kept only if it was for this round. A
-          // name shouted at a board it does not belong on is a wrong answer,
-          // and a wrong answer is not a reason to add somebody to the
+          // name shouted at a board it has nothing to do with is a wrong
+          // answer, and a wrong answer is not a reason to add somebody to the
           // database every future round is derived from.
           //
-          // Again, only what this scrape created. And only what does not
-          // BELONG on the board — not what merely failed to be slotted into
-          // it. A live board can decline a correct answer (see
-          // ReshuffleOutcome), and that is not a reason to delete a real
+          // Again, only what this scrape created. And the test is whether
+          // they are an answer to the ROUND, not whether they made the board:
+          // the frozen fifty is the question, the ten is only the scoreboard.
+          // A near miss is a right answer ranked too low, and deleting one is
+          // how the game lost Subotić eleventh on a Bundesliga board, over
+          // and over, with nothing to show for it but a red chip.
+          //
+          // A live board can also decline a correct answer (see
+          // ReshuffleOutcome), and that too is not a reason to delete a real
           // player from the database every future round is derived from.
           if (created && !belongs) {
             discardScrapedFootballer(id, 'not on the board of the round that asked', next.raw)
@@ -1474,12 +1531,62 @@ export async function resolvePendingReviews(roomId: number): Promise<ReviewResol
  * already-found tenth off the board — so the reshuffle correctly declined,
  * and the caller read that as "not on this board" and deleted him.
  */
+/**
+ * Everyone who was right about this player, not only whoever happened to
+ * trigger the correction.
+ *
+ * Matched by NAME, not by the string that fired the reshuffle. The trigger is
+ * one spelling of one guess, and the people who were right said it their own
+ * way: "Dejan stefanovic" and "Stefanovic" are two raws with two raw_norms, so
+ * correcting the one that fired left the other sitting in red beside it — in
+ * the feed, and in the recording, for good. The question is who was right
+ * about this player, and matchesName is the function that answers it
+ * everywhere else in the game.
+ *
+ * The trigger is still included outright. It is the guess being answered, and
+ * it does not have to pass a name test to deserve its own correction.
+ */
+function vindicatedRaws(
+  instanceId: number,
+  rawNorm: string,
+  name: string,
+  surname: string | null,
+): { raw: string }[] {
+  return (
+    sqlite
+      .prepare('SELECT DISTINCT raw FROM game_guesses WHERE instance_id = ?')
+      .all(instanceId) as { raw: string }[]
+  ).filter((g) => norm(g.raw) === rawNorm || matchesName(g.raw, name, surname))
+}
+
+// The surname as recorded, which is the one matchesName wants — Zheng Zhi's is
+// the first word of his name, and seventy-seven players are like him.
+function recordedSurname(footballerId: number | null | undefined): string | null {
+  if (footballerId == null) return null
+  const row = sqlite
+    .prepare('SELECT surname FROM footballers WHERE id = ?')
+    .get(footballerId) as { surname: string | null } | undefined
+  return row?.surname ?? null
+}
+
 interface ReshuffleOutcome {
   belongs: boolean
+  /**
+   * Whether they are an answer to this round AT ALL — anywhere in the frozen
+   * fifty, not just the ten on the board.
+   *
+   * `belongs` is about the board and this is about the round, and the scrape
+   * is worth keeping for either. Neven Subotić has 232 Bundesliga appearances
+   * against a board that cut at 235: eleventh, which is exactly the near miss
+   * the frozen tail exists to report. Judging him by `belongs` alone deleted
+   * him on arrival, every time he was shouted, so the game could never say
+   * "eleventh, 232" and he could never be anything but wrong.
+   */
+  inRound: boolean
   placed: { rank: number; name: string; value: number; unit: string | null } | null
 }
 
-const NOT_THIS_ROUND: ReshuffleOutcome = { belongs: false, placed: null }
+const NOT_THIS_ROUND: ReshuffleOutcome = { belongs: false, inRound: false, placed: null }
 
 // A late answer joining an unordered board.
 //
@@ -1497,15 +1604,15 @@ function placeOnUnorderedBoard(
   const already = sqlite
     .prepare('SELECT 1 FROM game_round_answers WHERE instance_id = ? AND footballer_id = ?')
     .get(instanceId, answer.footballer_id)
-  if (already) return { belongs: true, placed: null }
+  if (already) return { belongs: true, inRound: true, placed: null }
 
   const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
   const guesser = sqlite
     .prepare('SELECT participant_id FROM game_guesses WHERE instance_id = ? AND raw_norm = ? ORDER BY id DESC LIMIT 1')
     .get(instanceId, rawNorm) as { participant_id: number } | undefined
-  const vindicated = sqlite
-    .prepare('SELECT DISTINCT raw FROM game_guesses WHERE instance_id = ? AND raw_norm = ?')
-    .all(instanceId, rawNorm) as { raw: string }[]
+  const vindicated = vindicatedRaws(
+    instanceId, rawNorm, answer.name, recordedSurname(answer.footballer_id),
+  )
 
   const params = JSON.parse(inst.params_json) as Record<string, string>
   const normalized = norm(answer.name)
@@ -1579,6 +1686,7 @@ function placeOnUnorderedBoard(
 
   return {
     belongs: true,
+    inRound: true,
     placed: { rank, name: answer.name, value: answer.value, unit: answer.unit ?? null },
   }
 }
@@ -1613,13 +1721,15 @@ export function reshuffleForPlayer(
   // ten, and on an unordered one — "name any ten of this squad" — every
   // derived answer is on it.
   const belongs = inst.ordered ? newIndex >= 0 && newIndex < ROUND_SIZE : newIndex >= 0
-  // They qualify for the round but not the board — the near-miss feedback
-  // already covers that, and there is nothing here to keep them for.
-  if (!belongs) return NOT_THIS_ROUND
+  // They qualify for the round but not the board. Nothing on the board moves
+  // for them — the near-miss feedback is the whole of what they get — but
+  // they are still an answer to the question that was asked, so say so and
+  // let the caller keep the scrape.
+  if (!belongs) return newIndex >= 0 ? { belongs: false, inRound: true, placed: null } : NOT_THIS_ROUND
 
   // From here they ARE an answer to this round, so the scrape is worth
   // keeping whatever happens to the live board next.
-  const ONLY_BELONGS: ReshuffleOutcome = { belongs: true, placed: null }
+  const ONLY_BELONGS: ReshuffleOutcome = { belongs: true, inRound: true, placed: null }
   // Rewriting a board is a different question from being on it, and a round
   // that has ended cannot be rewritten.
   if (inst.status !== 'live') return ONLY_BELONGS
@@ -1693,9 +1803,9 @@ export function reshuffleForPlayer(
   // next to the answer they supplied, on camera. The verdicts go back and get
   // corrected, and the raws travel on the event so the fold can correct the
   // feed it already drew without having to re-match anything.
-  const vindicated = sqlite
-    .prepare('SELECT DISTINCT raw FROM game_guesses WHERE instance_id = ? AND raw_norm = ?')
-    .all(instanceId, rawNorm) as { raw: string }[]
+  const vindicated = vindicatedRaws(
+    instanceId, rawNorm, fresh[newIndex].name, recordedSurname(fresh[newIndex].footballer_id),
+  )
 
   const foundBefore = new Map(current.map((c) => [c.footballer_id, c]))
   const ids = fresh.slice(0, ROUND_SIZE).map((a) => a.footballer_id).filter((x): x is number => x != null)
@@ -1774,6 +1884,7 @@ export function reshuffleForPlayer(
   const landed = fresh[newIndex]
   return {
     belongs: true,
+    inRound: true,
     placed: { rank: newIndex + 1, name: landed.name, value: landed.value, unit: landed.unit ?? null },
   }
 }
@@ -1866,9 +1977,10 @@ export function allowGuess(
   // And everyone who said it stops being wrong. The host has just ruled that
   // the answer counts; a feed still showing it in red is the game arguing with
   // its own host.
-  const vindicated = sqlite
-    .prepare('SELECT DISTINCT raw FROM game_guesses WHERE instance_id = ? AND raw_norm = ?')
-    .all(instanceId, normalized) as { raw: string }[]
+  // No footballer behind this one — the host authored it — so the name they
+  // typed is all there is to match against, which is enough to catch the
+  // surname-only version of it.
+  const vindicated = vindicatedRaws(instanceId, normalized, name, null)
 
   const tMs = Date.now() - (inst.started_at_ms ?? Date.now())
   const byParticipantId = guesser?.participant_id ?? participant.id

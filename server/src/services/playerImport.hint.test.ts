@@ -71,3 +71,28 @@ test('the hint survives a club spelled differently', () => {
 test('an empty hint matches nobody, so it can never outrank a real one', () => {
   assert.equal(careerMatchesHint(everton, ''), false)
 })
+
+const { titleMatchesName, stripDiacritics } = await import('./playerImport.ts')
+const parts = (name: string) => stripDiacritics(name).split(/\s+/).filter((p) => p.length > 2)
+
+// Wikipedia files him under "Idrissa Gueye". The name everybody calls him by
+// carries a middle name the title leaves out, and that used to disqualify the
+// article — so the common name was the one thing that could not find him.
+test('a middle name the article title omits no longer disqualifies it', () => {
+  const title = 'Idrissa Gueye (footballer, born 1989)'
+  assert.equal(titleMatchesName(title, parts('Idrissa Gana Gueye')), true)
+  assert.equal(titleMatchesName(title, parts('Idrissa Gueye')), true)
+})
+
+// The loosening is only ever about EXTRA words. With one given name it is the
+// same rule it always was, so a wrong first name still cannot reach a right
+// surname.
+test('a wrong given name still cannot reach a matching surname', () => {
+  assert.equal(titleMatchesName('Alan Smith', parts('John Smith')), false)
+  assert.equal(titleMatchesName('Lilian Thuram', parts('Marcus Thuram')), false)
+  assert.equal(titleMatchesName('Idrissa Gueye', parts('Makhtar Gueye')), false)
+})
+
+test('a surname that does not appear is still rejected outright', () => {
+  assert.equal(titleMatchesName('Idrissa Gueye', parts('Idrissa Gana Diop')), false)
+})

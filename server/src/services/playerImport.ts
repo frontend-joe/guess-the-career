@@ -138,7 +138,7 @@ async function wikiSearch(query: string, attempt = 0): Promise<string[]> {
   return (data.query?.search ?? []).map((s) => s.title)
 }
 
-function titleMatchesName(title: string, nameParts: string[]): boolean {
+export function titleMatchesName(title: string, nameParts: string[]): boolean {
   if (nameParts.length === 0) return false
   const titleTokens = stripDiacritics(title).split(/\s+/).filter(Boolean)
   const has = (p: string) =>
@@ -146,7 +146,21 @@ function titleMatchesName(title: string, nameParts: string[]): boolean {
   const surname = nameParts[nameParts.length - 1]
   if (!titleTokens.some((t) => t.includes(surname) || (surname.length >= 5 && damerau(t, surname) <= 1)))
     return false
-  return nameParts.slice(0, -1).every(has) || nameParts.length === 1
+
+  // Every given name USED to have to appear in the title, which is a rule
+  // about article titles pretending to be a rule about names. Wikipedia files
+  // Idrissa Gana Gueye under "Idrissa Gueye", so the name everybody actually
+  // calls him by was the one thing that could not find him: "gana" is in no
+  // title, so the article was thrown away and an Everton round could not be
+  // told who he was.
+  //
+  // One given name matching is enough. With a single given name that is the
+  // same rule as before — "John Smith" still cannot reach "Alan Smith",
+  // because the only part there is has to match. It loosens solely where the
+  // guess carries a middle name the title leaves out, which is the case that
+  // was wrong.
+  const given = nameParts.slice(0, -1)
+  return given.length === 0 || given.some(has)
 }
 
 export function dbFootballerByName(name: string): number | null {
