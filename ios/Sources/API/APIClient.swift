@@ -119,22 +119,45 @@ enum API {
 
     // MARK: - Rooms
 
+    /// A struct rather than a dictionary because the body is no longer all
+    /// strings, and `encodeIfPresent` gives the same "omit, do not null"
+    /// behaviour the dictionary gave for free.
+    private struct CreateRoomBody: Encodable {
+        let name: String?
+        let pushToken: String?
+        let pushPlatform: String?
+        let video: Bool
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encodeIfPresent(name, forKey: .name)
+            try c.encodeIfPresent(pushToken, forKey: .pushToken)
+            try c.encodeIfPresent(pushPlatform, forKey: .pushPlatform)
+            try c.encode(video, forKey: .video)
+        }
+
+        enum CodingKeys: String, CodingKey { case name, pushToken, pushPlatform, video }
+    }
+
     static func createRoom(
-        accessToken: String, name: String?, pushToken: String? = nil
+        accessToken: String, name: String?, pushToken: String? = nil, video: Bool = true
     ) async throws -> JoinedRoom {
-        // Omit the key rather than sending null. Swift's synthesised encoder
+        // Omit a key rather than sending null. Swift's synthesised encoder
         // writes an explicit null for a nil Optional, which is a different
         // thing on the wire from "absent" and not every schema treats them
         // alike.
-        var body: [String: String] = [:]
-        if let name { body["name"] = name }
-        // The host's own phone, so the server can keep it off the invite list
-        // it is about to send. Without this you buzz your own pocket every
-        // time you start a game.
-        if let pushToken {
-            body["pushToken"] = pushToken
-            body["pushPlatform"] = "ios"
-        }
+        //
+        // `video` is always sent: it is a decision the host made, and an
+        // absent key means "yes" on the server.
+        let body = CreateRoomBody(
+            name: name,
+            // The host's own phone, so the server can keep it off the invite
+            // list it is about to send. Without this you buzz your own pocket
+            // every time you start a game.
+            pushToken: pushToken,
+            pushPlatform: pushToken == nil ? nil : "ios",
+            video: video
+        )
         return try await post("api/rooms", body: body, bearer: accessToken)
     }
 

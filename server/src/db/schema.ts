@@ -690,6 +690,9 @@ export const game_rooms = sqliteTable('game_rooms', {
   status: text('status').notNull().default('lobby'),
   max_players: integer('max_players').notNull().default(4),
   state_version: integer('state_version').notNull().default(0),
+  // Set once, at creation, and never changed: with it off nobody dials
+  // LiveKit at all. See 0114_rooms_without_video.sql.
+  video_enabled: integer('video_enabled').notNull().default(1),
   created_at: text('created_at').notNull().default(sql`(datetime('now'))`),
   ended_at: text('ended_at'),
 })

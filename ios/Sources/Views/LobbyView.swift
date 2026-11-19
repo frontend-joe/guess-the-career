@@ -12,6 +12,14 @@ struct LobbyView: View {
     @State private var displayName = ""
     @State private var busy = false
 
+    /// Whether the game being created is a video call.
+    ///
+    /// Decided here because it cannot be decided later: with it off nobody
+    /// dials LiveKit at all, and turning it on mid-game would mean
+    /// reconnecting everybody. Defaults on, which is what the game has always
+    /// been.
+    @State private var video = true
+
     /// The host's name, and the one the server last confirmed.
     ///
     /// Two of them so that saving can be skipped when nothing was typed. A
@@ -65,6 +73,12 @@ struct LobbyView: View {
                             .textInputAutocapitalization(.words)
                             .focused($focus, equals: .hostName)
                             .onSubmit { run { try await saveHostName() } }
+                        Toggle("Video call", isOn: $video)
+                        Text(video
+                             ? "Everyone sees and hears each other."
+                             : "No camera or microphone \u{2014} just the board and the guesses. This cannot be changed once the game starts.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                         Button("Create a room") { run { try await create() } }
                             .disabled(busy || hostName.trimmed.isEmpty)
                     }
@@ -131,7 +145,8 @@ struct LobbyView: View {
         // The push token goes out WITH the create, so the server knows which
         // phone the host is on before it sends the invite that must skip it.
         let joined = try await API.createRoom(
-            accessToken: token, name: nil, pushToken: PushStore.shared.tokenForJoin
+            accessToken: token, name: nil, pushToken: PushStore.shared.tokenForJoin,
+            video: video
         )
         PushStore.shared.adopt(secret: joined.deviceSecret)
         store.enter(joined)

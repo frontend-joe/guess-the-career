@@ -65,14 +65,22 @@ struct RoomView: View {
 
                     if store.isHost { hostControls }
 
-                    // A third of the screen, always. Nothing is hidden and
-                    // nothing is squeezed when the keyboard appears — the
-                    // whole stack keeps its shape and slides, which is what
-                    // KeyboardPinned is for.
-                    bottomPanel
-                        .frame(height: geo.size.height / 3)
-                        .background(BoardStyle.background)
-                        .clipped()
+                    // A third of the screen, always — in a game that has
+                    // faces in it. A room created without video has none, and
+                    // reserving a third of the screen for an empty grid would
+                    // be the app showing you the feature you turned off. The
+                    // board takes the space instead; it is the only thing on
+                    // screen that can use more of it.
+                    //
+                    // Nothing is hidden and nothing is squeezed when the
+                    // keyboard appears — the whole stack keeps its shape and
+                    // slides, which is what KeyboardPinned is for.
+                    if store.videoEnabled {
+                        bottomPanel
+                            .frame(height: geo.size.height / 3)
+                            .background(BoardStyle.background)
+                            .clipped()
+                    }
 
                     // Everything below the faces is one panel: the guesses,
                     // the host's override, and the controls. Grouped because
@@ -339,6 +347,11 @@ struct RoomView: View {
             }
 
             HStack(spacing: 8) {
+                // Only where there is a call to be heard on. Leaving them in
+                // a video-off game would be two buttons that cannot work, and
+                // the honest answer to "why is my mic dead" is that this game
+                // never had one.
+                if store.videoEnabled {
                 Button {
                     Task { await store.setMicrophone(!store.microphoneOn) }
                 } label: {
@@ -377,6 +390,7 @@ struct RoomView: View {
                 .buttonStyle(GlassCircleButtonStyle())
                 .disabled(store.cameraBusy)
                 .accessibilityLabel(store.cameraOn ? "Turn camera off" : "Turn camera on")
+                }
 
                 // The field takes the space the controls do not, instead of
                 // sitting on a row of its own under an empty one.

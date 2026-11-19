@@ -1,0 +1,23 @@
+-- A game that is not a video call.
+--
+-- Video has been the whole point of a room since 0085: you create one, your
+-- mates join, and you work the board out loud looking at each other. But it
+-- was also unconditional, and not every game wants it — four people already
+-- in the same kitchen, somewhere with no signal to spare, or a host who
+-- simply does not want to be on camera tonight.
+--
+-- `video_enabled` is set once, at creation, and never changes. That is the
+-- deliberate part: with it off the clients never dial LiveKit AT ALL — no
+-- token is minted, no WebRTC connection is made, no camera or microphone is
+-- opened — and turning it on later would mean reconnecting everybody
+-- mid-game. A room is one kind of room for its whole life.
+--
+-- The cost is that LiveKit's data channel carries the state broadcasts, so a
+-- room with no connection has nothing pushing it. Those rooms fall back to
+-- polling, and the clients poll them harder — see RoomStore. The server is
+-- unaffected either way: it has never held game state, and a poll and a
+-- broadcast ask it the same question.
+--
+-- Defaulting to 1 so every room that already exists stays exactly what it
+-- was.
+ALTER TABLE game_rooms ADD COLUMN video_enabled INTEGER NOT NULL DEFAULT 1;

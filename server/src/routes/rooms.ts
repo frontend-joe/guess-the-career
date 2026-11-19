@@ -115,12 +115,20 @@ function mustFindRoom(code: string): RoomRow {
 onRoomChanged((roomId, kind) => {
   const room = sqlite.prepare('SELECT * FROM game_rooms WHERE id = ?').get(roomId) as RoomRow | undefined
   if (!room) return
-  broadcastState(room.livekit_room, { kind, stateVersion: room.state_version, code: room.code })
+  tell(room, kind)
 })
 
 function announce(code: string, kind: string): void {
   const room = roomByCode(code)
   if (!room) return
+  tell(room, kind)
+}
+
+// A game created without video has nobody connected to broadcast TO, so the
+// REST call would be a round trip to LiveKit on every guess to reach an empty
+// room. Those clients poll instead, and poll harder for exactly this reason.
+function tell(room: RoomRow, kind: string): void {
+  if (room.video_enabled !== 1) return
   broadcastState(room.livekit_room, { kind, stateVersion: room.state_version, code: room.code })
 }
 
@@ -140,13 +148,17 @@ roomsRouter.post(
     // participant token that endpoint's first registration asks for.
     pushToken: z.string().trim().min(1).max(512).nullish(),
     pushPlatform: z.enum(['ios', 'android']).nullish(),
+    // Whether this game is a video call, decided here and never again. Absent
+    // means yes, so a client on an older build creates exactly the room it
+    // always did.
+    video: z.boolean().nullish(),
   })),
   async (c) => {
     const user = await getCurrentUser(c)
     if (!user) return c.json({ error: 'Unauthorized' }, 401)
-    const { name, pushToken, pushPlatform } = c.req.valid('json')
+    const { name, pushToken, pushPlatform, video } = c.req.valid('json')
     const hostName = user.display_name ?? user.email.split('@')[0]
-    const room = createRoom({ id: user.id, displayName: hostName }, name ?? undefined)
+    const room = createRoom({ id: user.id, displayName: hostName }, name ?? undefined, video ?? true)
     const host = participantsOf(room.id)[0]
 
     let deviceSecret: string | null = null
@@ -582,6 +594,13 @@ roomsRouter.get('/:code/livekit-token', async (c) => {
   const room = mustFindRoom(c.req.param('code'))
   const me = await participantFor(c, room)
   if (!me) return c.json({ error: 'Not in this room' }, 403)
+  // A room created without video has no call to join. Said plainly rather
+  // than by minting a token nobody should be using: a client asking for one
+  // is a client that has not noticed, and a silent credential would let it
+  // dial in and sit in a room the others are not in.
+  if (room.video_enabled !== 1) {
+    return c.json({ error: 'This game was created without video' }, 409)
+  }
   const config = livekitConfig()
   if (!config) return c.json({ error: 'Video is not configured on this server' }, 503)
 

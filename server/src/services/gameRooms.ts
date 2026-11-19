@@ -123,6 +123,10 @@ export interface RoomRow {
   status: string
   max_players: number
   state_version: number
+  /// 0 for a game created without video. Set once and never changed — the
+  /// clients never dial LiveKit at all, so turning it on later would mean
+  /// reconnecting everybody mid-game.
+  video_enabled: number
 }
 
 export function roomByCode(code: string): RoomRow | null {
@@ -131,7 +135,11 @@ export function roomByCode(code: string): RoomRow | null {
     .get(code.toUpperCase()) as RoomRow | undefined) ?? null
 }
 
-export function createRoom(host: { id: number; displayName: string }, name?: string): RoomRow {
+export function createRoom(
+  host: { id: number; displayName: string },
+  name?: string,
+  video = true,
+): RoomRow {
   // Retry on the astronomically unlikely code collision rather than pretending
   // it cannot happen; 28^6 is large but the UNIQUE constraint is the authority.
   for (let attempt = 0; attempt < 10; attempt++) {
@@ -140,10 +148,19 @@ export function createRoom(host: { id: number; displayName: string }, name?: str
       const created = sqlite.transaction(() => {
         const info = sqlite
           .prepare(
-            `INSERT INTO game_rooms (code, livekit_room, host_user_id, name, max_players)
-             VALUES (?, ?, ?, ?, 0)`,
+            `INSERT INTO game_rooms (code, livekit_room, host_user_id, name, max_players, video_enabled)
+             VALUES (?, ?, ?, ?, 0, ?)`,
           )
-          .run(code, `gtl-${code}-${randomBytes(4).toString('hex')}`, host.id, name ?? null)
+          // The livekit_room name is allocated either way. It costs nothing,
+          // it keeps the column NOT NULL and UNIQUE as it has always been,
+          // and nothing ever dials it on a room with video off.
+          .run(
+            code,
+            `gtl-${code}-${randomBytes(4).toString('hex')}`,
+            host.id,
+            name ?? null,
+            video ? 1 : 0,
+          )
         const roomId = Number(info.lastInsertRowid)
         sqlite
           .prepare(
@@ -2239,6 +2256,9 @@ export interface RoomState {
   status: string
   stateVersion: number
   livekitRoom: string
+  /// Whether this game is a video call. False means no LiveKit connection is
+  /// ever made, so the clients have no broadcast channel and poll instead.
+  video: boolean
   hostUserId: number
   /// The round picked and waiting to be started, if any. Separate from
   /// `round`, which is what the board is showing.
@@ -2326,6 +2346,7 @@ export function roomState(room: RoomRow): RoomState {
     pendingInstanceId: pending?.id ?? null,
     stateVersion: room.state_version,
     livekitRoom: room.livekit_room,
+    video: room.video_enabled === 1,
     hostUserId: room.host_user_id,
     participants: participantsOf(room.id).map((p) => ({
       id: p.id,

@@ -79,6 +79,15 @@ final class RoomStore {
     func clearDiscovery() { discovery = nil }
     private(set) var tiles: [Tile] = []
 
+    /// Whether this game is a video call at all.
+    ///
+    /// Decided by the host when the room was created and never changed. False
+    /// means no LiveKit connection is ever made — no token, no WebRTC, no
+    /// camera, no microphone — so there is nothing to turn on later either.
+    ///
+    /// Defaults to true for a room described by a server older than the flag.
+    var videoEnabled: Bool { state?.video ?? true }
+
     /// A code pulled out of an invite link and not yet used. The lobby reads
     /// it, so a link lands you on "type your name" rather than joining under
     /// whatever name happened to be in the field.
@@ -386,7 +395,20 @@ final class RoomStore {
         poller = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
-                try? await Task.sleep(for: .seconds(10))
+                // Ten seconds is a BACKSTOP, and it is only a backstop while
+                // something else is pushing: the state broadcast rides
+                // LiveKit's data channel, and a room created without video
+                // has no connection to carry it. Polling is the whole
+                // transport there, so a ten-second loop would mean somebody
+                // else's guess taking up to ten seconds to appear — which in
+                // a party game is indistinguishable from the app being
+                // broken.
+                //
+                // Cheap enough to do properly: one small JSON snapshot for
+                // one room of at most four players, and the server rebuilds
+                // it from SQLite either way.
+                let quiet = self?.videoEnabled ?? true
+                try? await Task.sleep(for: .seconds(quiet ? 10 : 1.5))
             }
         }
     }
@@ -395,6 +417,10 @@ final class RoomStore {
 
     @discardableResult
     private func connectMedia() async -> Bool {
+        // Nothing to dial. The server refuses to mint a token for one of
+        // these rooms, so asking would be a round trip to a 409 — and this
+        // runs on every join and every resume.
+        guard videoEnabled else { return false }
         guard let seat else { return false }
         let credentials: LivekitCredentials
         do {

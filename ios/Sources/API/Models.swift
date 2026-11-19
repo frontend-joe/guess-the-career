@@ -162,6 +162,11 @@ struct RoomState: Codable, Equatable {
     let status: String
     let stateVersion: Int
     let livekitRoom: String
+    /// Whether this game is a video call. Set by the host at creation and
+    /// never changed; false means nobody ever dials LiveKit. Optional so a
+    /// phone talking to a server older than the flag still decodes a room,
+    /// and absent means yes — which is what every room used to be.
+    let video: Bool?
     let hostUserId: Int
     /// The round picked and waiting to be started. Separate from `round`,
     /// which is what the board is showing — after a round finishes the board
@@ -183,6 +188,7 @@ struct JoinedRoom: Codable {
     let status: String
     let stateVersion: Int
     let livekitRoom: String
+    let video: Bool?
     let hostUserId: Int
     let pendingInstanceId: Int?
     let participants: [RoomParticipant]
@@ -197,7 +203,7 @@ struct JoinedRoom: Codable {
     var state: RoomState {
         RoomState(
             code: code, status: status, stateVersion: stateVersion,
-            livekitRoom: livekitRoom, hostUserId: hostUserId,
+            livekitRoom: livekitRoom, video: video, hostUserId: hostUserId,
             pendingInstanceId: pendingInstanceId,
             participants: participants, messages: messages, round: round,
             participantToken: nil
