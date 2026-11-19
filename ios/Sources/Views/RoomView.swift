@@ -42,6 +42,12 @@ struct RoomView: View {
                         // However tight it gets, the board stays inside its
                         // own slot rather than drawing over its neighbours.
                         .clipped()
+                        // Over the board, not in the question band: the guess
+                        // toast already owns that strip and the two can land
+                        // in the same second. A discovery is also the one
+                        // thing worth covering the board for.
+                        .overlay(alignment: .center) { DiscoveryBanner() }
+                        .zIndex(2)
 
                     // Under the board, not over it: the question is what the
                     // board is an answer to, and reading downwards from the

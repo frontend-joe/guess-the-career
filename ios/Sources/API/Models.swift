@@ -101,6 +101,19 @@ struct TakenHint: Codable, Equatable {
     let tMs: Int
 }
 
+/// A player the database had never heard of until somebody in this room named
+/// them.
+///
+/// The rarest thing that happens in a round, and the game used to draw it
+/// exactly like any other correct answer. It arrives in the board fold rather
+/// than as a broadcast, so the recording shows the moment too.
+struct Discovery: Codable, Equatable {
+    let name: String
+    let rank: Int
+    let tMs: Int
+    let byParticipantId: Int?
+}
+
 struct BoardState: Codable, Equatable {
     let title: String
     let target: Int
@@ -116,6 +129,9 @@ struct BoardState: Codable, Equatable {
     let revealed: [RevealedAnswer]
     let hints: [TakenHint]
     let guesses: [ReplayGuess]
+    /// The most recent name this round taught the database. Optional so a
+    /// phone on an older build than the server still decodes a board.
+    let discovery: Discovery?
 }
 
 struct RoomRound: Codable, Equatable {

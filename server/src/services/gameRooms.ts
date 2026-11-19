@@ -1398,7 +1398,7 @@ async function drainLearnQueue(): Promise<void> {
           let belongs = false
           for (const row of asked) {
             try {
-              const outcome = reshuffleForPlayer(row.instance_id, id, next.normalized)
+              const outcome = reshuffleForPlayer(row.instance_id, id, next.normalized, created)
               if (outcome.belongs || outcome.inRound) belongs = true
             } catch (err) {
               console.error(`[reviews] reshuffle failed for instance ${row.instance_id}:`, err)
@@ -1599,6 +1599,7 @@ function placeOnUnorderedBoard(
   inst: InstanceRow,
   answer: TenableAnswer,
   rawNorm: string,
+  discovered: boolean,
 ): ReshuffleOutcome {
   const instanceId = inst.id
   const already = sqlite
@@ -1673,6 +1674,7 @@ function placeOnUnorderedBoard(
       })),
       vindicated: vindicated.map((v) => v.raw),
       matchedRank: next,
+      discovered,
     })
 
     if (revealed.length >= inst.target) {
@@ -1707,6 +1709,17 @@ export function reshuffleForPlayer(
   instanceId: number,
   footballerId: number,
   rawNorm: string,
+  /**
+   * Whether this lookup is what put the player in the database, rather than
+   * finding somebody who was already in it.
+   *
+   * Only the caller that ran the scrape knows, and it travels on the event so
+   * the recording shows the moment too. A board corrected from data the game
+   * already held is housekeeping; a board corrected because somebody named a
+   * player nobody had ever recorded is the best thing that happens in a
+   * round, and the two used to look identical.
+   */
+  discovered = false,
 ): ReshuffleOutcome {
   const inst = sqlite
     .prepare('SELECT * FROM game_round_instances WHERE id = ?')
@@ -1742,7 +1755,7 @@ export function reshuffleForPlayer(
   // them — Fernando Hierro, a defender with 127 goals that the position rule
   // had filed under midfielder, shouted at "Defenders with 50+ senior career
   // goals" and told he was wrong.
-  if (!inst.ordered) return placeOnUnorderedBoard(inst, fresh[newIndex], rawNorm)
+  if (!inst.ordered) return placeOnUnorderedBoard(inst, fresh[newIndex], rawNorm, discovered)
 
   const current = sqlite
     .prepare('SELECT footballer_id, found_at_ms, found_by_participant_id FROM game_round_answers WHERE instance_id = ? AND found_at_ms IS NOT NULL')
@@ -1865,6 +1878,7 @@ export function reshuffleForPlayer(
       vindicated: vindicated.map((v) => v.raw),
       matchedRank: newIndex + 1,
       hints: correctedHints,
+      discovered,
     })
 
     const remaining = sqlite

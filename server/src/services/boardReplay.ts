@@ -71,6 +71,26 @@ export interface TakenHint {
   tMs: number
 }
 
+/**
+ * A player the database had never heard of, found by somebody shouting their
+ * name at a board that did not have them.
+ *
+ * The rarest thing that happens in a round, and until now the game drew it
+ * exactly like any other correct answer. It lives in the fold rather than in
+ * a broadcast so that whoever watches the recording back sees the moment too,
+ * at the time it actually happened.
+ *
+ * Only the latest one is kept. Two discoveries in a round is already a good
+ * night, and a client that wants to know whether it has celebrated this one
+ * can tell by `tMs`.
+ */
+export interface Discovery {
+  name: string
+  rank: number
+  tMs: number
+  byParticipantId: number | null
+}
+
 export interface BoardState {
   title: string
   target: number
@@ -88,6 +108,9 @@ export interface BoardState {
   hints: TakenHint[]
   guesses: ReplayGuess[]
   ended: { reason: string; tMs: number } | null
+  /// The most recent name this round taught the database, or null if it
+  /// taught it nothing.
+  discovery: Discovery | null
 }
 
 function parse(payload: string): Record<string, unknown> {
@@ -151,6 +174,7 @@ export function reduceEvents(
     hints: [],
     guesses: [],
     ended: null,
+    discovery: null,
     ...seed,
   }
 
@@ -230,6 +254,17 @@ export function reduceEvents(
           }
         }
         vindicate(state, p)
+        // A name the database did not have before this round. The flag is on
+        // the event rather than inferred here, because only the lookup that
+        // created the row knows it was created.
+        if (p.discovered === true) {
+          state.discovery = {
+            name: str(p.name),
+            rank: nullableNum(p.matchedRank) ?? num(p.rank),
+            tMs: e.t_ms,
+            byParticipantId: e.actor_participant_id,
+          }
+        }
         break
       }
       // Giving up arrives as ONE event carrying every remaining answer, so

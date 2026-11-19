@@ -228,3 +228,46 @@ test('a clue on a player pushed off the board goes with them', () => {
 
   assert.deepEqual(rooms.roomState(rooms.roomByCode(room.code)!).round!.board.hints, [])
 })
+
+// The rarest thing that happens in a round used to look exactly like any
+// other correct answer: somebody names a player nobody had ever recorded, the
+// game quietly learns them, and the board just fills in.
+test('a name the database had never heard of is marked as a discovery', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('reshuffle-host-trophy@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const host = rooms.participantsOf(room.id)[0]
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+
+  assert.equal(rooms.submitGuess(inst.id, host, 'd1', 'Brand New Face').verdict, 'miss')
+  assert.equal(
+    rooms.roomState(rooms.roomByCode(room.code)!).round!.board.discovery,
+    null,
+    'nothing found yet',
+  )
+
+  const found = striker('Brand New Face', 55)
+  rooms.reshuffleForPlayer(inst.id, found, norm('Brand New Face'), true)
+
+  const discovery = rooms.roomState(rooms.roomByCode(room.code)!).round!.board.discovery
+  assert.equal(discovery?.name, 'Brand New Face')
+  assert.equal(discovery?.byParticipantId, host.id, 'whoever said it gets the trophy')
+})
+
+// A board corrected from data the game already held is housekeeping, and
+// drawing a trophy for it would make the real thing worth nothing.
+test('a correction from data we already had is not a discovery', () => {
+  const user = sqlite
+    .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
+    .get('reshuffle-host-nottrophy@example.com') as { id: number }
+  const room = rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+  const inst = rooms.freezeRound(room.id, roundId)
+  rooms.startRound(room.id, inst.id)
+
+  const known = striker('Already Known', 55)
+  rooms.reshuffleForPlayer(inst.id, known, norm('Already Known'))
+
+  assert.equal(rooms.roomState(rooms.roomByCode(room.code)!).round!.board.discovery, null)
+})

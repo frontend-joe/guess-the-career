@@ -1,3 +1,4 @@
+import UIKit
 import AVFoundation
 import Foundation
 import LiveKit
@@ -29,8 +30,53 @@ final class RoomStore {
     /// track event happens to redraw it — and a player with their camera off
     /// never produces one.
     private(set) var state: RoomState? {
-        didSet { if room != nil { refreshTiles() } }
+        didSet {
+            if room != nil { refreshTiles() }
+            noteDiscovery()
+        }
     }
+
+    /// The discovery currently being celebrated, or nil.
+    ///
+    /// Naming a player nobody had ever recorded is the rarest thing that
+    /// happens in a round, and it used to look exactly like any other correct
+    /// answer: a row turns green and the game says nothing. This is the
+    /// trophy.
+    private(set) var discovery: Discovery?
+    /// Which round we have seen a board for, and the discovery it already had
+    /// when we first saw it.
+    ///
+    /// Joining a room halfway through must not replay somebody else's trophy
+    /// as if it had just happened — the first board of a round sets the mark,
+    /// and only a discovery AFTER that is news.
+    private var discoveryInstance: Int?
+    private var celebratedDiscovery: Int?
+
+    private func noteDiscovery() {
+        guard let round = state?.round else { return }
+        let found = round.board.discovery
+        if discoveryInstance != round.instanceId {
+            discoveryInstance = round.instanceId
+            celebratedDiscovery = found?.tMs
+            discovery = nil
+            return
+        }
+        guard let found, found.tMs != celebratedDiscovery else { return }
+        celebratedDiscovery = found.tMs
+        discovery = found
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+        // Long enough to read a name and look up at whoever said it. It
+        // outlasts a guess toast on purpose: this is the moment of the round.
+        let shown = found.tMs
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            guard let self, self.discovery?.tMs == shown else { return }
+            self.discovery = nil
+        }
+    }
+
+    /// Dismissed by tapping it, for anyone who has already read it.
+    func clearDiscovery() { discovery = nil }
     private(set) var tiles: [Tile] = []
 
     /// A code pulled out of an invite link and not yet used. The lobby reads
