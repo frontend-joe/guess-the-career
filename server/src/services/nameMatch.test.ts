@@ -157,3 +157,28 @@ test('a full name whose first name contradicts the board is not that player', ()
   // The same rule the two Zanettis needed, now reached without a typo.
   assert.equal(matchesName('Cristiano Zanetti', 'Javier Zanetti', 'Zanetti'), false)
 })
+
+test('a misspelled first name is not a different person', () => {
+  // The half of a foreign name people get right is the surname — it is the
+  // half they have seen written down. So the common typo is the other one,
+  // and it was fatal: every one of these was a miss on a board the man was
+  // sitting on, with his surname spelled perfectly.
+  assert.equal(matchesName('Dimitr Berbatov', 'Dimitar Berbatov', 'Berbatov'), true)
+  assert.equal(matchesName('Vedren Corluka', 'Vedran Ćorluka', 'Ćorluka'), true)
+  assert.equal(matchesName('Luke Modric', 'Luka Modrić', 'Modrić'), true)
+  // One edit and four characters, the same latitude the surname gets. Two
+  // edits is still a different word.
+  assert.equal(matchesName('Lucca Modric', 'Luka Modrić', 'Modrić'), false)
+  // And it buys nothing for a first name that is simply somebody else's.
+  assert.equal(matchesName('Marcus Thuram', 'Lilian Thuram', 'Thuram'), false)
+  assert.equal(matchesName('Cristiano Zanetti', 'Javier Zanetti', 'Zanetti'), false)
+})
+
+test('the strict reading still refuses a misspelled first name', () => {
+  // pickAnswer asks the question both ways to find the answers a guess
+  // reaches only by forgiveness, and then declines to forgive a guess that is
+  // exactly some other player's name. That machinery only works if the strict
+  // reading stays strict.
+  assert.equal(matchesName('Dimitr Berbatov', 'Dimitar Berbatov', 'Berbatov', false), false)
+  assert.equal(matchesName('Dimitar Berbatov', 'Dimitar Berbatov', 'Berbatov', false), true)
+})

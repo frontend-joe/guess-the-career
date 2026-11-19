@@ -844,9 +844,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
       yearsEl.find("span").text().trim() || yearsEl.text().trim();
     if (!yearsText || yearsText.toLowerCase() === "years") return;
 
-    const club = stripCitations(
-      clubEl.clone().find("style, script").remove().end().text().trim(),
-    );
+    const club = cellText(clubEl);
     if (!club || club.toLowerCase() === "team") return;
 
     const clubHref = clubEl.find("a").first().attr("href");
@@ -1053,9 +1051,7 @@ export async function scrapeManagerWikipedia(
       yearsEl.find("span").text().trim() || yearsEl.text().trim();
     if (!yearsText || yearsText.toLowerCase() === "years") return;
 
-    const club = stripCitations(
-      clubEl.clone().find("style, script").remove().end().text().trim(),
-    );
+    const club = cellText(clubEl);
     if (!club || club.toLowerCase() === "team") return;
 
     const years = normalizeYears(stripCitations(yearsText));
@@ -2458,6 +2454,19 @@ function stripCitations(text: string): string {
   return text.replace(/\s*\[[^\]]*\]/g, "").trim();
 }
 
+// Read a table or infobox cell the way a reader sees it. Wikipedia breaks long
+// names across two lines with <br>, and cheerio's .text() joins the halves with
+// nothing at all — which is how "Tottenham Hotspur" and "Ukrainian Premier
+// League" reached the database as "TottenhamHotspur" and "UkrainianPremier
+// League", matching no club and no league anybody could name. A break is a
+// space.
+function cellText(el: cheerio.Cheerio<AnyNode>): string {
+  const clone = el.clone();
+  clone.find("style, script, sup").remove();
+  clone.find("br").replaceWith(" ");
+  return stripCitations(clone.text().replace(/\s+/g, " ").trim());
+}
+
 // "England U21", "Italy B", "France Olympic" — a national team that is not THE
 // national team. Named once because two callers need it for opposite reasons:
 // extractCountryFromTeam strips it to find the country, and the nationality
@@ -2515,9 +2524,7 @@ function tableToGrid($: CheerioAPI, table: cheerio.Cheerio<AnyNode>): GridCell[]
       const $td = $(td);
       const colspan = Math.max(1, parseInt($td.attr("colspan") || "1", 10) || 1);
       const rowspan = Math.max(1, parseInt($td.attr("rowspan") || "1", 10) || 1);
-      const text = stripCitations(
-        $td.clone().find("style, script, sup").remove().end().text().replace(/\s+/g, " ").trim(),
-      );
+      const text = cellText($td);
       const href = $td.find("a").first().attr("href") || null;
       const cell: GridCell = { text, href };
       for (let k = 0; k < colspan; k++) {

@@ -113,7 +113,7 @@ export function matchesName(
   // The same check already guarded the typo rule below, for exactly the same
   // reason (Leighton Baines and John Barnes). It belonged here too: an exact
   // surname is no more proof of identity than a surname one letter out.
-  if (gl === pl) return firstNamesAgree(g, p)
+  if (gl === pl) return firstNamesAgree(g, p, allowTypo)
   // A forename on its own is NOT accepted, and the rule that used to accept it
   // is gone. It read any whole word of the name, so that players known by one
   // name — Raúl González, Ronaldinho Gaúcho — could be typed the way people
@@ -139,7 +139,7 @@ export function matchesName(
   // This is the one place the server knowingly differs from the solo game's
   // matches(), which has no second name to compare because it is matching
   // against a board the browser already holds.
-  if (allowTypo && gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p)
+  if (allowTypo && gl.length >= 4 && damerau(gl, pl) === 1) return firstNamesAgree(g, p, true)
   return false
 }
 
@@ -171,12 +171,29 @@ function hasParticleBeforeSurname(normalized: string): boolean {
 
 /// True when either side has no first name to compare, the first names match,
 /// or one is the other's initial ("l baines" and "leighton baines").
-function firstNamesAgree(g: string, p: string): boolean {
+///
+/// `allowTypo` extends that to a first name one edit out. This question is
+/// asked to catch a CONTRADICTION — Marcus Thuram is not Lilian — and a
+/// misspelling is not a contradiction. Getting the surname right and fumbling
+/// the first name is how a foreign name is usually typed wrong, because the
+/// surname is the half people have seen written down: "Dimitr Berbatov",
+/// "Vedren Corluka" and "Luke Modric" were all misses on boards those men were
+/// sitting on, with their surnames spelled perfectly.
+///
+/// Same latitude the surname gets, for the same reason: one edit, four
+/// characters, no more. Lilian and Marcus are nowhere near each other.
+///
+/// It is withheld when the caller asked for no latitude, which is what keeps
+/// the Pedri rule honest — pickAnswer uses the strict reading to find the
+/// answers a guess reaches ONLY by forgiveness, and then refuses to spend that
+/// forgiveness on a guess that is exactly some other player's name.
+function firstNamesAgree(g: string, p: string, allowTypo: boolean): boolean {
   const gf = g.split(' ')[0]
   const pf = p.split(' ')[0]
   if (g.split(' ').length < 2 || p.split(' ').length < 2) return true
   if (gf === pf) return true
-  return (gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))
+  if ((gf.length === 1 && pf.startsWith(gf)) || (pf.length === 1 && gf.startsWith(pf))) return true
+  return allowTypo && gf.length >= 4 && pf.length >= 4 && damerau(gf, pf) === 1
 }
 
 // ── Places ───────────────────────────────────────────────────────────────────
