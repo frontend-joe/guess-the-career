@@ -20,12 +20,22 @@ export interface NameSplit {
 }
 
 // Tokens that begin a compound surname when they appear mid-name.
-// Deliberately excludes Mc/Mac/O' — those are attached to the name, not separate.
+//
+// "Mac" and "Mc" are here for the names that write them as a WORD of their
+// own. Attached to what follows — McAllister, Macmillan, McTominay — they are
+// one token and this set never sees them, which is what the old comment here
+// meant by excluding them. But Alexis Mac Allister spells his with a space,
+// as does the rest of his family, and the fallback rule at the bottom then
+// filed him under "Allister": a Liverpool board about surnames starting M
+// could not see one of Liverpool's M surnames, and every guess at him was a
+// red chip. The particle rule is scoped to mid-name tokens, so a player
+// actually called Mac is untouched — the loop starts at the second word.
 const PARTICLES = new Set([
   "de", "del", "della", "dello", "dei", "degli", "di", "da", "dal", "dalla",
   "do", "dos", "das", "du", "van", "von", "der", "den", "ter", "ten",
   "vande", "vander", "le", "la", "les", "af", "av", "al", "el",
   "bin", "ibn", "abu", "ben", "san", "santa", "lo", "ver",
+  "mac", "mc",
 ]);
 
 // Korean surnames (romanised variants). Used with nationality as a backstop
