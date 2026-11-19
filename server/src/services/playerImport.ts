@@ -4,6 +4,7 @@ import { footballers, career_stints } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias, type ScrapeResult } from './scraper.ts'
 import { clubWikiUrl } from './clubs.ts'
 import { replaceCareerStatistics, applyNameSplit } from './footballers.ts'
+import { hasClub } from './football.ts'
 
 // Shared player/club import helpers used by the Transfermarkt-scraping games
 // (Transfer History has its own in-file copies; Record Signings uses these).
@@ -250,6 +251,38 @@ function rowLooksLikeFootballer(id: number): boolean {
   return row.seniors > 0 || !!(row.born && row.position)
 }
 
+// Has the career we just scraped ever heard of the round that asked?
+//
+// Wikipedia's search ranks by its own lights, not by who the guesser meant:
+// "Idrissa gueye footballer" puts a Senegalese teenager above the Everton
+// midfielder of the same name. Both are real footballers with real articles,
+// so the first candidate always won and an Everton round got a player who had
+// never been near Everton. The hint is the one fact that tells them apart.
+//
+// A club round hints a club and a league round hints a competition, so ask
+// both sides of the career: the stints name clubs, the season rows name clubs
+// and the competitions they were played in.
+export function careerMatchesHint(id: number, hint: string): boolean {
+  if (!hint) return false
+  const rows = sqlite
+    .prepare(
+      `SELECT club, NULL AS league, NULL AS division FROM career_stints WHERE footballer_id = ?
+       UNION ALL
+       SELECT club, league, division FROM career_statistics WHERE footballer_id = ?`,
+    )
+    .all(id, id) as { club: string | null; league: string | null; division: string | null }[]
+
+  const clubs = rows.map((r) => r.club).filter((c): c is string => !!c)
+  if (hasClub(clubs, hint)) return true
+
+  const want = normalizeName(hint)
+  return rows.some(
+    (r) =>
+      (r.league != null && normalizeName(r.league) === want) ||
+      (r.division != null && normalizeName(r.division) === want),
+  )
+}
+
 export async function resolveOrCreateFootballer(
   name: string,
   clubHint: string,
@@ -267,6 +300,22 @@ export async function resolveOrCreateFootballer(
     await sleep(120)
   }
 
+  // The first candidate that scrapes cleanly is not necessarily the one that
+  // was meant — see careerMatchesHint above. So a candidate whose career
+  // contains the hint wins outright; one that merely scraped is only ever a
+  // fallback, kept because the bulk importers would rather have a near miss
+  // than nothing. Every other candidate scraped on the way is deleted again,
+  // or looking for the right Gueye would leave the wrong one behind.
+  //
+  // Rows above this mark did not exist before this call, which is the only
+  // safe licence to delete one: a candidate reached through a redirect can be
+  // somebody the database already held.
+  const highWater = (
+    sqlite.prepare('SELECT COALESCE(MAX(id), 0) AS m FROM footballers').get() as { m: number }
+  ).m
+  const mine = (id: number) => id > highWater
+  let fallback: number | null = null
+
   for (const title of titles.slice(0, 5)) {
     const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
 
@@ -277,18 +326,33 @@ export async function resolveOrCreateFootballer(
     const sameArticle = sqlite
       .prepare('SELECT id FROM footballers WHERE wikipedia_url = ? LIMIT 1')
       .get(wikiUrl) as { id: number } | undefined
-    if (sameArticle) return { id: sameArticle.id, created: false }
 
-    try {
-      const id = await insertScrapedFootballer(wikiUrl)
-      // Skip a candidate that resolved to something that isn't a person, so a
-      // stale "Ferenc Puskás Stadium" row can't stand in for the player.
-      if (id && rowLooksLikeFootballer(id)) return { id, created: true }
-    } catch {
-      // try the next candidate
+    let id: number | null = sameArticle?.id ?? null
+    if (id == null) {
+      try {
+        const scraped = await insertScrapedFootballer(wikiUrl)
+        // Skip a candidate that resolved to something that isn't a person, so a
+        // stale "Ferenc Puskás Stadium" row can't stand in for the player.
+        if (scraped && rowLooksLikeFootballer(scraped)) id = scraped
+      } catch {
+        // try the next candidate
+      }
+      await sleep(250)
     }
-    await sleep(250)
+    if (id == null) continue
+
+    if (!clubHint || careerMatchesHint(id, clubHint)) {
+      if (fallback != null && fallback !== id && mine(fallback)) {
+        sqlite.prepare('DELETE FROM footballers WHERE id = ?').run(fallback)
+      }
+      return { id, created: mine(id) }
+    }
+
+    if (fallback == null) fallback = id
+    else if (id !== fallback && mine(id)) {
+      sqlite.prepare('DELETE FROM footballers WHERE id = ?').run(id)
+    }
   }
 
-  return { id: null, created: false }
+  return fallback != null ? { id: fallback, created: mine(fallback) } : { id: null, created: false }
 }
