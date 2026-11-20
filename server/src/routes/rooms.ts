@@ -219,14 +219,14 @@ roomsRouter.post(
     const { displayName, platform, pushToken } = c.req.valid('json')
     const user = await getCurrentUser(c)
     try {
-      const { room, participant } = joinRoom(c.req.param('code'), displayName, {
-        userId: user?.id ?? null,
-        platform,
-      })
-      announce(room.code, 'participant_joined')
-      let deviceSecret: string | null = null
+      // Before the join, not after it as this used to be. The device row is
+      // how a guest is recognised coming back to a seat they already have —
+      // see 0116_participant_device.sql — so it has to exist by the time the
+      // room is asked who this is. Nothing about registering a phone depends
+      // on the room, so there is no cost to doing it first.
+      let device: { id: number; secret: string } | null = null
       if (pushToken && (platform === 'ios' || platform === 'android')) {
-        const device = registerDevice({
+        device = registerDevice({
           platform,
           token: pushToken,
           displayName,
@@ -235,7 +235,6 @@ roomsRouter.post(
           // somebody else's game should still be told about new ones.
           userId: null,
         })
-        deviceSecret = device.secret
         recordRegistrationAttempt({
           platform,
           token: pushToken,
@@ -244,6 +243,14 @@ roomsRouter.post(
           deviceId: device.id,
         })
       }
+
+      const { room, participant } = joinRoom(c.req.param('code'), displayName, {
+        userId: user?.id ?? null,
+        platform,
+        deviceId: device?.id ?? null,
+      })
+      announce(room.code, 'participant_joined')
+      const deviceSecret: string | null = device?.secret ?? null
       return c.json({
         ...roomState(room),
         participantId: participant.id,

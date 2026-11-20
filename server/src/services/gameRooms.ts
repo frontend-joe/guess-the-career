@@ -190,6 +190,10 @@ export interface ParticipantRow {
   /// 1 when the host removed them, which is a different thing from leaving:
   /// it survives a rejoin attempt. See 0093_participant_removed.sql.
   removed: number
+  /// The phone this seat was taken on, when it had a push token to give.
+  /// What lets a guest — who has no account to be recognised by — come back
+  /// to the seat they already had. See 0116_participant_device.sql.
+  device_id: number | null
 }
 
 export function participantsOf(roomId: number): ParticipantRow[] {
@@ -210,27 +214,43 @@ export class RoomError extends Error {
 export function joinRoom(
   code: string,
   displayName: string,
-  opts: { userId?: number | null; platform?: string | null } = {},
+  opts: { userId?: number | null; platform?: string | null; deviceId?: number | null } = {},
 ): { room: RoomRow; participant: ParticipantRow } {
   const room = roomByCode(code)
   if (!room) throw new RoomError('No such room', 404)
   if (room.status === 'ended') throw new RoomError('That game has finished', 409)
 
   const participant = sqlite.transaction(() => {
-    if (opts.userId != null) {
-      const existing = sqlite
-        .prepare('SELECT * FROM game_participants WHERE room_id = ? AND user_id = ?')
-        .get(room.id, opts.userId) as ParticipantRow | undefined
-      // Removed means removed. Without this the host's only sanction lasts
-      // exactly as long as it takes the removed player to tap Join again.
-      if (existing?.removed) throw new RoomError('You were removed from that game', 403)
-      // Rejoining is not a new seat — it keeps the slot, so tile order in a
-      // recording survives someone's phone dying.
-      if (existing) {
-        sqlite.prepare('UPDATE game_participants SET left_at = NULL WHERE id = ?').run(existing.id)
-        bumpVersion(room.id)
-        return sqlite.prepare('SELECT * FROM game_participants WHERE id = ?').get(existing.id) as ParticipantRow
-      }
+    // Who this is, by whatever the caller can prove. An account first, since
+    // it survives a new phone; otherwise the handset, which is all a guest
+    // has — and without it this used to recognise nobody, so every guest
+    // rejoin took a second seat and left the first one on the list forever.
+    const existing = (opts.userId != null
+      ? sqlite
+          .prepare('SELECT * FROM game_participants WHERE room_id = ? AND user_id = ?')
+          .get(room.id, opts.userId)
+      : opts.deviceId != null
+        ? sqlite
+            .prepare(
+              `SELECT * FROM game_participants
+                WHERE room_id = ? AND device_id = ? AND user_id IS NULL
+                ORDER BY slot LIMIT 1`,
+            )
+            .get(room.id, opts.deviceId)
+        : undefined) as ParticipantRow | undefined
+
+    // Removed means removed. Without this the host's only sanction lasts
+    // exactly as long as it takes the removed player to tap Join again.
+    if (existing?.removed) throw new RoomError('You were removed from that game', 403)
+    // Rejoining is not a new seat — it keeps the slot, so tile order in a
+    // recording survives someone's phone dying. The name comes along, because
+    // the one just typed is the one they want on their card.
+    if (existing) {
+      sqlite
+        .prepare('UPDATE game_participants SET left_at = NULL, display_name = ? WHERE id = ?')
+        .run(displayName, existing.id)
+      bumpVersion(room.id)
+      return sqlite.prepare('SELECT * FROM game_participants WHERE id = ?').get(existing.id) as ParticipantRow
     }
 
     const taken = new Set(
@@ -248,10 +268,10 @@ export function joinRoom(
 
     const info = sqlite
       .prepare(
-        `INSERT INTO game_participants (room_id, user_id, display_name, role, slot, platform)
-         VALUES (?, ?, ?, 'player', ?, ?)`,
+        `INSERT INTO game_participants (room_id, user_id, display_name, role, slot, platform, device_id)
+         VALUES (?, ?, ?, 'player', ?, ?, ?)`,
       )
-      .run(room.id, opts.userId ?? null, displayName, slot, opts.platform ?? null)
+      .run(room.id, opts.userId ?? null, displayName, slot, opts.platform ?? null, opts.deviceId ?? null)
     // The lobby is part of the state everyone watches, so arriving and leaving
     // bump the version like any other change.
     bumpVersion(room.id)
