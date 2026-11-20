@@ -80,6 +80,13 @@ struct RoomView: View {
                             .frame(height: geo.size.height / 3)
                             .background(BoardStyle.background)
                             .clipped()
+                    } else {
+                        // The same question the faces answer, asked of a room
+                        // that has none: who else is here. It takes only the
+                        // height its own cards need rather than a third of
+                        // the screen, and the board — which is still the only
+                        // thing that can use more space — keeps the rest.
+                        PlayersView()
                     }
 
                     // Everything below the faces is one panel: the guesses,
