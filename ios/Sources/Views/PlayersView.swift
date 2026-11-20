@@ -30,16 +30,14 @@ struct PlayersView: View {
         VStack(spacing: 8) {
             ForEach(Array(stride(from: 0, to: players.count, by: Self.perRow)), id: \.self) { start in
                 HStack(spacing: 8) {
+                    // A short row stretches to fill the width rather than
+                    // leaving a gap where the missing cards would be. The
+                    // filler used to be Color.clear, which is flexible in
+                    // BOTH directions — so two empty cells in a room of two
+                    // took every spare point of HEIGHT as well, and the band
+                    // sat marooned between the question and the guesses.
                     ForEach(players[start..<min(start + Self.perRow, players.count)]) { player in
-                        CardView(player: player, isYou: player.id == store.me?.id)
-                    }
-                    // A short last row keeps its cards the width of all the
-                    // others rather than stretching two of them across the
-                    // screen.
-                    if start + Self.perRow > players.count {
-                        ForEach(0..<(start + Self.perRow - players.count), id: \.self) { _ in
-                            Color.clear
-                        }
+                        CardView(player: player)
                     }
                 }
             }
@@ -53,14 +51,6 @@ struct PlayersView: View {
 
 private struct CardView: View {
     let player: RoomParticipant
-    let isYou: Bool
-
-    /// The most of a name that fits on a card a quarter of the screen wide.
-    /// Truncated rather than wrapped: two lines would make this card taller
-    /// than its neighbours and the whole row with it.
-    private var shortName: String {
-        player.displayName.split(separator: " ").first.map(String.init) ?? player.displayName
-    }
 
     private var initials: String {
         let words = player.displayName.split(separator: " ").prefix(2)
@@ -86,11 +76,18 @@ private struct CardView: View {
                         .foregroundStyle(.white)
                 }
 
-            Text(isYou ? "You" : shortName)
+            // The name as they gave it, everybody's the same way — your own
+            // card says your name rather than "You". This is the list of who
+            // is in the room, and a room where one card is labelled from the
+            // reader's point of view is not the same list on four screens.
+            // Truncated rather than wrapped: a second line would make one
+            // card taller than its neighbours and the whole row with it.
+            Text(player.displayName)
                 .font(.body(12))
-                .foregroundStyle(isYou ? .white : Color(white: 0.78))
+                .foregroundStyle(Color(white: 0.88))
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .padding(.horizontal, 6)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
@@ -105,7 +102,7 @@ private struct CardView: View {
         .opacity(player.present ? 1 : 0.4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(isYou ? "You" : player.displayName)"
+            player.displayName
                 + (player.isHost ? ", host" : "")
                 + (player.present ? "" : ", left")
         )
