@@ -179,6 +179,13 @@ sqlite
 
 test('naming a different player with the same surname is wrong, not a duplicate', () => {
   const { host, inst } = sharedRound()
+  // Marcus never played here, so he is now looked up as well as named back.
+  // Marking him settled keeps the suite off the network.
+  sqlite
+    .prepare(
+      "INSERT INTO game_guess_reviews (instance_id, raw, raw_norm, status) VALUES (?, 'Marcus Thuram', 'marcus thuram', 'rejected')",
+    )
+    .run(inst.id)
 
   assert.equal(rooms.submitGuess(inst.id, host, 'g1', 'Thuram').verdict, 'hit')
 
@@ -249,6 +256,13 @@ test('once the database knows him, his name is never a typo of another', () => {
     )
     .run()
   const { host, inst } = sharedRound()
+  // He never played here either, so he is looked up as well as named back.
+  // Marking him settled keeps the suite off the network.
+  sqlite
+    .prepare(
+      "INSERT INTO game_guess_reviews (instance_id, raw, raw_norm, status) VALUES (?, 'Pedri', 'pedri', 'rejected')",
+    )
+    .run(inst.id)
   // Pedro is UNFOUND this time, so the found-answer rule cannot be what saves
   // it. Being a real name of his own is.
   const result = rooms.submitGuess(inst.id, host, 'g1', 'Pedri')
@@ -345,4 +359,65 @@ test('a misspelling claims one slot, never a crowd', () => {
   const result = rooms.submitGuess(inst.id, host, 'g1', 'Colr')
   assert.equal(result.verdict, 'hit')
   assert.deepEqual(foundNames(inst.id), ['Andy Cole'])
+})
+
+// ── A namesake who was never the one meant ──────────────────────────────────
+//
+// Reported from a real game: "Ederson" at a Brazilian Premier League board
+// came back as nobody, and the Manchester City goalkeeper — top of that board
+// by a distance — was never looked up. The only Éderson the database held was
+// the Atalanta midfielder born in 1999, normalising away the accent made him
+// the only Ederson too, and a whole-name match used to be taken as an
+// identification and left unquestioned.
+//
+// So a known name that fits nothing about the round is a name we have not yet
+// heard, however completely it was typed. We still say it back, because the
+// man is real and the spelling was fine.
+
+function elsewherePlayer(name: string): void {
+  const id = (sqlite
+    .prepare(
+      `INSERT INTO footballers (name, surname, wikipedia_url, nationality)
+       VALUES (?, ?, ?, 'Brazil') RETURNING id`,
+    )
+    .get(name, name.split(' ').at(-1), `https://en.wikipedia.org/wiki/${name.replace(/ /g, '_')}_br`) as { id: number }).id
+  sqlite
+    .prepare(
+      `INSERT INTO career_statistics
+         (footballer_id, club, division, league, season, league_apps, league_goals)
+       VALUES (?, 'Atalanta', 'Serie A', 'Serie A', '2018-19', 90, 0)`,
+    )
+    .run(id)
+}
+
+elsewherePlayer('Éderson')
+elsewherePlayer('Ousmane Sarr')
+
+test('a whole name nobody here answers to is said back, and still looked up', () => {
+  const { host, inst } = sharedRound()
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Ederson')
+
+  assert.equal(result.verdict, 'miss')
+  // Named back: he exists, the spelling was fine, and that is worth saying.
+  assert.equal(result.known, 'Éderson')
+  // And looked up anyway, because this one never played here and the one who
+  // did has yet to be found.
+  assert.equal(result.checking, true)
+})
+
+test('a bare surname landing on a stranger is not said back', () => {
+  const { host, inst } = sharedRound()
+  // Settled already, so the suite stays off the network — the point here is
+  // who gets named, not who gets fetched.
+  sqlite
+    .prepare(
+      "INSERT INTO game_guess_reviews (instance_id, raw, raw_norm, status) VALUES (?, 'Sarr', 'sarr', 'rejected')",
+    )
+    .run(inst.id)
+  const result = rooms.submitGuess(inst.id, host, 'g1', 'Sarr')
+
+  assert.equal(result.verdict, 'miss')
+  // Ousmane Sarr is not who was meant, and offering his name would only
+  // mislead. A surname match earns no credit it cannot back up.
+  assert.equal(result.known, null)
 })

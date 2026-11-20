@@ -301,8 +301,23 @@ export async function resolveOrCreateFootballer(
   name: string,
   clubHint: string,
 ): Promise<{ id: number | null; created: boolean }> {
+  // A name we already hold used to end this outright. But a name identifies a
+  // player far less firmly than that assumed, and the row we hold may simply
+  // be a different person who shares it — the Éderson in the database is the
+  // Atalanta midfielder, which made the Manchester City goalkeeper
+  // unreachable by name, and a Valencia B goalkeeper called Raúl Jiménez hid
+  // the Wolves striker the same way.
+  //
+  // So a held row still has to fit the hint. One that does not leaves the
+  // search to run, and the namesake becomes the FALLBACK below rather than
+  // the answer: a candidate that matches the hint beats it, and nothing else
+  // can, so a search that turns up no better reading returns exactly what it
+  // would have returned before. Scraped-but-wrong candidates are deleted on
+  // the way, as they always were.
   const existing = dbFootballerByName(name)
-  if (existing) return { id: existing, created: false }
+  if (existing != null && (!clubHint || careerMatchesHint(existing, clubHint))) {
+    return { id: existing, created: false }
+  }
 
   const nameParts = stripDiacritics(name).split(/\s+/).filter((p) => p.length > 2)
 
@@ -328,7 +343,7 @@ export async function resolveOrCreateFootballer(
     sqlite.prepare('SELECT COALESCE(MAX(id), 0) AS m FROM footballers').get() as { m: number }
   ).m
   const mine = (id: number) => id > highWater
-  let fallback: number | null = null
+  let fallback: number | null = existing
 
   for (const title of titles.slice(0, 5)) {
     const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`

@@ -843,7 +843,7 @@ export function submitGuess(
       // A replay answers exactly as the first attempt did, so the same
       // lookup rather than a null — the retry is the same guess, not a
       // different one that happens to know less.
-      known: hit ? null : knownPlayerNamed(raw)?.name ?? null,
+      known: hit ? null : knownForRound(instanceId, raw).reported?.name ?? null,
       // A replay never queues a second lookup — the first attempt already
       // did, and the name is in the skip list by now.
       checking: false,
@@ -957,25 +957,13 @@ export function submitGuess(
     .prepare('SELECT status FROM game_round_instances WHERE id = ?')
     .get(instanceId) as { status: string }
 
-  const named = match || category !== 'football' ? null : knownPlayerNamed(raw)
-  // Knowing SOMEBODY of that surname is not knowing THIS somebody. The
-  // database held exactly one Gueye — a Senegalese teenager at Génération
-  // Foot — so "Gueye" shouted at an African Everton board matched his surname,
-  // counted as a name we already knew, and went straight to a miss without
-  // ever looking anybody up. Idrissa Gana Gueye, second on that board, was
-  // unreachable behind a namesake who had never played in England.
-  //
-  // So a SURNAME still has to fit the round that asked, and one that does not
-  // is treated as a name we have never heard — which is what it is: somebody
-  // of that name exists, it is not the one meant, and the one meant has yet to
-  // be found.
-  //
-  // A whole name is left alone. "Marcus Thuram" at a Parma board holding
-  // Lilian names Marcus exactly, and the useful answer there is "Marcus
-  // Thuram is not on this list" — not a Wikipedia search for a second Marcus
-  // Thuram who does not exist.
-  const hint = named == null || named.whole ? '' : hintForInstance(instanceId)
-  const known = named != null && hint !== '' && !careerMatchesHint(named.id, hint) ? null : named
+  const named =
+    match || category !== 'football'
+      ? { reported: null, fitting: null }
+      : knownForRound(instanceId, raw)
+  // The one the round means, and the only one worth acting on: putting him on
+  // the board, or deciding nobody here is him and going to look.
+  const known = named.fitting
   let checking = false
 
   if (verdict === 'miss' && category === 'football') {
@@ -1021,7 +1009,7 @@ export function submitGuess(
 
   return {
     verdict,
-    known: known?.name ?? null,
+    known: named.reported?.name ?? null,
     checking,
     rank: match?.rank ?? null,
     value: match?.value ?? null,
@@ -1139,13 +1127,74 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   return { rank: clued, clue, stateVersion, replayed: false }
 }
 
+// Which of the players we already hold by this name is the one the round
+// means?
+//
+// Knowing SOMEBODY of that name is not knowing THIS somebody. The database
+// held exactly one Gueye — a Senegalese teenager at Génération Foot — so
+// "Gueye" shouted at an African Everton board matched his surname, counted as
+// a name we already knew, and went straight to a miss without ever looking
+// anybody up. Idrissa Gana Gueye, second on that board, was unreachable behind
+// a namesake who had never played in England.
+//
+// A WHOLE name used to be exempt from that test, on the grounds that it is an
+// identification rather than a guess at one: "Marcus Thuram" at a Parma board
+// holding Lilian names Marcus exactly, and the useful answer is "Marcus Thuram
+// is not on this list" rather than a search for a second Marcus Thuram who
+// does not exist. But a name identifies a player far less firmly than that
+// assumed. The only Éderson in the database is the Atalanta midfielder born
+// in 1999, and normalising away the accent makes him the only Ederson too —
+// so the Manchester City goalkeeper, who has more Premier League appearances
+// than anyone else on a Brazilian board, could never be reached by typing his
+// name. The same thing hid Raúl Jiménez behind a Valencia B goalkeeper of
+// the same name, and that one was a full name, not a mononym.
+//
+// So every candidate has to fit the round that asked, however completely it
+// was named, and a name where none of them fits is treated as a name we have
+// never heard — which is what it is: somebody of that name exists, it is not
+// the one meant, and the one meant has yet to be found. The cost is Thuram:
+// one background Wikipedia search that finds nothing new, after the same
+// answer has already gone back.
+interface Candidate {
+  id: number
+  name: string
+  whole: boolean
+}
+
+function knownForRound(
+  instanceId: number,
+  raw: string,
+): { reported: Candidate | null; fitting: Candidate | null } {
+  const candidates = knownPlayersNamed(raw)
+  if (candidates.length === 0) return { reported: null, fitting: null }
+
+  // No hint to judge them by — a surname-initial round, say — so the best
+  // reading available is the one the ordering already prefers.
+  const hint = hintForInstance(instanceId)
+  const fitting =
+    hint === '' ? candidates[0] : candidates.find((c) => careerMatchesHint(c.id, hint)) ?? null
+
+  // Telling the guesser who we thought they meant is a separate question from
+  // whether to go looking for somebody better, and the two part company
+  // exactly here. Nobody fits the round, so a lookup is warranted — but if
+  // the name was typed in FULL we can still name him back. "Marcus Thuram is
+  // not on this list" is worth far more than silence: it says the spelling
+  // was fine and the man is real, and it is the whole reason that answer was
+  // written. A bare surname earns no such credit, because the stranger it
+  // landed on is not who was meant and saying his name would only mislead.
+  return { reported: fitting ?? candidates.find((c) => c.whole) ?? null, fitting }
+}
+
 // Does the database know anybody by this name, whatever the round thinks?
 //
 // Matched on the whole name or on the surname as a WHOLE WORD — `LIKE '%egan'`
 // would have answered "Kevin Keegan" to "Egan", which is precisely the
 // confusion this is meant to clear up.
-function knownPlayerNamed(raw: string): { id: number; name: string; whole: boolean } | null {
-  const row = sqlite
+//
+// All of them, not the first: two players share a name far more often than the
+// old LIMIT 1 allowed for, and which one is meant is the caller's question.
+function knownPlayersNamed(raw: string): Candidate[] {
+  const rows = sqlite
     .prepare(
       // The whole name, or the surname. Deliberately NOT any word of the
       // name, which is what this asked before: a bare forename identifies
@@ -1157,18 +1206,18 @@ function knownPlayerNamed(raw: string): { id: number; name: string; whole: boole
       // name, for the same reason matchesName does — Zheng Zhi's surname is
       // the first word, and seventy-seven players in the database are like
       // him.
-      // Which of the two it was matters to the caller: a whole name is an
-      // identification and a bare surname is a guess at one, so they are
-      // reported apart. The ordering says the same thing — if both kinds of
-      // match exist, the whole name is the one meant.
+      // Whole names first. A whole name is an identification and a bare
+      // surname is a guess at one, so when both kinds of match exist the
+      // whole name is the likelier reading — and the caller takes the first
+      // candidate whenever the round gives it nothing to judge them by.
       `SELECT id, name, normalize(name) = normalize(?) AS whole FROM footballers
        WHERE normalize(name) = normalize(?)
           OR (surname IS NOT NULL AND normalize(surname) = normalize(?))
        ORDER BY whole DESC
-       LIMIT 1`,
+       LIMIT 8`,
     )
-    .get(raw, raw, raw) as { id: number; name: string; whole: number } | undefined
-  return row ? { id: row.id, name: row.name, whole: row.whole === 1 } : null
+    .all(raw, raw, raw) as { id: number; name: string; whole: number }[]
+  return rows.map((r) => ({ id: r.id, name: r.name, whole: r.whole === 1 }))
 }
 
 // ── Unknown names ───────────────────────────────────────────────────────────
