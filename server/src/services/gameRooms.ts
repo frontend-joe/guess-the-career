@@ -1176,13 +1176,20 @@ function knownForRound(
 
   // Telling the guesser who we thought they meant is a separate question from
   // whether to go looking for somebody better, and the two part company
-  // exactly here. Nobody fits the round, so a lookup is warranted — but if
-  // the name was typed in FULL we can still name him back. "Marcus Thuram is
-  // not on this list" is worth far more than silence: it says the spelling
-  // was fine and the man is real, and it is the whole reason that answer was
-  // written. A bare surname earns no such credit, because the stranger it
-  // landed on is not who was meant and saying his name would only mislead.
-  return { reported: fitting ?? candidates.find((c) => c.whole) ?? null, fitting }
+  // exactly here. Nobody fits the round, so a lookup is warranted — and we
+  // name the best candidate anyway. "Andrej Kramarić is not on this list"
+  // says the spelling was fine, the man is real, and the board is the thing
+  // refusing him; "No player called Kramaric" says none of that and is not
+  // even true. That message is reachable whenever the lookup is skipped — a
+  // name already reviewed in the last hour, or settled for good — so the
+  // silence was not rare.
+  //
+  // A surname is reported on the same terms. It can land on a stranger — the
+  // Gueye the database held was a Senegalese teenager, not Idrissa — and
+  // naming him is a worse answer than naming the right man, but it is a far
+  // better one than claiming nobody of that name exists. The lookup still
+  // runs either way, so a board that can be corrected still is.
+  return { reported: fitting ?? candidates[0], fitting }
 }
 
 // Does the database know anybody by this name, whatever the round thinks?

@@ -405,10 +405,11 @@ test('a whole name nobody here answers to is said back, and still looked up', ()
   assert.equal(result.checking, true)
 })
 
-test('a bare surname landing on a stranger is not said back', () => {
+test('a bare surname is said back too, rather than denying the name exists', () => {
   const { host, inst } = sharedRound()
-  // Settled already, so the suite stays off the network — the point here is
-  // who gets named, not who gets fetched.
+  // Settled already, so the suite stays off the network — and so that the
+  // lookup cannot be what rescues the message. This is the case the toast
+  // used to answer with "No player called Sarr".
   sqlite
     .prepare(
       "INSERT INTO game_guess_reviews (instance_id, raw, raw_norm, status) VALUES (?, 'Sarr', 'sarr', 'rejected')",
@@ -417,7 +418,7 @@ test('a bare surname landing on a stranger is not said back', () => {
   const result = rooms.submitGuess(inst.id, host, 'g1', 'Sarr')
 
   assert.equal(result.verdict, 'miss')
-  // Ousmane Sarr is not who was meant, and offering his name would only
-  // mislead. A surname match earns no credit it cannot back up.
-  assert.equal(result.known, null)
+  // He may not be the Sarr who was meant, but saying so beats claiming
+  // nobody of that name has ever existed.
+  assert.equal(result.known, 'Ousmane Sarr')
 })
