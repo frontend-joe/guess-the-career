@@ -2,6 +2,7 @@ package com.guessthelist.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +51,7 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
     // "admin".
     var hostName by remember { mutableStateOf("") }
     var savedHostName by remember { mutableStateOf("") }
+    var video by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
     val context = LocalContext.current
@@ -162,6 +166,27 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            // Whether the game being created is a video call.
+            //
+            // Decided here because it cannot be decided later: with it off
+            // nobody dials LiveKit at all, and turning it on mid-game would
+            // mean reconnecting everybody. Defaults on, which is what the
+            // game has always been.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Video call")
+                Switch(checked = video, onCheckedChange = { video = it })
+            }
+            Text(
+                if (video) "Everyone sees and hears each other."
+                else "No camera or microphone \u2014 just the board and the guesses. " +
+                    "This cannot be changed once the game starts.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF9AA0A6),
+            )
             Button(
                 onClick = {
                     run {
@@ -181,7 +206,7 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
                         // The push token goes out WITH the create, so the
                         // server knows which phone the host is on before it
                         // sends the invite that must skip it.
-                        val joined = Api.createRoom(token, Push.token(context))
+                        val joined = Api.createRoom(token, Push.token(context), video)
                         Push.adoptSecret(context, joined.deviceSecret)
                         model.enter(joined)
                     }

@@ -160,6 +160,11 @@ data class RoomState(
     val status: String,
     val stateVersion: Int,
     val livekitRoom: String,
+    /** Whether this game is a video call. Set by the host at creation and
+     *  never changed; false means nobody ever dials LiveKit. Null when the
+     *  server is older than the flag, and absent means yes — which is what
+     *  every room used to be. */
+    val video: Boolean? = null,
     val hostUserId: Int,
     /** The round picked and waiting to be started. Separate from [round],
      *  which is what the board is showing. */
@@ -179,6 +184,11 @@ data class JoinedRoom(
     val status: String,
     val stateVersion: Int,
     val livekitRoom: String,
+    /** Whether this game is a video call. Set by the host at creation and
+     *  never changed; false means nobody ever dials LiveKit. Null when the
+     *  server is older than the flag, and absent means yes — which is what
+     *  every room used to be. */
+    val video: Boolean? = null,
     val hostUserId: Int,
     val pendingInstanceId: Int? = null,
     val participants: List<RoomParticipant> = emptyList(),
@@ -192,7 +202,7 @@ data class JoinedRoom(
 ) {
     val state: RoomState
         get() = RoomState(
-            code, status, stateVersion, livekitRoom, hostUserId,
+            code, status, stateVersion, livekitRoom, video, hostUserId,
             pendingInstanceId, participants, messages, round,
         )
 }

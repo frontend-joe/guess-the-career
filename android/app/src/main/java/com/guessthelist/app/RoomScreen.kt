@@ -85,6 +85,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
@@ -101,6 +102,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -250,8 +252,19 @@ fun RoomScreen(model: RoomViewModel) {
         // or microphone has failed, and a tab bar costs the faces vertical
         // space in every game where nothing has failed. ChatPanel and its
         // endpoint are untouched, so this is one line away from coming back.
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
-            VideoGrid(model)
+        //
+        // A third of the screen, always — in a game that has faces in it. A
+        // room created without video has none, and reserving a third of the
+        // screen for an empty grid would be the app showing you the feature
+        // you turned off. The players band takes only the height its own
+        // cards need and the board keeps the rest; it is the only thing on
+        // screen that can use more of it.
+        if (model.videoEnabled) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0A0C10))) {
+                VideoGrid(model)
+            }
+        } else {
+            PlayersBand(model)
         }
 
         // Under the faces, because that is the order of the recording: board,
@@ -326,6 +339,12 @@ fun RoomScreen(model: RoomViewModel) {
             // red means either "this is off" or "this ends something", and
             // everything else is plain white. The row used to carry red, red,
             // grey, red and blue at once, which gave the eye no hierarchy.
+            //
+            // Only where there is a call to be heard on. Leaving them in a
+            // video-off game would be two buttons that cannot work, and the
+            // honest answer to "why is my mic dead" is that this game never
+            // had one.
+            if (model.videoEnabled) {
             IconButton(
                 onClick = { scope.launch { model.setMicrophone(!model.micOn) } },
                 enabled = !model.micBusy,
@@ -368,6 +387,7 @@ fun RoomScreen(model: RoomViewModel) {
                         tint = if (model.cameraOn) Color.White else Color(0xFFFF6B6B),
                     )
                 }
+            }
             }
             // Everyone types, and the field takes the space the controls do
             // not — instead of sitting on a row of its own under an
@@ -512,6 +532,96 @@ fun RoomScreen(model: RoomViewModel) {
         )
     }
 }
+
+// Who is in the room, for a game that has no faces in it.
+//
+// With video on, the bottom third answers this without being asked: you can
+// see who is here. Turn video off and the room goes anonymous — the only
+// evidence anybody else exists is a guess chip scrolling past with a name on
+// it, and a player who has not said anything yet leaves no trace at all. The
+// host could not tell whether their mates had got in.
+//
+// So the band under the board lists them instead. Everyone who ever joined,
+// kept permanently: the rows behind this are never deleted, so somebody whose
+// phone died mid-round is still part of this game and still shown — greyed
+// rather than gone, which is the difference between "they left" and "they were
+// never here". The same list on every device, in slot order, so the third card
+// along is the same person on all four screens.
+@Composable
+private fun PlayersBand(model: RoomViewModel) {
+    val players = model.state?.participants.orEmpty().sortedBy { it.slot }
+    if (players.isEmpty()) return
+    // Four to a row, like the video grid, so a room does not change shape when
+    // the same people play it the other way. A short row stretches to fill the
+    // width rather than leaving a gap where the missing cards would be.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF0A0A0C))
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        players.chunked(4).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                row.forEach { player ->
+                    PlayerCard(player, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerCard(player: RoomParticipant, modifier: Modifier = Modifier) {
+    val initials = player.displayName.split(" ")
+        .take(2)
+        .mapNotNull { it.firstOrNull()?.toString() }
+        .joinToString("")
+        .uppercase()
+
+    Column(
+        modifier = modifier
+            // Still listed, visibly not here. A card that simply vanished
+            // would make the room look like it had never had them in it.
+            .alpha(if (player.present) 1f else 0.4f)
+            .clip(RoundedShape14)
+            .background(Color(0xFF191C23))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedShape14)
+            .padding(vertical = 10.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(
+                    if (player.isHost) Color(0xFF8B5CF6) else Color(0xFF3A3A3F),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(initials, fontSize = 13.sp, color = Color.White)
+        }
+        // The name as they gave it, everybody's the same way — your own card
+        // says your name rather than "You". This is the list of who is in the
+        // room, and a room where one card is labelled from the reader's point
+        // of view is not the same list on four screens. Truncated rather than
+        // wrapped: a second line would make one card taller than its
+        // neighbours and the whole row with it.
+        Text(
+            player.displayName,
+            fontSize = 12.sp,
+            color = Color(0xFFE0E0E0),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private val RoundedShape14 = RoundedCornerShape(14.dp)
 
 @Composable
 private fun VideoGrid(model: RoomViewModel) {

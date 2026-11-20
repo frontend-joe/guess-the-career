@@ -88,6 +88,13 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     val isHost: Boolean get() = me?.isHost == true
     val round: RoomRound? get() = state?.round
 
+    /** Whether this game is a video call. Decided by the host when the room
+     *  was created and never changed. False means nobody dials LiveKit at
+     *  all — no token, no connection, no camera — so the state broadcasts it
+     *  would have carried are polled for instead. Absent means yes, which is
+     *  what every room used to be. */
+    val videoEnabled: Boolean get() = state?.video ?: true
+
     /** Who a participant id belongs to, for the things that name a player
      *  rather than draw their tile — the guess feed, and the recording after
      *  it. "You" for your own, because a feed of your own name reads oddly
@@ -235,7 +242,17 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         poller = viewModelScope.launch {
             while (true) {
                 refresh()
-                delay(10_000)
+                // Ten seconds is a BACKSTOP, and only while something else is
+                // pushing: the state broadcast rides LiveKit's data channel,
+                // and a room created without video has no connection to carry
+                // it. Polling is the whole transport there, so a ten-second
+                // loop would mean somebody else's guess taking up to ten
+                // seconds to appear — in a party game, indistinguishable from
+                // the app being broken.
+                //
+                // Cheap enough to do properly: one small JSON snapshot for one
+                // room of at most four players, rebuilt from SQLite either way.
+                delay(if (videoEnabled) 10_000 else 1_500)
             }
         }
     }
@@ -243,6 +260,10 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     // MARK: Media
 
     private suspend fun connectMedia(): Boolean {
+        // Nothing to dial. The server refuses to mint a token for one of
+        // these rooms, so asking would be a round trip to a 409 — and this
+        // runs on every join and every resume.
+        if (!videoEnabled) return false
         val current = seat ?: return false
         val credentials = try {
             Api.livekitCredentials(current)

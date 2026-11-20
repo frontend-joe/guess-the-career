@@ -110,7 +110,11 @@ object Api {
 
     // MARK: Rooms
 
-    suspend fun createRoom(accessToken: String, pushToken: String? = null): JoinedRoom =
+    suspend fun createRoom(
+        accessToken: String,
+        pushToken: String? = null,
+        video: Boolean = true,
+    ): JoinedRoom =
         // An empty object, not {"name": null} — see the commit that taught the
         // server to accept both after iOS sent the null.
         post(
@@ -122,6 +126,10 @@ object Api {
                 if (pushToken != null) {
                     put("pushToken", pushToken); put("pushPlatform", "android")
                 }
+                // Always sent, never omitted: it is a decision the host made,
+                // and a server that defaults it would turn "no video" into a
+                // video call on a dropped field.
+                put("video", video)
             },
             accessToken,
         )
