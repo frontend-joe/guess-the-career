@@ -329,7 +329,7 @@ bundesligaRouter.post(
           const scraped = await scrapeWikipedia(footballer.wikipedia_url)
           const seniors = scraped.stints.filter((s) => s.stint_type === 'senior')
           for (const s of seniors) {
-            const exists = sqlite.prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = 'senior' LIMIT 1`).get(footballer.id, s.years, s.club)
+            const exists = sqlite.prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club_key(club) = club_key(?) AND stint_type = 'senior' LIMIT 1`).get(footballer.id, s.years, s.club)
             if (!exists) {
               const maxOrder = sqlite.prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`).get(footballer.id) as { next: number }
               await db.insert(career_stints).values({ footballer_id: footballer.id, sort_order: maxOrder.next, years: s.years, club: s.club, club_wikipedia_url: s.club_wikipedia_url ?? null, apps: s.apps ?? null, goals: s.goals ?? null, stint_type: 'senior' })
@@ -386,7 +386,7 @@ bundesligaRouter.post(
           sqlite.prepare(`UPDATE footballers SET wikipedia_url = ?, photo_url = COALESCE(photo_url, ?), nationality = COALESCE(nationality, ?) WHERE id = ?`)
             .run(wikiUrl, scraped.photo_url ?? null, scraped.nationality ?? null, knownRecord.id)
           for (const s of seniors) {
-            const exists = sqlite.prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = 'senior' LIMIT 1`).get(knownRecord.id, s.years, s.club)
+            const exists = sqlite.prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club_key(club) = club_key(?) AND stint_type = 'senior' LIMIT 1`).get(knownRecord.id, s.years, s.club)
             if (!exists) {
               const maxOrder = sqlite.prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`).get(knownRecord.id) as { next: number }
               await db.insert(career_stints).values({ footballer_id: knownRecord.id, sort_order: maxOrder.next, years: s.years, club: s.club, club_wikipedia_url: s.club_wikipedia_url ?? null, apps: s.apps ?? null, goals: s.goals ?? null, stint_type: 'senior' })

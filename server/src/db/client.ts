@@ -91,6 +91,26 @@ sqlite.function('normalize_club_alias', (s: unknown) => {
   return normalizeClubAlias(s)
 })
 
+// The same club, written any way at all. normalize_club_alias knows the
+// spellings somebody has written down in CLUB_ALIASES; this knows the ones
+// nobody has to. It takes the canonical name and drops its accents, its case
+// and every character that is not a letter or a digit, so "Al Hilal" and
+// "Al-Hilal" — which are one hyphen apart, which no alias connects, and which
+// Neymar had both of for the same three appearances — come out the same.
+//
+// Deliberately blunter than normalize_club_alias, and used where the question
+// is "have we already got this exact spell" rather than "which club is this".
+// It cannot tell two clubs apart that differ only by punctuation, and no two
+// in the data do.
+export function clubKey(club: string): string {
+  return normalizeName(normalizeClubAlias(club)).replace(/[^a-z0-9]/g, '')
+}
+
+sqlite.function('club_key', (s: unknown) => {
+  if (typeof s !== 'string') return s
+  return clubKey(s)
+})
+
 export const db = drizzle(sqlite, { schema })
 
 export function runMigrations() {

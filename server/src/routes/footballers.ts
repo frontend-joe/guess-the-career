@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { and, eq, sql, notInArray, isNotNull } from 'drizzle-orm'
-import { db, sqlite, normalizeName } from '../db/client.ts'
+import { db, sqlite, normalizeName, clubKey } from '../db/client.ts'
 import { footballers, career_stints, days } from '../db/schema.ts'
 import { scrapeWikipedia, normalizeClubAlias } from '../services/scraper.ts'
 import { reserveRe } from '../services/football.ts'
@@ -386,17 +386,23 @@ footballersRouter.get('/duplicate-stints', (c) => {
   // and a permanent transfer over the same years would otherwise read as one
   // spell. Loan-ness goes in the key instead of being thrown away.
   const isLoan = (club: string) => /^\s*→/.test(club) || /\(loan\)\s*$/i.test(club)
-  const looseClub = (club: string) =>
-    normalizeName(normalizeClubAlias(club)).replace(/[^a-z0-9]/g, '')
-  const looseYears = (years: string) => years.replace(/[\s]/g, '').replace(/[–—−-]/g, '-')
+  const looseYears = (years: string) => years.replace(/\s/g, '').replace(/[–—−-]/g, '-')
+
+  // ?match=years (the default) is what 0118 deletes: the same spell, down to
+  // the years. ?match=numbers ignores the years and asks whether two rows at
+  // one club carry the same appearances and goals, which is the double insert
+  // whose two rows disagree about how to write the dates — "2023–2025" against
+  // "2023–present". That one is a report only: a player really can have two
+  // spells at a club with the same tally, and telling those apart needs eyes.
+  const byNumbers = c.req.query('match') === 'numbers'
 
   const groups = new Map<string, typeof rows>()
   for (const r of rows) {
     const key = [
       r.footballer_id,
       r.stint_type,
-      looseClub(r.club),
-      looseYears(r.years),
+      clubKey(r.club),
+      byNumbers ? `${r.apps}/${r.goals}` : looseYears(r.years),
       isLoan(r.club) ? 'loan' : 'owned',
     ].join('|')
     const group = groups.get(key) ?? []

@@ -400,7 +400,7 @@ internationalLegendsRouter.post(
 
     async function importStints(id: number, scraped: Awaited<ReturnType<typeof scrapeWikipedia>>) {
       for (const s of scraped.stints.filter((st) => st.stint_type === "senior" || st.stint_type === "international")) {
-        const exists = sqlite.prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = ? LIMIT 1`).get(id, s.years, s.club, s.stint_type);
+        const exists = sqlite.prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club_key(club) = club_key(?) AND stint_type = ? LIMIT 1`).get(id, s.years, s.club, s.stint_type);
         if (!exists) {
           const maxOrder = sqlite.prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM career_stints WHERE footballer_id = ?`).get(id) as { next: number };
           await db.insert(career_stints).values({ footballer_id: id, sort_order: maxOrder.next, years: s.years, club: s.club, club_wikipedia_url: s.club_wikipedia_url ?? null, apps: s.apps ?? null, goals: s.goals ?? null, stint_type: s.stint_type });

@@ -102,3 +102,34 @@ test('two real spells at the same club are both kept', () => {
 
   assert.equal(stintsOf(id).length, 2)
 })
+
+// 0118 is the same sweep against club_key(), which knows nothing about the
+// alias map and simply strips the club down to its letters and digits.
+const dedupeByKey = readFileSync(
+  new URL('../db/migrations/0118_dedupe_club_stints_by_key.sql', import.meta.url),
+  'utf8',
+)
+
+test('a hyphen is not a different club', () => {
+  const id = player('Neymar')
+  stint(id, 3, '2023–2025', 'Al Hilal', 3, 0)
+  stint(id, 4, '2025–', 'Santos', 37, 15)
+  stint(id, 5, '2023–2025', 'Al-Hilal', 3, 0)
+
+  sqlite.exec(dedupeByKey)
+
+  assert.deepEqual(
+    stintsOf(id).map((r) => r.club),
+    ['Al Hilal', 'Santos'],
+  )
+})
+
+test('two real spells at one club survive the blunter key too', () => {
+  const id = player('Twice At Santos')
+  stint(id, 0, '2009–2013', 'Santos', 179, 107)
+  stint(id, 1, '2025–', 'Santos', 37, 15)
+
+  sqlite.exec(dedupeByKey)
+
+  assert.equal(stintsOf(id).length, 2)
+})
