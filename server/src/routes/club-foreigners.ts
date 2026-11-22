@@ -425,7 +425,7 @@ clubForeignersRouter.post(
     async function importSeniorStints(id: number, scraped: Awaited<ReturnType<typeof scrapeWikipedia>>) {
       for (const s of scraped.stints.filter((x) => x.stint_type === "senior")) {
         const exists = sqlite
-          .prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`)
+          .prepare(`SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = 'senior' LIMIT 1`)
           .get(id, s.years, s.club);
         if (!exists) {
           const maxOrder = sqlite

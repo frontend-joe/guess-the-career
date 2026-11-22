@@ -340,7 +340,7 @@ threeClubsRouter.post(
 
           for (const s of seniorStints) {
             const existing = sqlite.prepare(
-              `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`
+              `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = 'senior' LIMIT 1`
             ).get(footballer.id, s.years, s.club)
             if (!existing) {
               const maxOrder = sqlite.prepare(
@@ -437,7 +437,7 @@ threeClubsRouter.post(
         }
         for (const s of seniorStints) {
           const existing = sqlite.prepare(
-            `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`
+            `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = 'senior' LIMIT 1`
           ).get(knownRecord.id, s.years, s.club)
           if (!existing) {
             const maxOrder = sqlite.prepare(

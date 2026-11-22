@@ -356,7 +356,7 @@ function insertStints(footballerId: number, stints: Awaited<ReturnType<typeof sc
   for (const s of stints) {
     if (s.stint_type !== stintType) continue
     const existing = sqlite.prepare(
-      `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = ? LIMIT 1`
+      `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = ? LIMIT 1`
     ).get(footballerId, s.years, s.club, stintType)
     if (!existing) {
       const maxOrder = sqlite.prepare(

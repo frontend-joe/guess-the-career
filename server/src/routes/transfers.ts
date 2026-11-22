@@ -470,7 +470,7 @@ transfersRouter.post(
         for (const s of seniors) {
           const exists = sqlite
             .prepare(
-              `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`,
+              `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = 'senior' LIMIT 1`,
             )
             .get(cand.id, s.years, s.club);
           if (!exists) {
@@ -611,7 +611,7 @@ transfersRouter.post(
           for (const s of seniors) {
             const exists = sqlite
               .prepare(
-                `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND club = ? AND stint_type = 'senior' LIMIT 1`,
+                `SELECT id FROM career_stints WHERE footballer_id = ? AND years = ? AND normalize_club_alias(club) = normalize_club_alias(?) AND stint_type = 'senior' LIMIT 1`,
               )
               .get(byUrl.id, s.years, s.club);
             if (!exists) {
