@@ -349,6 +349,89 @@ footballersRouter.get('/duplicates', async (c) => {
   return c.json(dupes)
 })
 
+// GET /api/footballers/duplicate-stints — one spell at one club, stored twice.
+//
+// 0117 collapsed the rows that only differed by an entry in CLUB_ALIASES —
+// Fernando Cáceres's six years at Celta, filed once as "Celta" and once as
+// "Celta Vigo". That is not the only way two rows say the same thing. Neymar
+// has Al Hilal 2023–2025, 3 (0) and Al-Hilal 2023–2025, 3 (0): same club,
+// same spell, one hyphen apart, and no alias connects them.
+//
+// So this compares a looser key than the alias map does. The club goes
+// through normalize_club_alias(), then loses its accents, its case and every
+// character that is not a letter or a digit, which is what makes "Al Hilal"
+// and "Al-Hilal" the same four syllables. The years lose their spaces and
+// have every flavour of dash flattened to one.
+//
+// It reports rather than deletes, because the loose key is loose on purpose
+// and the only way to know what it would take out is to read it. ?limit=
+// caps the groups returned; the counts always describe the whole table.
+footballersRouter.get('/duplicate-stints', (c) => {
+  const limit = Number(c.req.query('limit') ?? 200)
+
+  const rows = sqlite
+    .prepare(
+      `SELECT cs.id, cs.footballer_id, f.name AS footballer, cs.sort_order, cs.years,
+              cs.club, cs.apps, cs.goals, cs.stint_type, cs.club_wikipedia_url
+         FROM career_stints cs JOIN footballers f ON f.id = cs.footballer_id
+        ORDER BY cs.footballer_id, cs.sort_order`,
+    )
+    .all() as {
+      id: number; footballer_id: number; footballer: string; sort_order: number
+      years: string; club: string; apps: number | null; goals: number | null
+      stint_type: string; club_wikipedia_url: string | null
+    }[]
+
+  // "→" and a "(loan)" suffix both come off in normalizeClubAlias, so a loan
+  // and a permanent transfer over the same years would otherwise read as one
+  // spell. Loan-ness goes in the key instead of being thrown away.
+  const isLoan = (club: string) => /^\s*→/.test(club) || /\(loan\)\s*$/i.test(club)
+  const looseClub = (club: string) =>
+    normalizeName(normalizeClubAlias(club)).replace(/[^a-z0-9]/g, '')
+  const looseYears = (years: string) => years.replace(/[\s]/g, '').replace(/[–—−-]/g, '-')
+
+  const groups = new Map<string, typeof rows>()
+  for (const r of rows) {
+    const key = [
+      r.footballer_id,
+      r.stint_type,
+      looseClub(r.club),
+      looseYears(r.years),
+      isLoan(r.club) ? 'loan' : 'owned',
+    ].join('|')
+    const group = groups.get(key) ?? []
+    group.push(r)
+    groups.set(key, group)
+  }
+
+  const dupes = [...groups.values()].filter((g) => g.length > 1)
+  // Which spellings are actually colliding, commonest first. This is the list
+  // worth reading: a pair that turns up hundreds of times is a club the alias
+  // map should know about, not a one-off.
+  const spellings = new Map<string, number>()
+  for (const g of dupes) {
+    const variants = [...new Set(g.map((r) => r.club))].sort()
+    if (variants.length < 2) continue
+    const key = variants.join(' | ')
+    spellings.set(key, (spellings.get(key) ?? 0) + 1)
+  }
+
+  return c.json({
+    stints: rows.length,
+    groups: dupes.length,
+    // What a dedupe would remove: every row in a group but the first.
+    extraRows: dupes.reduce((n, g) => n + g.length - 1, 0),
+    // A group whose rows are byte-identical in club as well is a straight
+    // double insert rather than a spelling difference, and is worth counting
+    // separately because nothing about the names explains it.
+    identicalClubGroups: dupes.filter((g) => new Set(g.map((r) => r.club)).size === 1).length,
+    spellings: [...spellings.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([pair, count]) => ({ pair, count })),
+    examples: dupes.slice(0, limit),
+  })
+})
+
 // GET /api/footballers/rescrape-all — SSE stream, rescapes every footballer in DB order
 footballersRouter.get('/rescrape-all', async (c) => {
   const abortSignal = c.req.raw.signal
