@@ -94,3 +94,30 @@ test('a rejoin under a new name renames the card rather than adding one', () => 
   assert.equal(second.id, first.id)
   assert.equal(second.display_name, 'David Albelda')
 })
+
+// A removed player is not a player who left. Leaving keeps you on the list,
+// greyed, because you are still part of this game. Being thrown out takes you
+// off it — and until this, it did not: the card stayed exactly where it was,
+// so removing somebody looked like it had done nothing at all, which is no
+// use when what the host is trying to clear is a stale seat nobody is in.
+test('a removed player drops off the list, a player who left stays on it', () => {
+  const r = room('removed-list@example.com')
+  const host = rooms.participantsOf(r.id)[0]
+
+  const walker = rooms.joinRoom(r.code, 'Walked Out', { deviceId: device('phone-walk') }).participant
+  const ejected = rooms.joinRoom(r.code, 'Thrown Out', { deviceId: device('phone-eject') }).participant
+
+  rooms.leaveRoom(walker.id)
+  rooms.removeParticipant(r.id, host, ejected.id)
+
+  const listed = rooms.roomState(r).participants
+  assert.deepEqual(
+    listed.map((p) => p.displayName),
+    ['Host', 'Walked Out'],
+  )
+  assert.equal(listed.find((p) => p.displayName === 'Walked Out')!.present, false)
+
+  // The row itself is still there. It is what stops the seat being handed
+  // straight back at the door on the next join.
+  assert.equal(rooms.participantsOf(r.id).length, 3)
+})

@@ -2424,13 +2424,22 @@ export function roomState(room: RoomRow): RoomState {
     livekitRoom: room.livekit_room,
     video: room.video_enabled === 1,
     hostUserId: room.host_user_id,
-    participants: participantsOf(room.id).map((p) => ({
-      id: p.id,
-      displayName: p.display_name,
-      role: p.role,
-      slot: p.slot,
-      present: p.left_at == null,
-    })),
+    // Removed is not the same as left. Somebody who walked out is still part
+    // of this game and is still listed, greyed — that is the whole point of
+    // keeping the row. Somebody the host threw out is not in the room at all,
+    // and a card that stays behind means removing a player does nothing you
+    // can see, which is no use when what you are trying to clear is a stale
+    // seat. The row itself stays either way: `removed` is what stops the seat
+    // being handed straight back at the door. See 0093_participant_removed.
+    participants: participantsOf(room.id)
+      .filter((p) => !p.removed)
+      .map((p) => ({
+        id: p.id,
+        displayName: p.display_name,
+        role: p.role,
+        slot: p.slot,
+        present: p.left_at == null,
+      })),
     messages: messagesOf(room.id),
     round,
   }

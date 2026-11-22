@@ -560,8 +560,18 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun removePlayer(tile: Tile) {
+        removeParticipant(tile.participantId ?: return)
+    }
+
+    /**
+     * The same removal, named by seat rather than by face. A room with video
+     * off has no tile to long-press, and the players band is the only place
+     * the host can get at a seat that should not be there — an abandoned one
+     * from a phone that reinstalled, say, which is a card nobody is sitting
+     * in and nobody can clear.
+     */
+    suspend fun removeParticipant(id: Int) {
         val current = seat ?: return
-        val id = tile.participantId ?: return
         runCatching { Api.removePlayer(current, id) }
             .onSuccess { refresh() }
             .onFailure { error = it.message }

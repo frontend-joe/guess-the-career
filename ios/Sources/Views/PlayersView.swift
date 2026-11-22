@@ -50,7 +50,13 @@ struct PlayersView: View {
 }
 
 private struct CardView: View {
+    @Environment(RoomStore.self) private var store
     let player: RoomParticipant
+
+    @State private var confirmingRemove = false
+
+    /// Mirrors the video grid: the host can clear anybody but themselves.
+    private var canRemove: Bool { store.isHost && player.id != store.me?.id }
 
     private var initials: String {
         let words = player.displayName.split(separator: " ").prefix(2)
@@ -106,5 +112,26 @@ private struct CardView: View {
                 + (player.isHost ? ", host" : "")
                 + (player.present ? "" : ", left")
         )
+        // The same long press the faces answer to, so the gesture does not
+        // change with the kind of room you are in.
+        .contextMenu {
+            if canRemove {
+                Button(role: .destructive) { confirmingRemove = true } label: {
+                    Label("Remove from game", systemImage: "person.fill.xmark")
+                }
+            }
+        }
+        .confirmationDialog(
+            "Remove \(player.displayName) from the game?",
+            isPresented: $confirmingRemove,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                Task { await store.removeParticipant(id: player.id) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They lose their place and their invite stops working.")
+        }
     }
 }

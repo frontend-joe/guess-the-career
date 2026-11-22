@@ -567,15 +567,21 @@ private fun PlayersBand(model: RoomViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 row.forEach { player ->
-                    PlayerCard(player, Modifier.weight(1f))
+                    PlayerCard(model, player, Modifier.weight(1f))
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PlayerCard(player: RoomParticipant, modifier: Modifier = Modifier) {
+private fun PlayerCard(model: RoomViewModel, player: RoomParticipant, modifier: Modifier = Modifier) {
+    val scope = rememberCoroutineScope()
+    var confirmingRemove by remember { mutableStateOf(false) }
+    // Mirrors the video grid: the host can clear anybody but themselves.
+    val canRemove = model.isHost && player.id != model.me?.id
+
     val initials = player.displayName.split(" ")
         .take(2)
         .mapNotNull { it.firstOrNull()?.toString() }
@@ -590,6 +596,13 @@ private fun PlayerCard(player: RoomParticipant, modifier: Modifier = Modifier) {
             .clip(RoundedShape14)
             .background(Color(0xFF191C23))
             .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedShape14)
+            // The same long press the faces answer to, so the gesture does
+            // not change with the kind of room you are in.
+            .combinedClickable(
+                enabled = canRemove,
+                onClick = {},
+                onLongClick = { confirmingRemove = true },
+            )
             .padding(vertical = 10.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -617,6 +630,21 @@ private fun PlayerCard(player: RoomParticipant, modifier: Modifier = Modifier) {
             color = Color(0xFFE0E0E0),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+
+    if (confirmingRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmingRemove = false },
+            title = { Text("Remove ${player.displayName} from the game?") },
+            text = { Text("They lose their place and their invite stops working.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmingRemove = false
+                    scope.launch { model.removeParticipant(player.id) }
+                }) { Text("Remove", color = Color(0xFFFF6B6B)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmingRemove = false }) { Text("Cancel") } },
         )
     }
 }

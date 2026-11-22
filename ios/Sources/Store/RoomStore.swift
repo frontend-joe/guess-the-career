@@ -643,7 +643,17 @@ final class RoomStore {
 
     /// Host only: revoke their seat and cut their call.
     func removePlayer(_ tile: Tile) async {
-        guard let seat, let id = tile.participantId else { return }
+        guard let id = tile.participantId else { return }
+        await removeParticipant(id: id)
+    }
+
+    /// The same removal, named by seat rather than by face. A room with video
+    /// off has no tile to long-press, and the players band is the only place
+    /// the host can get at a seat that should not be there — an abandoned one
+    /// from a phone that reinstalled, say, which is a card nobody is sitting
+    /// in and nobody can clear.
+    func removeParticipant(id: Int) async {
+        guard let seat else { return }
         do {
             try await API.removePlayer(seat: seat, participantId: id)
             await refresh()
