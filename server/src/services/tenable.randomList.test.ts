@@ -149,7 +149,18 @@ test('a pool round says so, and a ranked round already has', async () => {
   // "(most appearances)" is the ranking, said once.
   assert.equal(
     titleFor('nationality', { nationality: 'England', league: 'Bundesliga' }, 'apps', 'x'),
-    'England Bundesliga players (most appearances)',
+    'English Bundesliga players (most appearances)',
+  )
+  // A title is a sentence, so the nationality turns into the adjective.
+  assert.equal(
+    titleFor('nationality-club', { nationality: 'France', club: 'Fulham' }, 'apps', 'x'),
+    'French Fulham players (most appearances)',
+  )
+  // A country nobody has written an adjective for keeps its own name rather
+  // than getting a made-up one.
+  assert.equal(
+    titleFor('nationality-club', { nationality: 'Narnia', club: 'Fulham' }, 'apps', 'x'),
+    'Narnia Fulham players (most appearances)',
   )
 
   // An authored title is somebody's own sentence and already says what it is.
