@@ -511,6 +511,7 @@ const DEMONYMS: Record<string, string> = {
   Russia: "Russian",
   Réunion: "Réunionese",
   "Saudi Arabia": "Saudi",
+  Scotland: "Scottish",
   Senegal: "Senegalese",
   Serbia: "Serbian",
   "Sierra Leone": "Sierra Leonean",
