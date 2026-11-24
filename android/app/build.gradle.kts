@@ -1,4 +1,3 @@
-import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Properties
 
@@ -46,13 +45,25 @@ android {
         minSdk = 26
         targetSdk = 36
         // Play rejects a versionCode it has already seen, so it is stamped
-        // from the clock as YYMMDDHH. Note `java` on its own is the Gradle
-        // Java extension inside a build script, not the package, so these
-        // come in as imports. A plain integer rather than the iOS build
-        // number's full timestamp, because versionCode must fit in a signed
-        // 32-bit int.
+        // from the clock — in MINUTES since the start of 2026, not as
+        // YYMMDDHH. The old stamp only changed once an hour, so two builds
+        // in the same hour were the same build as far as Play was concerned,
+        // and the second upload was refused. Fixing a bug and shipping it
+        // inside the hour is the normal case, not the rare one.
+        //
+        // Minutes rather than the iOS build number's full timestamp because
+        // versionCode must fit in a signed 32-bit int, and Play caps it at
+        // 2100000000: yyMMddHHmm would be 2611241157, over the line. Minutes
+        // leaves room for about four thousand years of builds.
+        //
+        // The 30000000 floor keeps every future stamp above the YYMMDDHH
+        // ones already uploaded — those were 26xxxxxx — because a
+        // versionCode may only ever go up.
+        //
+        // Note `java` on its own is the Gradle Java extension inside a build
+        // script, not the package, so these come in as imports.
         versionCode = (project.findProperty("versionCode") as String?)?.toInt()
-            ?: SimpleDateFormat("yyMMddHH").format(Date()).toInt()
+            ?: (30_000_000 + (Date().time - 1767225600000L) / 60000L).toInt()
         versionName = "0.1"
     }
 
