@@ -6,49 +6,69 @@ const buckets = (custom: string | null, position: string | null) =>
   positionBuckets(custom, position)
 
 test('the whole field counts, not the first word of it', () => {
-  // Bergkamp belongs on the forwards board and on the midfielders board. A
-  // round that read only the first word would leave him off one of them,
-  // and that is the entire point of the round type.
-  assert.deepEqual(buckets(null, 'Forward, attacking midfielder'), ['midfielder', 'forward'])
-  assert.deepEqual(buckets(null, 'Centre-back, defensive midfielder'), ['defender', 'midfielder'])
-  assert.deepEqual(buckets(null, 'Midfielder, sweeper'), ['defender', 'midfielder'])
+  // Lahm belongs on both full-back boards. A round that read only the first
+  // word would leave him off one of them, and that is the entire point of
+  // the round type.
+  assert.deepEqual(buckets(null, 'Right-back, left-back, midfielder'), ['right-back', 'left-back'])
+  assert.deepEqual(buckets(null, 'Forward, attacking midfielder'), ['attacking midfielder'])
+  assert.deepEqual(buckets(null, 'Centre-back, defensive midfielder'), [
+    'centre-back',
+    'defensive midfielder',
+  ])
 })
 
 test('the spellings nobody agreed on all land in one place', () => {
-  for (const spelling of ['Centre-back', 'Centre back', 'Center-back', 'Central defender', 'Sweeper']) {
-    assert.deepEqual(buckets(null, spelling), ['defender'], spelling)
+  for (const s of ['Centre-back', 'Centre back', 'Center-back', 'Central defender', 'Sweeper', 'Centre-half']) {
+    assert.deepEqual(buckets(null, s), ['centre-back'], s)
   }
-  for (const spelling of ['Left back', 'Left-back', 'Full-back', 'Left wing-back', 'Wingback']) {
-    assert.deepEqual(buckets(null, spelling), ['defender'], spelling)
+  for (const s of ['Left back', 'Left-back', 'Left wing-back', 'Left wing back']) {
+    assert.deepEqual(buckets(null, s), ['left-back'], s)
   }
-  for (const spelling of ['Striker', 'Second striker', 'Centre forward', 'Centre-forward', 'Inside forward']) {
-    assert.deepEqual(buckets(null, spelling), ['forward'], spelling)
+  for (const s of ['Right back', 'Right-back', 'Right wing-back']) {
+    assert.deepEqual(buckets(null, s), ['right-back'], s)
+  }
+  for (const s of ['Striker', 'Second striker', 'Centre forward', 'Centre-forward', 'Inside forward']) {
+    assert.deepEqual(buckets(null, s), ['striker'], s)
+  }
+  for (const s of ['Winger', 'Left winger', 'Right winger', 'Left midfielder', 'Wide midfielder']) {
+    assert.deepEqual(buckets(null, s), ['winger'], s)
   }
 })
 
-test('a winger is a forward', () => {
-  // A room naming forwards will shout them. The ones who were really wide
-  // midfielders are nearly always written as both, so they reach the
-  // midfield board through their other entry.
-  assert.deepEqual(buckets(null, 'Winger'), ['forward'])
-  assert.deepEqual(buckets(null, 'Attacking midfielder, winger'), ['midfielder', 'forward'])
+// The reason the broad buckets went: a board of forty defenders is not a
+// question. The price is that a player the data describes only by half of
+// the pitch cannot be placed on any of these boards, and must not be
+// guessed at — a right-backs board taking a man who might have been a
+// centre-half is worse than one that is short a name.
+test('a position that names only half the pitch places nobody', () => {
+  assert.deepEqual(buckets(null, 'Defender'), [])
+  assert.deepEqual(buckets(null, 'Midfielder'), [])
+  assert.deepEqual(buckets(null, 'Forward'), [])
+  // Same problem one level down: which flank?
+  assert.deepEqual(buckets(null, 'Full-back'), [])
+  assert.deepEqual(buckets(null, 'Wing-back'), [])
 })
 
-test('a hand-corrected position wins outright', () => {
+test('a hand-corrected position wins outright, and is how a vague one is fixed', () => {
   // Somebody looked at this player and fixed the scrape. Reading the old
   // answer as well would undo the correction.
-  assert.deepEqual(buckets('Centre Back', 'Striker'), ['defender'])
+  assert.deepEqual(buckets('Centre Back', 'Striker'), ['centre-back'])
   assert.deepEqual(buckets('Goalkeeper', 'Striker'), ['goalkeeper'])
+  // Beckham, whose infobox says only "Midfielder".
+  assert.deepEqual(buckets('Right midfielder, Central midfielder', 'Midfielder'), [
+    'central midfielder',
+    'winger',
+  ])
 })
 
 test('pitch order, not the order the infobox happened to use', () => {
   // Two players whose infoboxes disagree about where to start must still
   // produce the same key, or the LIKE in the round SQL is matching noise.
   assert.equal(
-    positionBucketKey(null, 'Forward, Midfielder, Defender'),
-    positionBucketKey(null, 'Defender, Midfielder, Forward'),
+    positionBucketKey(null, 'Striker, Central midfielder, Centre-back'),
+    positionBucketKey(null, 'Centre-back, Central midfielder, Striker'),
   )
-  assert.equal(positionBucketKey(null, 'Striker, Centre-back'), '|defender|forward|')
+  assert.equal(positionBucketKey(null, 'Striker, Centre-back'), '|centre-back|striker|')
 })
 
 test('a goalkeeper is only ever a goalkeeper', () => {
@@ -61,16 +81,10 @@ test('a goalkeeper is only ever a goalkeeper', () => {
 })
 
 test('Petr Cech keeps goal despite his other sport', () => {
-  // His infobox says Goaltender because he also plays ice hockey. Mapped
-  // rather than corrected in his row, since the next scrape would put it
-  // back.
   assert.deepEqual(buckets(null, 'Goaltender'), ['goalkeeper'])
 })
 
 test('a position that is not football at all buckets to nothing', () => {
-  // A rugby prop and an American footballer, both scraped by mistake. A
-  // bucket would make them eligible for a board rather than leave them
-  // visible as the errors they are.
   assert.deepEqual(buckets(null, 'Prop'), [])
   assert.deepEqual(buckets(null, 'Defensive end'), [])
   assert.equal(positionBucketKey(null, null), '')
@@ -78,6 +92,9 @@ test('a position that is not football at all buckets to nothing', () => {
 })
 
 test('the key is delimited so one bucket cannot match inside another', () => {
-  assert.equal(positionBucketKey(null, 'Goalkeeper'), '|goalkeeper|')
-  assert.equal(positionBucketKey(null, 'Midfielder'), '|midfielder|')
+  // "central midfielder" and "centre-back" share a start, and a bare LIKE
+  // on an undelimited key would have them matching each other's boards.
+  assert.equal(positionBucketKey(null, 'Central midfielder'), '|central midfielder|')
+  assert.equal(positionBucketKey(null, 'Centre-back'), '|centre-back|')
+  assert.ok(!positionBucketKey(null, 'Central midfielder').includes('|centre-back|'))
 })

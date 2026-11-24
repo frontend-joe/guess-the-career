@@ -1,35 +1,60 @@
-// Which of the four jobs on a football pitch a player did.
+// Which job on a football pitch a player did.
 //
 // Wikipedia infoboxes do not agree on a vocabulary. The same role is written
 // "Centre-back", "Centre back", "Center-back" and "Central defender"; a
 // player is "Defender" on one page and "Full-back, Centre-back, Defensive
-// midfielder, Forward" on another. Thirty-nine spellings across the whole
+// midfielder, Forward" on another. Forty-one spellings across the whole
 // database, which is small enough to simply write down.
 //
-// Rounds ask the broad question — a room shouts Arsenal goalkeepers, not
-// Arsenal sweepers — so every spelling lands in one of four buckets, and a
-// player belongs to as many as their position says. That is the point: the
-// WHOLE field decides, not the first word of it. Dennis Bergkamp is
-// "Forward, attacking midfielder", so he is on the forwards board and on the
-// midfielders board, because he was both.
+// The buckets are SPECIFIC — right-backs, wingers, central midfielders —
+// because the broad four made boards nobody had to think about. "Arsenal
+// defenders" is forty names and no challenge; "Arsenal right-backs" is a
+// question. It also thins the round list hard, which is the other half of
+// the same complaint: a club needs ten of one specific job before it gets a
+// board at all, and most do not.
+//
+// A player belongs to as many buckets as their position names, because the
+// WHOLE field decides rather than the first word of it. Philipp Lahm is
+// "Right-back, left-back, midfielder", so he is on both full-back boards.
+//
+// Three spellings are deliberately unmapped. "Defender", "midfielder" and
+// "forward" say only the half of the pitch, and a board of right-backs
+// cannot take a man who might have been a centre-half; "full-back" and
+// "wing-back" without a side are the same problem one level down. Those
+// players are absent from these boards rather than guessed at — see
+// `custom_position`, which is where a human answer goes when the scrape
+// cannot give one.
 //
 // The `all_positions` column is deliberately not read, though it is the
 // richer one. It lists every position a player ever occupied, including the
 // afternoon they went in goal: it has Ronaldo, Scholes, Drogba, Puyol and
-// Neymar down as goalkeepers, and it put Piqué, Figo, Eto'o, Romário and
-// Ibrahimović on Barcelona's midfielders board. Only two players on file
-// have no `position` at all and neither has an `all_positions` either, so it
-// adds nothing except names that make the board look wrong when it is
-// revealed. A board that misses a versatile player's second job is a smaller
-// failure than one that claims Ronaldo kept goal.
+// Neymar down as goalkeepers, and Gerrard at right-back. It is usable only
+// as a refinement of a position already known — "Forward" plus a listed
+// "Left winger" is a winger — and that reading has been applied once, into
+// `custom_position`, rather than left to run on every query.
 
-export type PositionBucket = 'goalkeeper' | 'defender' | 'midfielder' | 'forward'
+export type PositionBucket =
+  | 'goalkeeper'
+  | 'right-back'
+  | 'centre-back'
+  | 'left-back'
+  | 'defensive midfielder'
+  | 'central midfielder'
+  | 'attacking midfielder'
+  | 'winger'
+  | 'striker'
 
+// Listed down the pitch, so a player with several reads in a sensible order.
 export const POSITION_BUCKETS: { bucket: PositionBucket; plural: string }[] = [
   { bucket: 'goalkeeper', plural: 'goalkeepers' },
-  { bucket: 'defender', plural: 'defenders' },
-  { bucket: 'midfielder', plural: 'midfielders' },
-  { bucket: 'forward', plural: 'forwards' },
+  { bucket: 'right-back', plural: 'right-backs' },
+  { bucket: 'centre-back', plural: 'centre-backs' },
+  { bucket: 'left-back', plural: 'left-backs' },
+  { bucket: 'defensive midfielder', plural: 'defensive midfielders' },
+  { bucket: 'central midfielder', plural: 'central midfielders' },
+  { bucket: 'attacking midfielder', plural: 'attacking midfielders' },
+  { bucket: 'winger', plural: 'wingers' },
+  { bucket: 'striker', plural: 'strikers' },
 ]
 
 // Every spelling on file, lower-cased, with the two that are not football at
@@ -43,48 +68,46 @@ const BUCKET_OF: Record<string, PositionBucket> = {
   // scrape would put it back.
   goaltender: 'goalkeeper',
 
-  defender: 'defender',
-  'centre-back': 'defender',
-  'centre back': 'defender',
-  'center-back': 'defender',
-  'centre-half': 'defender',
-  'central defender': 'defender',
-  sweeper: 'defender',
-  'left back': 'defender',
-  'left-back': 'defender',
-  'right back': 'defender',
-  'right-back': 'defender',
-  'full-back': 'defender',
-  'full back': 'defender',
-  'wing-back': 'defender',
-  wingback: 'defender',
-  'left wing-back': 'defender',
-  'right wing-back': 'defender',
-  'wing half': 'defender',
+  // A wing-back is a full-back who is asked to get forward; the room calling
+  // for right-backs means him too.
+  'right-back': 'right-back',
+  'right back': 'right-back',
+  'right wing-back': 'right-back',
+  'left-back': 'left-back',
+  'left back': 'left-back',
+  'left wing-back': 'left-back',
+  'left wing back': 'left-back',
 
-  midfielder: 'midfielder',
-  'attacking midfielder': 'midfielder',
-  'right attacking midfielder': 'midfielder',
-  'defensive midfielder': 'midfielder',
-  'central midfielder': 'midfielder',
-  'left midfielder': 'midfielder',
-  'right midfielder': 'midfielder',
-  'wide midfielder': 'midfielder',
+  'centre-back': 'centre-back',
+  'centre back': 'centre-back',
+  'center-back': 'centre-back',
+  'centre-half': 'centre-back',
+  'central defender': 'centre-back',
+  // Nobody has played sweeper in thirty years and nobody will shout for one,
+  // but the dozen players written that way were centre-halves.
+  sweeper: 'centre-back',
 
-  forward: 'forward',
-  striker: 'forward',
-  'second striker': 'forward',
-  'centre forward': 'forward',
-  'centre-forward': 'forward',
-  'inside forward': 'forward',
-  'outside right': 'forward',
-  // A winger is an attacker, and a room naming forwards will shout them. The
-  // ones who were really wide midfielders are nearly always written as both,
-  // so they reach the midfield board through their other entry rather than
-  // through an argument about what a winger is.
-  winger: 'forward',
-  'left winger': 'forward',
-  'right winger': 'forward',
+  'defensive midfielder': 'defensive midfielder',
+  'central midfielder': 'central midfielder',
+  'attacking midfielder': 'attacking midfielder',
+  'right attacking midfielder': 'attacking midfielder',
+
+  // A left midfielder in a flat four is the left winger, whatever the
+  // formation diagram called him, and a room will shout the same names for
+  // both.
+  winger: 'winger',
+  'left winger': 'winger',
+  'right winger': 'winger',
+  'left midfielder': 'winger',
+  'right midfielder': 'winger',
+  'wide midfielder': 'winger',
+  'outside right': 'winger',
+
+  striker: 'striker',
+  'second striker': 'striker',
+  'centre forward': 'striker',
+  'centre-forward': 'striker',
+  'inside forward': 'striker',
 }
 
 /**
@@ -116,10 +139,10 @@ export function positionBuckets(
 /**
  * The same thing as something SQL can ask about.
  *
- * Delimited at both ends so `LIKE '%|forward|%'` cannot match a bucket by
- * being a prefix of another. Nothing in the four currently is, but a key that
- * only works because of the words chosen is a trap for whoever adds the
- * fifth.
+ * Delimited at both ends so `LIKE '%|winger|%'` cannot match a bucket by
+ * being a prefix of another — which now matters, because "central
+ * midfielder" and "centre-back" share a start and several buckets are
+ * substrings of nothing by luck rather than by design.
  */
 export function positionBucketKey(
   customPosition: string | null,
