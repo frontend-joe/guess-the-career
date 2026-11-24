@@ -98,6 +98,11 @@ enum ClueValue: Codable, Equatable {
 struct TakenHint: Codable, Equatable {
     let rank: Int
     let clue: [String: ClueValue]?
+    /// The answer's initials, once the host has spent a second clue on them.
+    /// Optional rather than absent-means-empty: a phone on an older build
+    /// than the server still decodes a board, and nil means "not given away"
+    /// rather than "this round cannot".
+    let initials: String?
     let tMs: Int
 }
 
@@ -222,6 +227,13 @@ struct JoinedRoom: Codable {
 struct HintResult: Codable {
     let rank: Int
     let clue: [String: ClueValue]?
+    let stateVersion: Int
+    let replayed: Bool
+}
+
+struct InitialsResult: Codable {
+    let rank: Int
+    let initials: String
     let stateVersion: Int
     let replayed: Bool
 }

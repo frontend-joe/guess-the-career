@@ -267,6 +267,18 @@ export function clueText(invite: Invite): { title: string; body: string } {
 }
 
 /**
+ * The host has given away an answer's initials.
+ *
+ * Its own line rather than a second clueText, because it is its own decision:
+ * the clue describes the player and this one hands over the shape of their
+ * name, which is the last thing the board has left to give. Somebody who
+ * ignored the first ping may well want this one.
+ */
+export function initialsText(invite: Invite): { title: string; body: string } {
+  return { title: `${invite.hostName} just revealed an initials clue`, body: '' }
+}
+
+/**
  * One slot left on the board.
  *
  * The one ping here that is not an invitation. It is addressed to the people
@@ -316,6 +328,18 @@ export async function sendClueTaken(invite: Invite, hostUserId: number): Promise
 }
 
 /**
+ * The initials of an answer have just gone up. See initialsText.
+ *
+ * Unlike the clue ping this one is not held to the first of the round, because
+ * each one is a different answer being opened up rather than more of the same
+ * thing. There are at most ten of them in a round and the host has to decide
+ * on every one.
+ */
+export async function sendInitialsTaken(invite: Invite, hostUserId: number): Promise<void> {
+  await fanOut(invite.code, hostUserId, initialsText(invite), 'initials')
+}
+
+/**
  * A round is one answer from the end. See lastSlotText.
  *
  * Whether this is the ninth of ten or the ninth of nine is the caller's to
@@ -351,7 +375,7 @@ async function fanOut(
   code: string,
   hostUserId: number,
   text: { title: string; body: string },
-  kind: 'invite' | 'round' | 'resumed' | 'last-slot' | 'clue',
+  kind: 'invite' | 'round' | 'resumed' | 'last-slot' | 'clue' | 'initials',
 ): Promise<void> {
   if (!pushConfigured()) return
   const devices = audienceExcludingHost(hostUserId)

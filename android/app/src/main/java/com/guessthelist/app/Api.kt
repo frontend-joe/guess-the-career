@@ -212,6 +212,13 @@ object Api {
         seat.token,
     )
 
+    /** Host only, and only on a slot whose clue is already up. */
+    suspend fun initials(seat: Seat, instanceId: Int, rank: Int): InitialsResult = post(
+        "api/rooms/${seat.code}/initials",
+        buildJsonObject { put("instanceId", instanceId); put("rank", rank) },
+        seat.token,
+    )
+
     /** The host's final say on a borderline answer: count it, in the player's
      *  own words, in the next free slot. */
     suspend fun allowGuess(seat: Seat, instanceId: Int, raw: String): AllowResult = post(

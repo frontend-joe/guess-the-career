@@ -81,6 +81,10 @@ data class ReplayGuess(
 data class TakenHint(
     val rank: Int,
     val clue: Map<String, JsonElement>? = null,
+    /** The answer's initials, once the host has spent a second clue on them.
+     *  Null means "not given away", not "this round cannot" — and defaulted
+     *  so a phone on an older build than the server still decodes a board. */
+    val initials: String? = null,
     val tMs: Int = 0,
 ) {
     fun display(key: String): String? {
@@ -91,6 +95,14 @@ data class TakenHint(
         return text.ifEmpty { null }
     }
 }
+
+@Serializable
+data class InitialsResult(
+    val rank: Int = 0,
+    val initials: String = "",
+    val stateVersion: Int = 0,
+    val replayed: Boolean = false,
+)
 
 @Serializable
 data class GiveUpResult(

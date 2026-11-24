@@ -15,7 +15,7 @@ import {
 } from './tenable.ts'
 import { isPlaceExactly, matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
 import { parseAliases } from './general.ts'
-import { reduceEvents, type BoardState, type ReplayEvent } from './boardReplay.ts'
+import { reduceEvents, type BoardState, type ReplayEvent, type TakenHint } from './boardReplay.ts'
 import { resolveOrCreateFootballer, careerMatchesHint } from './playerImport.ts'
 import { moderateMessage } from './moderation.ts'
 
@@ -1070,7 +1070,7 @@ export interface HintResult {
 // The clues this round is currently showing, folded from the event log the
 // same way every client folds it. Reading the hint events directly would miss
 // the corrections a board reshuffle writes into them.
-function foldedHints(inst: InstanceRow): { rank: number }[] {
+function foldedHints(inst: InstanceRow): TakenHint[] {
   const events = sqlite
     .prepare('SELECT seq, t_ms, type, actor_participant_id, payload FROM game_events WHERE instance_id = ? ORDER BY t_ms, seq')
     .all(inst.id) as ReplayEvent[]
@@ -1145,6 +1145,92 @@ export function takeHint(instanceId: number, participant: ParticipantRow, rank: 
   })()
 
   return { rank: clued, clue, stateVersion, replayed: false }
+}
+
+export interface InitialsResult {
+  rank: number
+  initials: string
+  stateVersion: number
+  replayed: boolean
+}
+
+/**
+ * "David Ginola" -> "D.G."
+ *
+ * Every word contributes its first letter, so "Virgil van Dijk" is V.V.D. and
+ * a mononym is a single letter — which is a thin clue, but an honest one, and
+ * the alternative is pretending Ronaldinho has a surname.
+ *
+ * A double-barrelled name counts once: Allan Saint-Maximin is A.S., not
+ * A.S-M. Splitting on the hyphen would hand over the shape of the name as
+ * well as its letters, which is most of the answer on a board with one
+ * hyphenated name on it.
+ */
+export function initialsOf(name: string): string {
+  const letters = name
+    .split(/\s+/)
+    .map((word) => word.trim()[0])
+    .filter((ch): ch is string => !!ch && /\p{L}/u.test(ch))
+  return letters.map((ch) => `${ch.toUpperCase()}.`).join('')
+}
+
+/**
+ * Give away the initials of an answer whose clue is already up.
+ *
+ * A second, deliberate spend on the same slot rather than a tenth field in
+ * the clue. The rest of the clue was frozen when the round was: it says what
+ * was true of the player, and a room reading it is reading the snapshot. The
+ * initials say what the ANSWER is, in the one way that is short of saying it,
+ * so handing them over is a decision somebody makes at the time — which is
+ * why it is its own event, its own tap, and its own moment in the recording.
+ *
+ * Reached only from a clue sheet, so the hint has to exist first. That is not
+ * a UI convenience being enforced twice: the fold hangs the initials off the
+ * hint, and there is nowhere to put them on a slot that has not got one.
+ */
+export function takeInitials(
+  instanceId: number,
+  participant: ParticipantRow,
+  rank: number,
+): InitialsResult {
+  const inst = sqlite
+    .prepare('SELECT * FROM game_round_instances WHERE id = ?')
+    .get(instanceId) as InstanceRow | undefined
+  if (!inst) throw new RoomError('Unknown round instance', 404)
+  if (inst.room_id !== participant.room_id) throw new RoomError('Wrong room', 403)
+  if (participant.role !== 'host') throw new RoomError('Only the host can take a clue', 403)
+  if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
+
+  // The rank comes off a clue the client is already looking at, so it is the
+  // answer's rank — the one takeHint resolved — and not a slot somebody held.
+  const taken = foldedHints(inst).find((h) => h.rank === rank)
+  if (!taken) throw new RoomError('No clue on that slot yet', 409)
+  if (taken.initials) {
+    const room = sqlite.prepare('SELECT * FROM game_rooms WHERE id = ?').get(inst.room_id) as RoomRow
+    return { rank, initials: taken.initials, stateVersion: room.state_version, replayed: true }
+  }
+
+  const answer = sqlite
+    .prepare('SELECT name, on_board, found_at_ms, footballer_id FROM game_round_answers WHERE instance_id = ? AND rank = ?')
+    .get(instanceId, rank) as
+    | { name: string; on_board: number; found_at_ms: number | null; footballer_id: number | null }
+    | undefined
+  if (!answer || !answer.on_board) throw new RoomError('No such slot on this board', 404)
+  if (answer.found_at_ms != null) throw new RoomError('That one is already found', 409)
+
+  const initials = initialsOf(answer.name)
+  const stateVersion = sqlite.transaction(() => {
+    // footballerId for the same reason the hint carries one: a reshuffle has
+    // to be able to send these down the board after the player they describe.
+    appendEvent(instanceId, Date.now() - (inst.started_at_ms ?? Date.now()), 'initials', participant.id, {
+      rank,
+      initials,
+      footballerId: answer.footballer_id,
+    })
+    return bumpVersion(inst.room_id)
+  })()
+
+  return { rank, initials, stateVersion, replayed: false }
 }
 
 // Which of the players we already hold by this name is the one the round
@@ -1872,6 +1958,19 @@ export function reshuffleForPlayer(
       .map((a, i) => [a.footballer_id, i + 1] as const)
       .filter((pair): pair is readonly [number, number] => pair[0] != null),
   )
+  // Initials were given away about a player too, so they move with them and
+  // are keyed by player rather than by slot. Keyed by rank as well, for the
+  // same reason the hints are: an event written before footballerId existed
+  // only knows which row it was on.
+  const initialsOfPlayer = new Map<number | null, string>()
+  for (const row of sqlite
+    .prepare("SELECT payload FROM game_events WHERE instance_id = ? AND type = 'initials' ORDER BY seq")
+    .all(instanceId) as { payload: string }[]) {
+    const p = JSON.parse(row.payload) as { rank: number; initials?: string; footballerId?: number | null }
+    if (typeof p.initials !== 'string') continue
+    initialsOfPlayer.set(p.footballerId ?? wasAt.get(p.rank) ?? null, p.initials)
+  }
+
   const correctedHints = (
     sqlite
       .prepare("SELECT payload FROM game_events WHERE instance_id = ? AND type = 'hint' ORDER BY seq")
@@ -1883,7 +1982,9 @@ export function reshuffleForPlayer(
     const who = p.footballerId ?? wasAt.get(p.rank) ?? null
     // An authored answer has no footballer to follow, so its clue stays put.
     const rank = who == null ? p.rank : nowAt.get(who)
-    return rank != null && rank <= ROUND_SIZE ? [{ rank, clue: p.clue, footballerId: who }] : []
+    return rank != null && rank <= ROUND_SIZE
+      ? [{ rank, clue: p.clue, footballerId: who, initials: initialsOfPlayer.get(who) ?? null }]
+      : []
   })
 
   // A correction is allowed to push somebody off the bottom, even somebody

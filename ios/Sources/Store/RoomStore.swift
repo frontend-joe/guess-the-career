@@ -984,6 +984,16 @@ final class RoomStore {
         await act { seat in _ = try await API.hint(seat: seat, instanceId: instanceId, rank: rank) }
     }
 
+    /// Give away the initials of an answer whose clue is already open.
+    ///
+    /// Like takeHint, nothing is shown from the reply: the reveal lands in the
+    /// event log and comes back in the next state, so the host's sheet fills
+    /// in by the same path as everybody else's.
+    func takeInitials(rank: Int) async {
+        guard let instanceId = round?.instanceId else { return }
+        await act { seat in _ = try await API.initials(seat: seat, instanceId: instanceId, rank: rank) }
+    }
+
     // Ending the game used to leave the host sitting in the room it had just
     // ended: the server marked it ended, /state still returned it, and the
     // screen did not change. Ending a game means leaving it.

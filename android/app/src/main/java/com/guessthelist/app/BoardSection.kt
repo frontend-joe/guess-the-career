@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -198,6 +200,8 @@ fun BoardSection(model: RoomViewModel) {
             rank = rank,
             hint = round.board.hints.firstOrNull { it.rank == rank },
             impliedClues = round.board.impliedClues,
+            canReveal = model.isHost && round.isLive,
+            onReveal = { model.takeInitials(rank) },
             onDismiss = { showingClue = null },
         )
     }
@@ -215,6 +219,10 @@ private fun ClueDialog(
     rank: Int,
     hint: TakenHint?,
     impliedClues: List<String>,
+    /** Whether the person reading this can spend the initials on it: the
+     *  host, in a round that is still being played. */
+    canReveal: Boolean,
+    onReveal: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     // Transfer fields first: on a transfer round they are the answer's whole
@@ -234,16 +242,43 @@ private fun ClueDialog(
         onDismissRequest = onDismiss,
         title = { Text("Clue for $rank") },
         text = {
-            if (rows.isEmpty()) {
-                Text("Nothing to give away — everything known about this one is already in the question.")
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    rows.forEach { (label, value) ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(label, color = Color.Gray, fontSize = 14.sp)
-                            Text(value, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                        }
+            // One column rather than two branches, because the initials row
+            // belongs on a clue with nothing else in it most of all: a round
+            // that has already told you the nationality and the position has
+            // nothing left to give except the name.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                rows.forEach { (label, value) ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(label, color = Color.Gray, fontSize = 14.sp)
+                        Text(value, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     }
+                }
+                // The one clue the host decides on at the time. Everything
+                // above it was settled when the round was frozen; this is
+                // spent, so it is a button until somebody presses it and a
+                // fact afterwards.
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Initials", color = Color.Gray, fontSize = 14.sp)
+                    val initials = hint?.initials
+                    when {
+                        initials != null ->
+                            Text(initials, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        canReveal -> Button(onClick = onReveal) { Text("Reveal") }
+                        // Said rather than left out, so the room knows there
+                        // is one more thing to ask the host for.
+                        else -> Text("Hidden", color = Color.DarkGray, fontSize = 15.sp)
+                    }
+                }
+                if (rows.isEmpty()) {
+                    Text(
+                        "Everything else known about this one is already in the question.",
+                        color = Color.Gray,
+                        fontSize = 13.sp,
+                    )
                 }
             }
         },

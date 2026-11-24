@@ -202,6 +202,14 @@ enum API {
         )
     }
 
+    /// Host only, and only on a slot whose clue is already up.
+    static func initials(seat: Seat, instanceId: Int, rank: Int) async throws -> InitialsResult {
+        try await post(
+            "api/rooms/\(seat.code)/initials",
+            body: ["instanceId": instanceId, "rank": rank], bearer: seat.token
+        )
+    }
+
     static func leave(seat: Seat) async throws {
         _ = try await request("POST", "api/rooms/\(seat.code)/leave", bearer: seat.token)
     }

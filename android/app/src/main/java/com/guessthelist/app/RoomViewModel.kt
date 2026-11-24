@@ -842,6 +842,15 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
         act { Api.hint(it, instanceId, rank) }
     }
 
+    /** Give away the initials of an answer whose clue is already open. Like
+     *  takeHint, nothing is read off the reply: the reveal lands in the event
+     *  log and comes back in the next state, so the host's dialog fills in by
+     *  the same path as everybody else's. */
+    fun takeInitials(rank: Int) {
+        val instanceId = round?.instanceId ?: return
+        act { Api.initials(it, instanceId, rank) }
+    }
+
     // Ending the game used to leave the host sitting in the room it had just
     // ended: the server marked it ended, the next state still returned it,
     // and the screen did not change. Ending a game means leaving it.

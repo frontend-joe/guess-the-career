@@ -21,6 +21,7 @@ const {
   inviteText,
   roundText,
   clueText,
+  initialsText,
 } = await import('./push.ts')
 
 const { apnsPayload, providerToken, resetProviderToken } = await import('./pushApns.ts')
@@ -338,5 +339,14 @@ test('the clue ping is the one line and nothing else', () => {
   assert.deepEqual(
     clueText({ code: 'ABC123', hostName: 'Joe', roomName: 'Thursday night' }),
     { title: 'Joe just revealed a clue', body: '' },
+  )
+})
+
+test('the initials ping says which kind of clue it was', () => {
+  assert.deepEqual(
+    initialsText({ code: 'ABC123', hostName: 'Joe', roomName: 'Thursday night' }),
+    // Its own words, not clueText's: somebody who ignored the first ping may
+    // well want this one, and "a clue" twice would read as a repeat.
+    { title: 'Joe just revealed an initials clue', body: '' },
   )
 })

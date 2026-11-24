@@ -68,6 +68,15 @@ export interface ReplayGuess {
 export interface TakenHint {
   rank: number
   clue: Record<string, string | number | null> | null
+  /**
+   * The answer's initials, once the host has spent a second clue on them.
+   *
+   * Separate from `clue` rather than another field inside it, because it is
+   * not frozen with the round: every other field was decided when the answers
+   * were snapshotted, and this one is decided mid-round by somebody choosing
+   * to give it away. Null until they do.
+   */
+  initials: string | null
   tMs: number
 }
 
@@ -249,6 +258,7 @@ export function reduceEvents(
               clue: h.clue && typeof h.clue === 'object'
                 ? (h.clue as Record<string, string | number | null>)
                 : null,
+              initials: nullableStr(h.initials),
               tMs: e.t_ms,
             })
           }
@@ -298,9 +308,20 @@ export function reduceEvents(
           clue: p.clue && typeof p.clue === 'object'
             ? (p.clue as Record<string, string | number | null>)
             : null,
+          initials: null,
           tMs: e.t_ms,
         })
         break
+      // The initials are a second helping on a clue that is already up, so
+      // they land on the hint rather than beside it. A slot with no hint
+      // cannot be reached from the app — the sheet only opens once a clue is
+      // taken — and an event for one is dropped rather than inventing a hint
+      // with an empty clue to hang it off.
+      case 'initials': {
+        const hint = state.hints.find((h) => h.rank === num(p.rank))
+        if (hint) hint.initials = nullableStr(p.initials)
+        break
+      }
       case 'guess':
         state.guesses.push({
           raw: str(p.raw),

@@ -52,7 +52,26 @@ test('a clue appears when it was taken, not from the start', () => {
 
 test('a hint with no clue recorded does not break the fold', () => {
   const out = reduceEvents([LOG[0], ev(2, 100, 'hint', { rank: 3, clue: null })])
-  assert.deepEqual(out.hints, [{ rank: 3, clue: null, tMs: 100 }])
+  assert.deepEqual(out.hints, [{ rank: 3, clue: null, initials: null, tMs: 100 }])
+})
+
+// The initials are a second helping on a clue that is already up, so they
+// land on the hint rather than beside it.
+test('the initials attach to the clue already on that slot', () => {
+  const out = reduceEvents([
+    LOG[0],
+    ev(2, 100, 'hint', { rank: 3, clue: { club: 'Newcastle United' } }),
+    ev(3, 200, 'initials', { rank: 3, initials: 'D.G.' }),
+  ])
+  assert.deepEqual(out.hints.map((h) => [h.rank, h.initials]), [[3, 'D.G.']])
+})
+
+// Nothing in the app can send one — the sheet only opens once a clue is
+// taken — so a stray event is dropped rather than inventing a hint with an
+// empty clue to hang it off.
+test('initials on a slot with no clue are dropped, not invented into one', () => {
+  const out = reduceEvents([LOG[0], ev(2, 100, 'initials', { rank: 3, initials: 'D.G.' })])
+  assert.deepEqual(out.hints, [])
 })
 
 test('revealed rows come back in rank order, not reveal order', () => {

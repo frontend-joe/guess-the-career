@@ -32,6 +32,7 @@ import {
   startRound,
   submitGuess,
   takeHint,
+  takeInitials,
   type ParticipantRow,
   type RoomRow,
 } from '../services/gameRooms.ts'
@@ -40,6 +41,7 @@ import {
   recordRegistrationAttempt,
   registerDevice,
   sendClueTaken,
+  sendInitialsTaken,
   sendInvite,
   sendLastSlot,
   sendRoomResumed,
@@ -433,6 +435,45 @@ roomsRouter.post(
           { code: room.code, hostName: me.display_name, roomName: room.name },
           room.host_user_id,
         ).catch((err: unknown) => console.warn('push: clue ping failed:', err))
+      }
+      return c.json(result)
+    } catch (err) {
+      return fail(err)
+    }
+  },
+)
+
+// POST /api/rooms/:code/initials — a second clue on a slot whose first is up.
+//
+// Separate from /hint rather than a flag on it, because it is a separate
+// decision taken at a separate moment: the clue describes the player, and this
+// hands over the shape of their name. The sheet showing it is already open.
+roomsRouter.post(
+  '/:code/initials',
+  zValidator('json', z.object({
+    instanceId: z.number().int().positive(),
+    rank: z.number().int().positive(),
+  })),
+  async (c) => {
+    const room = mustFindRoom(c.req.param('code'))
+    const me = await participantFor(c, room)
+    if (!me) return c.json({ error: 'Not in this room' }, 403)
+    const { instanceId, rank } = c.req.valid('json')
+    try {
+      const result = takeInitials(instanceId, me, rank)
+      if (!result.replayed) announce(room.code, 'initials')
+
+      // Every one of these, not just the first — see sendInitialsTaken. A
+      // second tap on a slot that already gave its initials up is `replayed`
+      // and sends nothing, so the ping follows the decision rather than the
+      // tap.
+      //
+      // Not awaited, like every other ping in this file.
+      if (!result.replayed) {
+        void sendInitialsTaken(
+          { code: room.code, hostName: me.display_name, roomName: room.name },
+          room.host_user_id,
+        ).catch((err: unknown) => console.warn('push: initials ping failed:', err))
       }
       return c.json(result)
     } catch (err) {

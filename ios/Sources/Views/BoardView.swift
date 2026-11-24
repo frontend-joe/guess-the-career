@@ -110,9 +110,10 @@ struct BoardView: View {
                         ClueSheet(
                             rank: rank,
                             hint: round.board.hints.first { $0.rank == rank },
-                            impliedClues: round.board.impliedClues
+                            impliedClues: round.board.impliedClues,
+                            canReveal: store.isHost && round.isLive
                         )
-                        .presentationDetents([.height(300)])
+                        .presentationDetents([.height(340)])
                         .presentationDragIndicator(.visible)
                     case .player(let id, let name):
                         PlayerCardSheet(footballerId: id, name: name)
@@ -263,7 +264,11 @@ private struct ClueSheet: View {
     let rank: Int
     let hint: TakenHint?
     let impliedClues: [String]
+    /// Whether the person reading this can spend the initials on it: the host,
+    /// in a round that is still being played.
+    let canReveal: Bool
 
+    @Environment(RoomStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     // Transfer fields first: on a transfer round they are the answer's whole
@@ -283,31 +288,55 @@ private struct ClueSheet: View {
         }
     }
 
+    // The one clue the host decides on at the time. Everything above it was
+    // settled when the round was frozen; this is spent, so it is a button
+    // until somebody presses it and a fact afterwards.
+    @ViewBuilder private var initialsRow: some View {
+        HStack {
+            Text("Initials").foregroundStyle(.secondary)
+            Spacer()
+            if let initials = hint?.initials {
+                Text(initials)
+                    .font(.body(15, weight: .semibold))
+                    .monospaced()
+            } else if canReveal {
+                Button("Reveal") {
+                    Task { await store.takeInitials(rank: rank) }
+                }
+                .font(.body(13, weight: .semibold))
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+            } else {
+                // Said rather than left out, so the room knows there is one
+                // more thing to ask the host for.
+                Text("Hidden").font(.body(15)).foregroundStyle(.tertiary)
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            Group {
+            // One list rather than two branches, because the initials row
+            // belongs on a clue with nothing else in it most of all: a round
+            // that has already told you the nationality and the position has
+            // nothing left to give except the name.
+            List {
+                ForEach(rows, id: \.0) { label, value in
+                    HStack {
+                        Text(label).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(value).font(.body(15, weight: .semibold))
+                    }
+                }
+                initialsRow
                 if rows.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("Nothing to give away")
-                            .font(.body(16, weight: .semibold))
-                        Text("Everything known about this one is already in the question.")
-                            .font(.body(12))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List(rows, id: \.0) { label, value in
-                        HStack {
-                            Text(label).foregroundStyle(.secondary)
-                            Spacer()
-                            Text(value).font(.body(15, weight: .semibold))
-                        }
-                    }
-                    .listStyle(.plain)
+                    Text("Everything else known about this one is already in the question.")
+                        .font(.body(12))
+                        .foregroundStyle(.secondary)
                 }
             }
+            .listStyle(.plain)
             .navigationTitle("Clue for \(rank)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
