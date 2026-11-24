@@ -3,6 +3,7 @@ import { normalizeClubAlias } from "../services/scraper.ts";
 import { generalType } from "./general.ts";
 import { deriveList, getListDef, listSummaries } from "./randomLists.ts";
 import { ROUND_GROUPS, getGroup } from "./continents.ts";
+import { POSITION_BUCKETS } from "./positions.ts";
 
 // Football Tenable — 10-answer list rounds.
 //
@@ -1034,6 +1035,75 @@ const nationalityClub: TenableType = {
   },
 };
 
+// ── 8b. Position at a club (unordered — name any 10) ─────────────────────────
+//
+// "Arsenal goalkeepers", "Barcelona midfielders". The question a room can
+// always have a go at: you do not need to know who made the most
+// appearances, you need to remember who kept goal.
+//
+// Unordered, and not because ranking is hard — PLAYER_CLUB would rank them
+// quite happily — but because the ranking would be a different question.
+// "Arsenal goalkeepers by appearances" is a top ten that four people get
+// three of; "name any ten Arsenal goalkeepers" is a pub argument with
+// seventeen right answers, and the pool at a big club is deep enough that
+// finding ten is the game. So the whole pool is the board and any ten of it
+// wins, exactly like a World Cup squad.
+//
+// Membership is the player's WHOLE position list, which is the point. Dennis
+// Bergkamp belongs on the forwards board and on the midfielders board
+// because he was both, and reading only the first word of his infobox would
+// leave him off one of them. See services/positions.ts.
+const POSITION_PLURAL = new Map(POSITION_BUCKETS.map((b) => [b.bucket as string, b.plural]));
+
+const IS_BUCKET = (col: string) =>
+  `position_buckets(f.custom_position, f.all_positions, f.position) LIKE '%|' || ${col} || '|%'`;
+
+const clubPosition: TenableType = {
+  slug: "club-position",
+  label: "Position at a club",
+  description: "Name any 10 of a club's goalkeepers, defenders, midfielders or forwards.",
+  example: "Name 10 Arsenal goalkeepers",
+  ordered: false,
+  metricless: true,
+  title: (p) => `${p.club} ${POSITION_PLURAL.get(p.position) ?? p.position}`,
+  candidates() {
+    const rows = sqlite.prepare(
+      `WITH tot AS (${PLAYER_CLUB})
+       SELECT tot.club AS club, b.bucket AS bucket, COUNT(*) AS n
+       FROM tot
+       JOIN footballers f ON f.id = tot.fid
+       JOIN (${POSITION_BUCKETS.map((b) => `SELECT '${b.bucket}' AS bucket`).join(" UNION ALL ")}) b
+         ON ${IS_BUCKET("b.bucket")}
+       WHERE tot.apps > 0
+       GROUP BY tot.club, b.bucket
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { club: string; bucket: string; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { club: r.club, position: r.bucket },
+      metric: "apps" as Metric,
+      title: this.title({ club: r.club, position: r.bucket }, "apps"),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, _metric, _limit = ROUND_SIZE) {
+    // The WHOLE pool, like a World Cup squad — the room only needs any ten.
+    //
+    // Appearances ride along on the badge. They order nothing here, but a
+    // board that fills with bare names gives nothing back for remembering
+    // the hard one, and "Jens Lehmann 200" is worth reading out.
+    return sqlite.prepare(
+      `WITH tot AS (${PLAYER_CLUB})
+       SELECT ${ANSWER_COLS}, tot.apps AS value, 'apps' AS unit
+       FROM tot
+       JOIN footballers f ON f.id = tot.fid
+       WHERE tot.club = ? AND tot.apps > 0 AND ${IS_BUCKET("?")}
+       ORDER BY value DESC, f.name ASC`,
+    ).all(p.club, p.position) as TenableAnswer[];
+  },
+};
+
 // ── 8c. Continent or region at a club ──────────────────────────────────────────────────
 //
 // "South American Arsenal players", "African Roma players". The nationality
@@ -1541,6 +1611,7 @@ export const TENABLE_TYPES: TenableType[] = [
   leagueAllTime,
   twoClubs,
   nationalityClub,
+  clubPosition,
   continentClub,
   overseasClub,
   transferWindow,
@@ -1748,8 +1819,11 @@ export function impliedCluesFor(type: string, params?: Record<string, string>): 
     return getListDef(params.listId)?.impliedClues ?? [];
   }
   if (["nationality", "nationality-club", "world-cup-squad"].includes(type)) implied.push("nationality");
-  if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial", "continent-club"].includes(type)) implied.push("club");
+  if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial", "continent-club", "club-position"].includes(type)) implied.push("club");
   if (["surname-length", "surname-initial", "surname", "club-surname-initial"].includes(type)) implied.push("surname");
+  // "Arsenal goalkeepers" has already said what the position is, and the
+  // clue card would spend a clue restating the question.
+  if (type === "club-position") implied.push("position");
   return implied;
 }
 

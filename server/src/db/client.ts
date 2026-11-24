@@ -5,6 +5,7 @@ import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as schema from './schema.ts'
 import { normalizeClubAlias } from '../services/scraper.ts'
+import { positionBucketKey } from '../services/positions.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -110,6 +111,18 @@ sqlite.function('club_key', (s: unknown) => {
   if (typeof s !== 'string') return s
   return clubKey(s)
 })
+
+// Which of the four jobs on a pitch a player did, as something SQL can ask
+// about: '|defender|midfielder|' for somebody who was both. See
+// services/positions.ts for why the answer is a set rather than one word, and
+// why all three columns go in.
+sqlite.function('position_buckets', (custom: unknown, all: unknown, position: unknown) =>
+  positionBucketKey(
+    typeof custom === 'string' ? custom : null,
+    typeof all === 'string' ? all : null,
+    typeof position === 'string' ? position : null,
+  ),
+)
 
 export const db = drizzle(sqlite, { schema })
 
