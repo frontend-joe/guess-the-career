@@ -765,7 +765,12 @@ footballersRouter.get('/:id', async (c) => {
     .select()
     .from(career_stints)
     .where(eq(career_stints.footballer_id, id))
-    .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
+    // Youth, then senior, then international — the order a career happened
+    // in, which is also the order Wikipedia's infobox prints.
+    .orderBy(
+      sql`CASE ${career_stints.stint_type} WHEN 'youth' THEN 0 WHEN 'senior' THEN 1 ELSE 2 END`,
+      career_stints.sort_order,
+    )
 
   return c.json({ ...footballer, stints })
 })
@@ -797,7 +802,12 @@ footballersRouter.get('/:id/card', async (c) => {
     .select()
     .from(career_stints)
     .where(eq(career_stints.footballer_id, id))
-    .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
+    // Youth, then senior, then international — the order a career happened
+    // in, which is also the order Wikipedia's infobox prints.
+    .orderBy(
+      sql`CASE ${career_stints.stint_type} WHEN 'youth' THEN 0 WHEN 'senior' THEN 1 ELSE 2 END`,
+      career_stints.sort_order,
+    )
 
   // Reserve/B teams borrow the parent club's crest; fall back to the clubs table
   // when a stint has no stored club link of its own.
@@ -895,7 +905,12 @@ footballersRouter.post('/:id/rescrape', async (c) => {
 
   const [updated] = await db.select().from(footballers).where(eq(footballers.id, id)).limit(1)
   const stints = await db.select().from(career_stints).where(eq(career_stints.footballer_id, id))
-    .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
+    // Youth, then senior, then international — the order a career happened
+    // in, which is also the order Wikipedia's infobox prints.
+    .orderBy(
+      sql`CASE ${career_stints.stint_type} WHEN 'youth' THEN 0 WHEN 'senior' THEN 1 ELSE 2 END`,
+      career_stints.sort_order,
+    )
 
   return c.json({ footballer: updated, stints })
 })
@@ -917,7 +932,12 @@ footballersRouter.put(
       .select()
       .from(career_stints)
       .where(eq(career_stints.footballer_id, id))
-      .orderBy(sql`CASE WHEN ${career_stints.stint_type} = 'senior' THEN 0 ELSE 1 END`, career_stints.sort_order)
+      // Youth, then senior, then international — the order a career happened
+    // in, which is also the order Wikipedia's infobox prints.
+    .orderBy(
+      sql`CASE ${career_stints.stint_type} WHEN 'youth' THEN 0 WHEN 'senior' THEN 1 ELSE 2 END`,
+      career_stints.sort_order,
+    )
     return c.json(stints)
   }
 )

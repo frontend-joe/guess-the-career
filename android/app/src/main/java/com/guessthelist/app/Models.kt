@@ -313,6 +313,7 @@ data class CardStint(
     @SerialName("stint_type") val stintType: String = "senior",
 ) {
     val isInternational: Boolean get() = stintType == "international"
+    val isYouth: Boolean get() = stintType == "youth"
 
     /** "47 (18)", or just the appearances when the goals are unknown. */
     val appsGoals: String get() = (apps ?: 0).let { if (goals != null) "$it ($goals)" else "$it" }
@@ -345,7 +346,11 @@ data class FootballerCard(
     val nationality: String? = null,
     val stints: List<CardStint> = emptyList(),
 ) {
-    val senior: List<CardStint> get() = stints.filter { !it.isInternational }
+    val youth: List<CardStint> get() = stints.filter { it.isYouth }
+    // Everything that is neither, rather than everything that is not
+    // international — a youth row arriving would otherwise have been filed
+    // as a senior spell, which is the one thing it must never be.
+    val senior: List<CardStint> get() = stints.filter { !it.isInternational && !it.isYouth }
     val international: List<CardStint> get() = stints.filter { it.isInternational }
 }
 

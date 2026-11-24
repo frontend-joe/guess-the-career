@@ -225,11 +225,23 @@ struct BoardView: View {
     /// event log either way.
     private func clue(rank: Int, round: RoomRound) {
         let existing = round.board.hints.contains { $0.rank == rank }
-        let taken = round.board.revealed.contains { $0.rank == rank }
+        // Whether this ROW is occupied, asked the same way the row was
+        // filled. An unordered board fills positionally — the Nth name found
+        // goes in slot N — while a revealed answer's `rank` is its place in
+        // the frozen pool and has nothing to do with the slot it landed in.
+        // Matching on rank therefore read a blank slot as taken whenever some
+        // player already up there happened to carry that number, and the
+        // long press did nothing. It still buzzed, because the haptic had
+        // fired before this was consulted, so it looked like a dead button
+        // rather than a refusal.
+        let taken = answer(slot: rank, round: round) != nil
         if existing {
             // Reopening one already taken — nobody else needs to see that.
             showingClue = .clue(rank: rank)
         } else if store.isHost, round.isLive, !taken {
+            // A clue arriving is a commit, so it earns a heavier haptic —
+            // fired here, on the one path that actually takes one.
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             // Not opened here. The clue lands in the event log, comes back in
             // the next state, and opens on every screen including this one —
             // one path, so the host sees exactly what the room sees.
@@ -462,9 +474,10 @@ private struct PyramidRow: View {
             }
             .onLongPressGesture(minimumDuration: 0.45) {
                 guard !hasClue else { return }
-                // A clue arriving is a commit, so it earns a heavier haptic
-                // — fired on the same event that opens it.
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                // No haptic here. A bump that fires before the decision is
+                // made promises a clue the board may then decline to give,
+                // and a button that buzzes and does nothing reads as broken.
+                // The commit confirms itself, where it commits.
                 onClue()
             } onPressingChanged: { holding in
                 holdingClue = holding && !hasClue

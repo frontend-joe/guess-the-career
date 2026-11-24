@@ -254,7 +254,7 @@ export interface ScrapeResult {
     club_wikipedia_url: string | null;
     apps: number | null;
     goals: number | null;
-    stint_type: "senior" | "international";
+    stint_type: "senior" | "international" | "youth";
   }[];
   league_stats: LeagueStatRow[];
   /** What the article is actually about — see classifyPage. */
@@ -810,7 +810,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
   });
 
   const stints: ScrapeResult["stints"] = [];
-  let currentSection: "senior" | "international" | null = null;
+  let currentSection: "senior" | "international" | "youth" | null = null;
   let sortOrder = 0;
 
   infobox.find("tr").each((_, row) => {
@@ -819,6 +819,14 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
       const headerText = header.text().trim().toLowerCase();
       if (headerText.includes("senior career")) {
         currentSection = "senior";
+      } else if (headerText.includes("youth career")) {
+        // Kept apart from the senior career, and never mixed into it: every
+        // round in the game derives a club's players from senior stints, and
+        // a boy who spent two years in an academy and left did not play for
+        // that club. It is on the card because it is the part of a career
+        // people argue about — half of "where did he come through?" is a
+        // youth row — and nowhere else.
+        currentSection = "youth";
       } else if (
         headerText.includes("international career") ||
         headerText.includes("national team")
@@ -833,15 +841,29 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     if (!currentSection) return;
 
     const yearsEl = $(row).children("th.infobox-label");
-    const clubEl = $(row).children("td.infobox-data-a");
+    // A senior row splits into three lettered cells (team / apps / goals) and
+    // the club is in the first; a youth row has no numbers to show, so
+    // Wikipedia gives it one plain `infobox-data` cell instead. Asking only
+    // for `-a` found nothing on a youth row and dropped the whole section.
+    // `infobox-data-a` also carries the bare `infobox-data` class, so the
+    // fallback picks the same cell on a senior row.
+    const lettered = $(row).children("td.infobox-data-a");
+    const clubEl = lettered.length ? lettered : $(row).children("td.infobox-data").first();
     const appsEl = $(row).children("td.infobox-data-b");
     const goalsEl = $(row).children("td.infobox-data-c");
 
     if (!yearsEl.length || !clubEl.length) return;
 
     // Skip the column header row (Years / Team / Apps / Gls)
-    const yearsText =
-      yearsEl.find("span").text().trim() || yearsEl.text().trim();
+    //
+    // Read the cell with its hidden sort keys taken out. Wikipedia dates an
+    // open-ended spell by printing "–2005" with an invisible "0000" in front
+    // of it — aria-hidden, transparent, zero-width to a reader — purely so
+    // the row sorts. Gathering every nested span's text swept that up and
+    // produced "0000–20050000".
+    const yearsCell = yearsEl.clone();
+    yearsCell.find('[aria-hidden="true"]').remove();
+    const yearsText = yearsCell.text().trim();
     if (!yearsText || yearsText.toLowerCase() === "years") return;
 
     const club = cellText(clubEl);
@@ -2483,7 +2505,12 @@ function extractCountryFromTeam(team: string): string | null {
 
 function normalizeYears(raw: string): string {
   // Replace various dash-like characters with en-dash
-  return raw.replace(/[-‒—]/g, "–").trim();
+  const years = raw.replace(/[-‒—]/g, "–").trim();
+  // Wikipedia writes an unknown start year as four zeroes — "0000–2005" is
+  // how a youth career that nobody has dated begins. Printing that on the
+  // card would be worse than printing nothing, and it is a real fact: he was
+  // there until 2005 and we do not know from when.
+  return years.replace(/^0000(?=–)/, "");
 }
 
 function parseNumber(raw: string): number | null {

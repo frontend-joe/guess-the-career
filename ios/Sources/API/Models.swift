@@ -350,6 +350,7 @@ struct CardStint: Codable, Equatable {
     }
 
     var isInternational: Bool { stintType == "international" }
+    var isYouth: Bool { stintType == "youth" }
 
     /// Wikipedia marks a loan with a leading arrow and/or a "(loan)" suffix,
     /// and a trial with "(trial)". The row shows the club and the tag apart,
@@ -389,7 +390,11 @@ struct FootballerCard: Codable, Equatable {
         case heightCm = "height_cm"
     }
 
-    var senior: [CardStint] { stints.filter { !$0.isInternational } }
+    var youth: [CardStint] { stints.filter(\.isYouth) }
+    // Everything that is neither, rather than everything that is not
+    // international — a youth row arriving would otherwise have been filed
+    // as a senior spell, which is the one thing it must never be.
+    var senior: [CardStint] { stints.filter { !$0.isInternational && !$0.isYouth } }
     var international: [CardStint] { stints.filter(\.isInternational) }
 
     /// "26 June 1991" — the long form the web modal shows, not the ISO date

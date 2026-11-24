@@ -31,8 +31,12 @@ struct PlayerCardSheet: View {
                 VStack(spacing: 0) {
                     if let card {
                         bio(card)
+                        // The order a career happened in. Youth only
+                        // appears for players whose page has it, which is
+                        // most of the modern ones and few of the old.
+                        career("Youth career", card.youth, counts: nil)
                         career("Senior career", card.senior)
-                        career("International career", card.international, international: true)
+                        career("International career", card.international, counts: "Caps (Gls)")
                     } else if footballerId == nil {
                         // Either this answer has no footballer record at all,
                         // or the round was played before the board started
@@ -121,7 +125,12 @@ struct PlayerCardSheet: View {
     }
 
     @ViewBuilder
-    private func career(_ title: String, _ stints: [CardStint], international: Bool = false) -> some View {
+    /// `counts` is the heading over the numbers column, or nil for a career
+    /// that has no numbers. A youth spell is years and a badge and nothing
+    /// else — Wikipedia prints no appearances for one — and an empty column
+    /// of zeroes would read as "played, never got on" rather than "not
+    /// recorded".
+    private func career(_ title: String, _ stints: [CardStint], counts: String? = "Apps (Gls)") -> some View {
         if !stints.isEmpty {
             HStack {
                 Text(title).font(.display(13))
@@ -139,7 +148,9 @@ struct PlayerCardSheet: View {
             HStack(spacing: 8) {
                 Text("Years").frame(width: 72, alignment: .leading)
                 Text("Team").frame(maxWidth: .infinity, alignment: .leading)
-                Text(international ? "Caps (Gls)" : "Apps (Gls)").frame(width: 74, alignment: .trailing)
+                if let counts {
+                    Text(counts).frame(width: 74, alignment: .trailing)
+                }
             }
             .font(.body(11, weight: .medium))
             .foregroundStyle(.tertiary)
@@ -150,12 +161,12 @@ struct PlayerCardSheet: View {
             // two spells at one club across the same years — so the row's
             // place in the list is the only honest identity it has.
             ForEach(Array(stints.enumerated()), id: \.offset) { _, stint in
-                stintRow(stint)
+                stintRow(stint, showsCounts: counts != nil)
             }
         }
     }
 
-    private func stintRow(_ stint: CardStint) -> some View {
+    private func stintRow(_ stint: CardStint, showsCounts: Bool = true) -> some View {
         let parts = stint.parts
         return VStack(spacing: 0) {
             Divider()
@@ -176,11 +187,13 @@ struct PlayerCardSheet: View {
                         .font(.body(12))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Text(stint.appsGoals)
-                    .font(.body(12))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 74, alignment: .trailing)
+                if showsCounts {
+                    Text(stint.appsGoals)
+                        .font(.body(12))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 74, alignment: .trailing)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 7)

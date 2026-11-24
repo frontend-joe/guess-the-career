@@ -102,8 +102,12 @@ fun PlayerCardDialog(
                         BioRow("Nationality", loaded.nationality)
                         BioRow("Position", loaded.position)
                         BioRow("Height", heightText(loaded.heightCm))
+                        // The order a career happened in. Youth only
+                        // appears for players whose page has it, which is
+                        // most of the modern ones and few of the old.
+                        Career("Youth career", loaded.youth, counts = null)
                         Career("Senior career", loaded.senior)
-                        Career("International career", loaded.international, international = true)
+                        Career("International career", loaded.international, counts = "Caps (Gls)")
                     }
                     // Either this answer has no footballer record at all, or
                     // the round predates the board logging who its rows are.
@@ -145,7 +149,13 @@ private fun BioRow(label: String, value: String?) {
 }
 
 @Composable
-private fun Career(title: String, stints: List<CardStint>, international: Boolean = false) {
+/**
+ * [counts] is the heading over the numbers column, or null for a career that
+ * has no numbers. A youth spell is years and a club and nothing else —
+ * Wikipedia prints no appearances for one — and a column of zeroes would read
+ * as "played, never got on" rather than "not recorded".
+ */
+private fun Career(title: String, stints: List<CardStint>, counts: String? = "Apps (Gls)") {
     if (stints.isEmpty()) return
     val hairline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     val faint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -169,10 +179,9 @@ private fun Career(title: String, stints: List<CardStint>, international: Boolea
     ) {
         Text("Years", fontSize = 11.sp, color = faint, modifier = Modifier.width(66.dp))
         Text("Team", fontSize = 11.sp, color = faint, modifier = Modifier.weight(1f))
-        Text(
-            if (international) "Caps (Gls)" else "Apps (Gls)",
-            fontSize = 11.sp, color = faint, modifier = Modifier.width(74.dp),
-        )
+        if (counts != null) {
+            Text(counts, fontSize = 11.sp, color = faint, modifier = Modifier.width(74.dp))
+        }
     }
     stints.forEach { stint ->
         HorizontalDivider(color = hairline)
@@ -197,12 +206,14 @@ private fun Career(title: String, stints: List<CardStint>, international: Boolea
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }
-            Text(
-                stint.appsGoals,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(74.dp),
-            )
+            if (counts != null) {
+                Text(
+                    stint.appsGoals,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(74.dp),
+                )
+            }
         }
     }
 }
