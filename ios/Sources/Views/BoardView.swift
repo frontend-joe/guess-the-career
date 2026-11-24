@@ -429,8 +429,12 @@ private struct PyramidRow: View {
     /// the whole room and cannot be taken back, and the host's thumb passes
     /// over ten of these looking for the row they want. Reopening is free, so
     /// it stays a tap.
+    ///
+    /// The word stays "Clue" either way. It names the thing, which does not
+    /// change; the gesture is taught by the pill shrinking under the hold and
+    /// by the voiceover label, not by relabelling the button mid-round.
     private var clueButton: some View {
-        Text(hasClue ? "Clue" : "Hold")
+        Text("Clue")
             .font(.display(11))
             .foregroundStyle(hasClue ? BoardStyle.violet.bottom : .white)
             .padding(.horizontal, 11)

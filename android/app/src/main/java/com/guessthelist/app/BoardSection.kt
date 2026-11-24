@@ -438,7 +438,11 @@ private fun PyramidRow(
  *  Spending one is a hold; opening one already spent is a tap. The two are
  *  not the same act and must not cost the same: a clue is given to the whole
  *  room and cannot be taken back, and the host's thumb passes over ten of
- *  these looking for the row they want. Reopening is free, so it stays a tap. */
+ *  these looking for the row they want. Reopening is free, so it stays a tap.
+ *
+ *  The word stays "Clue" either way. It names the thing, which does not
+ *  change; the gesture is taught by the pill shrinking under the hold and by
+ *  the screen-reader label, not by relabelling the button mid-round. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ClueButton(taken: Boolean, rank: Int, onClue: () -> Unit, modifier: Modifier = Modifier) {
@@ -490,7 +494,7 @@ private fun ClueButton(taken: Boolean, rank: Int, onClue: () -> Unit, modifier: 
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            if (taken) "Clue" else "Hold",
+            "Clue",
             fontSize = 11.sp,
             fontFamily = AppFonts.Display,
             color = if (taken) VioletBottom else Color.White,
