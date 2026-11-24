@@ -369,6 +369,19 @@ const PLAYER_LEAGUE = `
 `;
 
 // Per-player, per-club totals (all competitions' league rows for that club).
+// A whole career in the leagues we hold, by player. Spelled out twice inside
+// the surname round before anything else needed it; one copy now, because two
+// would drift and the rounds that share it would quietly disagree about what
+// a career is.
+const CAREER_LEAGUE_TOTAL = `
+  SELECT cs.footballer_id AS fid,
+         SUM(COALESCE(cs.league_apps,0))  AS apps,
+         SUM(COALESCE(cs.league_goals,0)) AS goals
+  FROM career_statistics cs
+  WHERE ${IN_ALLOWED}
+  GROUP BY cs.footballer_id
+`;
+
 const PLAYER_CLUB = `
   SELECT fid, club, SUM(apps) AS apps, SUM(goals) AS goals FROM (
     -- All competitions, not just the league: "most goals for Real Madrid"
@@ -735,13 +748,7 @@ const surname: TenableType = {
   candidates(metric) {
     const col = metricCol(metric);
     const rows = sqlite.prepare(
-      `WITH tot AS (
-         SELECT cs.footballer_id AS fid,
-                SUM(COALESCE(cs.league_apps,0))  AS apps,
-                SUM(COALESCE(cs.league_goals,0)) AS goals
-         FROM career_statistics cs
-         WHERE ${IN_ALLOWED}
-         GROUP BY cs.footballer_id)
+      `WITH tot AS (${CAREER_LEAGUE_TOTAL})
        SELECT f.surname AS surname, COUNT(*) AS n
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE f.surname IS NOT NULL AND f.surname <> '' AND tot.${col} > 0
@@ -760,13 +767,7 @@ const surname: TenableType = {
   answers(p, metric, limit = ROUND_SIZE) {
     const col = metricCol(metric);
     return sqlite.prepare(
-      `WITH tot AS (
-         SELECT cs.footballer_id AS fid,
-                SUM(COALESCE(cs.league_apps,0))  AS apps,
-                SUM(COALESCE(cs.league_goals,0)) AS goals
-         FROM career_statistics cs
-         WHERE ${IN_ALLOWED}
-         GROUP BY cs.footballer_id)
+      `WITH tot AS (${CAREER_LEAGUE_TOTAL})
        SELECT ${ANSWER_COLS}, tot.${col} AS value
        FROM tot JOIN footballers f ON f.id = tot.fid
        WHERE LOWER(f.surname) = LOWER(?) AND tot.${col} > 0
@@ -1101,6 +1102,56 @@ const clubPosition: TenableType = {
        WHERE tot.club = ? AND tot.apps > 0 AND ${IS_BUCKET("?")}
        ORDER BY value DESC, f.name ASC`,
     ).all(p.club, p.position) as TenableAnswer[];
+  },
+};
+
+// ── 8b2. Position by nationality (unordered — name any 10) ───────────────────
+//
+// "Brazilian goalkeepers", "Italian defenders". The club round next door asks
+// who kept goal for Arsenal; this asks who kept goal for Brazil's entire
+// footballing history, which is a bigger room and an easier one — you do not
+// need to have followed a club to have an opinion about Brazilian keepers.
+//
+// Ranked by career league appearances on the badge only, like the club
+// version: the board is the whole pool and any ten of it wins.
+const nationalityPosition: TenableType = {
+  slug: "nationality-position",
+  label: "Position by nationality",
+  description: "Name any 10 of a country's goalkeepers, defenders, midfielders or forwards.",
+  example: "Name 10 Brazilian goalkeepers",
+  ordered: false,
+  metricless: true,
+  title: (p) => `${demonym(p.nationality)} ${POSITION_PLURAL.get(p.position) ?? p.position}`,
+  candidates() {
+    const rows = sqlite.prepare(
+      `WITH tot AS (${CAREER_LEAGUE_TOTAL})
+       SELECT f.nationality AS nationality, b.bucket AS bucket, COUNT(*) AS n
+       FROM tot
+       JOIN footballers f ON f.id = tot.fid
+       JOIN (${POSITION_BUCKETS.map((b) => `SELECT '${b.bucket}' AS bucket`).join(" UNION ALL ")}) b
+         ON ${IS_BUCKET("b.bucket")}
+       WHERE f.nationality IS NOT NULL AND f.nationality <> '' AND tot.apps > 0
+       GROUP BY f.nationality, b.bucket
+       HAVING n >= ${MIN_ANSWERS}
+       ORDER BY n DESC`,
+    ).all() as { nationality: string; bucket: string; n: number }[];
+    return rows.map((r) => ({
+      type: this.slug,
+      params: { nationality: r.nationality, position: r.bucket },
+      metric: "apps" as Metric,
+      title: this.title({ nationality: r.nationality, position: r.bucket }, "apps"),
+      answer_count: r.n,
+    }));
+  },
+  answers(p, _metric, _limit = ROUND_SIZE) {
+    return sqlite.prepare(
+      `WITH tot AS (${CAREER_LEAGUE_TOTAL})
+       SELECT ${ANSWER_COLS}, tot.apps AS value, 'apps' AS unit
+       FROM tot
+       JOIN footballers f ON f.id = tot.fid
+       WHERE f.nationality = ? AND tot.apps > 0 AND ${IS_BUCKET("?")}
+       ORDER BY value DESC, f.name ASC`,
+    ).all(p.nationality, p.position) as TenableAnswer[];
   },
 };
 
@@ -1612,6 +1663,7 @@ export const TENABLE_TYPES: TenableType[] = [
   twoClubs,
   nationalityClub,
   clubPosition,
+  nationalityPosition,
   continentClub,
   overseasClub,
   transferWindow,
@@ -1818,12 +1870,12 @@ export function impliedCluesFor(type: string, params?: Record<string, string>): 
   if (type === "random-list" && params?.listId) {
     return getListDef(params.listId)?.impliedClues ?? [];
   }
-  if (["nationality", "nationality-club", "world-cup-squad"].includes(type)) implied.push("nationality");
+  if (["nationality", "nationality-club", "world-cup-squad", "nationality-position"].includes(type)) implied.push("nationality");
   if (["club", "two-clubs", "nationality-club", "overseas-club", "club-surname-initial", "continent-club", "club-position"].includes(type)) implied.push("club");
   if (["surname-length", "surname-initial", "surname", "club-surname-initial"].includes(type)) implied.push("surname");
   // "Arsenal goalkeepers" has already said what the position is, and the
   // clue card would spend a clue restating the question.
-  if (type === "club-position") implied.push("position");
+  if (type === "club-position" || type === "nationality-position") implied.push("position");
   return implied;
 }
 
