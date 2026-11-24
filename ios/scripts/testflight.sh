@@ -117,9 +117,21 @@ if [ -n "$DRY_RUN" ]; then
   exit 0
 fi
 
+# altool prints its failures to stdout and exits 0 anyway, so `set -e` does
+# not catch them: a rejected upload printed a tidy "✓ Uploaded" underneath a
+# screenful of ERROR. The output is the only thing that knows, so read it.
 echo "▸ Uploading ${IPA}…"
+LOG="$BUILD_DIR/upload.log"
+set +e
 xcrun altool --upload-app -f "$IPA" -t ios \
-  --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+  --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$LOG"
+STATUS=$?
+set -e
+if [ "$STATUS" -ne 0 ] || grep -q 'ERROR:' "$LOG"; then
+  echo ""
+  echo "✗ The upload was refused. The whole exchange is in $LOG."
+  exit 1
+fi
 
 echo ""
 echo "✓ Uploaded build $BUILD_NUMBER."

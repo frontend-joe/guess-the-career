@@ -33,6 +33,18 @@ targets:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: Tenable
+        # Point the plist at the build settings rather than letting xcodegen
+        # write its defaults.
+        #
+        # Without these two lines the generated plist carried a literal
+        # CFBundleVersion of 1 and CFBundleShortVersionString of 1.0, and
+        # MARKETING_VERSION / CURRENT_PROJECT_VERSION below were decoration:
+        # nothing read them. testflight.sh stamps CURRENT_PROJECT_VERSION from
+        # the clock on every archive precisely so the build number cannot
+        # collide, and the stamp went nowhere — App Store Connect saw version
+        # 1 every time and refused the upload as a duplicate.
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         UILaunchScreen: {}
         # The one bundled face: the board's. Everything else is the system
         # font. This is a file name; Font.custom takes the PostScript name
@@ -91,7 +103,11 @@ targets:
         # MARKETING_VERSION is what people read and CURRENT_PROJECT_VERSION is
         # what must go up on every single upload. scripts/testflight.sh stamps
         # the latter from the clock so it cannot be forgotten.
-        MARKETING_VERSION: "0.1"
+        # 1.0 because that is what every build already in App Store Connect
+        # went up as, back when the plist ignored this setting entirely. A
+        # version string lower than one Apple has already seen is a fight
+        # worth not having for a number nobody is reading yet.
+        MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         # Without this the build is fine, installs fine, and is then refused by
         # App Store Connect: an icon in an asset catalog plus the
