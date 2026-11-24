@@ -1,0 +1,23 @@
+-- Give every blacklisted name one more look.
+--
+-- A guess the database had never heard of was looked up on Wikipedia, and a
+-- lookup that came back "not a male association footballer" was recorded as
+-- 'rejected' — permanent on purpose, because an actor will still be an actor
+-- tomorrow and the retry would cost the same three searches.
+--
+-- The check behind that verdict could not tell "Wikipedia says no" from
+-- "Wikipedia did not answer". A timed-out category fetch, a 503, a rate
+-- limit, or a response shape it did not recognise all returned the same
+-- false, and the caller wrote the permanent status for every one of them. So
+-- a real player could be scraped, deleted, and blacklisted for good by one
+-- bad moment on the network — and since a rejection is never retried, no
+-- amount of guessing the name again would ever look a second time.
+--
+-- Giles Barnes is how this was found: a Jamaica international with a hundred
+-- Championship appearances, who would not go on any board, ever.
+--
+-- The check now distinguishes the two and only blacklists on a real verdict.
+-- These rows were written before it could, so none of them can be trusted.
+-- Deleting them costs at most one repeated search per genuinely wrong name,
+-- which is then re-rejected properly and for good.
+DELETE FROM game_guess_reviews WHERE status = 'rejected';

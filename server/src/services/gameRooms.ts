@@ -1409,9 +1409,13 @@ export function learnUnknownName(raw: string): boolean {
  * Note the word boundaries. "women's" CONTAINS the substring "men's", so a
  * naive check for men's football passes every women's footballer on the site.
  */
-async function isMensFootballer(wikipediaUrl: string): Promise<boolean> {
+type FootballerVerdict = 'yes' | 'no' | 'unknown'
+
+export async function isMensFootballer(wikipediaUrl: string): Promise<FootballerVerdict> {
   const title = decodeURIComponent(wikipediaUrl.split('/wiki/').pop() ?? '').replace(/_/g, ' ')
-  if (!title) return false
+  // No title to ask about is a broken row, not a slow network: there is
+  // nothing to come back for.
+  if (!title) return 'no'
 
   const url =
     `https://en.wikipedia.org/w/api.php?action=query&format=json&redirects=1&prop=categories` +
@@ -1423,7 +1427,8 @@ async function isMensFootballer(wikipediaUrl: string): Promise<boolean> {
       headers: { 'User-Agent': 'guess-the-list/1.0 (tenable round data)' },
       signal: AbortSignal.timeout(15000),
     })
-    if (!res.ok) return false
+    // A 503 or a rate limit is Wikipedia having a moment, not an answer.
+    if (!res.ok) return 'unknown'
     const data = (await res.json()) as {
       query?: { pages?: Record<string, { categories?: { title: string }[] }> }
     }
@@ -1431,17 +1436,18 @@ async function isMensFootballer(wikipediaUrl: string): Promise<boolean> {
       (pg.categories ?? []).map((c) => c.title),
     )
   } catch {
-    // Unreachable Wikipedia is not evidence of anything. Refusing is the safe
-    // way to be wrong: the name stays a miss and can be looked up again later,
-    // where letting it through writes a row nobody asked for.
-    return false
+    // Unreachable Wikipedia is not evidence of anything.
+    return 'unknown'
   }
-  if (cats.length === 0) return false
+  // Every article on the site has categories, so none coming back means the
+  // question did not get asked properly — a redirect we did not follow, a
+  // response shape that changed — rather than that the answer is no.
+  if (cats.length === 0) return 'unknown'
 
   // Rejected outright, before anything else is considered.
-  if (cats.some((c) => /\bwomen'?s\b|sportswomen/i.test(c))) return false
+  if (cats.some((c) => /\bwomen'?s\b|sportswomen/i.test(c))) return 'no'
   // And it has to be football at all, which is what keeps the actors out.
-  return cats.some((c) => /footballer|association football|soccer/i.test(c))
+  return cats.some((c) => /footballer|association football|soccer/i.test(c)) ? 'yes' : 'no'
 }
 
 /** Undo a scrape we should not have made. Career rows cascade with the row. */
@@ -1540,18 +1546,32 @@ async function drainLearnQueue(): Promise<void> {
           const wiki = (sqlite
             .prepare('SELECT wikipedia_url FROM footballers WHERE id = ?')
             .get(id) as { wikipedia_url: string | null } | undefined)?.wikipedia_url
-          if (!wiki || !(await isMensFootballer(wiki))) {
-            discardScrapedFootballer(id, 'not a male association footballer', next.raw)
+          const verdict = wiki ? await isMensFootballer(wiki) : 'no'
+          if (verdict !== 'yes') {
+            discardScrapedFootballer(
+              id,
+              verdict === 'no' ? 'not a male association footballer' : 'could not check who they are',
+              next.raw,
+            )
             id = null
             created = false
-            // Permanently, not for an hour. An actor will still be an actor
-            // tomorrow, and the retry would cost the same three searches.
+            // 'no' is permanent, 'unknown' is an hour. The two used to be the
+            // same `false`, so one timed-out category fetch blacklisted a real
+            // player for good — and because a rejection is never retried, no
+            // amount of shouting the name again would ever look once more.
+            // Giles Barnes, a Jamaica international with a hundred-odd
+            // Championship appearances, went in and straight back out this
+            // way and could not be guessed onto any board afterwards.
+            //
+            // An actor will still be an actor tomorrow, so there is no reason
+            // to pay for that search twice. Wikipedia being down says nothing
+            // about the person at all.
             sqlite
               .prepare(
-                `UPDATE game_guess_reviews SET status = 'rejected'
+                `UPDATE game_guess_reviews SET status = ?
                  WHERE raw_norm = ? AND status = 'pending'`,
               )
-              .run(next.normalized)
+              .run(verdict === 'no' ? 'rejected' : 'unresolved', next.normalized)
             continue
           }
         }
