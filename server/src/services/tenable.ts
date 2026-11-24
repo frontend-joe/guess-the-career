@@ -636,6 +636,19 @@ export interface TenableType {
    * beginning with S are the same type.
    */
   orderedFor?(params: Record<string, string>): boolean;
+  /**
+   * How deep the pool has to be before this type offers a round, when
+   * MIN_ANSWERS is not the right bar.
+   *
+   * A ranked round wants exactly ten and the tenth is the answer, so ten is
+   * the bar. An unordered one asks for any ten OF a pool, and a pool of ten
+   * is not "any ten" — it is every single one, with no room to forget
+   * anybody. Half of the first specific-position boards were like that.
+   *
+   * Used by candidates() when offering a round and by the prune, so a round
+   * stops being offered and stops existing on the same test.
+   */
+  minAnswers?: number;
   candidates(metric: Metric): Candidate[];
   answers(params: Record<string, string>, metric: Metric, limit?: number): TenableAnswer[];
   title(params: Record<string, string>, metric: Metric): string;
@@ -1123,8 +1136,14 @@ const IS_BUCKET = (col: string) =>
 // that pair is what "no badge" means on the wire, so this needs no new app.
 const NO_BADGE = "0 AS value";
 
+// Twice the board. "Name any ten of these twelve" is not a question about
+// what you know, it is a question about whether you can think of the two you
+// are allowed to miss — and at ten it is a memory test with no margin at all.
+const POSITION_MIN = ROUND_SIZE * 2;
+
 const clubPosition: TenableType = {
   slug: "club-position",
+  minAnswers: POSITION_MIN,
   label: "Position at a club",
   description: "Name any 10 of a club's goalkeepers, defenders, midfielders or forwards.",
   example: "Name 10 Arsenal goalkeepers",
@@ -1140,7 +1159,7 @@ const clubPosition: TenableType = {
        JOIN (${POSITION_BUCKETS.map((b) => `SELECT '${b.bucket}' AS bucket`).join(" UNION ALL ")}) b
          ON ${IS_BUCKET("b.bucket")}
        GROUP BY tot.club, b.bucket
-       HAVING n >= ${MIN_ANSWERS}
+       HAVING n >= ${POSITION_MIN}
        ORDER BY n DESC`,
     ).all() as { club: string; bucket: string; n: number }[];
     return rows.map((r) => ({
@@ -1183,6 +1202,7 @@ const clubPosition: TenableType = {
 // version: the board is the whole pool and any ten of it wins.
 const nationalityPosition: TenableType = {
   slug: "nationality-position",
+  minAnswers: POSITION_MIN,
   label: "Position by nationality",
   description: "Name any 10 of a country's goalkeepers, defenders, midfielders or forwards.",
   example: "Name 10 Brazilian goalkeepers",
@@ -1201,7 +1221,7 @@ const nationalityPosition: TenableType = {
          ON ${IS_BUCKET("b.bucket")}
        WHERE f.nationality IS NOT NULL AND f.nationality <> ''
        GROUP BY f.nationality, b.bucket
-       HAVING n >= ${MIN_ANSWERS}
+       HAVING n >= ${POSITION_MIN}
        ORDER BY n DESC`,
     ).all() as { nationality: string; bucket: string; n: number }[];
     return rows.map((r) => ({

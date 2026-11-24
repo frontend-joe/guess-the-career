@@ -213,7 +213,12 @@ tenableRouter.post("/admin/rounds/prune", (c) => {
     } catch {
       n = 0;
     }
-    if (n < MIN_ANSWERS) dead.push(r.id);
+    // The type's own bar, not a global ten. An unordered round asks for any
+    // ten OF a pool and sets a deeper minimum than a ranked top ten does, so
+    // judging every round against MIN_ANSWERS left those sitting in the list
+    // at a depth their own type would no longer offer. A round should stop
+    // existing on the same test that stops it being offered.
+    if (n < (getType(r.type)?.minAnswers ?? MIN_ANSWERS)) dead.push(r.id);
   }
 
   // A round per transaction, not one transaction for the lot: a round a game

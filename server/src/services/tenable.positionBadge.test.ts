@@ -82,3 +82,21 @@ test('a player with no appearance table is still an answer', () => {
   const answers = answersForRound('nationality-position', COUNTRY, 'apps')
   assert.ok(answers.some((a) => a.name === 'Undocumented Keeper'))
 })
+
+// A "name any 10" round needs a pool worth choosing ten FROM. Half of the
+// first specific-position boards had ten or eleven answers, which is not a
+// question about what you know — it is every single name with no room to
+// forget anybody.
+test('a position round is only offered when the pool is twice the board', async () => {
+  const { getType, candidatesForType, ROUND_SIZE } = await import('./tenable.ts')
+
+  for (const slug of ['club-position', 'nationality-position']) {
+    assert.equal(getType(slug)?.minAnswers, ROUND_SIZE * 2, slug)
+    for (const c of candidatesForType(slug)) {
+      assert.ok(c.answer_count >= ROUND_SIZE * 2, `${c.title} has only ${c.answer_count}`)
+    }
+  }
+
+  // A ranked top ten still wants exactly ten: the tenth name is the answer.
+  assert.equal(getType('club')?.minAnswers, undefined)
+})
