@@ -382,6 +382,21 @@ const CAREER_LEAGUE_TOTAL = `
   GROUP BY cs.footballer_id
 `;
 
+// Everything a player did, counted, with no allow-list in front of it.
+//
+// CAREER_LEAGUE_TOTAL counts only the five leagues, and ALLOWED_CLUBS only
+// clubs that have played in them. Both are right for a round whose question
+// is about those leagues, and wrong for one that is not: "Brazilian
+// goalkeepers" has no business excluding Rogério Ceni for spending his
+// career at São Paulo.
+const CAREER_TOTAL_ANY = `
+  SELECT cs.footballer_id AS fid,
+         SUM(COALESCE(cs.total_apps,  cs.league_apps,  0)) AS apps,
+         SUM(COALESCE(cs.total_goals, cs.league_goals, 0)) AS goals
+  FROM career_statistics cs
+  GROUP BY cs.footballer_id
+`;
+
 const PLAYER_CLUB = `
   SELECT fid, club, SUM(apps) AS apps, SUM(goals) AS goals FROM (
     -- All competitions, not just the league: "most goals for Real Madrid"
@@ -1123,14 +1138,16 @@ const nationalityPosition: TenableType = {
   metricless: true,
   title: (p) => `${demonym(p.nationality)} ${POSITION_PLURAL.get(p.position) ?? p.position}`,
   candidates() {
+    // Membership is being in the database at all, not having played
+    // somewhere we happen to hold a league table for. The database is
+    // already a curated three thousand, so "Brazilian and a goalkeeper" is
+    // the whole question.
     const rows = sqlite.prepare(
-      `WITH tot AS (${CAREER_LEAGUE_TOTAL})
-       SELECT f.nationality AS nationality, b.bucket AS bucket, COUNT(*) AS n
-       FROM tot
-       JOIN footballers f ON f.id = tot.fid
+      `SELECT f.nationality AS nationality, b.bucket AS bucket, COUNT(*) AS n
+       FROM footballers f
        JOIN (${POSITION_BUCKETS.map((b) => `SELECT '${b.bucket}' AS bucket`).join(" UNION ALL ")}) b
          ON ${IS_BUCKET("b.bucket")}
-       WHERE f.nationality IS NOT NULL AND f.nationality <> '' AND tot.apps > 0
+       WHERE f.nationality IS NOT NULL AND f.nationality <> ''
        GROUP BY f.nationality, b.bucket
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
@@ -1144,12 +1161,14 @@ const nationalityPosition: TenableType = {
     }));
   },
   answers(p, _metric, _limit = ROUND_SIZE) {
+    // LEFT JOIN, so somebody we hold no appearance data for is still on the
+    // board. They are a real answer; the badge is the part we are missing.
     return sqlite.prepare(
-      `WITH tot AS (${CAREER_LEAGUE_TOTAL})
-       SELECT ${ANSWER_COLS}, tot.apps AS value, 'apps' AS unit
-       FROM tot
-       JOIN footballers f ON f.id = tot.fid
-       WHERE f.nationality = ? AND tot.apps > 0 AND ${IS_BUCKET("?")}
+      `WITH tot AS (${CAREER_TOTAL_ANY})
+       SELECT ${ANSWER_COLS}, COALESCE(tot.apps, 0) AS value, 'apps' AS unit
+       FROM footballers f
+       LEFT JOIN tot ON tot.fid = f.id
+       WHERE f.nationality = ? AND ${IS_BUCKET("?")}
        ORDER BY value DESC, f.name ASC`,
     ).all(p.nationality, p.position) as TenableAnswer[];
   },
