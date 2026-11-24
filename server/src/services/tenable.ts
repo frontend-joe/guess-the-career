@@ -1090,7 +1090,6 @@ const clubPosition: TenableType = {
        JOIN footballers f ON f.id = tot.fid
        JOIN (${POSITION_BUCKETS.map((b) => `SELECT '${b.bucket}' AS bucket`).join(" UNION ALL ")}) b
          ON ${IS_BUCKET("b.bucket")}
-       WHERE tot.apps > 0
        GROUP BY tot.club, b.bucket
        HAVING n >= ${MIN_ANSWERS}
        ORDER BY n DESC`,
@@ -1109,12 +1108,17 @@ const clubPosition: TenableType = {
     // Appearances ride along on the badge. They order nothing here, but a
     // board that fills with bare names gives nothing back for remembering
     // the hard one, and "Jens Lehmann 200" is worth reading out.
+    //
+    // Nobody is held to having played, though. Ali Al-Habsi signed for West
+    // Bromwich Albion in 2019 and never got on, and a room shouting him at
+    // "West Bromwich Albion goalkeepers" is right: he was one. Being at the
+    // club is the question, and the badge reads 0, which is the fact.
     return sqlite.prepare(
       `WITH tot AS (${PLAYER_CLUB})
        SELECT ${ANSWER_COLS}, tot.apps AS value, 'apps' AS unit
        FROM tot
        JOIN footballers f ON f.id = tot.fid
-       WHERE tot.club = ? AND tot.apps > 0 AND ${IS_BUCKET("?")}
+       WHERE tot.club = ? AND ${IS_BUCKET("?")}
        ORDER BY value DESC, f.name ASC`,
     ).all(p.club, p.position) as TenableAnswer[];
   },
