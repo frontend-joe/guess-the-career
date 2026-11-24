@@ -8,11 +8,20 @@
 //
 // Rounds ask the broad question — a room shouts Arsenal goalkeepers, not
 // Arsenal sweepers — so every spelling lands in one of four buckets, and a
-// player belongs to as many as their positions say. That is the point: the
-// FULL position list decides, not the first entry. Dennis Bergkamp is a
-// forward on a board of forwards and an attacking midfielder on a board of
-// midfielders, because he was both, and a round that only read the first
-// word would leave him off one of them.
+// player belongs to as many as their position says. That is the point: the
+// WHOLE field decides, not the first word of it. Dennis Bergkamp is
+// "Forward, attacking midfielder", so he is on the forwards board and on the
+// midfielders board, because he was both.
+//
+// The `all_positions` column is deliberately not read, though it is the
+// richer one. It lists every position a player ever occupied, including the
+// afternoon they went in goal: it has Ronaldo, Scholes, Drogba, Puyol and
+// Neymar down as goalkeepers, and it put Piqué, Figo, Eto'o, Romário and
+// Ibrahimović on Barcelona's midfielders board. Only two players on file
+// have no `position` at all and neither has an `all_positions` either, so it
+// adds nothing except names that make the board look wrong when it is
+// revealed. A board that misses a versatile player's second job is a smaller
+// failure than one that claims Ronaldo kept goal.
 
 export type PositionBucket = 'goalkeeper' | 'defender' | 'midfielder' | 'forward'
 
@@ -81,53 +90,26 @@ const BUCKET_OF: Record<string, PositionBucket> = {
 /**
  * The buckets a player belongs to, from whatever their row says.
  *
- * `custom_position` wins outright when it is set: somebody looked at that
- * player and corrected the scrape, and folding the old answer back in would
- * undo the correction. Otherwise the two scraped fields are UNIONED rather
- * than ranked. Neither contains the other — `all_positions` is richer on
- * 1,700 players and missing entirely on 1,534, while `position` carries a
- * token `all_positions` lacks on 428 of them, Matthäus's sweeper among them.
- *
- * Returned in pitch order rather than the order they were written, so the
- * value is the same for two players whose infoboxes disagree about where to
- * start.
+ * `custom_position` wins when it is set: somebody looked at that player and
+ * corrected the scrape.
  */
 export function positionBuckets(
   customPosition: string | null,
-  allPositions: string | null,
   position: string | null,
 ): PositionBucket[] {
-  // The primary field. `all_positions` is the richer scrape and also the
-  // less trustworthy one — see the goalkeeper rule below.
-  const primary = customPosition?.trim() ? customPosition : position
-  const source = customPosition?.trim() ? [customPosition] : [allPositions, position]
-
-  const read = (field: string | null) => {
-    const found = new Set<PositionBucket>()
-    for (const raw of (field ?? '').split(/[,/]/)) {
-      const bucket = BUCKET_OF[raw.trim().toLowerCase()]
-      if (bucket) found.add(bucket)
-    }
-    return found
-  }
-
-  // Keeping goal is the one job that is exclusive, and `all_positions` does
-  // not know it. It has Ronaldo, Scholes, Drogba, Puyol and Neymar down as
-  // goalkeepers — sixteen outfielders in all, picked up from somewhere on a
-  // long article — and in the other direction it gives Seaman and Neuer
-  // "Centre-back" and Buffon "Winger", so thirty-three keepers would have
-  // turned up on defender and forward boards.
-  //
-  // Both are the same mistake and one rule settles both: whether somebody
-  // kept goal is read from the primary field alone, and if they did, that is
-  // the whole of what they were. No player on file has a goalkeeping
-  // all_positions and a blank primary, so nothing real is lost by insisting.
-  const keeper = read(primary).has('goalkeeper')
-  if (keeper) return ['goalkeeper']
-
+  const field = customPosition?.trim() ? customPosition : position
   const found = new Set<PositionBucket>()
-  for (const field of source) for (const b of read(field)) found.add(b)
-  found.delete('goalkeeper')
+  for (const raw of (field ?? '').split(/[,/]/)) {
+    const bucket = BUCKET_OF[raw.trim().toLowerCase()]
+    if (bucket) found.add(bucket)
+  }
+  // Keeping goal is the one job that is exclusive. No row mixes it with an
+  // outfield position today, so this changes nothing — it is here because
+  // `all_positions` is full of exactly that mistake, which is what this
+  // whole module exists to keep off the board, and the day a rescrape writes
+  // "Goalkeeper, Centre-back" into `position` is not the day to find out
+  // that Seaman is eligible at centre-half.
+  if (found.has('goalkeeper')) return ['goalkeeper']
   return POSITION_BUCKETS.map((b) => b.bucket).filter((b) => found.has(b))
 }
 
@@ -141,9 +123,8 @@ export function positionBuckets(
  */
 export function positionBucketKey(
   customPosition: string | null,
-  allPositions: string | null,
   position: string | null,
 ): string {
-  const buckets = positionBuckets(customPosition, allPositions, position)
+  const buckets = positionBuckets(customPosition, position)
   return buckets.length ? `|${buckets.join('|')}|` : ''
 }
