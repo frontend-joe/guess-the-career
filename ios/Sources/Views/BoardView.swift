@@ -276,7 +276,7 @@ private struct ClueSheet: View {
     private static let fields: [(String, String)] = [
         ("fee", "Fee"), ("fromClub", "From"), ("toClub", "To"),
         ("nationality", "Nationality"), ("position", "Position"), ("years", "Years"),
-        ("club", "Club"), ("squadNumber", "Shirt"), ("born", "Born"),
+        ("club", "Club"), ("squadNumber", "Shirt"), ("age", "Age"),
     ]
 
     private var rows: [(String, String)] {
@@ -374,6 +374,9 @@ private struct PyramidRow: View {
 
     /// 0 at rest, 1 at the top of this row's part of the wave.
     @State private var lift: CGFloat = 0
+    /// Shrinks the pill while the host holds it, so the half-second before a
+    /// clue appears is not spent wondering whether the hold registered.
+    @State private var holdingClue = false
 
     /// Whether this row offers a clue at all.
     ///
@@ -417,31 +420,53 @@ private struct PyramidRow: View {
         }
     }
 
-    /// Solid once the clue is up, outlined while it is still the host's to
-    /// spend — so a host glancing down the board can see what they have
-    /// already given away without opening anything.
+    /// Solid once the clue is up, faint while it is still the host's to spend
+    /// — so a host glancing down the board can see what they have already
+    /// given away without opening anything.
+    ///
+    /// Spending one is a hold; opening one already spent is a tap. The two
+    /// are not the same act and must not cost the same: a clue is given to
+    /// the whole room and cannot be taken back, and the host's thumb passes
+    /// over ten of these looking for the row they want. Reopening is free, so
+    /// it stays a tap.
     private var clueButton: some View {
-        Button {
-            // A clue arriving is a commit, so it earns a haptic — fired on
-            // the same event that opens it, not before or after.
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            onClue()
-        } label: {
-            Text("Clue")
-                .font(.display(11))
-                .foregroundStyle(hasClue ? BoardStyle.violet.bottom : .white)
-                .padding(.horizontal, 11)
-                // Nearly the height of the row it sits in. A short pill on a
-                // tall row reads as a label printed on the capsule rather
-                // than something to press.
-                .frame(height: 30)
-                .background {
-                    Capsule()
-                        .fill(hasClue ? AnyShapeStyle(.white.opacity(0.92)) : AnyShapeStyle(.black.opacity(0.28)))
+        Text(hasClue ? "Clue" : "Hold")
+            .font(.display(11))
+            .foregroundStyle(hasClue ? BoardStyle.violet.bottom : .white)
+            .padding(.horizontal, 11)
+            // Nearly the height of the row it sits in. A short pill on a
+            // tall row reads as a label printed on the capsule rather
+            // than something to press.
+            .frame(height: 30)
+            .background {
+                Capsule()
+                    .fill(hasClue ? AnyShapeStyle(.white.opacity(0.92)) : AnyShapeStyle(.black.opacity(0.28)))
+            }
+            .scaleEffect(holdingClue ? 0.94 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 1.0), value: holdingClue)
+            .contentShape(Capsule())
+            .onTapGesture {
+                // Nothing to open yet. Said with a bump rather than silence,
+                // because a button that ignores a tap and a button that is
+                // broken look identical.
+                guard hasClue else {
+                    UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                    return
                 }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(hasClue ? "Open the clue for \(rank)" : "Take a clue for \(rank)")
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                onClue()
+            }
+            .onLongPressGesture(minimumDuration: 0.45) {
+                guard !hasClue else { return }
+                // A clue arriving is a commit, so it earns a heavier haptic
+                // — fired on the same event that opens it.
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                onClue()
+            } onPressingChanged: { holding in
+                holdingClue = holding && !hasClue
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(hasClue ? "Open the clue for \(rank)" : "Hold to take a clue for \(rank)")
     }
 
     private var capsule: some View {

@@ -117,7 +117,7 @@ test('a move clue describes the move, not the career', () => {
   // true of the player and no help with the question.
   assert.equal(c.club, null)
   assert.equal(c.squadNumber, null)
-  assert.equal(c.born, null)
+  assert.equal(c.age, null)
 })
 
 test('a round that is not about a move has no move clues', () => {

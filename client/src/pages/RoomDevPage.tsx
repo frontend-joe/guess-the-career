@@ -74,7 +74,7 @@ function clueLines(
     ['years', 'Years'],
     ['club', 'Club'],
     ['squadNumber', 'Shirt'],
-    ['born', 'Born'],
+    ['age', 'Age'],
   ]
   const lines = fields
     .filter(([key]) => !impliedClues.includes(key) && clue[key] != null && clue[key] !== '')

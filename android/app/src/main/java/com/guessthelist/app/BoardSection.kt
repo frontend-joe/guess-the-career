@@ -6,8 +6,10 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -232,7 +234,7 @@ private fun ClueDialog(
     val fields = listOf(
         "fee" to "Fee", "fromClub" to "From", "toClub" to "To",
         "nationality" to "Nationality", "position" to "Position", "years" to "Years",
-        "club" to "Club", "squadNumber" to "Shirt", "born" to "Born",
+        "club" to "Club", "squadNumber" to "Shirt", "age" to "Age",
     )
     // A clue that restates the question is not a clue: if the round is
     // "Italian forwards", nationality and position are already known.
@@ -421,12 +423,7 @@ private fun PyramidRow(
                 ClueButton(
                     taken = hasClue,
                     rank = rank,
-                    onClick = {
-                        // Causality: fired on the event that opens the clue,
-                        // not on the touch that requested it.
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onClue()
-                    },
+                    onClue = onClue,
                     modifier = Modifier.padding(end = 8.dp),
                 )
             }
@@ -434,29 +431,66 @@ private fun PyramidRow(
     }
 }
 
-/** Solid once the clue is up, outlined while it is still the host's to spend
- *  — so a host glancing down the board can see what they have already given
- *  away without opening anything. */
+/** Solid once the clue is up, faint while it is still the host's to spend —
+ *  so a host glancing down the board can see what they have already given
+ *  away without opening anything.
+ *
+ *  Spending one is a hold; opening one already spent is a tap. The two are
+ *  not the same act and must not cost the same: a clue is given to the whole
+ *  room and cannot be taken back, and the host's thumb passes over ten of
+ *  these looking for the row they want. Reopening is free, so it stays a tap. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ClueButton(taken: Boolean, rank: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ClueButton(taken: Boolean, rank: Int, onClue: () -> Unit, modifier: Modifier = Modifier) {
+    val haptics = LocalHapticFeedback.current
+    val interaction = remember { MutableInteractionSource() }
+    val holding by interaction.collectIsPressedAsState()
+    // Shrinks while the host holds it, so the half-second before a clue
+    // appears is not spent wondering whether the hold registered.
+    val scale by animateFloatAsState(
+        targetValue = if (holding && !taken) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "cluePress",
+    )
     Box(
         modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             // Nearly the height of the row it sits in. A short pill on a tall
             // row reads as a label printed on the capsule rather than
             // something to press.
             .height(30.dp)
             .clip(CircleShape)
             .background(if (taken) Color.White.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.28f))
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onLongClick = {
+                    if (!taken) {
+                        // Causality: fired on the event that opens the clue,
+                        // not on the touch that requested it.
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onClue()
+                    }
+                },
+                onClick = {
+                    // Nothing to open yet. Said with a bump rather than
+                    // silence, because a button that ignores a tap and a
+                    // button that is broken look identical.
+                    haptics.performHapticFeedback(
+                        if (taken) HapticFeedbackType.TextHandleMove else HapticFeedbackType.LongPress,
+                    )
+                    if (taken) onClue()
+                },
+            )
             .padding(horizontal = 11.dp)
             .semantics {
                 contentDescription =
-                    if (taken) "Open the clue for $rank" else "Take a clue for $rank"
+                    if (taken) "Open the clue for $rank" else "Hold to take a clue for $rank"
             },
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            "Clue",
+            if (taken) "Clue" else "Hold",
             fontSize = 11.sp,
             fontFamily = AppFonts.Display,
             color = if (taken) VioletBottom else Color.White,

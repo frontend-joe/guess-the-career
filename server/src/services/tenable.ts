@@ -1713,7 +1713,23 @@ export interface TenableClue {
   club: string | null;
   clubWikiUrl: string | null;
   squadNumber: number | null;
-  born: string | null;
+  /**
+   * How old they are, not the date they were born.
+   *
+   * The date was the clue for a while and it is the wrong unit: a room gets
+   * "1989-02-26" and does the subtraction out loud, which is arithmetic
+   * homework in the middle of a party game. The number they were going to
+   * work out is the clue.
+   *
+   * Computed when the clue is built rather than when it is read, so a round
+   * frozen today still says 36 when the recording is watched in five years.
+   * Everything else in a clue is a snapshot; this is too.
+   *
+   * It is an age for somebody still alive. Nothing on file records a death,
+   * so a player who has died reads as the age they would have been — the
+   * birth date had the same gap, one subtraction further away.
+   */
+  age: number | null;
   // Transfer rounds only. The career fields above describe the player; these
   // describe the MOVE, which is what the question is actually about.
   fromClub?: string | null;
@@ -1770,7 +1786,7 @@ export function transferCluesForWindow(windowId: number): Map<string, TenableClu
       club: null,
       clubWikiUrl: null,
       squadNumber: null,
-      born: null,
+      age: null,
       fromClub: r.from_club,
       toClub: r.to_club,
       // The written fee where there is one ("£25m"), since it is the number
@@ -1814,7 +1830,7 @@ export function recordTransferClues(
       club: null,
       clubWikiUrl: null,
       squadNumber: null,
-      born: null,
+      age: null,
       // Only the FAR end of the move is a clue. The near end is the club in
       // the question: naming Arsenal on "Arsenal's record signings" tells
       // nobody anything, and both tables keep the far end in from_club.
@@ -1874,6 +1890,24 @@ export function surnamesForFootballers(ids: number[]): Map<number, string> {
   return new Map(rows.map((r) => [r.id, r.surname]))
 }
 
+/**
+ * Whole years between a birth date and today, counted the way a person counts
+ * them: your birthday has to have been and gone.
+ *
+ * Not days divided by 365.25, which is a year out for anybody in the week
+ * either side of their birthday — and a clue that is a year wrong is worse
+ * than no clue, because it is believed.
+ */
+function ageOn(born: string | null, today = new Date()): number | null {
+  const m = born?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const [y, mo, d] = m.slice(1).map(Number);
+  let age = today.getFullYear() - y;
+  // getMonth is 0-based; the stored month is not.
+  if (today.getMonth() + 1 < mo || (today.getMonth() + 1 === mo && today.getDate() < d)) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+}
+
 export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {
   const clues = new Map<number, TenableClue>();
   if (!ids.length) return clues;
@@ -1930,7 +1964,7 @@ export function cluesForFootballers(ids: number[]): Map<number, TenableClue> {
       club,
       clubWikiUrl: crest?.wikipedia_url ?? null,
       squadNumber: num?.n ?? null,
-      born: m.born,
+      age: ageOn(m.born),
     });
   }
   return clues;
