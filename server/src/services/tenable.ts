@@ -397,6 +397,38 @@ const CAREER_TOTAL_ANY = `
   GROUP BY cs.footballer_id
 `;
 
+// A club somebody was only ever a boy at.
+//
+// Wikipedia's career-statistics table sometimes carries a line for an
+// academy season — David Seaman has "Leeds United 1981–82", nil in the
+// league and a single appearance under Other — and that line was enough to
+// make him one of Leeds United's goalkeepers. Nobody in a room would say he
+// played for Leeds, and his own infobox agrees: Leeds is his YOUTH career
+// and his senior career starts at Peterborough.
+//
+// Appearances cannot separate the two cases. Ali Al-Habsi signed for West
+// Bromwich Albion as a senior keeper and never got on, nought everywhere,
+// and he belongs on that board. What separates them is what the club was TO
+// the player, which is exactly what the infobox's two sections say.
+//
+// Only youth-and-never-senior counts. A club that appears in both — came
+// through the academy and then played — is a club they played for, and the
+// row stays. Matching is by club_key on each side, because the statistics
+// table and the infobox spell the same club differently often enough
+// ("Verona" against "Hellas Verona") that anything stricter would throw out
+// real spells.
+const YOUTH_ONLY_CLUB = `
+  SELECT y.footballer_id AS fid, club_key(y.club) AS k
+  FROM career_stints y
+  WHERE y.stint_type = 'youth'
+    AND NOT EXISTS (
+      SELECT 1 FROM career_stints sr
+      WHERE sr.footballer_id = y.footballer_id
+        AND sr.stint_type = 'senior'
+        AND club_key(REPLACE(REPLACE(sr.club, '→ ', ''), ' (loan)', '')) = club_key(y.club)
+    )
+`;
+
 const PLAYER_CLUB = `
   SELECT fid, club, SUM(apps) AS apps, SUM(goals) AS goals FROM (
     -- All competitions, not just the league: "most goals for Real Madrid"
@@ -410,9 +442,12 @@ const PLAYER_CLUB = `
            SUM(COALESCE(cs.total_goals, cs.league_goals, 0)) AS goals
     FROM career_statistics cs
     ${CS_CLUB_JOINS}
+    LEFT JOIN (${YOUTH_ONLY_CLUB}) yo
+      ON yo.fid = cs.footballer_id AND yo.k = club_key(${CS_CLUB})
     WHERE cs.club IS NOT NULL
       AND ${NOT_RESERVE(CS_CLUB)}
       AND ${CS_CLUB} IN (${ALLOWED_CLUBS})
+      AND yo.k IS NULL
     GROUP BY cs.footballer_id, ${CS_CLUB}
     UNION ALL
     SELECT sc.fid, sc.club, sc.apps, sc.goals
