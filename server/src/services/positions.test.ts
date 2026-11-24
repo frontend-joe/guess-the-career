@@ -55,12 +55,12 @@ test('pitch order, not the order the infobox happened to use', () => {
   // Two players whose infoboxes disagree about where to start must still
   // produce the same key, or the LIKE in the round SQL is matching noise.
   assert.equal(
-    positionBucketKey(null, 'Forward, Goalkeeper, Midfielder, Defender', null),
-    positionBucketKey(null, 'Defender, Midfielder, Forward, Goalkeeper', null),
+    positionBucketKey(null, 'Forward, Midfielder, Defender', null),
+    positionBucketKey(null, 'Defender, Midfielder, Forward', null),
   )
   assert.equal(
-    positionBucketKey(null, 'Striker, Goalkeeper', null),
-    '|goalkeeper|forward|',
+    positionBucketKey(null, 'Striker, Centre-back', null),
+    '|defender|forward|',
   )
 })
 
@@ -79,4 +79,45 @@ test('the key is delimited so one bucket cannot match inside another', () => {
   // because of the words chosen is a trap for whoever adds the fifth.
   assert.equal(positionBucketKey(null, null, 'Goalkeeper'), '|goalkeeper|')
   assert.ok(positionBucketKey(null, null, 'Goalkeeper').includes('|goalkeeper|'))
+})
+
+// Keeping goal is the one job that is exclusive, and all_positions does not
+// know it — in either direction.
+test('an outfielder all_positions calls a goalkeeper is not one', () => {
+  // Ronaldo, Scholes, Drogba, Puyol, Neymar: sixteen of them, picked up from
+  // somewhere on a long article. The primary field was right every time.
+  // The midfielder is all_positions being generous about Ronaldo, which is
+  // its habit and harmless here: a longer pool on a name-any-10 board means
+  // more answers accepted, not more wrong ones demanded. The goalkeeper is
+  // the one that had to go.
+  assert.deepEqual(
+    buckets(null, 'Goalkeeper, Winger, Striker, Forward, Midfielder', 'Striker'),
+    ['midfielder', 'forward'],
+  )
+  assert.deepEqual(
+    buckets(null, 'Goalkeeper, Striker, Forward, Midfielder', 'Midfielder, centre-forward'),
+    ['midfielder', 'forward'],
+  )
+})
+
+test('a goalkeeper is only a goalkeeper', () => {
+  // The other direction, and the same mistake: all_positions gives Seaman
+  // and Neuer "Centre-back" and Buffon "Winger", which would have put
+  // thirty-three keepers on defender and forward boards.
+  assert.deepEqual(buckets(null, 'Goalkeeper, Centre-back', 'Goalkeeper'), ['goalkeeper'])
+  assert.deepEqual(buckets(null, 'Goalkeeper, Centre-back, Winger', 'Goalkeeper'), ['goalkeeper'])
+  // Even when all_positions forgets the goalkeeping entirely — Taffarel is
+  // down as a forward there.
+  assert.deepEqual(buckets(null, 'Forward', 'Goalkeeper'), ['goalkeeper'])
+})
+
+test('Petr Cech keeps goal despite his other sport', () => {
+  // His infobox says Goaltender because he also plays ice hockey. Mapped
+  // rather than corrected in his row, because the next scrape would put it
+  // back.
+  assert.deepEqual(buckets(null, 'Goalkeeper, Centre-back, Striker', 'Goaltender'), ['goalkeeper'])
+})
+
+test('a hand-corrected goalkeeper still wins outright', () => {
+  assert.deepEqual(buckets('Goalkeeper', 'Striker, Forward', 'Striker'), ['goalkeeper'])
 })

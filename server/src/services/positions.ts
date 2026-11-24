@@ -29,6 +29,10 @@ export const POSITION_BUCKETS: { bucket: PositionBucket; plural: string }[] = [
 // them eligible for a board rather than visible as the errors they are.
 const BUCKET_OF: Record<string, PositionBucket> = {
   goalkeeper: 'goalkeeper',
+  // One player, Petr Čech, whose infobox says this because he also plays ice
+  // hockey. Left in the map rather than fixed in his row because the next
+  // scrape would put it back.
+  goaltender: 'goalkeeper',
 
   defender: 'defender',
   'centre-back': 'defender',
@@ -93,16 +97,37 @@ export function positionBuckets(
   allPositions: string | null,
   position: string | null,
 ): PositionBucket[] {
-  const source = customPosition?.trim()
-    ? [customPosition]
-    : [allPositions, position]
-  const found = new Set<PositionBucket>()
-  for (const field of source) {
+  // The primary field. `all_positions` is the richer scrape and also the
+  // less trustworthy one — see the goalkeeper rule below.
+  const primary = customPosition?.trim() ? customPosition : position
+  const source = customPosition?.trim() ? [customPosition] : [allPositions, position]
+
+  const read = (field: string | null) => {
+    const found = new Set<PositionBucket>()
     for (const raw of (field ?? '').split(/[,/]/)) {
       const bucket = BUCKET_OF[raw.trim().toLowerCase()]
       if (bucket) found.add(bucket)
     }
+    return found
   }
+
+  // Keeping goal is the one job that is exclusive, and `all_positions` does
+  // not know it. It has Ronaldo, Scholes, Drogba, Puyol and Neymar down as
+  // goalkeepers — sixteen outfielders in all, picked up from somewhere on a
+  // long article — and in the other direction it gives Seaman and Neuer
+  // "Centre-back" and Buffon "Winger", so thirty-three keepers would have
+  // turned up on defender and forward boards.
+  //
+  // Both are the same mistake and one rule settles both: whether somebody
+  // kept goal is read from the primary field alone, and if they did, that is
+  // the whole of what they were. No player on file has a goalkeeping
+  // all_positions and a blank primary, so nothing real is lost by insisting.
+  const keeper = read(primary).has('goalkeeper')
+  if (keeper) return ['goalkeeper']
+
+  const found = new Set<PositionBucket>()
+  for (const field of source) for (const b of read(field)) found.add(b)
+  found.delete('goalkeeper')
   return POSITION_BUCKETS.map((b) => b.bucket).filter((b) => found.has(b))
 }
 
