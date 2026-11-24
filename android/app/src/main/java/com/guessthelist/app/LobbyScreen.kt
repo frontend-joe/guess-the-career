@@ -120,7 +120,7 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
             onClick = {
                 run {
                     val name = displayName.trim()
-                    val joined = Api.joinRoom(code.trim(), name, Push.token(context))
+                    val joined = Api.joinRoom(code.trim(), name, Push.token(context), Push.secret(context))
                     Push.adoptSecret(context, joined.deviceSecret)
                     Push.noteDisplayName(context, name)
                     model.enter(joined)
@@ -206,7 +206,7 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
                         // The push token goes out WITH the create, so the
                         // server knows which phone the host is on before it
                         // sends the invite that must skip it.
-                        val joined = Api.createRoom(token, Push.token(context), video)
+                        val joined = Api.createRoom(token, Push.token(context), video, Push.secret(context))
                         Push.adoptSecret(context, joined.deviceSecret)
                         model.enter(joined)
                     }

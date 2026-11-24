@@ -114,6 +114,7 @@ object Api {
         accessToken: String,
         pushToken: String? = null,
         video: Boolean = true,
+        deviceSecret: String? = null,
     ): JoinedRoom =
         // An empty object, not {"name": null} — see the commit that taught the
         // server to accept both after iOS sent the null.
@@ -130,6 +131,10 @@ object Api {
                 // and a server that defaults it would turn "no video" into a
                 // video call on a dropped field.
                 put("video", video)
+                // What this phone was called last time. A push token changes
+                // on a reinstall and this does not, so it is the thing that
+                // says the host is on the same handset as yesterday.
+                if (deviceSecret != null) put("deviceSecret", deviceSecret)
             },
             accessToken,
         )
@@ -138,11 +143,16 @@ object Api {
         code: String,
         displayName: String,
         pushToken: String? = null,
+        deviceSecret: String? = null,
     ): JoinedRoom = post(
         "api/rooms/$code/join",
         buildJsonObject {
             put("displayName", displayName); put("platform", "android")
             if (pushToken != null) put("pushToken", pushToken)
+            // What this phone was called last time, so a token that has
+            // changed underneath us does not cost the player their seat.
+            // See the server's registerDevice.
+            if (deviceSecret != null) put("deviceSecret", deviceSecret)
         },
     )
 

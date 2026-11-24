@@ -69,7 +69,43 @@ export function registerDevice(input: {
   token: string
   displayName?: string | null
   userId?: number | null
+  /**
+   * The secret this phone was handed the first time it registered, if it
+   * still has it.
+   *
+   * A push token is not a handset. Apple issues a different one for the
+   * sandbox and the production gateway, so the same phone moving from a
+   * development build to TestFlight arrives with a token nothing has ever
+   * seen — and Google reissues on a reinstall. Identified by token alone
+   * that is a new phone, so it got a new device row, and because
+   * game_participants.device_id is how a guest is recognised coming back,
+   * it got a new seat as well. The room grew a second card for everybody on
+   * the day they all updated.
+   *
+   * The secret is the handset. It is issued once, kept by the app, and
+   * changes for nothing — so when it is offered, it wins.
+   */
+  knownSecret?: string | null
 }): PushDeviceRow {
+  // The same phone with a new token. Move the token onto the row we already
+  // have rather than starting a second one.
+  const known = input.knownSecret ? deviceBySecret(input.knownSecret) : null
+  if (known) {
+    if (known.token !== input.token) mergeTokenOnto(known.id, input.token)
+    sqlite
+      .prepare(
+        `UPDATE push_devices
+         SET platform = ?, token = ?,
+             display_name = COALESCE(?, display_name),
+             user_id = COALESCE(?, user_id),
+             disabled_at = NULL,
+             updated_at = datetime('now')
+         WHERE id = ?`,
+      )
+      .run(input.platform, input.token, input.displayName ?? null, input.userId ?? null, known.id)
+    return sqlite.prepare('SELECT * FROM push_devices WHERE id = ?').get(known.id) as PushDeviceRow
+  }
+
   const existing = sqlite
     .prepare('SELECT * FROM push_devices WHERE token = ?')
     .get(input.token) as PushDeviceRow | undefined
@@ -130,18 +166,41 @@ export function rotateToken(secret: string, token: string, displayName?: string 
     }
     return deviceBySecret(secret)
   }
-  sqlite.transaction(() => {
-    sqlite.prepare('DELETE FROM push_devices WHERE token = ? AND id != ?').run(token, device.id)
-    sqlite
-      .prepare(
-        `UPDATE push_devices
-         SET token = ?, display_name = COALESCE(?, display_name),
-             disabled_at = NULL, updated_at = datetime('now')
-         WHERE id = ?`,
-      )
-      .run(token, displayName ?? null, device.id)
-  })()
+  mergeTokenOnto(device.id, token)
+  sqlite
+    .prepare(
+      `UPDATE push_devices
+       SET token = ?, display_name = COALESCE(?, display_name),
+           disabled_at = NULL, updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+    .run(token, displayName ?? null, device.id)
   return deviceBySecret(secret)
+}
+
+/**
+ * Clear a token off any other row so it can move onto `keepId`, taking that
+ * row's seats with it.
+ *
+ * The seats are the part that was missing. game_participants.device_id is
+ * declared ON DELETE SET NULL, so deleting the duplicate row quietly cut its
+ * seats loose: a card in the room belonging to a phone the server could no
+ * longer put a name to, which nothing would ever match again and which
+ * therefore could not be rejoined into — the next join took a third seat.
+ * Carrying them over means the merge makes the room smaller, not larger.
+ */
+function mergeTokenOnto(keepId: number, token: string): void {
+  sqlite.transaction(() => {
+    const doomed = sqlite
+      .prepare('SELECT id FROM push_devices WHERE token = ? AND id != ?')
+      .all(token, keepId) as { id: number }[]
+    for (const d of doomed) {
+      sqlite
+        .prepare('UPDATE game_participants SET device_id = ? WHERE device_id = ?')
+        .run(keepId, d.id)
+      sqlite.prepare('DELETE FROM push_devices WHERE id = ?').run(d.id)
+    }
+  })()
 }
 
 export function setMuted(secret: string, muted: boolean): PushDeviceRow | null {

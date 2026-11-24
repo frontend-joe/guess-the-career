@@ -146,7 +146,7 @@ struct LobbyView: View {
         // phone the host is on before it sends the invite that must skip it.
         let joined = try await API.createRoom(
             accessToken: token, name: nil, pushToken: PushStore.shared.tokenForJoin,
-            video: video
+            video: video, deviceSecret: PushStore.shared.secret
         )
         PushStore.shared.adopt(secret: joined.deviceSecret)
         store.enter(joined)
@@ -156,7 +156,7 @@ struct LobbyView: View {
         let name = displayName.trimmed
         let joined = try await API.joinRoom(
             code: code.trimmed.uppercased(), displayName: name,
-            pushToken: PushStore.shared.tokenForJoin
+            pushToken: PushStore.shared.tokenForJoin, deviceSecret: PushStore.shared.secret
         )
         PushStore.shared.adopt(secret: joined.deviceSecret)
         PushStore.shared.noteDisplayName(name)

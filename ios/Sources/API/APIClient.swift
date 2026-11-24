@@ -127,6 +127,7 @@ enum API {
         let pushToken: String?
         let pushPlatform: String?
         let video: Bool
+        let deviceSecret: String?
 
         func encode(to encoder: Encoder) throws {
             var c = encoder.container(keyedBy: CodingKeys.self)
@@ -134,13 +135,15 @@ enum API {
             try c.encodeIfPresent(pushToken, forKey: .pushToken)
             try c.encodeIfPresent(pushPlatform, forKey: .pushPlatform)
             try c.encode(video, forKey: .video)
+            try c.encodeIfPresent(deviceSecret, forKey: .deviceSecret)
         }
 
-        enum CodingKeys: String, CodingKey { case name, pushToken, pushPlatform, video }
+        enum CodingKeys: String, CodingKey { case name, pushToken, pushPlatform, video, deviceSecret }
     }
 
     static func createRoom(
-        accessToken: String, name: String?, pushToken: String? = nil, video: Bool = true
+        accessToken: String, name: String?, pushToken: String? = nil, video: Bool = true,
+        deviceSecret: String? = nil
     ) async throws -> JoinedRoom {
         // Omit a key rather than sending null. Swift's synthesised encoder
         // writes an explicit null for a nil Optional, which is a different
@@ -156,16 +159,25 @@ enum API {
             // every time you start a game.
             pushToken: pushToken,
             pushPlatform: pushToken == nil ? nil : "ios",
-            video: video
+            video: video,
+            // What this phone was called last time. A push token changes —
+            // sandbox and production issue different ones, so a move to
+            // TestFlight looks like a new handset — and this does not.
+            deviceSecret: deviceSecret
         )
         return try await post("api/rooms", body: body, bearer: accessToken)
     }
 
     static func joinRoom(
-        code: String, displayName: String, pushToken: String? = nil
+        code: String, displayName: String, pushToken: String? = nil,
+        deviceSecret: String? = nil
     ) async throws -> JoinedRoom {
         var body = ["displayName": displayName, "platform": "ios"]
         if let pushToken { body["pushToken"] = pushToken }
+        // What this phone was called last time, so a token that has changed
+        // underneath us does not cost the player their seat. See the server's
+        // registerDevice.
+        if let deviceSecret { body["deviceSecret"] = deviceSecret }
         return try await post("api/rooms/\(code)/join", body: body)
     }
 

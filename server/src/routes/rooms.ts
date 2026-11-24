@@ -154,11 +154,15 @@ roomsRouter.post(
     // means yes, so a client on an older build creates exactly the room it
     // always did.
     video: z.boolean().nullish(),
+    // What this phone was called last time. See registerDevice: a push token
+    // changes and this does not, so it is the thing that says the host is on
+    // the same handset as yesterday.
+    deviceSecret: z.string().trim().min(1).max(128).nullish(),
   })),
   async (c) => {
     const user = await getCurrentUser(c)
     if (!user) return c.json({ error: 'Unauthorized' }, 401)
-    const { name, pushToken, pushPlatform, video } = c.req.valid('json')
+    const { name, pushToken, pushPlatform, video, deviceSecret: knownSecret } = c.req.valid('json')
     const hostName = user.display_name ?? user.email.split('@')[0]
     const room = createRoom({ id: user.id, displayName: hostName }, name ?? undefined, video ?? true)
     const host = participantsOf(room.id)[0]
@@ -170,6 +174,7 @@ roomsRouter.post(
         token: pushToken,
         displayName: hostName,
         userId: user.id,
+        knownSecret,
       })
       deviceSecret = device.secret
       // Logged like the ones through /api/push/devices, because this is a
@@ -216,9 +221,14 @@ roomsRouter.post(
     // uses; this is the shortcut for the common case where it has one
     // already, and it saves a round trip on first run.
     pushToken: z.string().trim().min(1).max(512).nullish(),
+    // What this phone was called last time. The push token is not a handset
+    // — Apple issues a different one for sandbox and production, so the same
+    // phone moving to a TestFlight build looks brand new — and a brand new
+    // phone is given a brand new seat. See registerDevice.
+    deviceSecret: z.string().trim().min(1).max(128).nullish(),
   })),
   async (c) => {
-    const { displayName, platform, pushToken } = c.req.valid('json')
+    const { displayName, platform, pushToken, deviceSecret: knownSecret } = c.req.valid('json')
     const user = await getCurrentUser(c)
     try {
       // Before the join, not after it as this used to be. The device row is
@@ -236,6 +246,7 @@ roomsRouter.post(
           // keep a HOST off their own invite, and a signed-in player joining
           // somebody else's game should still be told about new ones.
           userId: null,
+          knownSecret,
         })
         recordRegistrationAttempt({
           platform,
