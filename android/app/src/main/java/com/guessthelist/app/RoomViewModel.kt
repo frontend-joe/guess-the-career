@@ -714,15 +714,21 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * The last answer the list turned down, kept so the host can overrule it.
      *
-     * Only on an unordered round, and only for the host — nobody else has a
-     * decision to make, and a ranked round has no slot to invent. Cleared the
-     * moment it is used or the round moves on, so the button can never be
-     * about a guess from two questions ago.
+     * Only for the host — nobody else has a decision to make — and only on an
+     * unordered round of an AUTHORED category. A ranked round has no slot to
+     * invent, and a football round has an authority: a miss on one is already
+     * queued for a Wikipedia lookup that puts the player on the board if they
+     * belong. Offering a vote next to that would let the host wave through a
+     * wrong answer to a question with a right one.
+     *
+     * Cleared the moment it is used or the round moves on, so the button can
+     * never be about a guess from two questions ago.
      */
     var rejectedGuess by mutableStateOf<String?>(null); private set
 
     private fun noteRejected(result: GuessResult, raw: String) {
-        if (isHost && round?.board?.ordered == false && result.verdict == "miss") {
+        val board = round?.board ?: return
+        if (isHost && !board.ordered && board.category != "football" && result.verdict == "miss") {
             rejectedGuess = raw
         }
     }

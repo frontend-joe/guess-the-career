@@ -152,3 +152,23 @@ test('the initials follow their player down a reshuffled board', () => {
   // Not left sitting on the slot, describing whoever moved into it.
   assert.equal(hints.find((h) => h.rank === 6)?.initials ?? null, null)
 })
+
+test('a football round is settled by the database, not by a vote', () => {
+  // The override exists for rounds with no authority to appeal to — there is
+  // no fact of the matter about excuses for being late to work. A football
+  // round has one: a miss on it is already queued for a Wikipedia lookup
+  // that puts the player on the board if they belong, which is how the
+  // ranked rounds have always settled "you've missed one". A vote alongside
+  // that would let the host wave through a wrong answer to a question that
+  // has a right one.
+  //
+  // This round is unordered, which used to be the whole test.
+  const { room, host, inst } = liveRound()
+  sqlite.prepare("UPDATE game_round_instances SET ordered = 0 WHERE id = ?").run(inst.id)
+
+  assert.throws(
+    () => rooms.allowGuess(inst.id, host, 'Somebody Made Up'),
+    /settled by the database/,
+  )
+  void room
+})

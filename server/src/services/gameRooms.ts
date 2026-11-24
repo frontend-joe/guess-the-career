@@ -2146,6 +2146,13 @@ export interface AllowResult {
  * slot. Unordered rounds only: a ranked board's slots mean something, and there
  * is no honest rank to give "the tenth longest river" that isn't one.
  *
+ * And authored rounds only. A football round has an authority — a miss on one
+ * queues the name for a Wikipedia lookup and puts them on the board if they
+ * belong, which is the right way to settle "you've missed one" and the way
+ * the ranked rounds have always settled it. Offering a vote as well would let
+ * the host wave through a wrong answer on a question that has a right one,
+ * and it was only ever on these rounds because they happened to be unordered.
+ *
  * It is a reveal like any other, so the fold and the recording need to know
  * nothing new — but it carries `allowed`, because a board that was judged and a
  * board that was answered are different things, and the difference should
@@ -2165,6 +2172,9 @@ export function allowGuess(
   if (inst.status !== 'live') throw new RoomError(`That round is ${inst.status}`, 409)
   if (inst.ordered) {
     throw new RoomError('A ranked round has no spare slot to put it in', 409)
+  }
+  if (categoryOf(inst.type) === 'football') {
+    throw new RoomError('A football round is settled by the database, not a vote', 409)
   }
 
   const name = raw.trim()
