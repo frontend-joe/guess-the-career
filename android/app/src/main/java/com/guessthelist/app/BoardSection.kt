@@ -1,6 +1,5 @@
 package com.guessthelist.app
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -8,7 +7,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -151,7 +153,7 @@ fun BoardSection(model: RoomViewModel) {
                 // movement rather than a second way of reading it.
                 waveTick = wave,
                 waveDelayMs = ((round.board.target - rank) * 110).toLong(),
-                onLongPress = {
+                onClue = {
                     // The host takes a clue; everyone's screen then opens it.
                     // Anyone may reopen one already taken, after the round has
                     // ended too.
@@ -292,7 +294,6 @@ private fun ClueDialog(
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PyramidRow(
     rank: Int,
@@ -305,7 +306,8 @@ private fun PyramidRow(
     waveTick: Int,
     /** This row's place in the wave, behind the one below it. */
     waveDelayMs: Long,
-    onLongPress: () -> Unit,
+    /** Takes the clue, or reopens one already taken. */
+    onClue: () -> Unit,
     /** Opens the player's career. Only does anything on a row with a name. */
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -330,17 +332,19 @@ private fun PyramidRow(
 
     val interaction = remember { MutableInteractionSource() }
     val holding by interaction.collectIsPressedAsState()
-    val holdable = answer == null && (canHint || hasClue)
-    // Whether the row does anything at all when touched: a blank one you can
-    // hold for a clue, or a found one you can tap for the player. A row that
-    // does nothing must not shrink under the finger and promise that it does.
-    val pressable = holdable || answer != null
-    // Feedback on press-down, not on release: a row you are holding for a clue
-    // has to acknowledge the hold while it is happening, or the second before
-    // the clue appears feels like nothing is working. Critically damped —
-    // nothing was thrown, so nothing should bounce.
+    // Whether this row offers a clue at all.
+    //
+    // The host sees one on every blank slot, because spending it is theirs to
+    // decide. Everybody else sees one only where a clue has already been
+    // taken — a button they cannot press is not information, it is a tease,
+    // and the room finding out which rows the host CONSIDERED is not
+    // something the game should leak.
+    val showsClueButton = answer == null && (canHint || hasClue)
+    // A row that does nothing must not shrink under the finger and promise
+    // that it does. Only a found row is pressable now; a blank one carries a
+    // button instead.
     val scale by animateFloatAsState(
-        targetValue = if (holding && pressable) 0.97f else 1f,
+        targetValue = if (holding && answer != null) 0.97f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "press",
     )
@@ -349,24 +353,18 @@ private fun PyramidRow(
     Box(
         modifier = modifier
             .graphicsLayer {
-                val s = if (holding && pressable) scale else scale * (1f + 0.055f * lift.value)
+                val s = if (holding && answer != null) scale else scale * (1f + 0.055f * lift.value)
                 scaleX = s; scaleY = s
             }
             .clip(CircleShape)
             .background(brush)
-            // Press and hold a blank slot for a clue, exactly as on the web.
-            .combinedClickable(
+            // Tap a row you have found to read that player's career. A blank
+            // row has no gesture: its clue is a button, not a hold.
+            .clickable(
                 interactionSource = interaction,
                 indication = null,
-                onLongClick = {
-                    if (holdable) {
-                        // Causality: fired on the event that opens the clue,
-                        // not on the touch that requested it.
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onLongPress()
-                    }
-                },
-                onClick = { if (answer != null) onClick() },
+                enabled = answer != null,
+                onClick = onClick,
             ),
         contentAlignment = Alignment.Center,
     ) {
@@ -406,9 +404,9 @@ private fun PyramidRow(
                     }
                 }
             }
-            // Just the rank, clue or no clue, so the pyramid reads as the
-            // board and nothing else. Press and hold reopens a clue that has
-            // already been taken.
+            // The rank stays centred on the row rather than being pushed
+            // along by the button, so the column of numbers reads straight
+            // down whether or not a row has a clue on it.
             showsRank -> Text(
                 "$rank",
                 fontSize = 17.sp,
@@ -417,6 +415,54 @@ private fun PyramidRow(
             )
             else -> Unit
         }
+
+        if (showsClueButton) {
+            Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+                ClueButton(
+                    taken = hasClue,
+                    rank = rank,
+                    onClick = {
+                        // Causality: fired on the event that opens the clue,
+                        // not on the touch that requested it.
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onClue()
+                    },
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Solid once the clue is up, outlined while it is still the host's to spend
+ *  — so a host glancing down the board can see what they have already given
+ *  away without opening anything. */
+@Composable
+private fun ClueButton(taken: Boolean, rank: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .heightIn(min = 22.dp)
+            .clip(CircleShape)
+            .background(if (taken) Color.White.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.28f))
+            .border(
+                width = 1.dp,
+                color = if (taken) Color.Transparent else Color.White.copy(alpha = 0.45f),
+                shape = CircleShape,
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 4.dp)
+            .semantics {
+                contentDescription =
+                    if (taken) "Open the clue for $rank" else "Take a clue for $rank"
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "Clue",
+            fontSize = 10.sp,
+            fontFamily = AppFonts.Display,
+            color = if (taken) VioletBottom else Color.White,
+        )
     }
 }
 

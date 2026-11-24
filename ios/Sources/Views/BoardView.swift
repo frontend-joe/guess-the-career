@@ -192,7 +192,7 @@ struct BoardView: View {
             // than a second way of reading it.
             waveTick: wave,
             waveDelay: Double(max(round.board.target, 1) - rank) * 0.11,
-            onLongPress: { longPress(rank: rank, round: round) },
+            onClue: { clue(rank: rank, round: round) },
             onTap: { tap(slot: rank, round: round) }
         )
         .frame(width: width * BoardStyle.widthFraction(rank: rank), height: height)
@@ -223,7 +223,7 @@ struct BoardView: View {
     /// The host takes a clue; everyone's screen then opens it. Anyone may
     /// reopen one already taken, after the round has ended too — it is in the
     /// event log either way.
-    private func longPress(rank: Int, round: RoomRound) {
+    private func clue(rank: Int, round: RoomRound) {
         let existing = round.board.hints.contains { $0.rank == rank }
         let taken = round.board.revealed.contains { $0.rank == rank }
         if existing {
@@ -367,47 +367,39 @@ private struct PyramidRow: View {
     let waveTick: Int
     /// This row's place in the wave, in seconds behind the one below it.
     let waveDelay: Double
-    let onLongPress: () -> Void
+    /// Takes the clue, or reopens one already taken.
+    let onClue: () -> Void
     /// Opens the player's career. Only ever called on a row with a name.
     let onTap: () -> Void
 
-    @State private var pressed = false
     /// 0 at rest, 1 at the top of this row's part of the wave.
     @State private var lift: CGFloat = 0
 
-    /// Whether holding this row does anything. Only ever a blank one: a row
-    /// with a name on it is tapped, not held. A row that does nothing must not
-    /// shrink under the finger and promise that it does.
-    private var isHoldable: Bool { answer == nil && (canHint || hasClue) }
+    /// Whether this row offers a clue at all.
+    ///
+    /// The host sees one on every blank slot, because spending it is theirs
+    /// to decide. Everybody else sees one only where a clue has already been
+    /// taken — a button they cannot press is not information, it is a tease,
+    /// and the room finding out which rows the host CONSIDERED is not
+    /// something the game should leak.
+    private var showsClueButton: Bool { answer == nil && (canHint || hasClue) }
 
     private var colours: (top: Color, bottom: Color) {
         guard let answer else { return BoardStyle.violet }
         return answer.wasMissed ? BoardStyle.missed : BoardStyle.green
     }
 
-    // A row has exactly ONE gesture, chosen by what is on it: a blank row is
-    // held for a clue, a found row is tapped for the player. They are never
-    // both live.
+    // A blank row carries a button; a found row is tapped. They are never
+    // both live, and neither is a long press any more.
     //
-    // That is not tidiness, it is the fix. The tap was a
-    // `.simultaneousGesture` layered over the long press, and a tap composed
-    // with a long press on the same view is a race SwiftUI resolves in favour
-    // of the inner gesture — the hold swallowed it and the row did nothing.
-    // Two gestures that can never apply to the same row have no business
-    // competing to recognise one.
+    // The hold had two problems a button does not. It was invisible — the
+    // only thing on screen saying a clue existed was the clue, after you had
+    // already spent it — and it was a race: the tap was a
+    // `.simultaneousGesture` over the long press, which SwiftUI resolves in
+    // favour of the inner gesture, so for a while the row did nothing at all.
     var body: some View {
         if answer == nil {
             capsule
-                // Press and hold a blank slot for a clue, exactly as on the web.
-                .onLongPressGesture(minimumDuration: 0.5) {
-                    guard canHint || hasClue else { return }
-                    // A clue arriving is a commit, so it earns a haptic — fired
-                    // on the same event that opens it, not before or after.
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    onLongPress()
-                } onPressingChanged: { holding in
-                    pressed = holding && isHoldable
-                }
         } else {
             capsule
                 // Tap a row you have found to read that player's career.
@@ -423,6 +415,33 @@ private struct PyramidRow: View {
                     onTap()
                 }
         }
+    }
+
+    /// Solid once the clue is up, outlined while it is still the host's to
+    /// spend — so a host glancing down the board can see what they have
+    /// already given away without opening anything.
+    private var clueButton: some View {
+        Button {
+            // A clue arriving is a commit, so it earns a haptic — fired on
+            // the same event that opens it, not before or after.
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            onClue()
+        } label: {
+            Text("Clue")
+                .font(.display(10))
+                .foregroundStyle(hasClue ? BoardStyle.violet.bottom : .white)
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .background {
+                    Capsule()
+                        .fill(hasClue ? AnyShapeStyle(.white.opacity(0.92)) : AnyShapeStyle(.black.opacity(0.28)))
+                }
+                .overlay {
+                    Capsule().strokeBorder(.white.opacity(hasClue ? 0 : 0.45), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(hasClue ? "Open the clue for \(rank)" : "Take a clue for \(rank)")
     }
 
     private var capsule: some View {
@@ -461,15 +480,22 @@ private struct PyramidRow: View {
                 }
                 .padding(.horizontal, 12)
             } else {
-                // Just the rank, clue or no clue, so the pyramid reads as the
-                // board and nothing else. Press and hold reopens a clue that
-                // has already been taken.
+                // The rank stays centred on the row rather than being pushed
+                // along by the button, so the column of numbers reads
+                // straight down whether or not a row has a clue on it.
                 if showsRank {
                     Text("\(rank)")
                         .font(.display(17))
                         .foregroundStyle(.white.opacity(0.95))
                         .lineLimit(1)
                         .minimumScaleFactor(0.4)
+                }
+                if showsClueButton {
+                    HStack {
+                        Spacer()
+                        clueButton
+                    }
+                    .padding(.trailing, 8)
                 }
             }
         }
@@ -479,11 +505,7 @@ private struct PyramidRow: View {
         // rather than the row itself moving.
         .brightness(0.16 * lift)
         .contentShape(Capsule())
-        // Feedback on press-down, not on release: a row you are holding for a
-        // clue has to acknowledge the hold while it is happening, or the
-        // second before the clue appears feels like nothing is working.
-        .scaleEffect(pressed ? 0.97 : 1 + 0.055 * lift)
-        .animation(.spring(response: 0.25, dampingFraction: 1.0), value: pressed)
+        .scaleEffect(1 + 0.055 * lift)
         .onChange(of: waveTick) { _, tick in
             guard tick > 0 else { return }
             Task {
