@@ -195,15 +195,33 @@ tenableRouter.post(
 // longer valid (fewer than MIN_ANSWERS answers), e.g. after the league
 // allow-list changed. Also clears any schedule entries pointing at them, so a
 // scheduled round can never serve an empty board.
+//
+// Bounded, because the whole sweep cannot finish inside a request. Deriving
+// one round runs the heavy aggregate its type is built on, and there are
+// several thousand selected: the full scan ran past Railway's five-minute
+// gateway limit and then kept going, holding the single Node thread and the
+// SQLite write lock long enough to take the live game down with it.
+//
+// `type` narrows the scan to one round type and `limit` caps how many rounds
+// are examined, so the caller sweeps in passes and the server answers
+// between them. A pass reports how many it looked at and how many are left,
+// which is how the caller knows to go again.
 tenableRouter.post("/admin/rounds/prune", (c) => {
+  const only = c.req.query("type");
+  const limit = Math.max(1, Math.min(Number(c.req.query("limit") ?? 400), 1000));
   // Football only. Pruning asks "does this round still have ten answers?",
   // which is a question about a derivation that moves underneath you. An
   // authored round's answers are the round: one with nine answers is
   // half-written, not stale, and deleting it would throw away somebody's work
   // in progress.
-  const rounds = sqlite
-    .prepare(`SELECT id, type, params, metric FROM tenable_rounds WHERE category = 'football'`)
-    .all() as { id: number; type: string; params: string; metric: string }[];
+  const all = sqlite
+    .prepare(
+      `SELECT id, type, params, metric FROM tenable_rounds
+       WHERE category = 'football' AND (? IS NULL OR type = ?)
+       ORDER BY id`,
+    )
+    .all(only ?? null, only ?? null) as { id: number; type: string; params: string; metric: string }[];
+  const rounds = all.slice(0, limit);
 
   const dead: number[] = [];
   for (const r of rounds) {
@@ -234,6 +252,10 @@ tenableRouter.post("/admin/rounds/prune", (c) => {
 
   return c.json({
     checked: rounds.length,
+    // What this pass did not reach. A caller sweeping the whole list keeps
+    // going while this is above zero — the rounds it dropped are gone, so
+    // the next pass starts further in on its own.
+    remaining: Math.max(all.length - rounds.length, 0),
     pruned: dead.length - disabled,
     disabled,
     unscheduled,
