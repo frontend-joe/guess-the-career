@@ -61,16 +61,16 @@ test('the initials attach to the clue already on that slot', () => {
   const out = reduceEvents([
     LOG[0],
     ev(2, 100, 'hint', { rank: 3, clue: { club: 'Newcastle United' } }),
-    ev(3, 200, 'initials', { rank: 3, initials: 'D.G.' }),
+    ev(3, 200, 'initials', { rank: 3, initials: 'DG' }),
   ])
-  assert.deepEqual(out.hints.map((h) => [h.rank, h.initials]), [[3, 'D.G.']])
+  assert.deepEqual(out.hints.map((h) => [h.rank, h.initials]), [[3, 'DG']])
 })
 
 // Nothing in the app can send one — the sheet only opens once a clue is
 // taken — so a stray event is dropped rather than inventing a hint with an
 // empty clue to hang it off.
 test('initials on a slot with no clue are dropped, not invented into one', () => {
-  const out = reduceEvents([LOG[0], ev(2, 100, 'initials', { rank: 3, initials: 'D.G.' })])
+  const out = reduceEvents([LOG[0], ev(2, 100, 'initials', { rank: 3, initials: 'DG' })])
   assert.deepEqual(out.hints, [])
 })
 

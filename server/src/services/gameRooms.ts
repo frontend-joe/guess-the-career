@@ -1155,23 +1155,28 @@ export interface InitialsResult {
 }
 
 /**
- * "David Ginola" -> "D.G."
+ * "David Ginola" -> "DG"
  *
- * Every word contributes its first letter, so "Virgil van Dijk" is V.V.D. and
- * a mononym is a single letter — which is a thin clue, but an honest one, and
+ * Every word contributes its first letter, so "Virgil van Dijk" is VVD and a
+ * mononym is a single letter — which is a thin clue, but an honest one, and
  * the alternative is pretending Ronaldinho has a surname.
  *
- * A double-barrelled name counts once: Allan Saint-Maximin is A.S., not
- * A.S-M. Splitting on the hyphen would hand over the shape of the name as
- * well as its letters, which is most of the answer on a board with one
- * hyphenated name on it.
+ * A double-barrelled name counts once: Allan Saint-Maximin is AS, not ASM.
+ * Splitting on the hyphen would hand over the shape of the name as well as
+ * its letters, which is most of the answer on a board with one hyphenated
+ * name on it.
+ *
+ * No full stops. They are how initials are punctuated in prose and this is
+ * not prose — it is two letters on a row, read at a glance, and the dots are
+ * half the characters on screen saying nothing.
  */
 export function initialsOf(name: string): string {
-  const letters = name
+  return name
     .split(/\s+/)
     .map((word) => word.trim()[0])
     .filter((ch): ch is string => !!ch && /\p{L}/u.test(ch))
-  return letters.map((ch) => `${ch.toUpperCase()}.`).join('')
+    .map((ch) => ch.toUpperCase())
+    .join('')
 }
 
 /**

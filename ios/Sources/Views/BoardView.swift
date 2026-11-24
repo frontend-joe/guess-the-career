@@ -428,16 +428,16 @@ private struct PyramidRow: View {
             onClue()
         } label: {
             Text("Clue")
-                .font(.display(10))
+                .font(.display(11))
                 .foregroundStyle(hasClue ? BoardStyle.violet.bottom : .white)
-                .padding(.horizontal, 9)
-                .frame(height: 22)
+                .padding(.horizontal, 11)
+                // Nearly the height of the row it sits in. A short pill on a
+                // tall row reads as a label printed on the capsule rather
+                // than something to press.
+                .frame(height: 30)
                 .background {
                     Capsule()
                         .fill(hasClue ? AnyShapeStyle(.white.opacity(0.92)) : AnyShapeStyle(.black.opacity(0.28)))
-                }
-                .overlay {
-                    Capsule().strokeBorder(.white.opacity(hasClue ? 0 : 0.45), lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)

@@ -71,13 +71,13 @@ const hintsOf = (code: string) =>
   rooms.roomState(rooms.roomByCode(code)!).round!.board.hints
 
 test('every word gives a letter, and a double-barrelled name counts once', () => {
-  assert.equal(rooms.initialsOf('David Ginola'), 'D.G.')
-  assert.equal(rooms.initialsOf('Virgil van Dijk'), 'V.V.D.')
+  assert.equal(rooms.initialsOf('David Ginola'), 'DG')
+  assert.equal(rooms.initialsOf('Virgil van Dijk'), 'VVD')
   // A mononym is a thin clue, but an honest one.
-  assert.equal(rooms.initialsOf('Ronaldinho'), 'R.')
-  // A.S-M. would hand over the shape of the name as well as the letters,
-  // which is most of the answer on a board with one hyphenated name on it.
-  assert.equal(rooms.initialsOf('Allan Saint-Maximin'), 'A.S.')
+  assert.equal(rooms.initialsOf('Ronaldinho'), 'R')
+  // ASM would hand over the shape of the name as well as the letters, which
+  // is most of the answer on a board with one hyphenated name on it.
+  assert.equal(rooms.initialsOf('Allan Saint-Maximin'), 'AS')
 })
 
 test('the initials land on the clue that is already open', () => {
@@ -86,9 +86,9 @@ test('the initials land on the clue that is already open', () => {
   assert.equal(hintsOf(room.code).find((h) => h.rank === 9)?.initials, null)
 
   const result = rooms.takeInitials(inst.id, host, 9)
-  assert.equal(result.initials, 'D.G.')
+  assert.equal(result.initials, 'DG')
   assert.equal(result.replayed, false)
-  assert.equal(hintsOf(room.code).find((h) => h.rank === 9)?.initials, 'D.G.')
+  assert.equal(hintsOf(room.code).find((h) => h.rank === 9)?.initials, 'DG')
   // And nowhere else: one answer was opened up, not the board.
   assert.equal(hintsOf(room.code).filter((h) => h.initials != null).length, 1)
 })
@@ -109,7 +109,7 @@ test('asking twice is not a second clue and does not move the version', () => {
       .get(inst.id) as { n: number }).n,
     1,
   )
-  assert.equal(hintsOf(room.code).find((h) => h.rank === 1)?.initials, 'L.R.')
+  assert.equal(hintsOf(room.code).find((h) => h.rank === 1)?.initials, 'LR')
 })
 
 test('a slot with no clue on it has nowhere to put them', () => {
@@ -140,7 +140,7 @@ test('the initials follow their player down a reshuffled board', () => {
   // A clue, and its initials, on the man who is currently sixth.
   rooms.takeHint(inst.id, host, 6)
   rooms.takeInitials(inst.id, host, 6)
-  assert.equal(hintsOf(room.code).find((h) => h.rank === 6)?.initials, 'O.B.')
+  assert.equal(hintsOf(room.code).find((h) => h.rank === 6)?.initials, 'OB')
 
   // The database catches up: somebody better than him was missing when the
   // round was frozen, so he is seventh now.
@@ -148,7 +148,7 @@ test('the initials follow their player down a reshuffled board', () => {
   rooms.reshuffleForPlayer(inst.id, latecomer, norm('Late Arrival'))
 
   const hints = hintsOf(room.code)
-  assert.equal(hints.find((h) => h.rank === 7)?.initials, 'O.B.')
+  assert.equal(hints.find((h) => h.rank === 7)?.initials, 'OB')
   // Not left sitting on the slot, describing whoever moved into it.
   assert.equal(hints.find((h) => h.rank === 6)?.initials ?? null, null)
 })

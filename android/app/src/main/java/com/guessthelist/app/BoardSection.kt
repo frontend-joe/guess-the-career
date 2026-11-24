@@ -7,7 +7,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
@@ -441,16 +441,14 @@ private fun PyramidRow(
 private fun ClueButton(taken: Boolean, rank: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier
-            .heightIn(min = 22.dp)
+            // Nearly the height of the row it sits in. A short pill on a tall
+            // row reads as a label printed on the capsule rather than
+            // something to press.
+            .height(30.dp)
             .clip(CircleShape)
             .background(if (taken) Color.White.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.28f))
-            .border(
-                width = 1.dp,
-                color = if (taken) Color.Transparent else Color.White.copy(alpha = 0.45f),
-                shape = CircleShape,
-            )
             .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp, vertical = 4.dp)
+            .padding(horizontal = 11.dp)
             .semantics {
                 contentDescription =
                     if (taken) "Open the clue for $rank" else "Take a clue for $rank"
@@ -459,7 +457,7 @@ private fun ClueButton(taken: Boolean, rank: Int, onClick: () -> Unit, modifier:
     ) {
         Text(
             "Clue",
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontFamily = AppFonts.Display,
             color = if (taken) VioletBottom else Color.White,
         )
