@@ -1074,6 +1074,20 @@ const POSITION_PLURAL = new Map(POSITION_BUCKETS.map((b) => [b.bucket as string,
 const IS_BUCKET = (col: string) =>
   `position_buckets(f.custom_position, f.position) LIKE '%|' || ${col} || '|%'`;
 
+// A board with no number on it.
+//
+// These rounds ask who was one of a group — Arsenal's goalkeepers, Brazil's
+// goalkeepers — and the pool is the answer, so nothing is ranked and the row
+// numbers are not drawn. An appearance count next to the name therefore
+// scores nothing and explains nothing; it just looks like a ranking that
+// isn't one, and it invites an argument about a figure the round never
+// asked about.
+//
+// Both apps suppress the badge when there is no unit and the number is zero,
+// which is how a squad round's shirt numbers stay off the board. Emitting
+// that pair is what "no badge" means on the wire, so this needs no new app.
+const NO_BADGE = "0 AS value";
+
 const clubPosition: TenableType = {
   slug: "club-position",
   label: "Position at a club",
@@ -1105,21 +1119,20 @@ const clubPosition: TenableType = {
   answers(p, _metric, _limit = ROUND_SIZE) {
     // The WHOLE pool, like a World Cup squad — the room only needs any ten.
     //
-    // Appearances ride along on the badge. They order nothing here, but a
-    // board that fills with bare names gives nothing back for remembering
-    // the hard one, and "Jens Lehmann 200" is worth reading out.
+    // No badge. See NO_BADGE: the question is whether they were one of the
+    // club's keepers, and an appearance count answers a question nobody
+    // asked — wrongly, often enough. Ali Al-Habsi signed for West Bromwich
+    // Albion in 2019 and never got on; he was still one of their keepers.
     //
-    // Nobody is held to having played, though. Ali Al-Habsi signed for West
-    // Bromwich Albion in 2019 and never got on, and a room shouting him at
-    // "West Bromwich Albion goalkeepers" is right: he was one. Being at the
-    // club is the question, and the badge reads 0, which is the fact.
+    // Appearances still ORDER the pool, because the snapshot is only the
+    // first two hundred and the players worth having are the ones who played.
     return sqlite.prepare(
       `WITH tot AS (${PLAYER_CLUB})
-       SELECT ${ANSWER_COLS}, tot.apps AS value, 'apps' AS unit
+       SELECT ${ANSWER_COLS}, ${NO_BADGE}
        FROM tot
        JOIN footballers f ON f.id = tot.fid
        WHERE tot.club = ? AND ${IS_BUCKET("?")}
-       ORDER BY value DESC, f.name ASC`,
+       ORDER BY tot.apps DESC, f.name ASC`,
     ).all(p.club, p.position) as TenableAnswer[];
   },
 };
@@ -1165,15 +1178,21 @@ const nationalityPosition: TenableType = {
     }));
   },
   answers(p, _metric, _limit = ROUND_SIZE) {
-    // LEFT JOIN, so somebody we hold no appearance data for is still on the
-    // board. They are a real answer; the badge is the part we are missing.
+    // No badge, for the reasons at NO_BADGE — and most sharply here. A
+    // career-statistics table is what the appearance count is summed from,
+    // and roughly a quarter of players on file have no such table on
+    // Wikipedia at all: everything they did is in the infobox instead. Zetti
+    // kept goal 155 times for São Paulo and read "0 apps" on a board of
+    // Brazilian goalkeepers, which is not a hard number to argue with.
+    //
+    // LEFT JOIN, so those players are still answers, which they always were.
     return sqlite.prepare(
       `WITH tot AS (${CAREER_TOTAL_ANY})
-       SELECT ${ANSWER_COLS}, COALESCE(tot.apps, 0) AS value, 'apps' AS unit
+       SELECT ${ANSWER_COLS}, ${NO_BADGE}
        FROM footballers f
        LEFT JOIN tot ON tot.fid = f.id
        WHERE f.nationality = ? AND ${IS_BUCKET("?")}
-       ORDER BY value DESC, f.name ASC`,
+       ORDER BY COALESCE(tot.apps, 0) DESC, f.name ASC`,
     ).all(p.nationality, p.position) as TenableAnswer[];
   },
 };
