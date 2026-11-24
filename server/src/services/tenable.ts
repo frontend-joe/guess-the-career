@@ -1740,36 +1740,24 @@ export function candidatesForType(slug: string): Candidate[] {
 // Render a round's title from its type + params, so wording changes apply to
 // rounds already selected without having to re-pick them.
 //
-// Ten slots under "Defenders with 50+ senior career goals" read as THE ten
-// defenders, when it is any ten of forty-eight. The round has to say which
-// game it is — but only where the title does not already say it.
-//
-// On a ranked round it always does. Every ordered title here ends in "(most
-// appearances)", "(most goals of all time)", or carries its own ranking word:
-// "Biggest LaLiga transfers", "Arsenal's record signings", "The 2003 Ballon
-// d'Or final ranking". Labelling those "Top 10" is saying it twice.
-//
-// A pool round says nothing, which is the whole problem — so that is where
-// the words go. A label with a colon, not a grammatical prefix, because the
-// titles that follow it are possessive as often as not.
-//
-// Only the derived football rounds. An authored title is somebody's own
-// sentence — "Name any 10 of the Nile, the Amazon..." is not how anybody
-// writes one, and the rounds decide their own orderedness anyway.
+// Unordered rounds used to be prefixed "Name any 10:", on the reasoning that
+// ten slots under "Defenders with 50+ senior career goals" read as THE ten
+// defenders when it is any ten of forty-eight. The board says it better than
+// the title can: an unordered one draws no rank numbers down the left, so the
+// slots are plainly a list rather than places. The prefix was a caption on a
+// picture that already made sense, and it was on the front of every title in
+// the picker, where it is the one part that is the same on all of them.
 export function titleFor(
   type: string,
   params: Record<string, string>,
   metric: Metric,
   fallback: string,
 ): string {
-  let title: string;
   try {
-    title = getType(type)?.title(params, metric) ?? fallback;
+    return getType(type)?.title(params, metric) ?? fallback;
   } catch {
     return fallback;
   }
-  if (categoryOf(type) !== "football" || isOrdered(type, params)) return title;
-  return `Name any 10: ${title}`;
 }
 
 export function isOrdered(slug: string, params?: Record<string, string>): boolean {

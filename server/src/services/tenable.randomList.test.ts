@@ -135,16 +135,24 @@ test('a late answer joins an unordered board instead of being turned away', () =
   assert.equal(board.guesses.find((g) => g.raw === 'Late Giant')!.verdict, 'hit')
 })
 
-// Ten slots under "Defenders with 50+ senior career goals" read as THE ten
-// defenders, when it is any ten of forty-eight. The round has to say which
-// game it is — but only where the title does not already say it, and on a
-// ranked round it always does.
-test('a pool round says so, and a ranked round already has', async () => {
+// A round's title is the round's own words and nothing else. An unordered one
+// used to be prefixed "Name any 10:", which the board says better by drawing
+// no rank numbers down the left.
+test('a title is the round talking, with nothing bolted on the front', async () => {
   const { titleFor } = await import('./tenable.ts')
 
   assert.equal(
     titleFor('random-list', PARAMS, 'goals', 'x'),
-    'Name any 10: Players 6\'6" (197cm) and over',
+    'Players 6\'6" (197cm) and over',
+  )
+  // An unordered football round, which carried the prefix for longest.
+  assert.equal(
+    titleFor('club-position', { club: 'Arsenal', position: 'goalkeeper' }, 'apps', 'x'),
+    'Arsenal goalkeepers',
+  )
+  assert.equal(
+    titleFor('nationality-position', { nationality: 'Brazil', position: 'goalkeeper' }, 'apps', 'x'),
+    'Brazilian goalkeepers',
   )
   // "(most appearances)" is the ranking, said once.
   assert.equal(
