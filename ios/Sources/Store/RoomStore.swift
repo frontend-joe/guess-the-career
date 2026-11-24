@@ -351,7 +351,10 @@ final class RoomStore {
     func refresh() async {
         guard let seat else { return }
         do {
-            let next = try await API.roomState(seat: seat)
+            // Only where the poll is the transport. In a video game LiveKit
+            // carries this, and saying it twice would have the server's
+            // answer fighting the data channel's.
+            let next = try await API.roomState(seat: seat, typing: videoEnabled ? nil : polledTyping)
             // Renew the seat before anything else can fail. The token has a
             // life of a day and the poll runs every ten seconds, so a game
             // that stays open overnight carries on rather than telling four
@@ -364,6 +367,10 @@ final class RoomStore {
             // A poll that gets through retires whatever the last one said.
             // Without this, "Reconnecting…" outlives the reconnection.
             if error != nil { error = nil }
+            // Before the version gate: who is typing is not part of the
+            // state the version describes, and a poll that arrives with
+            // nothing new to say still carries fresh dots.
+            if !videoEnabled { typingFromPoll = next.typing ?? [] }
             guard next.stateVersion >= version else { return }
             version = next.stateVersion
             state = next
@@ -750,6 +757,12 @@ final class RoomStore {
     private var typingUntil: [String: Date] = [:]
     private var typingSweep: Task<Void, Never>?
     private var lastTypingPing: Date?
+    /// Whether THIS phone is mid-guess, for a game with no data channel. The
+    /// poll reads it on its way out; there is no separate request.
+    private var polledTyping = false
+    /// Who the server last said was typing, by participant id. Only ever
+    /// populated in a game with no video call.
+    private var typingFromPoll: [Int] = []
 
     private static let typingTopic = "gtl-typing"
     /// Long enough to cover a thinking pause, short enough that a dropped
@@ -761,11 +774,17 @@ final class RoomStore {
     /// The names to put above the guess box, in a stable order.
     var typingNames: [String] {
         let now = Date()
-        return typingUntil
+        let live = typingUntil
             .filter { $0.value > now }
             .keys
             .sorted()
             .compactMap { knownName(forIdentity: $0) }
+        // One or the other, never both: a video game has the data channel
+        // and a video-less one has the poll.
+        let polled = typingFromPoll.compactMap { id in
+            state?.participants.first { $0.id == id }?.displayName
+        }
+        return live.isEmpty ? polled.filter { !$0.isEmpty } : live
     }
 
     /// Called as the guess field changes. Throttled, so holding down a key
@@ -773,10 +792,12 @@ final class RoomStore {
     func noteTyping(_ text: String) {
         guard round?.isLive == true else { return }
         if text.trimmed.isEmpty {
+            polledTyping = false
             sendTyping(false)
             lastTypingPing = nil
             return
         }
+        polledTyping = true
         let now = Date()
         if let last = lastTypingPing, now.timeIntervalSince(last) < Self.typingPing { return }
         lastTypingPing = now
@@ -787,6 +808,8 @@ final class RoomStore {
     /// so the indicator goes the moment the guess does.
     func stoppedTyping() {
         lastTypingPing = nil
+        polledTyping = false
+        typingFromPoll = typingFromPoll.filter { $0 != seat?.participantId }
         sendTyping(false)
     }
 

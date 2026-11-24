@@ -188,6 +188,10 @@ data class RoomState(
      *  in a room keeps the seat alive. Only /state sends it; create and join
      *  hand the seat over whole. */
     val participantToken: String? = null,
+    /** Participant ids mid-guess, as the server last heard. Only populated
+     *  for a game with no video call, where the poll is the only transport a
+     *  typing dot has; empty otherwise, and empty from an older server. */
+    val typing: List<Int> = emptyList(),
 )
 
 @Serializable

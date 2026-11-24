@@ -189,8 +189,21 @@ object Api {
         return result.muted
     }
 
-    suspend fun roomState(seat: Seat): RoomState =
-        get("api/rooms/${seat.code}/state", seat.token)
+    /**
+     * [typing] rides the poll because a game with no video call has no data
+     * channel to carry a typing dot, and this request is already being made
+     * at the right cadence. null says nothing either way, for a room where
+     * LiveKit is doing the job.
+     */
+    suspend fun roomState(seat: Seat, typing: Boolean? = null): RoomState =
+        get(
+            "api/rooms/${seat.code}/state" + when (typing) {
+                null -> ""
+                true -> "?typing=1"
+                false -> "?typing=0"
+            },
+            seat.token,
+        )
 
     suspend fun livekitCredentials(seat: Seat): LivekitCredentials =
         get("api/rooms/${seat.code}/livekit-token", seat.token)

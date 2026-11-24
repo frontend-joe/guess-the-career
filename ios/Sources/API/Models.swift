@@ -163,6 +163,10 @@ struct ChatMessage: Codable, Equatable, Identifiable {
 }
 
 struct RoomState: Codable, Equatable {
+    /// Participant ids mid-guess, as the server last heard. Only populated
+    /// for a game with no video call, where the poll is the only transport a
+    /// typing dot has; absent otherwise, and absent from an older server.
+    var typing: [Int]?
     let code: String
     let status: String
     let stateVersion: Int

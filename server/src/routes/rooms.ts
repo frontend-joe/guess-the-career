@@ -36,6 +36,7 @@ import {
   type ParticipantRow,
   type RoomRow,
 } from '../services/gameRooms.ts'
+import { noteTyping, clearTyping, typingIn } from '../services/typingPresence.ts'
 import { broadcastState, ejectParticipant, livekitConfig, mintJoinToken } from '../services/livekit.ts'
 import {
   recordRegistrationAttempt,
@@ -284,10 +285,21 @@ roomsRouter.get('/:code/state', async (c) => {
   const room = mustFindRoom(c.req.param('code'))
   const me = await participantFor(c, room)
   if (!me) return c.json({ error: 'Not in this room' }, 403)
+
+  // A game with no video call has no data channel to carry a typing dot, so
+  // the poll carries it instead — the request is already being made at the
+  // right cadence, and this costs nothing on top of it. See typingPresence:
+  // it is in memory, it is not in roomState, and it never reaches a
+  // broadcast or the event log.
+  const typingNow = c.req.query('typing')
+  if (typingNow === '1') noteTyping(room.id, me.id)
+  else if (typingNow === '0') clearTyping(room.id, me.id)
+
   return c.json({
     ...roomState(room),
     participantId: me.id,
     role: me.role,
+    typing: typingIn(room.id, me.id),
     // A fresh token on every poll, so a seat you are sitting in never ages
     // out from under you. Clients re-read this every ten seconds; before
     // this, a room left open for a day hit the participant token's expiry
@@ -383,6 +395,9 @@ roomsRouter.post(
       // the two, so the guess that breaks the silence is the only one that
       // can see it. See roomWentQuiet.
       const quiet = roomWentQuiet(room.id, QUIET_MINUTES)
+      // The guess has landed, so the dots go now rather than waiting for
+      // their own expiry — the pill says everything they said.
+      clearTyping(room.id, me.id)
       const result = submitGuess(instanceId, me, clientGuessId, raw)
       // A replayed guess changed nothing, so there is nothing to announce.
       if (!result.replayed) announce(room.code, 'guess')

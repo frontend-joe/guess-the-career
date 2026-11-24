@@ -193,7 +193,10 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun refresh() {
         val current = seat ?: return
         try {
-            val next = Api.roomState(current)
+            // Only where the poll is the transport. In a video game LiveKit
+            // carries this, and saying it twice would have the server's
+            // answer fighting the data channel's.
+            val next = Api.roomState(current, if (videoEnabled) null else polledTyping)
             // Renew the seat before anything else can fail. The token has a
             // life of a day and the poll runs every ten seconds, so a game
             // that stays open overnight carries on rather than telling four
@@ -208,6 +211,10 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
             // A poll that gets through retires whatever the last one said.
             // Without this, "Reconnecting…" outlives the reconnection.
             if (error != null) error = null
+            // Before the version gate: who is typing is not part of the
+            // state the version describes, and a poll that arrives with
+            // nothing new to say still carries fresh dots.
+            if (!videoEnabled) typingFromPoll = next.typing
             if (next.stateVersion < version) return
             version = next.stateVersion
             state = next
@@ -628,12 +635,24 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     private var typingUntil by mutableStateOf<Map<String, Long>>(emptyMap())
     private var typingSweep: Job? = null
     private var lastTypingPing = 0L
+    /** Whether THIS phone is mid-guess, for a game with no data channel. The
+     *  poll reads it on its way out; there is no separate request. */
+    private var polledTyping = false
+    /** Who the server last said was typing, by participant id. Only ever
+     *  populated in a game with no video call. */
+    private var typingFromPoll by mutableStateOf<List<Int>>(emptyList())
 
     /** The names to put above the guess box, in a stable order. */
     val typingNames: List<String>
         get() {
             val now = System.currentTimeMillis()
-            return typingUntil.filterValues { it > now }.keys.sorted().mapNotNull { knownName(it) }
+            val live = typingUntil.filterValues { it > now }.keys.sorted().mapNotNull { knownName(it) }
+            if (live.isNotEmpty()) return live
+            // One or the other, never both: a video game has the data
+            // channel and a video-less one has the poll.
+            return typingFromPoll.mapNotNull { id ->
+                state?.participants?.firstOrNull { it.id == id }?.displayName?.takeIf(String::isNotEmpty)
+            }
         }
 
     /** Called as the guess field changes. Throttled, so holding a key down
@@ -641,10 +660,12 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
     fun noteTyping(text: String) {
         if (round?.isLive != true) return
         if (text.isBlank()) {
+            polledTyping = false
             sendTyping(false)
             lastTypingPing = 0L
             return
         }
+        polledTyping = true
         val now = System.currentTimeMillis()
         if (now - lastTypingPing < TYPING_PING_MS) return
         lastTypingPing = now
@@ -655,6 +676,8 @@ class RoomViewModel(app: Application) : AndroidViewModel(app) {
      *  goes the moment the guess does. */
     fun stoppedTyping() {
         lastTypingPing = 0L
+        polledTyping = false
+        typingFromPoll = typingFromPoll.filter { it != seat?.participantId }
         sendTyping(false)
     }
 

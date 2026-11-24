@@ -181,8 +181,13 @@ enum API {
         return try await post("api/rooms/\(code)/join", body: body)
     }
 
-    static func roomState(seat: Seat) async throws -> RoomState {
-        try await get("api/rooms/\(seat.code)/state", bearer: seat.token)
+    /// `typing` rides the poll because a game with no video call has no data
+    /// channel to carry a typing dot, and this request is already being made
+    /// at the right cadence. nil says nothing either way, for a room where
+    /// LiveKit is doing the job.
+    static func roomState(seat: Seat, typing: Bool? = nil) async throws -> RoomState {
+        let query = typing.map { "?typing=\($0 ? 1 : 0)" } ?? ""
+        return try await get("api/rooms/\(seat.code)/state\(query)", bearer: seat.token)
     }
 
     static func livekitCredentials(seat: Seat) async throws -> LivekitCredentials {
