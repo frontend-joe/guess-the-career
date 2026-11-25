@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { positionBuckets, positionBucketKey } from './positions.ts'
 
-const buckets = (custom: string | null, position: string | null) =>
-  positionBuckets(custom, position)
+const buckets = (custom: string | null, position: string | null, prose: string | null = null) =>
+  positionBuckets(custom, position, prose)
 
 test('the whole field counts, not the first word of it', () => {
   // Lahm belongs on both full-back boards. A round that read only the first
@@ -113,4 +113,18 @@ test('the key is delimited so one bucket cannot match inside another', () => {
   assert.equal(positionBucketKey(null, 'Central midfielder'), '|central midfielder|')
   assert.equal(positionBucketKey(null, 'Centre-back'), '|centre-back|')
   assert.ok(!positionBucketKey(null, 'Central midfielder').includes('|centre-back|'))
+})
+
+// The article's prose, read at scrape time into `prose_position` when the
+// infobox gave only the half of the pitch. See positionFromProse.
+test('the prose only fills a silence', () => {
+  // Garry Parker: the box says "Midfielder", the article says central.
+  assert.deepEqual(buckets(null, 'Midfielder', 'Central midfielder'), ['central midfielder'])
+  // A box that already placed him is not overruled by a paragraph.
+  assert.deepEqual(buckets(null, 'Centre-back', 'Central midfielder'), ['centre-back'])
+  // Nor is a human. custom_position means somebody looked at this player.
+  assert.deepEqual(buckets('Left back', 'Midfielder', 'Central midfielder'), ['left-back'])
+  // A human who has looked and said "defender" is still an answer, even
+  // though it places nobody — it is not a silence for the prose to fill.
+  assert.deepEqual(buckets('Defender', 'Midfielder', 'Central midfielder'), [])
 })

@@ -1,0 +1,19 @@
+-- The position an article's PROSE gives a player, when its infobox will not.
+--
+-- Wikipedia's infobox is a single field and often holds only the half of the
+-- pitch: "Midfielder", "Defender". 385 players in this database say exactly
+-- "Midfielder" and nothing else, and services/positions.ts refuses to guess
+-- which kind — a holding player on an attacking-midfielders board is a wrong
+-- answer printed as a right one. So those players appear on no position board
+-- at all.
+--
+-- The body of the article usually knows. Garry Parker's infobox says
+-- "Midfielder"; his Nottingham Forest paragraph says he "was moved into his
+-- favoured central midfield position", which is the answer, written down,
+-- three screens below the box we were reading.
+--
+-- Kept in its own column rather than written into `position`, which stays a
+-- faithful copy of the infobox, and rather than into `custom_position`, which
+-- means a human looked at this player. Precedence is custom, then the
+-- infobox, then this: the prose only ever fills a silence.
+ALTER TABLE footballers ADD COLUMN prose_position TEXT;

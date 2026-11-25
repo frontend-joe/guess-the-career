@@ -28,6 +28,12 @@
 // buckets rather than four and the other one is spelt out: a winger is
 // written "Winger".
 //
+// And where the infobox says only the half, the ARTICLE often says the rest:
+// Garry Parker's box says "Midfielder" and his Forest paragraph says he was
+// moved into "his favoured central midfield position". That reading arrives
+// as `prose_position` — see positionFromProse in services/scraper.ts — and
+// is consulted only when the infobox has given nothing usable.
+//
 // The `all_positions` column is deliberately not read, though it is the
 // richer one. It lists every position a player ever occupied, including the
 // afternoon they went in goal: it has Ronaldo, Scholes, Drogba, Puyol and
@@ -130,13 +136,22 @@ const BUCKET_OF: Record<string, PositionBucket> = {
 export function positionBuckets(
   customPosition: string | null,
   position: string | null,
+  prosePosition: string | null = null,
 ): PositionBucket[] {
   const field = customPosition?.trim() ? customPosition : position
-  const found = new Set<PositionBucket>()
-  for (const raw of (field ?? '').split(/[,/]/)) {
-    const bucket = BUCKET_OF[raw.trim().toLowerCase()]
-    if (bucket) found.add(bucket)
+  const read = (from: string | null, into: Set<PositionBucket>) => {
+    for (const raw of (from ?? '').split(/[,/]/)) {
+      const bucket = BUCKET_OF[raw.trim().toLowerCase()]
+      if (bucket) into.add(bucket)
+    }
   }
+  const found = new Set<PositionBucket>()
+  read(field, found)
+  // Only into a silence. The infobox is a fact about the player and the
+  // prose is a reading of a paragraph, so the reading never overrules the
+  // fact — it answers where the fact declined to. A hand-set
+  // `custom_position` outranks both, because somebody looked.
+  if (found.size === 0 && !customPosition?.trim()) read(prosePosition, found)
   // Keeping goal is the one job that is exclusive. No row mixes it with an
   // outfield position today, so this changes nothing — it is here because
   // `all_positions` is full of exactly that mistake, which is what this
@@ -158,7 +173,8 @@ export function positionBuckets(
 export function positionBucketKey(
   customPosition: string | null,
   position: string | null,
+  prosePosition: string | null = null,
 ): string {
-  const buckets = positionBuckets(customPosition, position)
+  const buckets = positionBuckets(customPosition, position, prosePosition)
   return buckets.length ? `|${buckets.join('|')}|` : ''
 }

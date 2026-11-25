@@ -140,6 +140,7 @@ export async function applyScrapeResult(
       birthplace: result.birthplace ?? null,
       position: result.position,
       all_positions: result.all_positions ?? null,
+      prose_position: result.prose_position ?? null,
       style_of_play: result.style_of_play ?? null,
       born: result.born,
       height_cm: result.height_cm,

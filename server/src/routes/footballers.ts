@@ -257,6 +257,7 @@ footballersRouter.post(
       nationality: z.string().nullable(),
       position: z.string().nullable(),
       all_positions: z.string().nullable().optional(),
+      prose_position: z.string().nullable().optional(),
       born: z.string().nullable(),
       height_cm: z.number().int().nullable().optional(),
       honors_champions_league: z.number().int().optional().default(0),
@@ -296,6 +297,7 @@ footballersRouter.post(
           nationality: body.nationality,
           position: body.position,
           all_positions: body.all_positions ?? null,
+          prose_position: body.prose_position ?? null,
           born: body.born,
           height_cm: body.height_cm ?? null,
           honors_champions_league: body.honors_champions_league ?? 0,
@@ -576,12 +578,13 @@ footballersRouter.get('/:id/derived-spells', (c) => {
 
 // The client starts a job with a short POST and polls GET /backfill/status.
 //   POST /api/footballers/backfill/:type/start
-//        (type = photos | career-stats | repair | club-seasons)
+//        (type = photos | career-stats | repair | club-seasons | positions)
 //   GET  /api/footballers/backfill/status
 //   POST /api/footballers/backfill/stop
 footballersRouter.post('/backfill/:type/start', (c) => {
   const type = c.req.param('type')
-  if (type !== 'photos' && type !== 'career-stats' && type !== 'repair' && type !== 'club-seasons') {
+  if (type !== 'photos' && type !== 'career-stats' && type !== 'repair'
+      && type !== 'club-seasons' && type !== 'positions') {
     return c.json({ error: 'Unknown backfill type' }, 400)
   }
   // onlyMissing (default true) resumes where a previous run left off.
@@ -844,6 +847,7 @@ footballersRouter.patch(
       nationality: z.string().nullable().optional(),
       position: z.string().nullable().optional(),
       all_positions: z.string().nullable().optional(),
+      prose_position: z.string().nullable().optional(),
       custom_position: z.string().nullable().optional(),
       born: z.string().nullable().optional(),
       height_cm: z.number().int().nullable().optional(),

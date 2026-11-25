@@ -221,6 +221,7 @@ export async function insertScrapedFootballer(wikiUrl: string): Promise<number |
       nationality: scraped.nationality,
       position: scraped.position,
       all_positions: scraped.all_positions ?? null,
+      prose_position: scraped.prose_position ?? null,
       born: scraped.born,
       photo_url: scraped.photo_url ?? null,
     })

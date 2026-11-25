@@ -234,6 +234,7 @@ export interface ScrapeResult {
   nationality: string | null;
   position: string | null;
   all_positions: string | null;
+  prose_position: string | null;
   style_of_play: string | null;
   born: string | null;
   height_cm: number | null;
@@ -950,6 +951,31 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
 
   if (foundPositions.length > 0) all_positions = foundPositions.join(", ");
 
+  // The whole article body, which is where a position the infobox left vague
+  // is usually written down. Read only when the box gives nothing usable —
+  // see positionFromProse, and positions.ts for what "usable" means.
+  // Joined paragraph by paragraph, because cheerio's .text() across a set
+  // runs them together with nothing between: "...for Omonia.As a player, he
+  // was a midfielder" is one sentence as far as any splitter is concerned,
+  // and the merged pair drags another man's job title into his sentence.
+  const bodyText = stripCitations(
+    $("div.mw-parser-output p")
+      .not(".mw-empty-elt")
+      // A lead paragraph can carry a <style> block for the IPA spelling, and
+      // .text() reads the CSS out with everything else — which buried the
+      // sentence saying Gabriel Tamaș "played as a centre-back" under a rule
+      // about font sizes.
+      .map((_, el) => $(el).clone().find("style, script, sup").remove().end().text())
+      .get()
+      .join("\n")
+      .replace(/[^\S\n]+/g, " "),
+  );
+  const prose_position = positionFromProse(
+    bodyText,
+    position,
+    (name.split(/\s+/).at(-1) ?? null),
+  );
+
   const honours = scrapeHonours($);
 
   return {
@@ -963,6 +989,7 @@ export async function scrapeWikipedia(url: string): Promise<ScrapeResult> {
     nationality,
     position,
     all_positions,
+    prose_position,
     style_of_play: styleText ? stripCitations(styleText) : null,
     born,
     height_cm,
@@ -2442,11 +2469,11 @@ const POSITION_TERMS: { pattern: RegExp; name: string }[] = [
     name: "Centre-back",
   },
   {
-    pattern: /\bdefensive[\s-]?midfielder\b|\bholding[\s-]?midfielder\b/i,
+    pattern: /\bdefensive[\s-]?midfield(?:er)?\b|\bholding[\s-]?midfield(?:er)?\b/i,
     name: "Defensive midfielder",
   },
   {
-    pattern: /\battacking[\s-]?midfielder\b|\btrequartista\b/i,
+    pattern: /\battacking[\s-]?midfield(?:er)?\b|\btrequartista\b/i,
     name: "Attacking midfielder",
   },
   { pattern: /\bright[\s-]?wing(?:er)?\b/i, name: "Right winger" },
@@ -2456,12 +2483,132 @@ const POSITION_TERMS: { pattern: RegExp; name: string }[] = [
       /\bwinger\b|\bon the wing\b|\bwide forward\b|\bwide midfielder\b|\bwide player\b/i,
     name: "Winger",
   },
-  { pattern: /\bcentral[\s-]?midfielder\b/i, name: "Central midfielder" },
+  // "...his favoured central midfield position" — the -er is optional, and
+  // leaving it required is what kept Garry Parker off the board.
+  { pattern: /\bcentral[\s-]?midfield(?:er)?\b/i, name: "Central midfielder" },
   { pattern: /\bstrike[r]?\b|\bcentr[ae][\s-]?forward\b/i, name: "Striker" },
   { pattern: /\bsecond[\s-]?striker\b/i, name: "Second striker" },
   { pattern: /\bforward\b/i, name: "Forward" },
   { pattern: /\bmidfield(?:er)?\b/i, name: "Midfielder" },
 ];
+
+/**
+ * The position an article's PROSE gives its subject, when the infobox will not.
+ *
+ * Wikipedia's infobox position is one field, and for 385 players in this
+ * database it holds the half of the pitch and nothing else: "Midfielder".
+ * services/positions.ts rightly refuses to guess which kind — a holding
+ * player on an attacking-midfielders board is a wrong answer printed as a
+ * right one — so those players appear on no position board at all. The body
+ * of the article usually knows. Garry Parker's says he "was moved into his
+ * favoured central midfield position", three screens below the box.
+ *
+ * Three rules keep this from being the guesswork the infobox rule exists to
+ * avoid.
+ *
+ * ONLY SENTENCES ABOUT HIM. An article is full of other people's positions —
+ * the very sentence that places Parker also sells "England midfielder Neil
+ * Webb" — so a sentence qualifies only if it names him or says "he".
+ *
+ * NEVER AN APPOSITION. "central midfielder Neil Webb" is Wikipedia naming
+ * somebody else, and it sits inside a sentence about Parker. A phrase
+ * followed by a capitalised name that is not his own is somebody else's job
+ * title, so it is thrown away.
+ *
+ * NEVER ACROSS THE HALFWAY LINE. A refinement has to be the same kind of
+ * thing the infobox already said: a "Midfielder" can turn out to be central,
+ * defensive, attacking or wide, and cannot turn out to be a goalkeeper. A
+ * tie between two readings is no answer, and no answer is the status quo.
+ */
+function proseAllows(infoboxPosition: string | null): ((name: string) => boolean) {
+  const box = infoboxPosition ?? ''
+  if (/defend|full[\s-]?back|wing[\s-]?back|\bback\b/i.test(box)) {
+    return (n) => /back|centre-back/i.test(n)
+  }
+  if (/midfield/i.test(box)) {
+    return (n) => /midfielder|winger/i.test(n)
+  }
+  if (/forward|striker/i.test(box)) {
+    return (n) => /striker|winger/i.test(n)
+  }
+  if (/goal/i.test(box)) return (n) => /goalkeeper/i.test(n)
+  // Nothing in the box to contradict, so nothing is out of bounds.
+  return () => true
+}
+
+// The broad words are excluded deliberately: inferring "striker" from the
+// word "forward" in a paragraph is the guess this whole mechanism avoids.
+const PROSE_TERMS = POSITION_TERMS.filter(
+  (t) => !['Forward', 'Midfielder', 'Full-back'].includes(t.name),
+)
+
+// What the prose does when it is telling you what somebody WAS, rather than
+// mentioning in passing where he once played. "Regular" is deliberately not
+// in here: "became a regular on the left wing" is exactly the passing
+// mention this is meant to outrank.
+const STRONG_CUE_BEFORE =
+  /\b(?:favou?red|natural|preferred|played(?: mainly| mostly| primarily)? as|play as|deployed|redeployed|converted|operated|primarily|mainly|usually|normally|typically|position of|career as)\b[^.]{0,20}$/i
+const STRONG_CUE_AFTER = /^\s+(?:position|role|berth)\b/i
+
+/**
+ * Does this text name him?
+ *
+ * Not `\b`, which is ASCII: "ș" is not a word character to it, so
+ * `\bTamaș\b` matches nothing at all and every sentence about Gabriel Tamaș
+ * failed the test. The boundary has to be "not a letter" in the Unicode
+ * sense, or half the database is unreachable by its own surname.
+ */
+function namedIn(text: string, surname: string): boolean {
+  const escaped = surname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?<!\\p{L})${escaped}(?!\\p{L})`, 'iu').test(text)
+}
+
+export function positionFromProse(
+  body: string,
+  infoboxPosition: string | null,
+  surname: string | null,
+): string | null {
+  const allowed = proseAllows(infoboxPosition)
+  const last = (surname ?? '').trim()
+  const tally = new Map<string, number>()
+
+  for (const sentence of body.split(/(?<=[.!?])\s+/)) {
+    // His sentence, or somebody else's. "He" is enough — an article's
+    // pronouns belong to its subject.
+    const aboutHim =
+      (last.length > 2 && namedIn(sentence, last)) || /\b(he|his|him)\b/i.test(sentence)
+    if (!aboutHim) continue
+
+    for (const { pattern, name } of PROSE_TERMS) {
+      if (!allowed(name)) continue
+      const scan = new RegExp(pattern.source, 'gi')
+      for (let m = scan.exec(sentence); m; m = scan.exec(sentence)) {
+        const after = sentence.slice(m.index + m[0].length)
+        // "central midfielder Neil Webb" — a job title attached to a name,
+        // and the name is not his. Up to three words, because a full name
+        // can be three long before his surname shows up.
+        const apposition = after.match(/^\s+((?:\p{Lu}[\p{L}'’-]*\s*){1,3})/u)
+        if (apposition && last && !namedIn(apposition[1], last)) continue
+        // A sentence can mention two of these honestly. Parker "became a
+        // regular on the left wing" at Forest one season and was moved to
+        // "his favoured central midfield position" the next, and both are
+        // true — so a phrase the prose presents as WHAT HE WAS outweighs one
+        // that merely says where he turned out. Without this the two tie at
+        // one apiece and the whole lookup gives up.
+        const before = sentence.slice(Math.max(0, m.index - 40), m.index)
+        const strong = STRONG_CUE_BEFORE.test(before) || STRONG_CUE_AFTER.test(after.slice(0, 24))
+        tally.set(name, (tally.get(name) ?? 0) + (strong ? 3 : 1))
+      }
+    }
+  }
+
+  if (tally.size === 0) return null
+  const ranked = [...tally].sort((a, b) => b[1] - a[1])
+  // A tie is two readings of the same player and no way to choose. The
+  // infobox's silence is more honest than a coin toss.
+  if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return null
+  return ranked[0][0]
+}
 
 function extractPositionsFromText(text: string): string[] {
   const found: string[] = [];

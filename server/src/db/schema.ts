@@ -8,6 +8,9 @@ export const footballers = sqliteTable('footballers', {
   nationality: text('nationality'),
   position: text('position'),
   all_positions: text('all_positions'),
+  // Read out of the article's body when the infobox gives only a half of the
+  // pitch. See migration 0120 and services/positions.ts for the precedence.
+  prose_position: text('prose_position'),
   custom_position: text('custom_position'),
   style_of_play: text('style_of_play'),
   born: text('born'),

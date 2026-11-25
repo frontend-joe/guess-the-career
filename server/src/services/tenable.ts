@@ -1145,7 +1145,7 @@ const nationalityClub: TenableType = {
 const POSITION_PLURAL = new Map(POSITION_BUCKETS.map((b) => [b.bucket as string, b.plural]));
 
 const IS_BUCKET = (col: string) =>
-  `position_buckets(f.custom_position, f.position) LIKE '%|' || ${col} || '|%'`;
+  `position_buckets(f.custom_position, f.position, f.prose_position) LIKE '%|' || ${col} || '|%'`;
 
 // A board with no number on it.
 //

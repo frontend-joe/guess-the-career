@@ -12,7 +12,7 @@ import { refreshClubSeasons } from "./clubSeasons.ts";
 // browser tab closes, and long runtimes. The client starts a job with a short
 // POST and polls a short GET for progress.
 
-export type BackfillType = "photos" | "career-stats" | "repair" | "club-seasons";
+export type BackfillType = "photos" | "career-stats" | "repair" | "club-seasons" | "positions";
 
 // A `position` this long is never a real position — it's the whole nested
 // infobox splatted in by the pre-fix descendant-scoped row parser. Real
@@ -87,6 +87,26 @@ async function selectTargets(
           sql`(${footballers.photo_url} IS NULL OR ${footballers.photo_url} = '')`,
         )
       : isNotNull(footballers.wikipedia_url);
+    return db
+      .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
+      .from(footballers)
+      .where(where)
+      .orderBy(footballers.id) as Promise<{ id: number; name: string; url: string }[]>;
+  }
+
+  if (type === "positions") {
+    // Only the players no position board can currently reach. Their infobox
+    // said "Midfielder" or "Defender" and stopped there, so they are on no
+    // board at all and anything the article's prose says is an improvement
+    // on nothing. A resume skips the ones already read — an article that
+    // yielded nothing keeps its NULL, so it is tried again, which is right:
+    // articles get edited.
+    const where = onlyMissing
+      ? sql`${footballers.wikipedia_url} IS NOT NULL
+            AND ${footballers.prose_position} IS NULL
+            AND position_buckets(custom_position, position, prose_position) = ''`
+      : sql`${footballers.wikipedia_url} IS NOT NULL
+            AND position_buckets(custom_position, position, prose_position) = ''`;
     return db
       .select({ id: footballers.id, name: footballers.name, url: footballers.wikipedia_url })
       .from(footballers)
@@ -217,6 +237,17 @@ export function startBackfill(type: BackfillType, onlyMissing = true): boolean {
               .limit(1);
             await applyScrapeResult(player.id, result, existing?.photo_url ?? null);
             job.updated += 1;
+          } else if (type === "positions") {
+            // The one field, and only when the article gave one. Everything
+            // else on the row is left exactly as it was: this job exists to
+            // fill a silence, not to re-import a player.
+            if (result.prose_position) {
+              await db
+                .update(footballers)
+                .set({ prose_position: result.prose_position, updated_at: sql`(datetime('now'))` })
+                .where(eq(footballers.id, player.id));
+              job.updated += 1;
+            }
           } else if (type === "photos") {
             const photo = result.photo_url ?? (await fetchSportsDbPhoto(result.name));
             if (photo) {
