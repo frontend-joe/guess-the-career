@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { positionBuckets, positionBucketKey } from './positions.ts'
 
-const buckets = (custom: string | null, position: string | null) =>
-  positionBuckets(custom, position)
+const buckets = (custom: string | null, position: string | null, all: string | null = null) =>
+  positionBuckets(custom, position, all)
 
 test('the whole field counts, not the first word of it', () => {
   // Lahm belongs on both full-back boards. A round that read only the first
@@ -43,10 +43,35 @@ test('the spellings nobody agreed on all land in one place', () => {
 test('a position that names only half the pitch places nobody', () => {
   assert.deepEqual(buckets(null, 'Defender'), [])
   assert.deepEqual(buckets(null, 'Midfielder'), [])
-  assert.deepEqual(buckets(null, 'Forward'), [])
   // Same problem one level down: which flank?
   assert.deepEqual(buckets(null, 'Full-back'), [])
   assert.deepEqual(buckets(null, 'Wing-back'), [])
+})
+
+// Except the forward half, which holds two buckets rather than four, and
+// where the ambiguous one is spelt out: a winger is written "Winger".
+test('a bare Forward is a striker', () => {
+  // Mark Bright. "Forward" is the whole of his row and all_positions is
+  // empty, so there is nothing else to go on and nothing else needed — he
+  // led Sheffield Wednesday's line for four years.
+  assert.deepEqual(buckets(null, 'Forward'), ['striker'])
+  assert.deepEqual(buckets(null, 'Midfielder, forward'), ['striker'])
+})
+
+test('all_positions settles the forwards who were really wingers', () => {
+  // Pedro Munitis: "Forward" up top, and a left winger everywhere else.
+  assert.deepEqual(
+    buckets(null, 'Forward', 'Left winger, Winger, Forward, Midfielder'),
+    ['winger'],
+  )
+  // Naming a striker too leaves the default alone — it is only the winger
+  // with no striker beside him that overturns it.
+  assert.deepEqual(
+    buckets(null, 'Forward', 'Winger, Striker, Forward'),
+    ['striker'],
+  )
+  // And it never reaches a row that already placed itself.
+  assert.deepEqual(buckets(null, 'Centre-back', 'Winger'), ['centre-back'])
 })
 
 test('a hand-corrected position wins outright, and is how a vague one is fixed', () => {
