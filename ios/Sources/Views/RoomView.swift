@@ -48,6 +48,9 @@ struct RoomView: View {
                         // in the same second. A discovery is also the one
                         // thing worth covering the board for.
                         .overlay(alignment: .center) { DiscoveryBanner() }
+                        // After the clip, so the button is not cut off by
+                        // the board's own bounds.
+                        .overlay(alignment: .topTrailing) { historyButton }
                         .zIndex(2)
 
                     // Under the board, not over it: the question is what the
@@ -300,40 +303,39 @@ struct RoomView: View {
     // takes no space at all unless it has something to say. An empty bar
     // across the top was costing the board a row of its own height.
     @ViewBuilder
-    // The one strip above the board. It carried only the video warning, and
-    // only when there was one, so most of the time it was nothing at all.
-    //
-    // History goes here rather than in the ellipsis menu because it is the
-    // thing you reach for between rounds, when the menu is three taps and a
-    // popover away — and because the top-right corner is where every app on
-    // the phone keeps the screen you can leave again.
-    //
-    // The same button as everything in the footer — same glass, same 44pt
-    // target. It was drawn small to save the board a few points, which made
-    // the one control above the board the only one in the room you had to
-    // aim at. The board can spare them.
     private var header: some View {
-        HStack(spacing: 8) {
-            if let note = store.videoNote {
-                Text(note)
-                    .font(.body(11))
-                    .foregroundStyle(.orange)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Spacer(minLength: 0)
-            }
-
-            Button { showingHistory = true } label: {
-                GlassCircle {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: GlassStyle.symbol, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-            }
-            .accessibilityLabel("Round history")
+        if let note = store.videoNote {
+            Text(note)
+                .font(.body(11))
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 4)
+    }
+
+    // History, floating in the board's top-right corner.
+    //
+    // It is not in a bar, because a bar costs the board its height whether
+    // anybody is looking at this button or not — and the board is the only
+    // thing on screen that can use more space. It is safe to float here: the
+    // top row of the pyramid is 56% of the width and centred, so the corner
+    // it sits in is 22% of the screen that the board was never going to use.
+    //
+    // The same component as everything in the footer, at the same 44pt. The
+    // one control above the board should not also be the only one you have
+    // to aim at.
+    private var historyButton: some View {
+        Button { showingHistory = true } label: {
+            GlassCircle {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: GlassStyle.symbol, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        }
+        .accessibilityLabel("Round history")
+        .padding(.trailing, 10)
+        .padding(.top, 6)
     }
 
     // Only what you need BEFORE a round: pick one, start it. It goes away

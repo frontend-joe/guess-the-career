@@ -182,40 +182,16 @@ fun RoomScreen(model: RoomViewModel) {
             .windowInsetsPadding(WindowInsets.systemBars),
     ) {
 
-        // The one strip above the board. It carried only the video warning,
-        // and only when there was one, so most of the time it was nothing.
-        //
-        // History goes here rather than in the overflow menu because it is
-        // the thing you reach for between rounds — and because the top-right
-        // corner is where every app on the phone keeps the screen you can
-        // leave again.
-        //
-        // The same button as everything in the footer — same glass, same 44dp
-        // target. It was drawn small to save the board a few dp, which made
-        // the one control above the board the only one in the room you had
-        // to aim at. The board can spare them.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
+        // Nothing but the occasional video note, so it takes no space at all
+        // unless it has something to say. An empty bar across the top was
+        // costing the board a row of its own height.
+        model.videoNote?.let {
             Text(
-                model.videoNote ?: "",
+                it,
                 fontSize = 11.sp,
                 color = Color(0xFFFBBF24),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
             )
-            IconButton(
-                onClick = { showingHistory = true },
-                modifier = Modifier.size(CONTROL).background(Color(0x1AFFFFFF), CircleShape),
-            ) {
-                Icon(
-                    Icons.Filled.History,
-                    contentDescription = "Round history",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
         }
 
         // The question, where the web game puts it: across the top, above the
@@ -224,6 +200,33 @@ fun RoomScreen(model: RoomViewModel) {
         Box(modifier = Modifier.weight(2f).fillMaxWidth()) {
             BoardSection(model)
 
+            // History, floating in the board's top-right corner.
+            //
+            // Not in a bar: a bar costs the board its height whether anybody
+            // is looking at this button or not, and the board is the only
+            // thing on screen that can use more space. Safe to float here —
+            // the top row of the pyramid is 56% of the width and centred, so
+            // the corner it sits in is 22% of the screen the board was never
+            // going to use.
+            //
+            // The same button as everything in the footer, at the same 44dp.
+            // The one control above the board should not also be the only
+            // one you have to aim at.
+            IconButton(
+                onClick = { showingHistory = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 10.dp, top = 6.dp)
+                    .size(CONTROL)
+                    .background(Color(0x1AFFFFFF), CircleShape),
+            ) {
+                Icon(
+                    Icons.Filled.History,
+                    contentDescription = "Round history",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
 
         // Under the board, not over it: the question is what the board is an
