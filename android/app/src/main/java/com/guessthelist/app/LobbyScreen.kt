@@ -38,8 +38,16 @@ import kotlinx.coroutines.launch
 // to sign up is how you end up playing on your own.
 @Composable
 fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember { mutableStateOf(null) }) {
+    val context = LocalContext.current
     var code by remember { mutableStateOf("") }
-    var displayName by remember { mutableStateOf("") }
+    // The name this handset last played under. A guest has no account and
+    // never will, so the phone itself is the login: whoever is holding it is
+    // whoever held it last week.
+    var displayName by remember { mutableStateOf(Push.displayName(context) ?: "") }
+    // Whether this phone already knew its own name. Drives the wording and
+    // nothing else: a returning guest is told the name is theirs to change,
+    // rather than asked for one as though the app had never met them.
+    var remembered by remember { mutableStateOf(!Push.displayName(context).isNullOrBlank()) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -54,7 +62,15 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
     var video by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
-    val context = LocalContext.current
+
+    suspend fun joinNow(raw: String) {
+        val name = raw.trim()
+        val joined = Api.joinRoom(code.trim(), name, Push.token(context), Push.secret(context))
+        Push.adoptSecret(context, joined.deviceSecret)
+        Push.noteDisplayName(context, name)
+        remembered = true
+        model.enter(joined)
+    }
 
     fun run(body: suspend () -> Unit) {
         // Every button on this screen commits something, and a commit puts the
@@ -79,12 +95,25 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // An invite link fills the code in and leaves the guest with only the
-        // one thing they actually have to supply: their name.
+        // An invite link fills the code in, and on a phone that already knows
+        // its own name that is everything the join needed.
         LaunchedEffect(invite.value) {
+            val invited = invite.value ?: return@LaunchedEffect
+            code = invited
+            invite.value = null
             // Whatever went wrong with the last room is not news about this
             // link, so a fresh invite clears the slate it lands on.
-            invite.value?.let { code = it; invite.value = null; model.error = null }
+            model.error = null
+            // A known name plus a code is the whole of joining, so do it
+            // rather than render a filled-in form and wait to be told twice.
+            // The lobby is still here, with the error on it, if the code has
+            // expired.
+            val known = displayName.trim().ifEmpty { Push.displayName(context)?.trim().orEmpty() }
+            if (known.isEmpty() || busy) return@LaunchedEffect
+            displayName = known
+            busy = true
+            try { joinNow(known) } catch (e: Exception) { model.error = e.message }
+            busy = false
         }
 
         // Whatever the server currently calls this host. Failure is silent on
@@ -116,16 +145,15 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        if (remembered) {
+            Text(
+                "This phone remembers you. Change it here if you want a different name on your card.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF9AA0A6),
+            )
+        }
         Button(
-            onClick = {
-                run {
-                    val name = displayName.trim()
-                    val joined = Api.joinRoom(code.trim(), name, Push.token(context), Push.secret(context))
-                    Push.adoptSecret(context, joined.deviceSecret)
-                    Push.noteDisplayName(context, name)
-                    model.enter(joined)
-                }
-            },
+            onClick = { run { joinNow(displayName) } },
             enabled = !busy && code.isNotBlank() && displayName.isNotBlank(),
         ) { Text("Join") }
 

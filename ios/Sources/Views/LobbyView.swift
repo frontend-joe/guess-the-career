@@ -12,6 +12,13 @@ struct LobbyView: View {
     @State private var displayName = ""
     @State private var busy = false
 
+    /// Whether this phone already knew its own name when the lobby appeared.
+    ///
+    /// Drives the wording and nothing else: a returning guest is told the name
+    /// is theirs to change, rather than asked for one as though the app had
+    /// never met them.
+    @State private var remembered = false
+
     /// Whether the game being created is a video call.
     ///
     /// Decided here because it cannot be decided later: with it off nobody
@@ -49,6 +56,11 @@ struct LobbyView: View {
                     TextField("Your name", text: $displayName)
                         .textInputAutocapitalization(.words)
                         .focused($focus, equals: .displayName)
+                    if remembered {
+                        Text("This phone remembers you. Change it here if you want a different name on your card.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     Button("Join") { run { try await join() } }
                         .disabled(busy || code.trimmed.isEmpty || displayName.trimmed.isEmpty)
                 }
@@ -90,11 +102,19 @@ struct LobbyView: View {
             }
             .navigationTitle("Football Tenable")
             .disabled(busy)
-            // An invite link fills the code in and leaves the guest with only
-            // the one thing they actually have to supply: their name.
+            // An invite link fills the code in, and on a phone that already
+            // knows its own name that is everything the join needed.
             // A host who was already signed in when the app launched never
             // passes through signIn(), so the name is fetched here too.
             .task(id: store.accessToken) { await loadHostName() }
+            // The name this handset last played under. A guest has no account
+            // and never will, so the phone itself is the login: whoever is
+            // holding it is whoever held it last week.
+            .task {
+                guard displayName.isEmpty, let saved = PushStore.shared.savedDisplayName else { return }
+                displayName = saved
+                remembered = true
+            }
             .onChange(of: store.pendingJoinCode, initial: true) { _, invited in
                 guard let invited else { return }
                 code = invited
@@ -102,6 +122,16 @@ struct LobbyView: View {
                 // Whatever went wrong with the last room is not news about this
                 // link, so a fresh invite clears the slate it lands on.
                 store.error = nil
+                // A known name plus a code is the whole of joining, so do it
+                // rather than render a filled-in form and wait to be told
+                // twice. The lobby is still here, with the error on it, if the
+                // code has expired.
+                let known = displayName.trimmed.isEmpty
+                    ? PushStore.shared.savedDisplayName?.trimmed ?? ""
+                    : displayName.trimmed
+                guard !known.isEmpty, !busy else { return }
+                displayName = known
+                run { try await join() }
             }
         }
     }
@@ -160,6 +190,7 @@ struct LobbyView: View {
         )
         PushStore.shared.adopt(secret: joined.deviceSecret)
         PushStore.shared.noteDisplayName(name)
+        remembered = true
         store.enter(joined)
     }
 

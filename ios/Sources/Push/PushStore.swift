@@ -124,6 +124,14 @@ final class PushStore {
         }
     }
 
+    /// The name this phone plays under, from the last time anybody typed one.
+    ///
+    /// This is the whole of "logging in" for a guest. They have no account and
+    /// are never going to get one, but the handset is the same handset every
+    /// week, so the name it last used is the name it means. Read back into the
+    /// lobby so an invite link never asks a second time.
+    var savedDisplayName: String? { Defaults.displayName }
+
     /// Remember the name this phone's owner plays under, so the server can say
     /// whose phone a token belongs to without guessing.
     func noteDisplayName(_ name: String) {
