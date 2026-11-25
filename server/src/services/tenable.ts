@@ -265,6 +265,24 @@ const STINT_CLUB = `COALESCE(cbu.club, ${STINT_CLUB_RAW})`;
 // right, pointing at Birmingham_City_F.C., which is the whole chain this needs.
 const STINT_CLUB_URL = `COALESCE(st.club_wikipedia_url, cn.wikipedia_url)`;
 
+// Which clubs a player's career table already accounts for, one row per
+// player per club, under the canonical name.
+//
+// This is the gate on the stint branch below, and it is per CLUB. It used to
+// be per PLAYER — a single career-statistics row anywhere disqualified every
+// stint that player had — which quietly punished the players whose table is
+// PARTIAL. Dalian Atkinson's scraped table starts at Real Sociedad in 1990,
+// so his four years at Ipswich and his season at Sheffield Wednesday were
+// thrown away despite both spells sitting in career_stints with apps and
+// goals on them. A player with no table at all was rescued; a player with
+// most of one was not.
+const CS_CLUB_KEYS = `
+  SELECT DISTINCT cs.footballer_id AS fid, club_key(${CS_CLUB}) AS k
+  FROM career_statistics cs
+  ${CS_CLUB_JOINS}
+  WHERE cs.club IS NOT NULL
+`;
+
 const STINT_CLUB_ANY = `
   SELECT st.footballer_id AS fid,
          ${STINT_CLUB} AS club,
@@ -273,10 +291,17 @@ const STINT_CLUB_ANY = `
   FROM career_stints st
   LEFT JOIN clubs cn ON cn.name = ${STINT_CLUB_RAW}
   LEFT JOIN (${CLUB_BY_URL}) cbu ON cbu.url = ${STINT_CLUB_URL}
+  -- An anti-join, not a correlated NOT EXISTS: the key set is built once
+  -- rather than per stint row, and CS_CLUB_JOINS drags CLUB_BY_URL along
+  -- with it. Same shape the youth-only exclusion uses in PLAYER_CLUB.
+  LEFT JOIN (${CS_CLUB_KEYS}) csk
+    ON csk.fid = st.footballer_id AND csk.k = club_key(${STINT_CLUB})
   WHERE st.stint_type = 'senior'
-    AND NOT EXISTS (
-      SELECT 1 FROM career_statistics x WHERE x.footballer_id = st.footballer_id
-    )
+    -- The career table has nothing for THIS player at THIS club, so the
+    -- stint is the only record of the spell there is. Where the table does
+    -- cover the club it still wins outright: it is per season and per
+    -- competition, and the stint is one rounded infobox total.
+    AND csk.fid IS NULL
     AND ${STINT_CLUB} IN (${ALLOWED_CLUBS})
   GROUP BY st.footballer_id, ${STINT_CLUB}
 `;
