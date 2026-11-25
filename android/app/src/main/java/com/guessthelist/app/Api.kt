@@ -208,6 +208,14 @@ object Api {
     suspend fun livekitCredentials(seat: Seat): LivekitCredentials =
         get("api/rooms/${seat.code}/livekit-token", seat.token)
 
+    /**
+     * Every round this room has played, with its answers. Fetched when the
+     * sheet opens rather than carried in the state: it is a few kilobytes
+     * nobody needs on a ten-second poll.
+     */
+    suspend fun history(seat: Seat): List<HistoryRound> =
+        get<HistoryPage>("api/rooms/${seat.code}/history", seat.token).rounds
+
     suspend fun freezeRound(seat: Seat, roundId: Int): FrozenRound = post(
         "api/rooms/${seat.code}/rounds",
         buildJsonObject { put("roundId", roundId) },

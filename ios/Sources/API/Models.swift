@@ -415,3 +415,55 @@ struct FootballerCard: Codable, Equatable {
         return out.string(from: date)
     }
 }
+
+// MARK: - History
+
+/// One answer as it stood when the round ended.
+///
+/// `foundBy` is the name of whoever said it, or nil for one nobody got —
+/// which is the whole reason anybody opens this screen.
+struct HistoryAnswer: Decodable, Identifiable {
+    let rank: Int
+    let name: String
+    let value: Double
+    let unit: String?
+    let display: String?
+    let nationality: String?
+    let photoUrl: String?
+    let footballerId: Int?
+    let foundBy: String?
+
+    var id: Int { rank }
+    var found: Bool { foundBy != nil }
+
+    /// What the badge reads. An authored round says so outright; a derived
+    /// one has only ever had the number. Matches RevealedAnswer's rule, which
+    /// is deliberate — the same answer must not read two ways in one app.
+    var badge: String? {
+        if let display, !display.isEmpty { return display }
+        guard let unit, !unit.isEmpty else { return nil }
+        return "\(Int(value)) \(unit)"
+    }
+}
+
+struct HistoryRound: Decodable, Identifiable {
+    let instanceId: Int
+    let seq: Int
+    let title: String
+    let metric: String
+    let category: String
+    let ordered: Bool
+    let target: Int
+    /// How many of the ten were named. The score.
+    let found: Int
+    /// How much of an unordered pool is not listed, because it was capped.
+    let more: Int
+    let answers: [HistoryAnswer]
+
+    var id: Int { instanceId }
+    var score: String { "\(found) of \(target)" }
+}
+
+struct HistoryPage: Decodable {
+    let rounds: [HistoryRound]
+}

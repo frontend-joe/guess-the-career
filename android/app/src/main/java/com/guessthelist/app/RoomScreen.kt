@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.MoreVert
@@ -143,6 +144,7 @@ fun RoomScreen(model: RoomViewModel) {
     var picking by remember { mutableStateOf(false) }
     var confirmingGiveUp by remember { mutableStateOf(false) }
     var showingActions by remember { mutableStateOf(false) }
+    var showingHistory by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -173,16 +175,40 @@ fun RoomScreen(model: RoomViewModel) {
             .windowInsetsPadding(WindowInsets.systemBars),
     ) {
 
-        // Nothing but the occasional video note now that the code has gone, so
-        // it takes no space at all unless it has something to say. An empty
-        // bar across the top was costing the board a row of its own height.
-        model.videoNote?.let {
+        // The one strip above the board. It carried only the video warning,
+        // and only when there was one, so most of the time it was nothing.
+        //
+        // History goes here rather than in the overflow menu because it is
+        // the thing you reach for between rounds — and because the top-right
+        // corner is where every app on the phone keeps the screen you can
+        // leave again.
+        //
+        // Deliberately smaller than the footer's controls. Those are played
+        // with mid-sentence and want a full-size target; this one is tapped
+        // when nothing is happening, and every dp it takes is a dp off the
+        // board, which is the only thing on screen that can use more space.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             Text(
-                it,
+                model.videoNote ?: "",
                 fontSize = 11.sp,
                 color = Color(0xFFFBBF24),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                modifier = Modifier.weight(1f),
             )
+            IconButton(
+                onClick = { showingHistory = true },
+                modifier = Modifier.size(30.dp).background(Color(0x1AFFFFFF), CircleShape),
+            ) {
+                Icon(
+                    Icons.Filled.History,
+                    contentDescription = "Round history",
+                    tint = Color(0xBFFFFFFF),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
 
         // The question, where the web game puts it: across the top, above the
@@ -530,6 +556,10 @@ fun RoomScreen(model: RoomViewModel) {
             onDismiss = { picking = false },
             onPick = { model.freezeRound(it); picking = false },
         )
+    }
+
+    if (showingHistory) {
+        HistoryDialog(model = model, onDismiss = { showingHistory = false })
     }
 }
 

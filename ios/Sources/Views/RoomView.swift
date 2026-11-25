@@ -11,6 +11,7 @@ struct RoomView: View {
     @State private var showingRoundPicker = false
     @State private var confirmingGiveUp = false
     @State private var showingActions = false
+    @State private var showingHistory = false
     /// Share was tapped in the actions menu; the sheet goes up once that menu
     /// is out of the way.
     @State private var shareWanted = false
@@ -146,6 +147,7 @@ struct RoomView: View {
             }
         }
         .sheet(isPresented: $showingRoundPicker) { RoundPickerView() }
+        .sheet(isPresented: $showingHistory) { HistorySheet() }
         // Giving up cannot be undone and ends the round for everybody, which
         // is the one case that earns a confirmation. Choosing a round does
         // not, which is why they are not the same button by accident.
@@ -298,15 +300,40 @@ struct RoomView: View {
     // takes no space at all unless it has something to say. An empty bar
     // across the top was costing the board a row of its own height.
     @ViewBuilder
+    // The one strip above the board. It carried only the video warning, and
+    // only when there was one, so most of the time it was nothing at all.
+    //
+    // History goes here rather than in the ellipsis menu because it is the
+    // thing you reach for between rounds, when the menu is three taps and a
+    // popover away — and because the top-right corner is where every app on
+    // the phone keeps the screen you can leave again.
+    //
+    // Deliberately smaller than the footer's controls. Those are played
+    // with mid-sentence and want a 42pt target; this one is tapped when
+    // nothing is happening, and every point it takes is a point off the
+    // board, which is the only thing on screen that can use more space.
     private var header: some View {
-        if let note = store.videoNote {
-            Text(note)
-                .font(.body(11))
-                .foregroundStyle(.orange)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+        HStack(spacing: 8) {
+            if let note = store.videoNote {
+                Text(note)
+                    .font(.body(11))
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Spacer(minLength: 0)
+            }
+
+            Button { showingHistory = true } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(GlassStyle.disc))
+            }
+            .accessibilityLabel("Round history")
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
     }
 
     // Only what you need BEFORE a round: pick one, start it. It goes away

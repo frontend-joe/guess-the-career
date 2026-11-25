@@ -18,6 +18,7 @@ import {
   giveUp,
   allowGuess,
   joinRoom,
+  roomHistory,
   leaveRoom,
   onRoomChanged,
   participantsOf,
@@ -314,6 +315,16 @@ roomsRouter.get('/:code/state', async (c) => {
     // because nothing is polling to renew it.
     participantToken: await signParticipantToken(room.id, me.id),
   })
+})
+
+// GET /api/rooms/:code/history — every round this room has played, with its
+// answers. Any participant, not just the host: reviewing what you missed is
+// the half of the game that happens after the buzzer.
+roomsRouter.get('/:code/history', async (c) => {
+  const room = mustFindRoom(c.req.param('code'))
+  const me = await participantFor(c, room)
+  if (!me) return c.json({ error: 'Not in this room' }, 403)
+  return c.json({ rounds: roomHistory(room.id) })
 })
 
 // POST /api/rooms/:code/rounds — freeze a round's board for this room.

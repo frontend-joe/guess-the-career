@@ -366,3 +366,56 @@ data class PushRegistration(
 
 @Serializable
 data class MuteResult(val muted: Boolean = false)
+
+// ── History ─────────────────────────────────────────────────────────────────
+
+/**
+ * One answer as it stood when the round ended.
+ *
+ * [foundBy] is the name of whoever said it, or null for one nobody got —
+ * which is the whole reason anybody opens this screen.
+ */
+@Serializable
+data class HistoryAnswer(
+    val rank: Int = 0,
+    val name: String = "",
+    val value: Double = 0.0,
+    val unit: String? = null,
+    val display: String? = null,
+    val nationality: String? = null,
+    val photoUrl: String? = null,
+    val footballerId: Int? = null,
+    val foundBy: String? = null,
+) {
+    val found: Boolean get() = foundBy != null
+
+    /** What the badge reads, by the same rule [RevealedAnswer] uses — the same
+     *  answer must not read two ways in one app. */
+    val badge: String?
+        get() = when {
+            !display.isNullOrEmpty() -> display
+            unit.isNullOrEmpty() -> null
+            else -> "${value.toInt()} $unit"
+        }
+}
+
+@Serializable
+data class HistoryRound(
+    val instanceId: Int = 0,
+    val seq: Int = 0,
+    val title: String = "",
+    val metric: String = "",
+    val category: String = "football",
+    val ordered: Boolean = true,
+    val target: Int = 10,
+    /** How many of the ten were named. The score. */
+    val found: Int = 0,
+    /** How much of an unordered pool is not listed, because it was capped. */
+    val more: Int = 0,
+    val answers: List<HistoryAnswer> = emptyList(),
+) {
+    val score: String get() = "$found of $target"
+}
+
+@Serializable
+data class HistoryPage(val rounds: List<HistoryRound> = emptyList())

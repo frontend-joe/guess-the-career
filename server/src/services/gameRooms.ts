@@ -2580,3 +2580,130 @@ export function roomState(room: RoomRow): RoomState {
     round,
   }
 }
+
+// ── History ─────────────────────────────────────────────────────────────────
+
+/// How much of an unordered pool a review will show.
+///
+/// An ordered round has ten answers and shows all ten. An unordered one —
+/// "name any ten West Bromwich Albion centre-backs" — froze the WHOLE pool,
+/// which is two hundred names on a nationality round. Nobody reviews two
+/// hundred names. The ones that were found always survive this cap; it only
+/// bounds the "who else counted" tail.
+const HISTORY_POOL = 40
+
+export interface HistoryAnswer {
+  rank: number
+  name: string
+  value: number
+  unit: string | null
+  display: string | null
+  nationality: string | null
+  photoUrl: string | null
+  footballerId: number | null
+  /// Who said it, by the name they were playing under. Null means nobody did
+  /// — either it was never found, or it came up when the host gave in.
+  foundBy: string | null
+}
+
+export interface HistoryRound {
+  instanceId: number
+  seq: number
+  title: string
+  metric: string
+  category: string
+  ordered: boolean
+  target: number
+  /// How many of the ten were actually named, which is the score.
+  found: number
+  /// Whether the pool this round drew from is longer than what is listed.
+  more: number
+  answers: HistoryAnswer[]
+}
+
+/**
+ * Every round this room has played, with its answers.
+ *
+ * Only rounds that actually STARTED. A round the host lined up and never ran
+ * is marked abandoned alongside one that was cut off mid-play, and the two
+ * are told apart by `started_at_ms` rather than by status — showing the
+ * answers to a round nobody has seen would be giving away a board that is
+ * still in the pool for next week.
+ *
+ * The live round is excluded for the obvious reason: this is a review, and a
+ * review of a round you are still playing is a cheat sheet.
+ */
+export function roomHistory(roomId: number): HistoryRound[] {
+  const instances = sqlite
+    .prepare(
+      `SELECT * FROM game_round_instances
+        WHERE room_id = ? AND started_at_ms IS NOT NULL AND status != 'live'
+        ORDER BY seq`,
+    )
+    .all(roomId) as InstanceRow[]
+
+  const names = new Map(
+    (sqlite
+      .prepare('SELECT id, display_name FROM game_participants WHERE room_id = ?')
+      .all(roomId) as { id: number; display_name: string }[]).map((p) => [p.id, p.display_name]),
+  )
+
+  return instances.map((inst) => {
+    const total = (sqlite
+      .prepare('SELECT COUNT(*) AS n FROM game_round_answers WHERE instance_id = ? AND on_board = 1')
+      .get(inst.id) as { n: number }).n
+
+    // Found first, then the rest in rank order, so a cap on a long pool can
+    // never cut off a name somebody actually said. Re-sorted into rank order
+    // afterwards by the slice itself being ordered on the second key.
+    const rows = sqlite
+      .prepare(
+        `SELECT rank, name, value, unit, display, nationality, photo_url, footballer_id,
+                found_at_ms, found_by_participant_id
+           FROM game_round_answers
+          WHERE instance_id = ? AND on_board = 1
+          ORDER BY CASE WHEN found_at_ms IS NULL THEN 1 ELSE 0 END, rank
+          LIMIT ?`,
+      )
+      .all(inst.id, HISTORY_POOL) as {
+        rank: number
+        name: string
+        value: number
+        unit: string | null
+        display: string | null
+        nationality: string | null
+        photo_url: string | null
+        footballer_id: number | null
+        found_at_ms: number | null
+        found_by_participant_id: number | null
+      }[]
+
+    return {
+      instanceId: inst.id,
+      seq: inst.seq,
+      title: inst.title,
+      metric: inst.metric,
+      category: categoryOf(inst.type),
+      ordered: !!inst.ordered,
+      target: inst.target,
+      found: rows.filter((r) => r.found_at_ms != null).length,
+      more: Math.max(0, total - rows.length),
+      answers: rows
+        .slice()
+        .sort((a, b) => a.rank - b.rank)
+        .map((r) => ({
+          rank: r.rank,
+          name: r.name,
+          value: r.value,
+          unit: r.unit,
+          display: r.display,
+          nationality: r.nationality,
+          photoUrl: r.photo_url,
+          footballerId: r.footballer_id,
+          foundBy: r.found_by_participant_id == null
+            ? null
+            : names.get(r.found_by_participant_id) ?? null,
+        })),
+    }
+  })
+}

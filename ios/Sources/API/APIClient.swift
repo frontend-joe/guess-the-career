@@ -190,6 +190,14 @@ enum API {
         return try await get("api/rooms/\(seat.code)/state\(query)", bearer: seat.token)
     }
 
+    /// Every round this room has played, with its answers. Fetched when the
+    /// sheet opens rather than carried in the state: it is a few kilobytes
+    /// nobody needs on a ten-second poll.
+    static func history(seat: Seat) async throws -> [HistoryRound] {
+        let page: HistoryPage = try await get("api/rooms/\(seat.code)/history", bearer: seat.token)
+        return page.rounds
+    }
+
     static func livekitCredentials(seat: Seat) async throws -> LivekitCredentials {
         try await get("api/rooms/\(seat.code)/livekit-token", bearer: seat.token)
     }

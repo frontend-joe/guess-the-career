@@ -1,0 +1,172 @@
+import SwiftUI
+
+// What happened in this game, after it happened.
+//
+// A Tenable round is over in ninety seconds and the interesting part is the
+// three you did not get. Live, there is no room for that — the board is the
+// board and the next round is already being picked. So the review lives here,
+// off to one side, and keeps every round the room has played.
+//
+// Fetched when the sheet opens rather than carried in the room state: it is a
+// few kilobytes of answers that nobody needs on a ten-second poll, and the
+// state snapshot is on the critical path of every single game action.
+struct HistorySheet: View {
+    @Environment(RoomStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var rounds: [HistoryRound] = []
+    @State private var loading = true
+    @State private var failure: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if loading {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let failure {
+                    message(failure)
+                } else if rounds.isEmpty {
+                    // Before the first round ends there is genuinely nothing
+                    // here, and saying so is better than an empty list that
+                    // looks like a failed request.
+                    message("Nothing to review yet. Finished rounds show up here with their answers.")
+                } else {
+                    List(rounds) { round in
+                        NavigationLink {
+                            HistoryRoundView(round: round)
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(round.title)
+                                        .font(.body(15, weight: .semibold))
+                                    Text(round.score)
+                                        .font(.body(12))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 8)
+                                // The score as a shape, not just a number: a
+                                // round you cleaned up and one you were
+                                // battered on should be told apart from
+                                // across the room.
+                                Text("\(round.found)")
+                                    .font(.display(17))
+                                    .foregroundStyle(round.found == round.target ? BoardStyle.green.top : .secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func message(_ text: String) -> some View {
+        Text(text)
+            .font(.body(14))
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func load() async {
+        guard let seat = store.seat else {
+            loading = false
+            return
+        }
+        do {
+            // Newest first. You are nearly always here to look at the round
+            // that just finished, and scrolling to the bottom to find it is
+            // the wrong default for every game longer than three rounds.
+            rounds = try await API.history(seat: seat).reversed()
+        } catch {
+            failure = error.localizedDescription
+        }
+        loading = false
+    }
+}
+
+// One round's answers: the ten, who got each one, and — the whole point of
+// the screen — which ones nobody did.
+private struct HistoryRoundView: View {
+    let round: HistoryRound
+
+    /// The answer whose card is open. Any row opens, found or not: "who on
+    /// earth is Ryan Donk" is exactly the question this screen exists to
+    /// answer, and refusing the tap on a missed name answers it for nobody.
+    @State private var showing: HistoryAnswer?
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(round.answers) { answer in
+                    Button { showing = answer } label: { row(answer) }
+                        .buttonStyle(.plain)
+                }
+            } header: {
+                Text(round.score)
+            } footer: {
+                // An unordered round froze its whole pool, which on a
+                // nationality board is two hundred names. Saying how many are
+                // not listed is more honest than a list that simply stops.
+                if round.more > 0 {
+                    Text("\(round.more) more would also have counted.")
+                }
+            }
+        }
+        .navigationTitle(round.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $showing) { answer in
+            PlayerCardSheet(footballerId: answer.footballerId, name: answer.name)
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func row(_ answer: HistoryAnswer) -> some View {
+        HStack(spacing: 10) {
+            // Only where a rank is a real thing. On an unordered round it is
+            // the order the pool happened to be frozen in and means nothing
+            // — printing it would invent a ranking the game never had.
+            if round.ordered {
+                Text("\(answer.rank)")
+                    .font(.body(12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, alignment: .trailing)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(answer.name)
+                    .font(.body(15, weight: answer.found ? .semibold : .regular))
+                    // Dimmed rather than coloured. A missed answer is not an
+                    // error and should not read as one; it is simply a name
+                    // that did not get said.
+                    .foregroundStyle(answer.found ? .primary : .secondary)
+                if let badge = answer.badge {
+                    Text(badge)
+                        .font(.body(11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            if let who = answer.foundBy {
+                Text(who)
+                    .font(.body(12))
+                    .foregroundStyle(BoardStyle.green.top)
+                    .lineLimit(1)
+            } else {
+                Text("Missed")
+                    .font(.body(12))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+    }
+}
