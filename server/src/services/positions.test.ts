@@ -2,15 +2,20 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { positionBuckets, positionBucketKey } from './positions.ts'
 
-const buckets = (custom: string | null, position: string | null, all: string | null = null) =>
-  positionBuckets(custom, position, all)
+const buckets = (custom: string | null, position: string | null) =>
+  positionBuckets(custom, position)
 
 test('the whole field counts, not the first word of it', () => {
   // Lahm belongs on both full-back boards. A round that read only the first
   // word would leave him off one of them, and that is the entire point of
   // the round type.
   assert.deepEqual(buckets(null, 'Right-back, left-back, midfielder'), ['right-back', 'left-back'])
-  assert.deepEqual(buckets(null, 'Forward, attacking midfielder'), ['attacking midfielder'])
+  // Both, now that "Forward" places a player rather than being skipped —
+  // which is the same rule, not an exception to it.
+  assert.deepEqual(buckets(null, 'Forward, attacking midfielder'), [
+    'attacking midfielder',
+    'striker',
+  ])
   assert.deepEqual(buckets(null, 'Centre-back, defensive midfielder'), [
     'centre-back',
     'defensive midfielder',
@@ -48,30 +53,16 @@ test('a position that names only half the pitch places nobody', () => {
   assert.deepEqual(buckets(null, 'Wing-back'), [])
 })
 
-// Except the forward half, which holds two buckets rather than four, and
-// where the ambiguous one is spelt out: a winger is written "Winger".
+// Except the forward half, which has two buckets in it rather than four,
+// and where the other one is spelt out.
 test('a bare Forward is a striker', () => {
-  // Mark Bright. "Forward" is the whole of his row and all_positions is
-  // empty, so there is nothing else to go on and nothing else needed — he
-  // led Sheffield Wednesday's line for four years.
+  // Mark Bright. "Forward" is the whole of his row, and he led Sheffield
+  // Wednesday's line for four years.
   assert.deepEqual(buckets(null, 'Forward'), ['striker'])
   assert.deepEqual(buckets(null, 'Midfielder, forward'), ['striker'])
-})
-
-test('all_positions settles the forwards who were really wingers', () => {
-  // Pedro Munitis: "Forward" up top, and a left winger everywhere else.
-  assert.deepEqual(
-    buckets(null, 'Forward', 'Left winger, Winger, Forward, Midfielder'),
-    ['winger'],
-  )
-  // Naming a striker too leaves the default alone — it is only the winger
-  // with no striker beside him that overturns it.
-  assert.deepEqual(
-    buckets(null, 'Forward', 'Winger, Striker, Forward'),
-    ['striker'],
-  )
-  // And it never reaches a row that already placed itself.
-  assert.deepEqual(buckets(null, 'Centre-back', 'Winger'), ['centre-back'])
+  // And where a row says both, it means both — the same rule that puts
+  // Lahm on two full-back boards.
+  assert.deepEqual(buckets(null, 'Winger, Forward'), ['winger', 'striker'])
 })
 
 test('a hand-corrected position wins outright, and is how a vague one is fixed', () => {

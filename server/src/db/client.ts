@@ -116,11 +116,10 @@ sqlite.function('club_key', (s: unknown) => {
 // about: '|defender|midfielder|' for somebody who was both. See
 // services/positions.ts for why the answer is a set rather than one word, and
 // why all three columns go in.
-sqlite.function('position_buckets', (custom: unknown, position: unknown, all: unknown) =>
+sqlite.function('position_buckets', (custom: unknown, position: unknown) =>
   positionBucketKey(
     typeof custom === 'string' ? custom : null,
     typeof position === 'string' ? position : null,
-    typeof all === 'string' ? all : null,
   ),
 )
 

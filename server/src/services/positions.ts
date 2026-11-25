@@ -17,15 +17,16 @@
 // WHOLE field decides rather than the first word of it. Philipp Lahm is
 // "Right-back, left-back, midfielder", so he is on both full-back boards.
 //
-// Several spellings are deliberately unmapped. "Defender" and "midfielder"
-// say only the half of the pitch, and a board of right-backs cannot take a
-// man who might have been a centre-half; "full-back" and "wing-back"
-// without a side are the same problem one level down. Those players are
-// absent from these boards rather than guessed at — see `custom_position`,
-// which is where a human answer goes when the scrape cannot give one.
+// Two spellings are deliberately unmapped. "Defender" and "midfielder" say
+// only the half of the pitch, and a board of right-backs cannot take a man
+// who might have been a centre-half; "full-back" and "wing-back" without a
+// side are the same problem one level down. Those players are absent from
+// these boards rather than guessed at — see `custom_position`, which is
+// where a human answer goes when the scrape cannot give one.
 //
-// "Forward" is the exception, and is settled further down rather than in
-// the map, because its half of the pitch holds only two buckets.
+// "Forward" is not one of them, because that half of the pitch has two
+// buckets rather than four and the other one is spelt out: a winger is
+// written "Winger".
 //
 // The `all_positions` column is deliberately not read, though it is the
 // richer one. It lists every position a player ever occupied, including the
@@ -106,16 +107,19 @@ const BUCKET_OF: Record<string, PositionBucket> = {
   'outside right': 'winger',
 
   striker: 'striker',
+  // 385 rows say this and nothing else, which is the single commonest
+  // spelling in the whole column. Left out, it took Mark Bright off every
+  // position board in the game — "Forward" is all his row has ever said,
+  // and he led Sheffield Wednesday's line for four years. A handful of
+  // these were really wingers; they are on the striker boards now, which
+  // is a far smaller wrong than the 254 centre-forwards who were on
+  // nothing.
+  forward: 'striker',
   'second striker': 'striker',
   'centre forward': 'striker',
   'centre-forward': 'striker',
   'inside forward': 'striker',
 }
-
-// A field that says only which end of the pitch, with no bucket in it.
-const NAMES_FORWARD = /(^|[,/])\s*forwards?\s*($|[,/])/i
-// Enough of a striker in `all_positions` to leave a bare "Forward" alone.
-const NAMES_STRIKER = /striker|centre.forward|center.forward|inside forward/i
 
 /**
  * The buckets a player belongs to, from whatever their row says.
@@ -126,34 +130,12 @@ const NAMES_STRIKER = /striker|centre.forward|center.forward|inside forward/i
 export function positionBuckets(
   customPosition: string | null,
   position: string | null,
-  allPositions: string | null = null,
 ): PositionBucket[] {
   const field = customPosition?.trim() ? customPosition : position
   const found = new Set<PositionBucket>()
   for (const raw of (field ?? '').split(/[,/]/)) {
     const bucket = BUCKET_OF[raw.trim().toLowerCase()]
     if (bucket) found.add(bucket)
-  }
-  // A bare "Forward", and nothing more specific anywhere in the field.
-  //
-  // This is the one half of the pitch that can be settled, because it has
-  // only two buckets in it and a winger is almost always written as one:
-  // of the 259 players reaching this line, `all_positions` names a winger
-  // and no striker for five. So read those five off it — exactly the
-  // "refinement of a position already known" the note above allows — and
-  // call the rest strikers. Mark Bright's row says "Forward" and nothing
-  // else exists for him anywhere; he was Sheffield Wednesday's centre
-  // forward for four years and belongs on that board.
-  //
-  // "Defender" and "Midfielder" get no such treatment and cannot: each
-  // covers three or four buckets with nothing to choose between them, and
-  // a guessed centre-half on a right-back board is a wrong answer printed
-  // as a right one.
-  if (found.size === 0 && NAMES_FORWARD.test(field ?? '')) {
-    const refined = allPositions ?? ''
-    found.add(
-      /winger/i.test(refined) && !NAMES_STRIKER.test(refined) ? 'winger' : 'striker',
-    )
   }
   // Keeping goal is the one job that is exclusive. No row mixes it with an
   // outfield position today, so this changes nothing — it is here because
@@ -176,8 +158,7 @@ export function positionBuckets(
 export function positionBucketKey(
   customPosition: string | null,
   position: string | null,
-  allPositions: string | null = null,
 ): string {
-  const buckets = positionBuckets(customPosition, position, allPositions)
+  const buckets = positionBuckets(customPosition, position)
   return buckets.length ? `|${buckets.join('|')}|` : ''
 }
