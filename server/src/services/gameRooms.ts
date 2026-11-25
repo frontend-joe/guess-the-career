@@ -2686,7 +2686,15 @@ export function roomHistory(roomId: number): HistoryRound[] {
       category: categoryOf(inst.type),
       ordered: !!inst.ordered,
       target: inst.target,
-      found: rows.filter((r) => r.found_at_ms != null).length,
+      // Capped, because a round can genuinely end with more answers found
+      // than it has slots. One guess fills every open slot it names — shout
+      // "Cole" at a board of Coles and you take all three — so a sweep that
+      // lands on the last slot finishes the round at eleven found out of
+      // ten. The game scored ten, the board drew ten, and everybody in the
+      // room saw ten; "11 of 10" is this screen inventing a result nobody
+      // else was shown. The eleventh name is still in `answers` below,
+      // marked found, which is where it belongs.
+      found: Math.min(rows.filter((r) => r.found_at_ms != null).length, inst.target),
       more: Math.max(0, total - rows.length),
       answers: rows
         .slice()

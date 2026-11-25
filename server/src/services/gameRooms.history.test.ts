@@ -112,3 +112,19 @@ test('a long unordered pool is capped, and the cap never eats a found name', () 
   const found = round.answers.filter((a) => a.foundBy === 'Alan').map((a) => a.rank)
   assert.deepEqual(found, [191, 192, 193, 194, 195, 196, 197, 198, 199, 200])
 })
+
+test('a sweep that overfills the board still reads as ten of ten', () => {
+  const r = room('history-4@example.com')
+  const alan = rooms.joinRoom(r.code, 'Alan', { platform: 'ios' }).participant
+  // One guess fills every open slot it names — "Cole" at a board of Coles
+  // takes all three — so a sweep landing on the last slot ends the round
+  // with eleven found against a target of ten. The game scored ten and the
+  // board drew ten; the review must not be the one screen saying otherwise.
+  instance(r.id, 1, { status: 'complete', started: true, answers: 11, found: 11, by: alan.id })
+
+  const [round] = rooms.roomHistory(r.id)
+  assert.equal(round.found, 10)
+  // The eleventh is still listed, and still credited to whoever swept it.
+  assert.equal(round.answers.length, 11)
+  assert.equal(round.answers.filter((a) => a.foundBy === 'Alan').length, 11)
+})
