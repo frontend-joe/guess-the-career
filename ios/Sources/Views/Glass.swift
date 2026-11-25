@@ -17,7 +17,11 @@ import SwiftUI
 enum GlassStyle {
     /// Everything in the control row is this across, so the row reads as one
     /// set of controls rather than a line of differently-sized things.
-    static let controlHeight: CGFloat = 42
+    ///
+    /// 44, which is Apple's minimum target and not a coincidence: these are
+    /// tapped one-handed, mid-sentence, by somebody looking at the board
+    /// rather than at their thumb. It was 42 and two points under the line.
+    static let controlHeight: CGFloat = 44
     static let symbol: CGFloat = 16
 
     /// The resting fill under the glass. Dark enough to separate from the

@@ -308,10 +308,10 @@ struct RoomView: View {
     // popover away — and because the top-right corner is where every app on
     // the phone keeps the screen you can leave again.
     //
-    // Deliberately smaller than the footer's controls. Those are played
-    // with mid-sentence and want a 42pt target; this one is tapped when
-    // nothing is happening, and every point it takes is a point off the
-    // board, which is the only thing on screen that can use more space.
+    // The same button as everything in the footer — same glass, same 44pt
+    // target. It was drawn small to save the board a few points, which made
+    // the one control above the board the only one in the room you had to
+    // aim at. The board can spare them.
     private var header: some View {
         HStack(spacing: 8) {
             if let note = store.videoNote {
@@ -324,11 +324,11 @@ struct RoomView: View {
             }
 
             Button { showingHistory = true } label: {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(GlassStyle.disc))
+                GlassCircle {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: GlassStyle.symbol, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
             }
             .accessibilityLabel("Round history")
         }

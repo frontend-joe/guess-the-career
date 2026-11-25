@@ -128,6 +128,13 @@ import kotlin.math.sin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** Every control in the room is this across, so the row reads as one set of
+ *  controls rather than a line of differently-sized things. 44, which is the
+ *  platform minimum target and not a coincidence: these are tapped one-handed,
+ *  mid-sentence, by somebody looking at the board rather than at their thumb.
+ *  It was 42 and two dp under the line. */
+private val CONTROL = 44.dp
+
 // The podcast composition, live: board over the top two thirds, faces across
 // the bottom third. Playing layout and recorded layout stay the same, so the
 // shape of the video is tested every time anyone plays rather than discovered
@@ -183,10 +190,10 @@ fun RoomScreen(model: RoomViewModel) {
         // corner is where every app on the phone keeps the screen you can
         // leave again.
         //
-        // Deliberately smaller than the footer's controls. Those are played
-        // with mid-sentence and want a full-size target; this one is tapped
-        // when nothing is happening, and every dp it takes is a dp off the
-        // board, which is the only thing on screen that can use more space.
+        // The same button as everything in the footer — same glass, same 44dp
+        // target. It was drawn small to save the board a few dp, which made
+        // the one control above the board the only one in the room you had
+        // to aim at. The board can spare them.
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -200,13 +207,13 @@ fun RoomScreen(model: RoomViewModel) {
             )
             IconButton(
                 onClick = { showingHistory = true },
-                modifier = Modifier.size(30.dp).background(Color(0x1AFFFFFF), CircleShape),
+                modifier = Modifier.size(CONTROL).background(Color(0x1AFFFFFF), CircleShape),
             ) {
                 Icon(
                     Icons.Filled.History,
                     contentDescription = "Round history",
-                    tint = Color(0xBFFFFFFF),
-                    modifier = Modifier.size(16.dp),
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
@@ -374,7 +381,7 @@ fun RoomScreen(model: RoomViewModel) {
             IconButton(
                 onClick = { scope.launch { model.setMicrophone(!model.micOn) } },
                 enabled = !model.micBusy,
-                modifier = Modifier.size(42.dp),
+                modifier = Modifier.size(CONTROL),
             ) {
                 // The tap has to land on the button straight away. What follows
                 // it — a reconnect, a publish — takes long enough that an
@@ -398,7 +405,7 @@ fun RoomScreen(model: RoomViewModel) {
             IconButton(
                 onClick = { scope.launch { model.setCamera(!model.cameraOn) } },
                 enabled = !model.cameraBusy,
-                modifier = Modifier.size(42.dp),
+                modifier = Modifier.size(CONTROL),
             ) {
                 if (model.cameraBusy) {
                     CircularProgressIndicator(
@@ -429,7 +436,7 @@ fun RoomScreen(model: RoomViewModel) {
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .height(42.dp)
+                    .height(CONTROL)
                     .clip(fieldShape)
                     .background(Color.White.copy(alpha = 0.10f))
                     .border(0.5.dp, Color.White.copy(alpha = 0.12f), fieldShape),
@@ -512,7 +519,7 @@ fun RoomScreen(model: RoomViewModel) {
             Box {
                 IconButton(
                     onClick = { showingActions = true },
-                    modifier = Modifier.size(42.dp),
+                    modifier = Modifier.size(CONTROL),
                 ) {
                     Icon(
                         Icons.Filled.MoreVert,
