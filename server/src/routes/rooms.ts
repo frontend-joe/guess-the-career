@@ -20,6 +20,7 @@ import {
   joinRoom,
   roomHistory,
   leaveRoom,
+  markSeen,
   onRoomChanged,
   participantsOf,
   postMessage,
@@ -46,8 +47,10 @@ import {
   sendInitialsTaken,
   sendInvite,
   sendLastSlot,
+  sendPlayerReturned,
   sendRoomResumed,
   sendRoundStarted,
+  type Actor,
 } from '../services/push.ts'
 
 export const roomsRouter = new Hono()
@@ -57,6 +60,25 @@ export const roomsRouter = new Hono()
 // the board any more — it is past a round, a chat and a cup of tea — and
 // short enough that a game resumed the same evening still tells people.
 const QUIET_MINUTES = 30
+
+// How long a phone has to have been dark before opening the app again is news.
+//
+// The same thirty minutes as QUIET_MINUTES, and the same number on purpose
+// rather than by coincidence: both answer "has this game been left alone for
+// a while", one asked of the board and one asked of a person, and two
+// different thresholds would mean a room that is quiet but whose players are
+// all somehow present.
+const AWAY_MINUTES = 30
+
+/**
+ * Who to leave out of a ping that this person caused.
+ *
+ * A guest is their phone and the host is their account — see Actor. Passing
+ * the participant row means neither case needs thinking about at a call site.
+ */
+function actorOf(p: ParticipantRow): Actor {
+  return { userId: p.user_id, deviceId: p.device_id }
+}
 
 // Private multiplayer rooms.
 //
@@ -296,6 +318,21 @@ roomsRouter.get('/:code/state', async (c) => {
   if (typingNow === '1') noteTyping(room.id, me.id)
   else if (typingNow === '0') clearTyping(room.id, me.id)
 
+  // Somebody has opened the app again after being away, and the poll is where
+  // that shows up: restoring a saved seat fetches state and makes no other
+  // call, so there is nothing else to hang this on and no app update needed
+  // to turn it on. markSeen answers and then forgets, so only the first poll
+  // of a return can see it.
+  //
+  // Not awaited, like every other ping in this file: the snapshot below is
+  // the response, and Apple's latency is not the returning player's problem.
+  if (markSeen(me.id, AWAY_MINUTES)) {
+    void sendPlayerReturned(
+      { code: room.code, hostName: me.display_name, roomName: room.name },
+      actorOf(me),
+    ).catch((err: unknown) => console.warn('push: returned ping failed:', err))
+  }
+
   return c.json({
     ...roomState(room),
     participantId: me.id,
@@ -382,9 +419,11 @@ roomsRouter.post('/:code/rounds/:instanceId/start', async (c) => {
  * Not awaited, like every other ping in this file: the answer has already
  * scored, and Apple's latency is nobody's problem but Apple's.
  */
-function notifyIfOneLeft(room: RoomRow, instanceId: number): void {
+function notifyIfOneLeft(room: RoomRow, instanceId: number, by: ParticipantRow): void {
   if (slotsRemaining(instanceId) !== 1) return
-  void sendLastSlot(room, room.host_user_id)
+  // Everybody but the person whose guess left it there — including the host,
+  // who until now was the one player never told. See audienceExcluding.
+  void sendLastSlot(room, actorOf(by))
     .catch((err: unknown) => console.warn('push: last-slot ping failed:', err))
 }
 
@@ -423,7 +462,7 @@ roomsRouter.post(
       if (quiet && !result.replayed) {
         void sendRoomResumed(
           { code: room.code, hostName: me.display_name, roomName: room.name },
-          room.host_user_id,
+          actorOf(me),
         ).catch((err: unknown) => console.warn('push: resumed ping failed:', err))
       }
 
@@ -435,7 +474,7 @@ roomsRouter.post(
       // steps over it, and that is the right answer rather than a gap. The
       // round is over by then, and "go help them out" is addressed at a board
       // that still needs help.
-      if (result.verdict === 'hit' && !result.replayed) notifyIfOneLeft(room, instanceId)
+      if (result.verdict === 'hit' && !result.replayed) notifyIfOneLeft(room, instanceId, me)
       return c.json(result)
     } catch (err) {
       return fail(err)
@@ -540,8 +579,9 @@ roomsRouter.post(
       const result = allowGuess(instanceId, me, raw)
       announce(room.code, 'allowed')
       // The host overruling the list fills a slot like any other answer, so
-      // it can be the thing that leaves one.
-      notifyIfOneLeft(room, instanceId)
+      // it can be the thing that leaves one — and the host is the one person
+      // it is then not news to, which is exactly what passing them says.
+      notifyIfOneLeft(room, instanceId, me)
       return c.json(result)
     } catch (err) {
       return fail(err)

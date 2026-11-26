@@ -194,6 +194,43 @@ export interface ParticipantRow {
   /// What lets a guest — who has no account to be recognised by — come back
   /// to the seat they already had. See 0116_participant_device.sql.
   device_id: number | null
+  /// The last time this seat's app was awake, written by the state poll.
+  /// NULL means nothing has polled since the column existed, which is read as
+  /// present rather than as an absence. See markSeen.
+  last_seen_at: string | null
+}
+
+/**
+ * Note that this seat's phone is awake, and say whether it had been away.
+ *
+ * Called from the state poll. That is deliberate rather than lazy: reopening
+ * the app restores the saved seat and fetches state, and makes no other call,
+ * so the poll is the one place a return is visible — no new endpoint, and no
+ * app update on anybody's phone before the ping starts working.
+ *
+ * The threshold is a floor rather than a promise. A phone that backgrounds
+ * while the call's audio is still live goes on polling and so never looks
+ * away, which is the right answer — they did not leave the game, they put the
+ * screen in a pocket. What this does catch is the app being killed, the phone
+ * dying, and the morning after.
+ */
+export function markSeen(participantId: number, awayMinutes: number): boolean {
+  // One query for the question, because the answer has to be read BEFORE the
+  // write that destroys it.
+  const row = sqlite
+    .prepare(
+      `SELECT last_seen_at IS NOT NULL AND last_seen_at < datetime('now', ?) AS away
+         FROM game_participants WHERE id = ?`,
+    )
+    .get(`-${awayMinutes} minutes`, participantId) as { away: number } | undefined
+  if (!row) return false
+  sqlite
+    .prepare("UPDATE game_participants SET last_seen_at = datetime('now') WHERE id = ?")
+    .run(participantId)
+  // Deliberately not a bumpVersion. Presence is not part of the state every
+  // client watches, and bumping it here would have four polling phones
+  // invalidating each other's snapshots for ever.
+  return row.away === 1
 }
 
 export function participantsOf(roomId: number): ParticipantRow[] {

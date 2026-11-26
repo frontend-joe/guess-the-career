@@ -220,24 +220,50 @@ function disable(id: number, reason: string): void {
 }
 
 /**
- * Everyone worth telling about a new game: every live phone that is not the
- * host's own.
+ * Whoever caused a ping, so that they are not told about their own doing.
  *
- * Excluded by `user_id`, which is set on the host's device when they create a
- * room while signed in. Guests have no account and so no `user_id`, which is
- * exactly why this cannot be "every device belonging to another user" — for
- * most players there is no user to belong to. At four friends and one
- * household's worth of phones, "everybody else" IS the guest list.
+ * Both halves are here because neither one is enough on its own. A guest has
+ * no account, so the only thing that identifies their phone is the phone; the
+ * host's seat carries no `device_id` at all, because createRoom has nothing
+ * to put there, so the only thing that identifies them is their account. A
+ * rule written on either alone buzzes somebody's own pocket.
  */
-export function audienceExcludingHost(hostUserId: number): PushDeviceRow[] {
+export interface Actor {
+  userId: number | null
+  deviceId: number | null
+}
+
+/** The host, for the pings only they can cause. */
+export function hostActor(hostUserId: number): Actor {
+  return { userId: hostUserId, deviceId: null }
+}
+
+/**
+ * Every live phone except the one that caused this.
+ *
+ * Was "every phone but the host's", which is right for the pings the host
+ * causes themselves — the invite, the round start, the clue, the initials —
+ * and wrong for the three that somebody else causes. A room waking up, a
+ * player coming back and a board one answer from the end are news to the host
+ * exactly as much as to anybody, and the old rule made them the one person
+ * who never heard any of it. See 0121_participant_seen.sql.
+ *
+ * Excluding by `user_id` remains how a host is recognised: it is set on their
+ * device when they create a room while signed in. Guests have no account and
+ * so no `user_id`, which is exactly why this cannot be "every device
+ * belonging to another user" — for most players there is no user to belong
+ * to, and `deviceId` is what names them instead.
+ */
+export function audienceExcluding(actor: Actor): PushDeviceRow[] {
   return sqlite
     .prepare(
       `SELECT * FROM push_devices
        WHERE disabled_at IS NULL AND muted = 0
-         AND (user_id IS NULL OR user_id != ?)
+         AND (? IS NULL OR user_id IS NULL OR user_id != ?)
+         AND (? IS NULL OR id != ?)
        ORDER BY id`,
     )
-    .all(hostUserId) as PushDeviceRow[]
+    .all(actor.userId, actor.userId, actor.deviceId, actor.deviceId) as PushDeviceRow[]
 }
 
 // ── Sending ─────────────────────────────────────────────────────────────────
@@ -310,6 +336,26 @@ export function resumedText(invite: Invite): { title: string; body: string } {
 }
 
 /**
+ * Somebody has opened the app again after a long absence.
+ *
+ * `hostName` carries whoever came back, as in resumedText, which is not
+ * necessarily the host — the news is that a person is at the board.
+ *
+ * Worded as an arrival rather than an invitation, and still carrying the code
+ * underneath, because the people it reaches are a mix: some are in the room
+ * with the phone face down, some have not opened the app since Tuesday. The
+ * second group needs the code and the first group's tap is a no-op on it.
+ */
+export function returnedText(invite: Invite): { title: string; body: string } {
+  return {
+    title: invite.roomName?.trim()
+      ? `${invite.hostName} is back in ${invite.roomName.trim()}`
+      : `${invite.hostName} is back`,
+    body: `Tap to join — code ${invite.code}`,
+  }
+}
+
+/**
  * The host has given something away.
  *
  * `hostName` is the host here, unlike resumedText — taking a clue is one of
@@ -367,12 +413,12 @@ export function lastSlotText(roomName: string | null): { title: string; body: st
  * stale room rather than ignoring you.
  */
 export async function sendInvite(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite.code, hostUserId, inviteText(invite), 'invite')
+  await fanOut(invite.code, hostActor(hostUserId), inviteText(invite), 'invite')
 }
 
 /** A round has begun in a room that already exists. See roundText. */
 export async function sendRoundStarted(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite.code, hostUserId, roundText(invite), 'round')
+  await fanOut(invite.code, hostActor(hostUserId), roundText(invite), 'round')
 }
 
 /**
@@ -383,7 +429,7 @@ export async function sendRoundStarted(invite: Invite, hostUserId: number): Prom
  * the room who already knows.
  */
 export async function sendClueTaken(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite.code, hostUserId, clueText(invite), 'clue')
+  await fanOut(invite.code, hostActor(hostUserId), clueText(invite), 'clue')
 }
 
 /**
@@ -395,7 +441,7 @@ export async function sendClueTaken(invite: Invite, hostUserId: number): Promise
  * on every one.
  */
 export async function sendInitialsTaken(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite.code, hostUserId, initialsText(invite), 'initials')
+  await fanOut(invite.code, hostActor(hostUserId), initialsText(invite), 'initials')
 }
 
 /**
@@ -407,9 +453,9 @@ export async function sendInitialsTaken(invite: Invite, hostUserId: number): Pro
  */
 export async function sendLastSlot(
   room: { code: string; name: string | null },
-  hostUserId: number,
+  actor: Actor,
 ): Promise<void> {
-  await fanOut(room.code, hostUserId, lastSlotText(room.name), 'last-slot')
+  await fanOut(room.code, actor, lastSlotText(room.name), 'last-slot')
 }
 
 /**
@@ -420,8 +466,22 @@ export async function sendLastSlot(
  * question about the game rather than about notifications. This end just
  * sends.
  */
-export async function sendRoomResumed(invite: Invite, hostUserId: number): Promise<void> {
-  await fanOut(invite.code, hostUserId, resumedText(invite), 'resumed')
+export async function sendRoomResumed(invite: Invite, actor: Actor): Promise<void> {
+  await fanOut(invite.code, actor, resumedText(invite), 'resumed')
+}
+
+/**
+ * Somebody has opened the app again after being away. See returnedText.
+ *
+ * The sibling of sendRoomResumed and deliberately not merged with it: that
+ * one fires on a guess, which means the game is already moving, and this one
+ * fires on an arrival, which means it is about to. In the good case they are
+ * a minute apart, and that minute is the entire point — this is the ping that
+ * gets the other phones picked up BEFORE the first guess rather than after
+ * it.
+ */
+export async function sendPlayerReturned(invite: Invite, actor: Actor): Promise<void> {
+  await fanOut(invite.code, actor, returnedText(invite), 'returned')
 }
 
 /**
@@ -432,12 +492,12 @@ export async function sendRoomResumed(invite: Invite, hostUserId: number): Promi
  */
 async function fanOut(
   code: string,
-  hostUserId: number,
+  actor: Actor,
   text: { title: string; body: string },
-  kind: 'invite' | 'round' | 'resumed' | 'last-slot' | 'clue' | 'initials',
+  kind: 'invite' | 'round' | 'resumed' | 'returned' | 'last-slot' | 'clue' | 'initials',
 ): Promise<void> {
   if (!pushConfigured()) return
-  const devices = audienceExcludingHost(hostUserId)
+  const devices = audienceExcluding(actor)
   if (!devices.length) return
 
   const data = { code, kind }

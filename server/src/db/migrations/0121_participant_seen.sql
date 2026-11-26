@@ -1,0 +1,26 @@
+-- When each seat's phone was last awake.
+--
+-- Three of the six pings were addressed at "everybody but the host", which is
+-- right for the three the host causes — they pressed Create, they started the
+-- round, they revealed the clue, and a phone that buzzes in your own pocket
+-- the moment you tap something is how a feature like this starts getting
+-- turned off. It is wrong for the other three. A room coming back to life
+-- after a quiet spell, a player returning, and a board one answer from the
+-- end are news to the host exactly as much as to anyone else, and under the
+-- old rule they were the one person who never heard any of it.
+--
+-- So those three now exclude whoever caused them rather than whoever owns the
+-- room, and this column is what makes the middle one of the three possible at
+-- all: there was no server-side record of a player being away, so there was
+-- nothing to notice them coming back from.
+--
+-- Written on the state poll, because that is the only call a returning client
+-- makes — reopening the app restores a saved seat and fetches state, and
+-- nothing else. That means no new endpoint and, more to the point, no app
+-- update on anybody's phone before the ping starts working.
+--
+-- Nullable, and NULL means present rather than absent since the beginning of
+-- time. Every seat that existed before this column has one, and reading those
+-- as a long absence would have fired a ping at every player in every open
+-- room the moment this deployed.
+ALTER TABLE game_participants ADD COLUMN last_seen_at TEXT;

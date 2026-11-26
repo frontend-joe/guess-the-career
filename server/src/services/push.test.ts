@@ -17,11 +17,14 @@ const {
   rotateToken,
   setMuted,
   deviceBySecret,
-  audienceExcludingHost,
+  audienceExcluding,
+  hostActor,
   inviteText,
   roundText,
   clueText,
   initialsText,
+  resumedText,
+  returnedText,
 } = await import('./push.ts')
 
 const { apnsPayload, providerToken, resetProviderToken } = await import('./pushApns.ts')
@@ -103,7 +106,7 @@ test('an invite goes to everyone but the host, the muted and the dead', () => {
   const dead = registerDevice({ platform: 'android', token: 'aud-dead', displayName: 'Dead' })
   sqlite.prepare("UPDATE push_devices SET disabled_at = datetime('now') WHERE id = ?").run(dead.id)
 
-  const tokens = audienceExcludingHost(HOST_ID).map((d) => d.token)
+  const tokens = audienceExcluding(hostActor(HOST_ID)).map((d) => d.token)
   assert.deepEqual(tokens, ['aud-guest'])
   // Stated explicitly: buzzing the host's own pocket when they press Create is
   // the single most obvious way for this feature to feel broken.
@@ -114,8 +117,40 @@ test('another host’s game still reaches this host’s phone', () => {
   const otherHost = Number(
     sqlite.prepare("INSERT INTO users (email) VALUES ('other@example.com')").run().lastInsertRowid,
   )
-  const tokens = audienceExcludingHost(otherHost).map((d) => d.token)
+  const tokens = audienceExcluding(hostActor(otherHost)).map((d) => d.token)
   assert.ok(tokens.includes('aud-host'))
+})
+
+// The change that made the host hear the three pings they do not cause: a
+// guest's guess, a guest's return and a board one away are addressed at
+// everybody but the guest. See audienceExcluding.
+test('a ping somebody else caused reaches the host', () => {
+  sqlite.prepare('DELETE FROM push_devices').run()
+  const host = registerDevice({
+    platform: 'ios',
+    token: 'act-host',
+    displayName: 'Host',
+    userId: HOST_ID,
+  })
+  const guest = registerDevice({ platform: 'ios', token: 'act-guest', displayName: 'Guest' })
+  const other = registerDevice({ platform: 'android', token: 'act-other', displayName: 'Other' })
+
+  // A guest did it. The host hears about it, which under the old rule they
+  // never did, and the guest does not hear their own doing.
+  const audience = audienceExcluding({ userId: null, deviceId: guest.id }).map((d) => d.token)
+  assert.deepEqual(audience, [host.token, other.token])
+
+  // And the host doing it still spares the host, by their account rather than
+  // their device — a host's seat carries no device_id at all.
+  const hostDid = audienceExcluding({ userId: HOST_ID, deviceId: null }).map((d) => d.token)
+  assert.deepEqual(hostDid, [guest.token, other.token])
+})
+
+test('an actor nothing is known about excludes nobody', () => {
+  // A web client with no phone and no account. Everyone hears it; the
+  // alternative — a NULL that matches every row — silently sends nothing.
+  const tokens = audienceExcluding({ userId: null, deviceId: null }).map((d) => d.token)
+  assert.deepEqual(tokens, ['act-host', 'act-guest', 'act-other'])
 })
 
 // ── What it says ────────────────────────────────────────────────────────────
@@ -348,5 +383,25 @@ test('the initials ping says which kind of clue it was', () => {
     // Its own words, not clueText's: somebody who ignored the first ping may
     // well want this one, and "a clue" twice would read as a repeat.
     { title: 'Joe just revealed an initials clue', body: '' },
+  )
+})
+
+test('a return is worded as an arrival, and a resumption as a guess', () => {
+  // Two pings a minute apart in the good case, and the words are the only
+  // thing that tells them apart on a lock screen.
+  assert.equal(
+    returnedText({ code: 'ABC123', hostName: 'Rob', roomName: 'Friday night' }).title,
+    'Rob is back in Friday night',
+  )
+  assert.equal(returnedText({ code: 'ABC123', hostName: 'Rob', roomName: null }).title, 'Rob is back')
+  // The code rides along, because some of the people it reaches have not
+  // opened the app since Tuesday.
+  assert.equal(
+    returnedText({ code: 'ABC123', hostName: 'Rob', roomName: null }).body,
+    'Tap to join — code ABC123',
+  )
+  assert.equal(
+    resumedText({ code: 'ABC123', hostName: 'Rob', roomName: null }).title,
+    'Rob has started guessing',
   )
 })
