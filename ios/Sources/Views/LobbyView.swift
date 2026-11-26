@@ -186,7 +186,11 @@ struct LobbyView: View {
         let name = displayName.trimmed
         let joined = try await API.joinRoom(
             code: code.trimmed.uppercased(), displayName: name,
-            pushToken: PushStore.shared.tokenForJoin, deviceSecret: PushStore.shared.secret
+            pushToken: PushStore.shared.tokenForJoin, deviceSecret: PushStore.shared.secret,
+            // Sent when there is one, which there is for a host. A host who
+            // taps their own invite is joining the room they already run, and
+            // without this the server cannot tell that and seats them twice.
+            accessToken: store.accessToken
         )
         PushStore.shared.adopt(secret: joined.deviceSecret)
         PushStore.shared.noteDisplayName(name)

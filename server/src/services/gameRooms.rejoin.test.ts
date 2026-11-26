@@ -25,11 +25,14 @@ function device(token: string): number {
     .get(token, `secret-${token}`) as { id: number }).id
 }
 
-function room(email: string) {
-  const user = sqlite
+function host(email: string): number {
+  return (sqlite
     .prepare("INSERT INTO users (email, password_hash, display_name) VALUES (?, 'x', 'Host') RETURNING id")
-    .get(email) as { id: number }
-  return rooms.createRoom({ id: user.id, displayName: 'Host' }, 'Test')
+    .get(email) as { id: number }).id
+}
+
+function room(email: string) {
+  return rooms.createRoom({ id: host(email), displayName: 'Host' }, 'Test')
 }
 
 test('a guest on the same phone comes back to the seat they had', () => {
@@ -120,4 +123,52 @@ test('a removed player drops off the list, a player who left stays on it', () =>
   // The row itself is still there. It is what stops the seat being handed
   // straight back at the door on the next join.
   assert.equal(rooms.participantsOf(r.id).length, 3)
+})
+
+test('a host who taps their own invite does not get a second seat', () => {
+  // The push pings the host now hears — a player coming back, the last slot,
+  // the round finishing — all carry a join code, and tapping one walks the
+  // host into the join flow for the room they are already running. Which is
+  // fine, so long as the server can tell it is them.
+  //
+  // It can only tell from the account. The host's participant row is written
+  // by createRoom with their user_id and NO device_id, because a host arrives
+  // by making the room rather than by joining it, and the device recogniser
+  // is for guest seats and skips rows with a user_id anyway. So an anonymous
+  // join from the host's own phone matches nothing at all.
+  const userId = host('rejoin-host@example.com')
+  const r = rooms.createRoom({ id: userId, displayName: 'Blessing Kaku' }, 'Test')
+  const phone = device('host-phone')
+
+  const seats = () => sqlite
+    .prepare('SELECT * FROM game_participants WHERE room_id = ? ORDER BY slot')
+    .all(r.id) as { id: number; slot: number; role: string; display_name: string }[]
+  assert.equal(seats().length, 1)
+
+  // Signed in, which is what the apps now send.
+  const back = rooms.joinRoom(r.code, 'Blessing Kaku', {
+    userId, deviceId: phone, platform: 'ios',
+  }).participant
+
+  assert.equal(seats().length, 1, 'tapping your own invite must not seat you twice')
+  assert.equal(back.slot, 0)
+  // Still the host. A rejoin reclaims the row as it stands rather than
+  // demoting them to a player, which would take the round controls away from
+  // the one person holding the game together.
+  assert.equal(back.role, 'host')
+})
+
+test('without the account the host is a stranger, which is the bug', () => {
+  // Pinned so the client fix cannot be quietly dropped: with no user_id the
+  // server has nothing to recognise, and this is what the room looked like.
+  const userId = host('rejoin-host-anon@example.com')
+  const r = rooms.createRoom({ id: userId, displayName: 'Blessing Kaku' }, 'Test')
+  const phone = device('host-phone-anon')
+
+  rooms.joinRoom(r.code, 'Blessing Kaku', { deviceId: phone, platform: 'ios' })
+
+  const names = (sqlite
+    .prepare('SELECT display_name FROM game_participants WHERE room_id = ? ORDER BY slot')
+    .all(r.id) as { display_name: string }[]).map((p) => p.display_name)
+  assert.deepEqual(names, ['Blessing Kaku', 'Blessing Kaku'])
 })

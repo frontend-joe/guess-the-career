@@ -168,9 +168,18 @@ enum API {
         return try await post("api/rooms", body: body, bearer: accessToken)
     }
 
+    /// `accessToken` is how a signed-in person is recognised coming back to
+    /// a seat they already hold.
+    ///
+    /// Omitting it was a duplicate waiting to happen. The host's participant
+    /// row carries their user_id and no device_id — nothing stamps a handset
+    /// onto it, because the host arrives by creating the room rather than by
+    /// joining — so an anonymous join matches nothing and is handed a second,
+    /// guest seat in their own game. The server has always read the bearer
+    /// here; this end simply never sent it.
     static func joinRoom(
         code: String, displayName: String, pushToken: String? = nil,
-        deviceSecret: String? = nil
+        deviceSecret: String? = nil, accessToken: String? = nil
     ) async throws -> JoinedRoom {
         var body = ["displayName": displayName, "platform": "ios"]
         if let pushToken { body["pushToken"] = pushToken }
@@ -178,7 +187,7 @@ enum API {
         // underneath us does not cost the player their seat. See the server's
         // registerDevice.
         if let deviceSecret { body["deviceSecret"] = deviceSecret }
-        return try await post("api/rooms/\(code)/join", body: body)
+        return try await post("api/rooms/\(code)/join", body: body, bearer: accessToken)
     }
 
     /// `typing` rides the poll because a game with no video call has no data

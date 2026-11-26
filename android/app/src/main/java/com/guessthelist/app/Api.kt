@@ -139,11 +139,23 @@ object Api {
             accessToken,
         )
 
+    /**
+     * [accessToken] is how a signed-in person is recognised coming back to a
+     * seat they already hold.
+     *
+     * Omitting it was a duplicate waiting to happen. The host's participant
+     * row carries their user_id and no device_id — nothing stamps a handset
+     * onto it, because the host arrives by creating the room rather than by
+     * joining — so an anonymous join matches nothing and is handed a second,
+     * guest seat in their own game. The server has always read the bearer
+     * here; this end simply never sent it.
+     */
     suspend fun joinRoom(
         code: String,
         displayName: String,
         pushToken: String? = null,
         deviceSecret: String? = null,
+        accessToken: String? = null,
     ): JoinedRoom = post(
         "api/rooms/$code/join",
         buildJsonObject {
@@ -154,6 +166,7 @@ object Api {
             // See the server's registerDevice.
             if (deviceSecret != null) put("deviceSecret", deviceSecret)
         },
+        bearer = accessToken,
     )
 
     // MARK: Notifications

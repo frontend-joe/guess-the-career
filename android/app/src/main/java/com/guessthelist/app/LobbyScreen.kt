@@ -65,7 +65,13 @@ fun LobbyScreen(model: RoomViewModel, invite: MutableState<String?> = remember {
 
     suspend fun joinNow(raw: String) {
         val name = raw.trim()
-        val joined = Api.joinRoom(code.trim(), name, Push.token(context), Push.secret(context))
+        // The access token is sent when there is one, which there is for a
+        // host. A host who taps their own invite is joining the room they
+        // already run, and without it the server cannot tell and seats them
+        // twice.
+        val joined = Api.joinRoom(
+            code.trim(), name, Push.token(context), Push.secret(context), model.accessToken,
+        )
         Push.adoptSecret(context, joined.deviceSecret)
         Push.noteDisplayName(context, name)
         remembered = true
