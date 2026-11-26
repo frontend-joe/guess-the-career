@@ -190,7 +190,7 @@ private fun AnswerList(round: HistoryRound, onOpen: (HistoryAnswer) -> Unit) {
         if (tail.isNotEmpty()) {
             item {
                 Text(
-                    "Just missed out",
+                    "Near Misses",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = DIM,

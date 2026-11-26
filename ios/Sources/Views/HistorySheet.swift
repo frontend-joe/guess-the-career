@@ -163,7 +163,7 @@ private struct HistoryRoundView: View {
                             .buttonStyle(.plain)
                     }
                 } header: {
-                    Text("Just missed out")
+                    Text("Near Misses")
                         .textCase(nil)
                 } footer: {
                     Text("Ranked below the board when the round was frozen. Saying one of these counted as a near miss, not an answer.")
