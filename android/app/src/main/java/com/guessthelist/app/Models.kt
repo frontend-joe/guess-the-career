@@ -21,7 +21,15 @@ data class RoomParticipant(
     val displayName: String,
     val role: String,
     val slot: Int,
+    /** They have not walked out. Says nothing about whether anybody is
+     *  holding the phone — see [active]. */
     val present: Boolean,
+    /** Their app asked the server for the state inside the last minute, so
+     *  they are in the room in the sense that matters: able to hear you.
+     *
+     *  Defaulted rather than required, so an app that reaches a server older
+     *  than the field shows a room with no rings instead of no room. */
+    val active: Boolean = false,
 ) {
     val isHost: Boolean get() = role == "host"
 }

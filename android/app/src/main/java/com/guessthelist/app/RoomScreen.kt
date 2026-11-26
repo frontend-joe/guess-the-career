@@ -635,7 +635,17 @@ private fun PlayerCard(model: RoomViewModel, player: RoomParticipant, modifier: 
             .alpha(if (player.present) 1f else 0.4f)
             .clip(RoundedShape14)
             .background(Color(0xFF191C23))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedShape14)
+            // Green means they are actually here.
+            //
+            // The card itself cannot say it: a seat is kept for the whole
+            // game, so a room of four people who have all put their phones
+            // down looks exactly like a room of four people waiting on you.
+            // The border is the one bit of the card nothing else is using.
+            .border(
+                if (player.active) 1.5.dp else 1.dp,
+                if (player.active) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.08f),
+                RoundedShape14,
+            )
             // The same long press the faces answer to, so the gesture does
             // not change with the kind of room you are in.
             .combinedClickable(

@@ -239,6 +239,38 @@ export function participantsOf(roomId: number): ParticipantRow[] {
     .all(roomId) as ParticipantRow[]
 }
 
+/// How recently somebody must have polled to count as being in the room.
+///
+/// `left_at` only answers a different question. It is set when a player taps
+/// leave, and almost nobody does — they lock the phone, or the app goes to
+/// the background, or the battery dies mid-round. Every one of those leaves a
+/// row that says the person is still sitting there, which is why a room full
+/// of absent people looks identical to a room full of present ones.
+///
+/// last_seen_at is the honest signal, because GET /state stamps it and every
+/// client in a room polls: every ten seconds with video carrying the state
+/// broadcast, every second and a half without. A minute is therefore six
+/// missed polls at worst — wide enough that a slow network or a phone
+/// changing masts does not blink somebody out of the room, narrow enough that
+/// putting the phone down shows within a round.
+const ACTIVE_SECONDS = 60
+
+/// Who is actually here, now, by participant id.
+///
+/// One query for the whole room rather than a comparison per row: the cutoff
+/// is computed by SQLite from the same clock that wrote the timestamps, which
+/// is the only clock that can be trusted to agree with them.
+function activeIds(roomId: number): Set<number> {
+  const rows = sqlite
+    .prepare(
+      `SELECT id FROM game_participants
+        WHERE room_id = ? AND last_seen_at IS NOT NULL
+          AND last_seen_at > datetime('now', ?)`,
+    )
+    .all(roomId, `-${ACTIVE_SECONDS} seconds`) as { id: number }[]
+  return new Set(rows.map((r) => r.id))
+}
+
 export class RoomError extends Error {
   constructor(message: string, readonly status: 400 | 403 | 404 | 409) {
     super(message)
@@ -2512,7 +2544,18 @@ export interface RoomState {
   /// The round picked and waiting to be started, if any. Separate from
   /// `round`, which is what the board is showing.
   pendingInstanceId: number | null
-  participants: { id: number; displayName: string; role: string; slot: number; present: boolean }[]
+  participants: {
+    id: number
+    displayName: string
+    role: string
+    slot: number
+    /// They have not walked out. Says nothing about whether they are looking
+    /// at the screen — see `active`.
+    present: boolean
+    /// Their app has asked for the state inside the last minute, so they are
+    /// in the room in the sense that matters: able to hear you.
+    active: boolean
+  }[]
   messages: ChatMessage[]
   round: {
     instanceId: number
@@ -2604,7 +2647,7 @@ export function roomState(room: RoomRow): RoomState {
     // can see, which is no use when what you are trying to clear is a stale
     // seat. The row itself stays either way: `removed` is what stops the seat
     // being handed straight back at the door. See 0093_participant_removed.
-    participants: participantsOf(room.id)
+    participants: ((here) => participantsOf(room.id)
       .filter((p) => !p.removed)
       .map((p) => ({
         id: p.id,
@@ -2612,7 +2655,11 @@ export function roomState(room: RoomRow): RoomState {
         role: p.role,
         slot: p.slot,
         present: p.left_at == null,
-      })),
+        // Somebody who left on purpose is not here however recently they
+        // polled, and the poll that set their timestamp was the one that
+        // carried the leave.
+        active: p.left_at == null && here.has(p.id),
+      })))(activeIds(room.id)),
     messages: messagesOf(room.id),
     round,
   }

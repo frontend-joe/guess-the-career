@@ -99,10 +99,23 @@ private struct CardView: View {
         .padding(.vertical, 10)
         .background(BoardStyle.titleBand)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        // Green means they are actually here.
+        //
+        // The card itself cannot say it: a seat is kept for the whole game,
+        // so a room of four people who have all put their phones down looks
+        // exactly like a room of four people waiting on you. The border is
+        // the one bit of the card nothing else is using.
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(
+                    player.isActive ? BoardStyle.green.top : .white.opacity(0.08),
+                    lineWidth: player.isActive ? 1.5 : 1
+                )
         }
+        // Eased, because the signal is a minute-wide window read off a poll
+        // and the edges of it are arbitrary. Somebody stepping out should
+        // fade from the room rather than snap out of it.
+        .animation(.easeInOut(duration: 0.25), value: player.isActive)
         // Still listed, visibly not here. A card that simply vanished would
         // make the room look like it had never had them in it.
         .opacity(player.present ? 1 : 0.4)

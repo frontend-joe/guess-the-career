@@ -10,9 +10,20 @@ struct RoomParticipant: Codable, Identifiable, Equatable {
     let displayName: String
     let role: String
     let slot: Int
+    /// They have not walked out. Says nothing about whether anybody is
+    /// holding the phone — see `active`.
     let present: Bool
+    /// Their app asked the server for the state inside the last minute, so
+    /// they are in the room in the sense that matters: able to hear you.
+    ///
+    /// Optional, and absent reads as "not known to be here" rather than
+    /// failing the decode, so an app that reaches a server older than the
+    /// field shows a room with no rings instead of no room.
+    let active: Bool?
 
     var isHost: Bool { role == "host" }
+
+    var isActive: Bool { active == true }
 }
 
 struct RevealedAnswer: Codable, Equatable {
