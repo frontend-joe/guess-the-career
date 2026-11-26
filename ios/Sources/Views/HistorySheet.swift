@@ -192,43 +192,57 @@ private struct HistoryRoundView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 20, alignment: .trailing)
             }
-            Text(answer.name)
-                .font(.body(15, weight: answer.found ? .semibold : .regular))
-                // Dimmed rather than coloured. A missed answer is not an
-                // error and should not read as one; it is simply a name
-                // that did not get said.
-                .foregroundStyle(answer.found ? .primary : .secondary)
-            Spacer(minLength: 8)
-            // The stat and whoever said it, stacked on the trailing edge.
-            //
-            // The number used to sit under the name as a subtitle and did
-            // not appear at all — see BoardStyle.badgeText. On the right it
-            // is where the eye already goes for it, and on a near miss it is
-            // the whole reason the row is listed: 46 appearances against the
-            // 47 that made the board is the argument the room is having.
-            VStack(alignment: .trailing, spacing: 2) {
-                if let badge = BoardStyle.badgeText(
-                    value: answer.value, unit: answer.unit, display: answer.display,
-                ) {
-                    Text(badge)
-                        .font(.body(13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
+            // The name, and against it whoever said it. Beside rather than
+            // across the row: the pair is one fact — this answer, this
+            // player — and reading it meant crossing the gap to the far edge
+            // and back on every row.
+            HStack(spacing: 6) {
+                Text(answer.name)
+                    .font(.body(15, weight: answer.found ? .semibold : .regular))
+                    // Dimmed rather than coloured. A missed answer is not an
+                    // error and should not read as one; it is simply a name
+                    // that did not get said.
+                    .foregroundStyle(answer.found ? .primary : .secondary)
+                    .lineLimit(1)
+                    // The answer outranks the badge for room. A truncated
+                    // player name is the one thing on this screen nobody can
+                    // reconstruct; a truncated "Blessing Ka…" is still
+                    // obviously Blessing.
+                    .layoutPriority(1)
                 if let who = answer.foundBy {
-                    Text(who)
-                        .font(.body(12))
-                        .foregroundStyle(BoardStyle.green.top)
-                        .lineLimit(1)
+                    badge(who, tint: BoardStyle.green.top)
                 } else if answer.onBoard {
-                    Text("Missed")
-                        .font(.body(12))
-                        .foregroundStyle(.tertiary)
+                    badge("Missed", tint: .secondary)
                 }
-                // And no third line on a tail row. "Missed" would be an
+                // And no badge at all on a tail row. "Missed" would be an
                 // accusation about a name the board never had a slot for.
+            }
+            Spacer(minLength: 8)
+            // Just the number out here now. It is one column of digits down
+            // the edge, which is what makes it scannable: on the ten it is
+            // the stat, and on a near miss it is the whole reason the row is
+            // listed — 46 appearances against the 47 that made the board is
+            // the argument the room is having.
+            if let value = BoardStyle.badgeText(
+                value: answer.value, unit: answer.unit, display: answer.display,
+            ) {
+                Text(value)
+                    .font(.body(13, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
+    }
+
+    /// Who said it, or that nobody did.
+    private func badge(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.body(11, weight: .semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(tint.opacity(0.15), in: Capsule())
     }
 }

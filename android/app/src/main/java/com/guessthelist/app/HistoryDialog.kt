@@ -1,5 +1,6 @@
 package com.guessthelist.app
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -22,9 +24,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -99,6 +103,23 @@ fun HistoryDialog(model: RoomViewModel, onDismiss: () -> Unit) {
     }
 }
 
+/** Who said it, or that nobody did. */
+@Composable
+private fun WhoBadge(text: String, tint: Color) {
+    Text(
+        text,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = tint,
+        maxLines = 1,
+        modifier = Modifier
+            .padding(start = 6.dp)
+            .clip(RoundedCornerShape(50))
+            .background(tint.copy(alpha = 0.15f))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    )
+}
+
 @Composable
 private fun RoundList(rounds: List<HistoryRound>, onOpen: (HistoryRound) -> Unit) {
     LazyColumn(Modifier.fillMaxHeight(0.7f)) {
@@ -163,28 +184,36 @@ private fun AnswerList(round: HistoryRound, onOpen: (HistoryAnswer) -> Unit) {
                         modifier = Modifier.width(22.dp),
                     )
                 }
-                Text(
-                    answer.name,
-                    fontSize = 14.sp,
-                    fontWeight = if (answer.found) FontWeight.SemiBold else FontWeight.Normal,
-                    // Dimmed rather than coloured. A missed answer is not an
-                    // error and should not read as one; it is simply a name
-                    // that did not get said.
-                    color = if (answer.found) Color.Unspecified else DIM,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp),
-                )
-                // The stat and whoever said it, stacked on the trailing edge.
-                // The number used to sit under the name as a subtitle and did
-                // not appear at all — see badgeText.
-                Column(horizontalAlignment = Alignment.End) {
-                    badgeText(answer.value, answer.unit, answer.display)?.let {
-                        Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DIM)
-                    }
+                // The name, and against it whoever said it. Beside rather
+                // than across the row: the pair is one fact — this answer,
+                // this player — and reading it meant crossing the gap to the
+                // far edge and back on every row.
+                Row(
+                    Modifier.weight(1f).padding(start = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        answer.foundBy ?: "Missed",
-                        fontSize = 12.sp,
-                        color = if (answer.found) FOUND else FAINT,
+                        answer.name,
+                        fontSize = 14.sp,
+                        fontWeight = if (answer.found) FontWeight.SemiBold else FontWeight.Normal,
+                        // Dimmed rather than coloured. A missed answer is not
+                        // an error and should not read as one; it is simply a
+                        // name that did not get said.
+                        color = if (answer.found) Color.Unspecified else DIM,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        // The answer outranks the badge for room. A truncated
+                        // player name is the one thing on this screen nobody
+                        // can reconstruct; a truncated "Blessing Ka…" is
+                        // still obviously Blessing.
+                        modifier = Modifier.weight(1f, fill = false),
                     )
+                    WhoBadge(answer.foundBy ?: "Missed", if (answer.found) FOUND else DIM)
+                }
+                // Just the number out here now. One column of digits down the
+                // edge, which is what makes it scannable.
+                badgeText(answer.value, answer.unit, answer.display)?.let {
+                    Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DIM)
                 }
             }
         }
@@ -229,8 +258,8 @@ private fun AnswerList(round: HistoryRound, onOpen: (HistoryAnswer) -> Unit) {
                     // is listed: 46 appearances against the 47 that made the
                     // board is the argument the room is having.
                     //
-                    // No "Missed" beside it. It would be an accusation about
-                    // a name the board never had a slot for.
+                    // And no badge beside the name. "Missed" would be an
+                    // accusation about a name the board never had a slot for.
                     badgeText(answer.value, answer.unit, answer.display)?.let {
                         Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FAINT)
                     }
