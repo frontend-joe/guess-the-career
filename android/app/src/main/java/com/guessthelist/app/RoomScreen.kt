@@ -1182,7 +1182,11 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
                     LazyColumn(Modifier.fillMaxHeight(0.7f)) {
                         items(matches) { round ->
                             TextButton(onClick = { onPick(round.roundId) }) {
-                                Column(Modifier.fillMaxWidth()) {
+                              Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                              ) {
+                                Column(Modifier.weight(1f)) {
                                     // No schedule date. It is the solo web
                                     // game's calendar talking — a room plays
                                     // whichever round the host picks, so
@@ -1207,6 +1211,8 @@ private fun RoundPickerDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
                                         )
                                     }
                                 }
+                                round.grade?.let { GradeBadge(it) }
+                              }
                             }
                         }
                     }
@@ -1256,6 +1262,37 @@ private fun TypingDots(size: Dp = 3.5.dp, lift: Float = 2.5f) {
             )
         }
     }
+}
+
+/**
+ * How hard the round is, as a word rather than a number.
+ *
+ * The pool size is what decides it and is deliberately NOT printed. "11
+ * answers" invites the host to work out their own rule from it, and the rule
+ * is counter-intuitive enough — small pool, hard round — that half of them
+ * would read the number the other way round and distrust the label.
+ *
+ * Green, amber, red: the one place in this app a traffic light is the right
+ * answer, because it is a three-point scale nobody needs explained.
+ */
+@Composable
+private fun GradeBadge(grade: RoundGrade) {
+    val tint = when (grade) {
+        RoundGrade.EASY -> Color(0xFF4ADE80)
+        RoundGrade.MEDIUM -> Color(0xFFFABF4A)
+        RoundGrade.HARD -> Color(0xFFF77070)
+    }
+    Text(
+        grade.label,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = tint,
+        modifier = Modifier
+            .padding(start = 8.dp)
+            .clip(RoundedCornerShape(50))
+            .background(tint.copy(alpha = 0.15f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
 }
 
 /**

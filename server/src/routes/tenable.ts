@@ -12,6 +12,7 @@ import {
   candidatesForType,
   answersForRound,
   getType,
+  difficultyOf,
   isOrdered,
   titleFor,
   rankOf,
@@ -434,6 +435,10 @@ tenableRouter.get("/rounds", (c) => {
         ordered: isOrdered(r.type, params),
         target: ROUND_SIZE,
         answerCount: r.answer_count,
+        // Served rather than worked out on each phone, so iOS, Android and
+        // anything later cannot drift into labelling the same round two
+        // different ways.
+        difficulty: difficultyOf(r.answer_count),
         playedCount: r.played_count,
         lastPlayedAt: r.last_played_at,
       };

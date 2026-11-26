@@ -264,12 +264,40 @@ data class PoolRound(
     val title: String,
     val metric: String,
     val category: String? = null,
+    /** How big a pool the round draws its ten from. */
+    val answerCount: Int = 0,
+    /** "easy" / "medium" / "hard", decided by the server from [answerCount].
+     *  Served rather than worked out here so two apps cannot label the same
+     *  round two different ways. A String rather than an enum because a value
+     *  this build has never heard of must not fail the whole list's decode. */
+    val difficulty: String? = null,
     /** How many times this round has been played, in any room. */
     val playedCount: Int = 0,
     /** When it was last played, as a UTC `yyyy-MM-dd HH:mm:ss` from SQLite. */
     val lastPlayedAt: String? = null,
 ) {
     val played: Boolean get() = playedCount > 0
+
+    val grade: RoundGrade? get() = RoundGrade.of(difficulty)
+}
+
+/** How hard a round is, for the one line of UI that says so.
+ *
+ *  Hard is the SMALL pool, which reads backwards until you have played one: a
+ *  category with barely ten members is thin because it is obscure, and having
+ *  every qualifying name on the board is no help when you cannot think of the
+ *  tenth. See difficultyOf in services/tenable.ts. */
+enum class RoundGrade(val label: String) {
+    EASY("Easy"), MEDIUM("Medium"), HARD("Hard");
+
+    companion object {
+        fun of(raw: String?): RoundGrade? = when (raw) {
+            "easy" -> EASY
+            "medium" -> MEDIUM
+            "hard" -> HARD
+            else -> null
+        }
+    }
 }
 
 /** One of the games Tenable is made of. Served rather than hardcoded, so a new

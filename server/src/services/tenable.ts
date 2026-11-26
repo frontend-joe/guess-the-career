@@ -1863,6 +1863,51 @@ export function titleFor(
   }
 }
 
+export type Difficulty = "easy" | "medium" | "hard";
+
+/// A pool this size or smaller is a hard round.
+///
+/// Ten slots out of thirteen qualifying names means there is almost nothing
+/// to spare: you are not picking the famous ones out of a crowd, you are
+/// trying to remember a category that barely has ten members. "Most EFL
+/// Championship goals — surname beginning with K" has exactly ten, and every
+/// one of them is on the board, which sounds generous until you try to name
+/// the third.
+const HARD_POOL = 13;
+
+/// A pool this size or bigger is an easy round.
+///
+/// Twenty-five qualifying names for ten slots is enough that the ones you
+/// think of first tend to be the ones that count.
+const EASY_POOL = 25;
+
+/**
+ * How hard a round is, from the size of the pool it draws on.
+ *
+ * Deliberately NOT inverted for ranked rounds, which is the reading this
+ * nearly got. On a ranked board the pool is also the trap count — "Most
+ * Premier League appearances of all time" draws ten from seven hundred and
+ * twenty-two, so Giggs lands and nine plausible names miss — and by that
+ * measure a huge pool is the hard one and a pool of ten cannot be missed at
+ * all.
+ *
+ * That measure is wrong about this game. What makes a round hard in a room
+ * is supply, not precision: a big pool is a big pool of FAMOUS players, and
+ * five of the all-time Premier League appearance list are names anybody
+ * shouts in the first ten seconds. The thin categories are thin because they
+ * are obscure, and a board you cannot miss is no help when you cannot think
+ * of the tenth name at all.
+ *
+ * Judged on the real rounds rather than reasoned out, which is why the
+ * comment is this long: the arithmetic argues the other way and the game
+ * does not.
+ */
+export function difficultyOf(answerCount: number): Difficulty {
+  if (answerCount <= HARD_POOL) return "hard";
+  if (answerCount >= EASY_POOL) return "easy";
+  return "medium";
+}
+
 export function isOrdered(slug: string, params?: Record<string, string>): boolean {
   const t = getType(slug);
   if (!t) return true;

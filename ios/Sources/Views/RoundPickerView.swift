@@ -51,6 +51,7 @@ struct RoundPickerView: View {
                                     dismiss()
                                 }
                             } label: {
+                                HStack(spacing: 10) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(round.title)
                                         // Dimmed rather than hidden or
@@ -70,6 +71,9 @@ struct RoundPickerView: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
+                                }
+                                Spacer(minLength: 8)
+                                if let grade = round.grade { gradeBadge(grade) }
                                 }
                             }
                         }
@@ -96,6 +100,32 @@ struct RoundPickerView: View {
                 query = ""
                 Task { await load() }
             }
+        }
+    }
+
+    /// How hard the round is, as a word rather than a number.
+    ///
+    /// The pool size is what decides it and is deliberately NOT printed. "11
+    /// answers" invites the host to work out their own rule from it, and the
+    /// rule is counter-intuitive enough — small pool, hard round — that half
+    /// of them would read the number the other way round and distrust the
+    /// label. One word, or nothing.
+    private func gradeBadge(_ grade: RoundGrade) -> some View {
+        Text(grade.label)
+            .font(.body(11, weight: .semibold))
+            .foregroundStyle(tint(grade))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(tint(grade).opacity(0.15), in: Capsule())
+    }
+
+    /// Green, amber, red. The one place in this app a traffic light is the
+    /// right answer: it is a three-point scale and nobody needs it explained.
+    private func tint(_ grade: RoundGrade) -> Color {
+        switch grade {
+        case .easy: Color(red: 0.29, green: 0.87, blue: 0.50)
+        case .medium: Color(red: 0.98, green: 0.75, blue: 0.29)
+        case .hard: Color(red: 0.97, green: 0.44, blue: 0.44)
         }
     }
 

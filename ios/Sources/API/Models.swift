@@ -313,6 +313,15 @@ struct PoolRound: Codable, Identifiable, Equatable {
     let title: String
     let metric: String
     let category: String?
+    /// How big a pool the round draws its ten from.
+    let answerCount: Int?
+    /// "easy" / "medium" / "hard", decided by the server from `answerCount`.
+    ///
+    /// Served rather than worked out here so that two apps cannot label the
+    /// same round two different ways. Optional, and a string rather than an
+    /// enum, because a value this app has never heard of must not fail the
+    /// whole list's decode.
+    let difficulty: String?
     /// How many times this round has been played, in any room. Optional so a
     /// build older than the field still decodes.
     let playedCount: Int?
@@ -322,6 +331,28 @@ struct PoolRound: Codable, Identifiable, Equatable {
     var id: Int { roundId }
 
     var played: Bool { (playedCount ?? 0) > 0 }
+
+    /// The badge, or nothing at all when the server did not say.
+    var grade: RoundGrade? { RoundGrade(rawValue: difficulty ?? "") }
+}
+
+/// How hard a round is, for the one line of UI that says so.
+///
+/// Hard is the SMALL pool, which reads backwards until you have played one:
+/// a category with barely ten members is thin because it is obscure, and
+/// having every qualifying name on the board is no help when you cannot
+/// think of the tenth. See difficultyOf in services/tenable.ts.
+enum RoundGrade: String {
+    case easy, medium, hard
+
+    var label: String {
+        switch self {
+        case .easy: "Easy"
+        case .medium: "Medium"
+        case .hard: "Hard"
+        }
+    }
+
 }
 
 /// One of the games Tenable is made of. Served rather than hardcoded, so a new
