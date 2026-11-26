@@ -474,14 +474,6 @@ struct HistoryAnswer: Decodable, Identifiable {
     var id: Int { rank }
     var found: Bool { foundBy != nil }
 
-    /// What the badge reads. An authored round says so outright; a derived
-    /// one has only ever had the number. Matches RevealedAnswer's rule, which
-    /// is deliberate — the same answer must not read two ways in one app.
-    var badge: String? {
-        if let display, !display.isEmpty { return display }
-        guard let unit, !unit.isEmpty else { return nil }
-        return "\(Int(value)) \(unit)"
-    }
 }
 
 struct HistoryRound: Decodable, Identifiable {

@@ -47,6 +47,39 @@ enum BoardStyle {
         return String(safeInt(value))
     }
 
+    /// What a value badge reads, or nothing at all.
+    ///
+    /// Lives here, on the board's own style, because the board is not the
+    /// only screen that shows one and the review had its own copy of this
+    /// that had quietly drifted: it dropped the number whenever the round
+    /// carried no unit, which is every football round, so a whole game's
+    /// worth of appearances and goals never appeared. One answer must not
+    /// read two ways in one app, and the only way to mean that is one
+    /// function.
+    static func badgeText(value: Double, unit: String?, display: String?) -> String? {
+        // A shirt number is not a score. On a squad round the board is not
+        // ranked by it — it is not ranked by anything — so putting "8 shirt"
+        // next to a name states a fact nobody asked for and makes the row
+        // look like it placed eighth.
+        if unit == "shirt" { return nil }
+        // A transfer fee is a price, not a count. "37500000 fee" is unreadable
+        // at a glance and wraps the badge onto two lines; "37.5m" is the
+        // number people actually say.
+        if unit == "fee" { return money(value) }
+        // An authored round already knows how its number should read, and the
+        // raw one would not fit the badge: 17098246 km² is not a thing anybody
+        // can take in at a glance.
+        if let display, !display.isEmpty { return display }
+        let number = String(safeInt(value))
+        guard let unit, !unit.isEmpty else {
+            // No unit and no number is an unordered round — "name any ten of
+            // these" is not ranked by anything, and a zero next to a correct
+            // answer reads as having scored nothing.
+            return value == 0 ? nil : number
+        }
+        return "\(number) \(unit)"
+    }
+
     /// 56% at rank 1, widening by 4.9 points a row — the web game's formula.
     static func widthFraction(rank: Int) -> CGFloat {
         min(1.0, (56 + CGFloat(rank - 1) * 4.9) / 100)
@@ -563,29 +596,10 @@ private struct PyramidRow: View {
         }
     }
 
-    /// What goes in the badge, or nothing at all.
+    /// What goes in the badge, or nothing at all. See BoardStyle.badgeText,
+    /// which the review screen calls too.
     private func valueText(_ answer: RevealedAnswer) -> String? {
-        // A shirt number is not a score. On a squad round the board is not
-        // ranked by it — it is not ranked by anything — so putting "8 shirt"
-        // next to a name states a fact nobody asked for and makes the row
-        // look like it placed eighth.
-        if answer.unit == "shirt" { return nil }
-        // A transfer fee is a price, not a count. "37500000 fee" is unreadable
-        // at a glance and wraps the badge onto two lines; "37.5m" is the
-        // number people actually say.
-        if answer.unit == "fee" { return BoardStyle.money(answer.value) }
-        // An authored round already knows how its number should read, and the
-        // raw one would not fit the badge: 17098246 km² is not a thing anybody
-        // can take in at a glance.
-        if let display = answer.display, !display.isEmpty { return display }
-        let number = String(safeInt(answer.value))
-        guard let unit = answer.unit, !unit.isEmpty else {
-            // No unit and no number is an unordered round — "name any ten of
-            // these" is not ranked by anything, and a zero next to a correct
-            // answer reads as having scored nothing.
-            return answer.value == 0 ? nil : number
-        }
-        return "\(number) \(unit)"
+        BoardStyle.badgeText(value: answer.value, unit: answer.unit, display: answer.display)
     }
 
 }

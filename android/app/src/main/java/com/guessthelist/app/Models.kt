@@ -423,14 +423,6 @@ data class HistoryAnswer(
 ) {
     val found: Boolean get() = foundBy != null
 
-    /** What the badge reads, by the same rule [RevealedAnswer] uses — the same
-     *  answer must not read two ways in one app. */
-    val badge: String?
-        get() = when {
-            !display.isNullOrEmpty() -> display
-            unit.isNullOrEmpty() -> null
-            else -> "${value.toInt()} $unit"
-        }
 }
 
 @Serializable

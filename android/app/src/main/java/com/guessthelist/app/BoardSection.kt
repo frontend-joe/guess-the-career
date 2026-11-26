@@ -503,26 +503,38 @@ private fun ClueButton(taken: Boolean, rank: Int, onClue: () -> Unit, modifier: 
 }
 
 /** What goes in the badge, or nothing at all. */
-private fun valueText(answer: RevealedAnswer): String? {
+private fun valueText(answer: RevealedAnswer): String? =
+    badgeText(answer.value, answer.unit, answer.display)
+
+/**
+ * What a value badge reads, or nothing at all.
+ *
+ * Shared rather than per-screen because the board is not the only surface
+ * that shows one, and the review had its own copy of this that had quietly
+ * drifted: it dropped the number whenever the round carried no unit, which is
+ * every football round, so a whole game's worth of appearances and goals
+ * never appeared. One answer must not read two ways in one app, and the only
+ * way to mean that is one function.
+ */
+internal fun badgeText(value: Double, unit: String?, display: String?): String? {
     // A shirt number is not a score. On a squad round the board is not ranked
     // by it — it is not ranked by anything — so putting "8 shirt" next to a
     // name states a fact nobody asked for and makes the row look like it
     // placed eighth.
-    if (answer.unit == "shirt") return null
+    if (unit == "shirt") return null
     // A transfer fee is a price, not a count. "37500000 fee" is unreadable at
     // a glance and wraps the badge onto two lines; "37.5m" is the number
     // people actually say.
-    if (answer.unit == "fee") return money(answer.value)
+    if (unit == "fee") return money(value)
     // An authored round already knows how its number should read, and the raw
     // one would not fit the badge: 17098246 km² is not a thing anybody can take
     // in at a glance.
-    answer.display?.takeIf { it.isNotEmpty() }?.let { return it }
-    val number = answer.value.toInt().toString()
-    val unit = answer.unit
+    display?.takeIf { it.isNotEmpty() }?.let { return it }
+    val number = value.toInt().toString()
     // No unit and no number is an unordered round — "name any ten of these" is
     // not ranked by anything, and a zero next to a correct answer reads as
     // having scored nothing.
-    if (unit.isNullOrEmpty()) return if (answer.value == 0.0) null else number
+    if (unit.isNullOrEmpty()) return if (value == 0.0) null else number
     return "$number $unit"
 }
 

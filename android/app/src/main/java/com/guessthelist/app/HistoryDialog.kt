@@ -163,23 +163,29 @@ private fun AnswerList(round: HistoryRound, onOpen: (HistoryAnswer) -> Unit) {
                         modifier = Modifier.width(22.dp),
                     )
                 }
-                Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                    Text(
-                        answer.name,
-                        fontSize = 14.sp,
-                        fontWeight = if (answer.found) FontWeight.SemiBold else FontWeight.Normal,
-                        // Dimmed rather than coloured. A missed answer is not
-                        // an error and should not read as one; it is simply a
-                        // name that did not get said.
-                        color = if (answer.found) Color.Unspecified else DIM,
-                    )
-                    answer.badge?.let { Text(it, fontSize = 11.sp, color = DIM) }
-                }
                 Text(
-                    answer.foundBy ?: "Missed",
-                    fontSize = 12.sp,
-                    color = if (answer.found) FOUND else FAINT,
+                    answer.name,
+                    fontSize = 14.sp,
+                    fontWeight = if (answer.found) FontWeight.SemiBold else FontWeight.Normal,
+                    // Dimmed rather than coloured. A missed answer is not an
+                    // error and should not read as one; it is simply a name
+                    // that did not get said.
+                    color = if (answer.found) Color.Unspecified else DIM,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
                 )
+                // The stat and whoever said it, stacked on the trailing edge.
+                // The number used to sit under the name as a subtitle and did
+                // not appear at all — see badgeText.
+                Column(horizontalAlignment = Alignment.End) {
+                    badgeText(answer.value, answer.unit, answer.display)?.let {
+                        Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DIM)
+                    }
+                    Text(
+                        answer.foundBy ?: "Missed",
+                        fontSize = 12.sp,
+                        color = if (answer.found) FOUND else FAINT,
+                    )
+                }
             }
         }
         // The rest of the frozen list, on a ranked round. Under its own
@@ -213,12 +219,21 @@ private fun AnswerList(round: HistoryRound, onOpen: (HistoryAnswer) -> Unit) {
                         textAlign = TextAlign.End,
                         modifier = Modifier.width(22.dp),
                     )
-                    Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text(answer.name, fontSize = 14.sp, color = DIM)
-                        answer.badge?.let { Text(it, fontSize = 11.sp, color = FAINT) }
+                    Text(
+                        answer.name,
+                        fontSize = 14.sp,
+                        color = DIM,
+                        modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    )
+                    // On a near miss the number is the whole reason the row
+                    // is listed: 46 appearances against the 47 that made the
+                    // board is the argument the room is having.
+                    //
+                    // No "Missed" beside it. It would be an accusation about
+                    // a name the board never had a slot for.
+                    badgeText(answer.value, answer.unit, answer.display)?.let {
+                        Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = FAINT)
                     }
-                    // No "Missed" here. It would be an accusation about a
-                    // name the board never had a slot for.
                 }
             }
             item {

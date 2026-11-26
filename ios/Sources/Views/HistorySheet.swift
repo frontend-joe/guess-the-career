@@ -192,32 +192,41 @@ private struct HistoryRoundView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 20, alignment: .trailing)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(answer.name)
-                    .font(.body(15, weight: answer.found ? .semibold : .regular))
-                    // Dimmed rather than coloured. A missed answer is not an
-                    // error and should not read as one; it is simply a name
-                    // that did not get said.
-                    .foregroundStyle(answer.found ? .primary : .secondary)
-                if let badge = answer.badge {
+            Text(answer.name)
+                .font(.body(15, weight: answer.found ? .semibold : .regular))
+                // Dimmed rather than coloured. A missed answer is not an
+                // error and should not read as one; it is simply a name
+                // that did not get said.
+                .foregroundStyle(answer.found ? .primary : .secondary)
+            Spacer(minLength: 8)
+            // The stat and whoever said it, stacked on the trailing edge.
+            //
+            // The number used to sit under the name as a subtitle and did
+            // not appear at all — see BoardStyle.badgeText. On the right it
+            // is where the eye already goes for it, and on a near miss it is
+            // the whole reason the row is listed: 46 appearances against the
+            // 47 that made the board is the argument the room is having.
+            VStack(alignment: .trailing, spacing: 2) {
+                if let badge = BoardStyle.badgeText(
+                    value: answer.value, unit: answer.unit, display: answer.display,
+                ) {
                     Text(badge)
-                        .font(.body(11))
+                        .font(.body(13, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+                if let who = answer.foundBy {
+                    Text(who)
+                        .font(.body(12))
+                        .foregroundStyle(BoardStyle.green.top)
+                        .lineLimit(1)
+                } else if answer.onBoard {
+                    Text("Missed")
+                        .font(.body(12))
+                        .foregroundStyle(.tertiary)
+                }
+                // And no third line on a tail row. "Missed" would be an
+                // accusation about a name the board never had a slot for.
             }
-            Spacer(minLength: 8)
-            if let who = answer.foundBy {
-                Text(who)
-                    .font(.body(12))
-                    .foregroundStyle(BoardStyle.green.top)
-                    .lineLimit(1)
-            } else if answer.onBoard {
-                Text("Missed")
-                    .font(.body(12))
-                    .foregroundStyle(.tertiary)
-            }
-            // And nothing at all on a tail row. "Missed" would be an
-            // accusation about a name the board never had a slot for.
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
