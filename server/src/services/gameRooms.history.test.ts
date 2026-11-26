@@ -35,7 +35,12 @@ function room(email: string) {
 function instance(
   roomId: number,
   seq: number,
-  opts: { status: string; started: boolean; ordered?: boolean; answers: number; found: number; by?: number },
+  opts: {
+    status: string; started: boolean; ordered?: boolean; answers: number; found: number; by?: number
+    /// Extra frozen rows BELOW the board, as a ranked round has: real answers
+    /// to the question, ranked too low to be on it.
+    tail?: number
+  },
 ): number {
   const id = Number(
     sqlite
@@ -57,6 +62,14 @@ function instance(
   for (let i = 1; i <= opts.answers; i++) {
     const hit = i <= opts.found
     insert.run(id, i, `Player ${i}`, `player ${i}`, `${i}`, 100 - i, hit ? i * 10 : null, hit ? opts.by ?? null : null)
+  }
+  const offBoard = sqlite.prepare(
+    `INSERT INTO game_round_answers
+       (instance_id, rank, on_board, name, name_norm, surname_norm, value)
+     VALUES (?, ?, 0, ?, ?, ?, ?)`,
+  )
+  for (let i = opts.answers + 1; i <= opts.answers + (opts.tail ?? 0); i++) {
+    offBoard.run(id, i, `Player ${i}`, `player ${i}`, `${i}`, 100 - i)
   }
   return id
 }
@@ -127,4 +140,35 @@ test('a sweep that overfills the board still reads as ten of ten', () => {
   // The eleventh is still listed, and still credited to whoever swept it.
   assert.equal(round.answers.length, 11)
   assert.equal(round.answers.filter((a) => a.foundBy === 'Alan').length, 11)
+})
+
+test('a ranked round shows the fifty, and says which ten were the board', () => {
+  const r = room('history-5@example.com')
+  const alan = rooms.joinRoom(r.code, 'Alan', { platform: 'ios' }).participant
+  // What a ranked round actually freezes: ten on the board and a hundred and
+  // ninety behind them, kept so a near miss can be told it was sixteenth
+  // without asking the database again mid-round.
+  instance(r.id, 1, { status: 'complete', started: true, answers: 10, found: 7, by: alan.id, tail: 190 })
+
+  const [round] = rooms.roomHistory(r.id)
+  // Fifty deep, not ten and not two hundred.
+  assert.equal(round.answers.length, 50)
+  assert.deepEqual(round.answers.map((a) => a.rank).slice(0, 3), [1, 2, 3])
+  assert.equal(round.answers.at(-1)?.rank, 50)
+
+  // And the line between them survives the trip, because the two kinds of
+  // name mean opposite things: one is an answer that went missing and the
+  // other was never on offer.
+  assert.equal(round.answers.filter((a) => a.onBoard).length, 10)
+  assert.equal(round.answers.filter((a) => !a.onBoard).length, 40)
+
+  // The score is still out of ten. Forty extra names on the screen must not
+  // turn 7 of 10 into 7 of 50.
+  assert.equal(round.found, 7)
+  assert.equal(round.target, 10)
+  // And nothing in the tail is credited to anybody.
+  assert.equal(round.answers.filter((a) => !a.onBoard && a.foundBy != null).length, 0)
+  // "N more would also have counted" is about an unordered pool. None of
+  // these would have counted, so the footer stays silent.
+  assert.equal(round.more, 0)
 })

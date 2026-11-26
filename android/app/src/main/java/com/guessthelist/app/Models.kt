@@ -385,6 +385,12 @@ data class HistoryAnswer(
     val nationality: String? = null,
     val photoUrl: String? = null,
     val footballerId: Int? = null,
+    /** Whether this was one of the ten the board was asking for. False is the
+     *  ranked tail — frozen with the round, ranked below the board, never
+     *  answerable. Listed because "who was eleventh" is the argument the room
+     *  is having anyway, and kept apart because a name nobody could have
+     *  scored is not a name anybody missed. */
+    val onBoard: Boolean = true,
     val foundBy: String? = null,
 ) {
     val found: Boolean get() = foundBy != null

@@ -431,6 +431,13 @@ struct HistoryAnswer: Decodable, Identifiable {
     let nationality: String?
     let photoUrl: String?
     let footballerId: Int?
+    /// Whether this was one of the ten the board was asking for.
+    ///
+    /// False is the ranked tail — frozen with the round, ranked below the
+    /// board, never answerable. It is listed because "who was eleventh" is
+    /// the argument the room is having anyway, and it is kept apart because
+    /// a name nobody could have scored is not a name anybody missed.
+    let onBoard: Bool
     let foundBy: String?
 
     var id: Int { rank }

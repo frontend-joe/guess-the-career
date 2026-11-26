@@ -2629,6 +2629,20 @@ export function roomState(room: RoomRow): RoomState {
 /// bounds the "who else counted" tail.
 const HISTORY_POOL = 40
 
+/// How far down a RANKED round's frozen list a review will show.
+///
+/// A ranked board draws ten and freezes two hundred, because the tail is what
+/// lets the game answer "sixteenth, 54 goals" to a near miss without going
+/// back to the database mid-round. Only the ten were ever shown, and the
+/// other hundred and ninety sat in the table unread.
+///
+/// Fifty is where the tail stops being interesting. The next forty names are
+/// the argument the room is having anyway — who was close, who they forgot,
+/// who they were amazed to be told did not make it — and rank 180 of a club's
+/// appearance list is a stranger. Showing them is free: the rows are already
+/// frozen, so this is a WHERE clause rather than a question for the database.
+const HISTORY_DEPTH = 50
+
 export interface HistoryAnswer {
   rank: number
   name: string
@@ -2638,6 +2652,13 @@ export interface HistoryAnswer {
   nationality: string | null
   photoUrl: string | null
   footballerId: number | null
+  /// Whether this name was one of the ten the board was actually asking for.
+  ///
+  /// False is the ranked tail: frozen with the round, ranked below the board,
+  /// and never answerable. Saying one of these in the game was a near miss,
+  /// and a review that listed it beside the ten without saying so would be
+  /// telling players they missed an answer that was never there.
+  onBoard: boolean
   /// Who said it, by the name they were playing under. Null means nobody did
   /// — either it was never found, or it came up when the host gave in.
   foundBy: string | null
@@ -2693,17 +2714,29 @@ export function roomHistory(roomId: number): HistoryRound[] {
     // Found first, then the rest in rank order, so a cap on a long pool can
     // never cut off a name somebody actually said. Re-sorted into rank order
     // afterwards by the slice itself being ordered on the second key.
+    // How deep to read, which is a different question for each kind of round.
+    // A ranked round shows its board and the next forty; an unordered one has
+    // no tail to show — every name it froze is on the board — so it keeps the
+    // cap that stops a two-hundred-name nationality pool from being the whole
+    // screen.
+    const depth = inst.ordered ? HISTORY_DEPTH : HISTORY_POOL
+
+    // `on_board = 1 OR rank <= depth` rather than just the rank, so a found
+    // answer can never be cut off by the cap. On an unordered round the first
+    // half of that is every row and the second adds nothing, which is exactly
+    // the behaviour this query had before the tail was let in.
     const rows = sqlite
       .prepare(
-        `SELECT rank, name, value, unit, display, nationality, photo_url, footballer_id,
+        `SELECT rank, on_board, name, value, unit, display, nationality, photo_url, footballer_id,
                 found_at_ms, found_by_participant_id
            FROM game_round_answers
-          WHERE instance_id = ? AND on_board = 1
+          WHERE instance_id = ? AND (on_board = 1 OR rank <= ?)
           ORDER BY CASE WHEN found_at_ms IS NULL THEN 1 ELSE 0 END, rank
           LIMIT ?`,
       )
-      .all(inst.id, HISTORY_POOL) as {
+      .all(inst.id, depth, depth) as {
         rank: number
+        on_board: number
         name: string
         value: number
         unit: string | null
@@ -2745,6 +2778,7 @@ export function roomHistory(roomId: number): HistoryRound[] {
           nationality: r.nationality,
           photoUrl: r.photo_url,
           footballerId: r.footballer_id,
+          onBoard: r.on_board === 1,
           foundBy: r.found_by_participant_id == null
             ? null
             : names.get(r.found_by_participant_id) ?? null,

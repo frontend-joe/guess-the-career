@@ -104,15 +104,42 @@ private struct HistoryRoundView: View {
     /// answer, and refusing the tap on a missed name answers it for nobody.
     @State private var showing: HistoryAnswer?
 
+    /// The ten the board was asking for.
+    private var board: [HistoryAnswer] { round.answers.filter(\.onBoard) }
+
+    /// Everything the round froze below them, on a ranked board. Empty on an
+    /// unordered one, where every frozen name was on the board.
+    private var tail: [HistoryAnswer] { round.answers.filter { !$0.onBoard } }
+
     var body: some View {
         List {
             Section {
-                ForEach(round.answers) { answer in
+                ForEach(board) { answer in
                     Button { showing = answer } label: { row(answer) }
                         .buttonStyle(.plain)
                 }
             } header: {
-                Text(round.score)
+                // The question, in full and in as many lines as it takes.
+                //
+                // It lived in the navigation bar, which gives a title one
+                // line and an ellipsis, and the part it cut was the part that
+                // mattered: "Barcelona and Inter Milan players…" does not say
+                // whether the board was ranked by appearances or by goals,
+                // which is the whole question. A bar is the wrong place for a
+                // sentence. The bar keeps the back button and nothing else.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(round.title)
+                        .font(.display(16))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(round.score)
+                        .font(.body(12))
+                        .foregroundStyle(.secondary)
+                }
+                // Headers are small caps by default, which is right for "10
+                // OF 10" and wrong for a sentence.
+                .textCase(nil)
+                .padding(.bottom, 4)
             } footer: {
                 // An unordered round froze its whole pool, which on a
                 // nationality board is two hundred names. Saying how many are
@@ -121,8 +148,32 @@ private struct HistoryRoundView: View {
                     Text("\(round.more) more would also have counted.")
                 }
             }
+
+            // The rest of the frozen list, on a ranked round.
+            //
+            // Its own section rather than more rows, because these names are
+            // a different kind of thing: they are not answers that were
+            // missed, they are answers that were never on offer. Running them
+            // on from the tenth would tell a room that lost 7 of 10 that they
+            // had in fact lost 47 of 50.
+            if !tail.isEmpty {
+                Section {
+                    ForEach(tail) { answer in
+                        Button { showing = answer } label: { row(answer) }
+                            .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text("Just missed out")
+                        .textCase(nil)
+                } footer: {
+                    Text("Ranked below the board when the round was frozen. Saying one of these counted as a near miss, not an answer.")
+                }
+            }
         }
-        .navigationTitle(round.title)
+        // Deliberately empty. The title is the first thing in the list now,
+        // and printing it twice — once truncated above a full copy of itself
+        // — is worse than either.
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $showing) { answer in
             PlayerCardSheet(footballerId: answer.footballerId, name: answer.name)
@@ -160,11 +211,13 @@ private struct HistoryRoundView: View {
                     .font(.body(12))
                     .foregroundStyle(BoardStyle.green.top)
                     .lineLimit(1)
-            } else {
+            } else if answer.onBoard {
                 Text("Missed")
                     .font(.body(12))
                     .foregroundStyle(.tertiary)
             }
+            // And nothing at all on a tail row. "Missed" would be an
+            // accusation about a name the board never had a slot for.
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())

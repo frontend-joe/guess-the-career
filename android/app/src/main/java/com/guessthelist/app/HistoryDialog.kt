@@ -131,8 +131,13 @@ private fun RoundList(rounds: List<HistoryRound>, onOpen: (HistoryRound) -> Unit
 
 @Composable
 private fun AnswerList(round: HistoryRound, onOpen: (HistoryAnswer) -> Unit) {
+    val board = round.answers.filter { it.onBoard }
+    // Everything the round froze below the board, on a ranked one. Empty on
+    // an unordered round, where every frozen name was on the board.
+    val tail = round.answers.filterNot { it.onBoard }
+
     LazyColumn(Modifier.fillMaxHeight(0.7f)) {
-        items(round.answers, key = { it.rank }) { answer ->
+        items(board, key = { it.rank }) { answer ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -174,6 +179,54 @@ private fun AnswerList(round: HistoryRound, onOpen: (HistoryAnswer) -> Unit) {
                     answer.foundBy ?: "Missed",
                     fontSize = 12.sp,
                     color = if (answer.found) FOUND else FAINT,
+                )
+            }
+        }
+        // The rest of the frozen list, on a ranked round. Under its own
+        // heading rather than running on from the tenth, because these names
+        // are a different kind of thing: not answers that were missed,
+        // answers that were never on offer. Run together, a room that lost 7
+        // of 10 would be told it had lost 47 of 50.
+        if (tail.isNotEmpty()) {
+            item {
+                Text(
+                    "Just missed out",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DIM,
+                    modifier = Modifier.padding(top = 18.dp, bottom = 6.dp),
+                )
+            }
+            items(tail, key = { it.rank }) { answer ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpen(answer) }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${answer.rank}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = FAINT,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(22.dp),
+                    )
+                    Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                        Text(answer.name, fontSize = 14.sp, color = DIM)
+                        answer.badge?.let { Text(it, fontSize = 11.sp, color = FAINT) }
+                    }
+                    // No "Missed" here. It would be an accusation about a
+                    // name the board never had a slot for.
+                }
+            }
+            item {
+                Text(
+                    "Ranked below the board when the round was frozen. Saying one of these counted as a near miss, not an answer.",
+                    fontSize = 11.sp,
+                    color = FAINT,
+                    modifier = Modifier.padding(vertical = 10.dp),
                 )
             }
         }
