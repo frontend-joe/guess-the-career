@@ -29,7 +29,7 @@ test('a thin pool is the hard one, however unmissable the board', () => {
   // Ten qualifying players for ten slots. Every name that fits the category
   // scores, and it is still the hardest round in the game.
   assert.equal(difficultyOf(10), 'hard')
-  assert.equal(difficultyOf(13), 'hard')
+  assert.equal(difficultyOf(11), 'hard')
 })
 
 test('a deep pool is the easy one, however many ways there are to miss', () => {
@@ -41,6 +41,10 @@ test('a deep pool is the easy one, however many ways there are to miss', () => {
 })
 
 test('the middle is everything between', () => {
+  assert.equal(difficultyOf(12), 'medium')
+  // One more qualifying name than the hard band, and the rounds are bunched
+  // tightly enough down here that the single step moves a sixth of the
+  // catalogue across the line.
   assert.equal(difficultyOf(14), 'medium')
   assert.equal(difficultyOf(24), 'medium')
   // A squad round: name any ten of twenty-three. Comfortable, not generous.

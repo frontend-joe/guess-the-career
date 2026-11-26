@@ -1867,13 +1867,19 @@ export type Difficulty = "easy" | "medium" | "hard";
 
 /// A pool this size or smaller is a hard round.
 ///
-/// Ten slots out of thirteen qualifying names means there is almost nothing
-/// to spare: you are not picking the famous ones out of a crowd, you are
-/// trying to remember a category that barely has ten members. "Most EFL
-/// Championship goals — surname beginning with K" has exactly ten, and every
-/// one of them is on the board, which sounds generous until you try to name
-/// the third.
-const HARD_POOL = 13;
+/// Ten slots out of eleven qualifying names means there is nothing to spare:
+/// you are not picking the famous ones out of a crowd, you are trying to
+/// remember a category that barely has ten members. "Most EFL Championship
+/// goals — surname beginning with K" has exactly ten, and every one of them
+/// is on the board, which sounds generous until you try to name the third.
+///
+/// Eleven rather than twelve or thirteen because of where the rounds
+/// actually sit. A great many are bunched at ten, eleven and twelve — the
+/// floor is MIN_ANSWERS — so each step up swallows a chunk of the pool:
+/// eleven grades a third of the catalogue hard, twelve grades two fifths,
+/// thirteen grades very nearly half, and a label half the list carries has
+/// stopped saying anything.
+const HARD_POOL = 11;
 
 /// A pool this size or bigger is an easy round.
 ///
