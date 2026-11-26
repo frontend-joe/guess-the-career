@@ -180,16 +180,19 @@ final class PushStore {
 /// deliberately not part of SeatStore: a push token outlives a seat, which is
 /// the whole reason it is persisted separately.
 private enum Defaults {
-    private static let secretKey = "gtl.push.secret"
     private static let mutedKey = "gtl.push.muted"
     private static let askedKey = "gtl.push.asked"
     private static let nameKey = "gtl.push.name"
 
+    /// The one value here that is NOT in UserDefaults, because it is the only
+    /// one that must survive the app being deleted and put back. See
+    /// DeviceSecretStore — everything else below is a convenience whose loss
+    /// costs somebody one tap or one typed name.
     static var secret: String? {
-        get { UserDefaults.standard.string(forKey: secretKey) }
+        get { DeviceSecretStore.load() }
         set {
-            if let newValue { UserDefaults.standard.set(newValue, forKey: secretKey) }
-            else { UserDefaults.standard.removeObject(forKey: secretKey) }
+            if let newValue { DeviceSecretStore.save(newValue) }
+            else { DeviceSecretStore.clear() }
         }
     }
 
