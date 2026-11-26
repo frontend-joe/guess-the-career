@@ -405,3 +405,79 @@ test('a return is worded as an arrival, and a resumption as a guess', () => {
     'Rob has started guessing',
   )
 })
+
+// ── Why a phone is silent ───────────────────────────────────────────────────
+//
+// The failure that took three weeks to find: four iPhones that had
+// registered cleanly, were not muted, were not disabled and had never
+// received anything, with the reason in a log the diagnostic could not read.
+
+test('a refusal that is nobody’s fault is written onto the device', async () => {
+  const device = registerDevice({ platform: 'ios', token: 'err-device', displayName: 'Quiet' })
+  // No credentials in this test process, so the send reports "not configured"
+  // for every message rather than reaching Apple — which is itself exactly
+  // the class of failure this column exists to surface.
+  await sendTestPush(device.id)
+  const row = deviceBySecret(device.secret)!
+  // Not disabled: a missing key refuses every phone identically and says
+  // nothing about this one.
+  assert.equal(row.disabled_at, null)
+})
+
+test('a device that comes back with the same token is re-enabled', () => {
+  // registerDevice has always promised this. rotateToken's "token unchanged"
+  // path did not do it, so one refusal disabled a phone for ever and
+  // reopening the app — which is this exact call — could not undo it.
+  const device = registerDevice({ platform: 'ios', token: 'revive-same', displayName: 'Pat' })
+  sqlite.prepare("UPDATE push_devices SET disabled_at = datetime('now') WHERE id = ?").run(device.id)
+  const back = rotateToken(device.secret, 'revive-same')
+  assert.equal(back?.disabled_at, null)
+  assert.equal(back?.display_name, 'Pat')
+})
+
+test('a key that is set and is not a key is reported as such', async () => {
+  const { apnsKeyError } = await import('./pushApns.ts')
+  const before = process.env.APNS_PRIVATE_KEY
+  try {
+    process.env.APNS_KEY_ID = 'KEYID12345'
+    process.env.APNS_TEAM_ID = 'TEAMID1234'
+    // What a dashboard field does to a .p8 when it eats the line breaks.
+    process.env.APNS_PRIVATE_KEY = '-----BEGIN PRIVATE KEY----- MIGtotallynotakey -----END PRIVATE KEY-----'
+    const error = apnsKeyError()
+    assert.ok(error, 'a flattened PEM must not read as healthy')
+  } finally {
+    if (before == null) delete process.env.APNS_PRIVATE_KEY
+    else process.env.APNS_PRIVATE_KEY = before
+    delete process.env.APNS_KEY_ID
+    delete process.env.APNS_TEAM_ID
+  }
+})
+
+test('an unusable key fails the batch instead of throwing through it', async () => {
+  const { sendApnsBatch, resetProviderToken: reset } = await import('./pushApns.ts')
+  const before = process.env.APNS_PRIVATE_KEY
+  try {
+    process.env.APNS_KEY_ID = 'KEYID12345'
+    process.env.APNS_TEAM_ID = 'TEAMID1234'
+    process.env.APNS_PRIVATE_KEY = 'not a pem at all'
+    reset()
+    // The whole point: a result per message, so the caller can record one.
+    // This used to reject and take the entire fan-out with it, leaving no
+    // trace on any device in the batch.
+    const results = await sendApnsBatch(
+      [{ token: 'a'.repeat(64), title: 'x', body: '', data: {} }],
+      'production',
+    )
+    assert.equal(results.length, 1)
+    assert.equal(results[0].ok, false)
+    assert.ok(!results[0].ok && results[0].reason.includes('apns key'))
+    // And not reaped: the phone did nothing wrong.
+    assert.ok(!results[0].ok && results[0].dead === false)
+  } finally {
+    if (before == null) delete process.env.APNS_PRIVATE_KEY
+    else process.env.APNS_PRIVATE_KEY = before
+    delete process.env.APNS_KEY_ID
+    delete process.env.APNS_TEAM_ID
+    reset()
+  }
+})

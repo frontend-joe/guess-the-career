@@ -7,6 +7,7 @@ import {
   deviceBySecret,
   deviceSummaries,
   fcmMissing,
+  pushKeyError,
   recentRegistrationAttempts,
   recordRegistrationAttempt,
   registerDevice,
@@ -131,7 +132,10 @@ pushRouter.get('/admin/devices', (c) =>
     // Reported alongside the devices because a complete, healthy-looking
     // registry with no credentials behind it is the one failure the rows
     // themselves cannot show.
-    credentials: { apnsMissing: apnsMissing(), fcmMissing: fcmMissing() },
+    // keyError is the third state, and the one that produced a readout full
+    // of healthy-looking phones that had never received anything: a key that
+    // is set and does not parse. See apnsKeyError.
+    credentials: { apnsMissing: apnsMissing(), fcmMissing: fcmMissing(), keyError: pushKeyError() },
     devices: deviceSummaries(),
     // The other half of the question. An empty registry means one of two
     // opposite things, and only these rows tell them apart: attempts present

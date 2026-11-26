@@ -79,6 +79,27 @@ export function apnsConfig(): ApnsConfig | null {
   }
 }
 
+/**
+ * Whether the configured key is a key at all, in one sentence or null.
+ *
+ * `apnsMissing()` answers "is the variable set", which is not the same
+ * question and never was: a variable holding a .p8 whose newlines a dashboard
+ * field turned into spaces is set, present, and useless. Reported through
+ * /api/health beside pushMissing, because the failure it describes is
+ * otherwise invisible to everything except Railway's own log — and the
+ * message is about the shape of a PEM, which is not a secret.
+ */
+export function apnsKeyError(): string | null {
+  const config = apnsConfig()
+  if (!config) return null
+  try {
+    createPrivateKey(config.privateKey)
+    return null
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err)
+  }
+}
+
 // The provider token.
 //
 // APNs wants a fresh-ish ES256 JWT as a bearer credential, and explicitly
@@ -228,7 +249,21 @@ export async function sendApnsBatch(
   }
 
   try {
-    const jwt = providerToken(config)
+    // Inside the try, and this is the whole point of the catch.
+    //
+    // createPrivateKey throws on a key that is not a parseable PEM, and a
+    // dashboard that flattened the .p8's newlines produces exactly that. The
+    // throw used to escape this function — whose contract, stated at the top
+    // of the file, is that everything degrades to a reported failure — and
+    // took the entire fan-out down with it: every device in the batch got no
+    // result at all, so nothing was recorded, nothing was disabled and
+    // nothing was learned. Four iPhones sat silent for three weeks behind it.
+    let jwt: string
+    try {
+      jwt = providerToken(config)
+    } catch (err) {
+      return failAll(`apns key unusable: ${err instanceof Error ? err.message : String(err)}`)
+    }
     return await Promise.all(messages.map((message) => postOne(session, config, jwt, message)))
   } finally {
     session.close()

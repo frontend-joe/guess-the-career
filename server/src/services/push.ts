@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { sqlite } from '../db/client.ts'
 import {
+  apnsKeyError,
   apnsMissing,
   sendApnsBatch,
   type ApnsEnvironment,
@@ -33,6 +34,8 @@ export interface PushDeviceRow {
   muted: number
   disabled_at: string | null
   last_push_at: string | null
+  last_error: string | null
+  last_error_at: string | null
   created_at: string | null
 }
 
@@ -41,6 +44,18 @@ export type Platform = 'ios' | 'android'
 /** Which credentials are absent, by name, for /api/health to report. */
 export function pushMissing(): string[] {
   return [...apnsMissing(), ...fcmMissing()]
+}
+
+/**
+ * The other way credentials fail: present, and not usable.
+ *
+ * pushMissing() reports an unset variable, which was never the same question.
+ * A variable holding a .p8 whose newlines a dashboard field turned into
+ * spaces is set, and `push: true` in the health readout said so for three
+ * weeks while every single iOS send failed. See apnsKeyError.
+ */
+export function pushKeyError(): string | null {
+  return apnsKeyError()
 }
 
 // Re-exported so the diagnostic route can report which credentials are
@@ -159,11 +174,20 @@ export function rotateToken(secret: string, token: string, displayName?: string 
   const device = deviceBySecret(secret)
   if (!device) return null
   if (device.token === token) {
-    if (displayName) {
-      sqlite
-        .prepare("UPDATE push_devices SET display_name = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(displayName, device.id)
-    }
+    // disabled_at cleared here too, not only on the branch where the token
+    // changed. registerDevice promises that a token coming back re-enables
+    // the row — "the app telling us its token is proof the app is installed"
+    // — and this path is how an app that has registered before says exactly
+    // that, on every launch. Without it, one refusal disabled a phone
+    // permanently and no amount of reopening the app could undo it.
+    sqlite
+      .prepare(
+        `UPDATE push_devices
+         SET display_name = COALESCE(?, display_name),
+             disabled_at = NULL, updated_at = datetime('now')
+         WHERE id = ?`,
+      )
+      .run(displayName ?? null, device.id)
     return deviceBySecret(secret)
   }
   mergeTokenOnto(device.id, token)
@@ -214,9 +238,26 @@ export function setMuted(secret: string, muted: boolean): PushDeviceRow | null {
 
 function disable(id: number, reason: string): void {
   console.warn(`push: disabling device ${id} (${reason})`)
+  noteSendFailure(id, reason)
   sqlite
     .prepare("UPDATE push_devices SET disabled_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
     .run(id)
+}
+
+/**
+ * Write down the gateway's own word for a refusal. See
+ * 0122_push_send_failure.sql — this used to be a console.warn, which put the
+ * one fact needed to diagnose a silent phone somewhere the diagnostic for
+ * silent phones could not read.
+ *
+ * Still warned as well as stored: a log is the right place to notice a
+ * thousand of these at once, and the column is the right place to answer
+ * "why is this one phone quiet".
+ */
+function noteSendFailure(id: number, reason: string): void {
+  sqlite
+    .prepare("UPDATE push_devices SET last_error = ?, last_error_at = datetime('now') WHERE id = ?")
+    .run(reason, id)
 }
 
 /**
@@ -529,7 +570,10 @@ async function sendToAndroid(
     const device = devices[index]
     if (result.ok) return markSent(device.id)
     if (result.dead) disable(device.id, result.reason)
-    else console.warn(`push: fcm to device ${device.id} failed: ${result.reason}`)
+    else {
+      noteSendFailure(device.id, result.reason)
+      console.warn(`push: fcm to device ${device.id} failed: ${result.reason}`)
+    }
   })
 }
 
@@ -574,7 +618,14 @@ async function sendToIos(
         return
       }
       if (result.dead) disable(device.id, result.reason)
-      else console.warn(`push: apns to device ${device.id} failed: ${result.reason}`)
+      else {
+        // Not disabled, because this is not the device's fault: a bad key, a
+        // bad topic or a connection that never opened refuses every phone in
+        // the batch identically. Recorded, because that is the sentence the
+        // admin readout has been missing.
+        noteSendFailure(device.id, result.reason)
+        console.warn(`push: apns to device ${device.id} failed: ${result.reason}`)
+      }
     })
     return retry
   }
@@ -599,9 +650,16 @@ async function sendToIos(
 }
 
 function markSent(id: number, apnsEnv?: ApnsEnvironment): void {
+  // The error goes with the success. A row still carrying one is a row whose
+  // MOST RECENT send failed, which is the only version of this worth reading.
   if (apnsEnv) {
     sqlite
-      .prepare("UPDATE push_devices SET last_push_at = datetime('now'), apns_env = ? WHERE id = ?")
+      .prepare(
+        `UPDATE push_devices
+         SET last_push_at = datetime('now'), apns_env = ?,
+             last_error = NULL, last_error_at = NULL
+         WHERE id = ?`,
+      )
       .run(apnsEnv, id)
   } else {
     sqlite.prepare("UPDATE push_devices SET last_push_at = datetime('now') WHERE id = ?").run(id)
@@ -628,6 +686,10 @@ export interface DeviceSummary {
   muted: boolean
   disabledAt: string | null
   lastPushAt: string | null
+  /** The gateway's own word for the last refusal, or null if the last send
+   *  worked. See noteSendFailure. */
+  lastError: string | null
+  lastErrorAt: string | null
   createdAt: string | null
 }
 
@@ -635,7 +697,7 @@ export function deviceSummaries(): DeviceSummary[] {
   const rows = sqlite
     .prepare(
       `SELECT id, platform, display_name, token, user_id, apns_env, muted,
-              disabled_at, last_push_at, created_at
+              disabled_at, last_push_at, last_error, last_error_at, created_at
          FROM push_devices ORDER BY id`,
     )
     .all() as PushDeviceRow[]
@@ -652,6 +714,8 @@ export function deviceSummaries(): DeviceSummary[] {
     muted: !!row.muted,
     disabledAt: row.disabled_at,
     lastPushAt: row.last_push_at,
+    lastError: row.last_error,
+    lastErrorAt: row.last_error_at,
     createdAt: row.created_at,
   }))
 }

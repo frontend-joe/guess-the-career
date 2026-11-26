@@ -1,0 +1,29 @@
+-- Why a phone is silent, kept where somebody can read it.
+--
+-- The registry already answered half of this. recentRegistrationAttempts
+-- tells you whether a phone ever reached us and whether we turned it away,
+-- which separates "never called" from "refused" — and that is the half that
+-- was easy, because registration is a request somebody makes.
+--
+-- Sending is not. The gateway's refusal arrived inside a fan-out triggered by
+-- somebody else's guess, and the code did the obvious thing with it:
+--
+--     console.warn(`push: apns to device ${id} failed: ${reason}`)
+--
+-- which puts the one fact needed to diagnose this feature in a place the
+-- feature's own diagnostic cannot see. /api/push/admin/devices showed four
+-- iPhones that had registered cleanly, were not muted, were not disabled, and
+-- had never received anything — last_push_at NULL and apns_env NULL — and
+-- that readout is consistent with a wrong key, a blocked outbound connection,
+-- a mangled PEM and about four other things. Three weeks of "push doesn't
+-- work on iOS" with the answer sitting in a log nobody could reach.
+--
+-- So the last refusal is written down. Per device rather than a global log,
+-- because the interesting case is one phone differing from the others, and
+-- only the last one, because a history of the same string repeated is not
+-- worth a table.
+--
+-- Cleared on success, so a row carrying an error is a row whose most recent
+-- send failed — not one that had a bad afternoon in November.
+ALTER TABLE push_devices ADD COLUMN last_error TEXT;
+ALTER TABLE push_devices ADD COLUMN last_error_at TEXT;

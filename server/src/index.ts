@@ -66,7 +66,7 @@ import { usersRouter } from './routes/users.ts'
 import { roomsRouter } from './routes/rooms.ts'
 import { pushRouter } from './routes/push.ts'
 import { demoVideoRouter } from './routes/demoVideo.ts'
-import { pushConfigured, pushMissing } from './services/push.ts'
+import { pushConfigured, pushKeyError, pushMissing } from './services/push.ts'
 import { livekitMissing } from './services/livekit.ts'
 import { bootstrapAdmin } from './services/auth.ts'
 import { clearLookupCooldowns } from './services/gameRooms.ts'
@@ -186,14 +186,20 @@ app.get('/api/health', (c) => {
   // or Firebase service account is invisible until a game starts and nobody's
   // phone buzzes.
   const pushGaps = pushMissing()
+  // And the third state, which is neither of those: a key that is set and is
+  // not a key. `push: true` reported a healthy push layer for three weeks
+  // while every iOS send failed on a PEM a dashboard field had flattened.
+  // The message describes the shape of a private key, never its contents.
+  const keyError = pushKeyError()
   return c.json({
     ok: true,
     commit,
     db,
     video: missing.length === 0,
     videoMissing: missing,
-    push: pushConfigured(),
+    push: pushConfigured() && keyError == null,
     pushMissing: pushGaps,
+    pushKeyError: keyError,
   })
 })
 
