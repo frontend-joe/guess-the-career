@@ -23,6 +23,7 @@ const {
   roundText,
   clueText,
   initialsText,
+  completeText,
   resumedText,
   returnedText,
 } = await import('./push.ts')
@@ -403,6 +404,27 @@ test('a return is worded as an arrival, and a resumption as a guess', () => {
   assert.equal(
     resumedText({ code: 'ABC123', hostName: 'Rob', roomName: null }).title,
     'Rob has started guessing',
+  )
+})
+
+test('a finished round names whoever finished it and carries the code', () => {
+  // Named rather than impersonal, because the name is the news: "Rob finished
+  // the round" tells the people who were not playing both what happened and
+  // who to blame for it.
+  assert.equal(
+    completeText({ code: 'ABC123', hostName: 'Rob', roomName: 'Friday night' }).title,
+    'Rob finished the round in Friday night',
+  )
+  assert.equal(
+    completeText({ code: 'ABC123', hostName: 'Rob', roomName: null }).title,
+    'Rob finished the round',
+  )
+  // Unlike the last-slot ping, which is urgent and bodyless: a finished round
+  // is the moment the next one starts, so this one is addressed at people who
+  // may need the code to get in.
+  assert.equal(
+    completeText({ code: 'ABC123', hostName: 'Rob', roomName: null }).body,
+    'Tap to see the board — code ABC123',
   )
 })
 

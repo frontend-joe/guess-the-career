@@ -49,6 +49,7 @@ import {
   sendLastSlot,
   sendPlayerReturned,
   sendRoomResumed,
+  sendRoundComplete,
   sendRoundStarted,
   type Actor,
 } from '../services/push.ts'
@@ -427,6 +428,34 @@ function notifyIfOneLeft(room: RoomRow, instanceId: number, by: ParticipantRow):
     .catch((err: unknown) => console.warn('push: last-slot ping failed:', err))
 }
 
+/**
+ * Tell everybody the round is over, except whoever ended it.
+ *
+ * Deliberately not conditional on anything but `complete`, which the guess
+ * itself reported: the board was filled inside the same transaction that said
+ * so, and re-counting the slots here would be asking a question whose answer
+ * has already been given.
+ *
+ * `by` is whoever filled the last slot, and excluding them is the whole
+ * request — they are looking at the completed board. Everybody else, host
+ * included, hears it. See audienceExcluding.
+ *
+ * Not awaited, like every other ping in this file.
+ *
+ * One path is deliberately not covered: a name the database had never heard
+ * of, queued for a Wikipedia lookup, can come back a few seconds later and
+ * fill the last slot from the background resolver. That completion happens
+ * after the request has answered and is not announced either — the clients
+ * pick it up from the version bump — and giving it a ping of its own means
+ * pushing from the service layer, which nothing here does.
+ */
+function notifyIfComplete(room: RoomRow, by: ParticipantRow): void {
+  void sendRoundComplete(
+    { code: room.code, hostName: by.display_name, roomName: room.name },
+    actorOf(by),
+  ).catch((err: unknown) => console.warn('push: complete ping failed:', err))
+}
+
 // POST /api/rooms/:code/guess — host only; the server decides.
 roomsRouter.post(
   '/:code/guess',
@@ -475,6 +504,13 @@ roomsRouter.post(
       // round is over by then, and "go help them out" is addressed at a board
       // that still needs help.
       if (result.verdict === 'hit' && !result.replayed) notifyIfOneLeft(room, instanceId, me)
+
+      // And the round being over. Mutually exclusive with the ping above in
+      // the ordinary case — one slot left and no slots left cannot both be
+      // true of the same board — but not in the case where one guess fills
+      // two slots at once, which steps over the last-slot ping and lands
+      // here instead.
+      if (result.complete && !result.replayed) notifyIfComplete(room, me)
       return c.json(result)
     } catch (err) {
       return fail(err)
@@ -582,6 +618,9 @@ roomsRouter.post(
       // it can be the thing that leaves one — and the host is the one person
       // it is then not news to, which is exactly what passing them says.
       notifyIfOneLeft(room, instanceId, me)
+      // A judged answer can be the one that fills the board, and the host is
+      // then the person it is not news to.
+      if (result.complete) notifyIfComplete(room, me)
       return c.json(result)
     } catch (err) {
       return fail(err)

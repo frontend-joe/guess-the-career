@@ -445,6 +445,31 @@ export function lastSlotText(roomName: string | null): { title: string; body: st
 }
 
 /**
+ * The board is full.
+ *
+ * `hostName` carries whoever filled the last slot, as in resumedText — the
+ * host types the guesses, but on an unordered round the host's "count it
+ * anyway" is somebody else's answer, and either way the person named is the
+ * one who finished it.
+ *
+ * Addressed at everybody but them, which is the whole shape of this ping: the
+ * one person who does not need telling a round is over is the person who just
+ * ended it, and they are staring at the board that says so.
+ *
+ * The code rides underneath, like the invite rather than like lastSlotText,
+ * because a finished round is the moment a new one starts — this is the last
+ * ping of the round and in practice the warning shot for the next.
+ */
+export function completeText(invite: Invite): { title: string; body: string } {
+  return {
+    title: invite.roomName?.trim()
+      ? `${invite.hostName} finished the round in ${invite.roomName.trim()}`
+      : `${invite.hostName} finished the round`,
+    body: `Tap to see the board — code ${invite.code}`,
+  }
+}
+
+/**
  * Tell every other phone that a game is waiting.
  *
  * The payload carries the code and nothing else that matters, because both
@@ -500,6 +525,17 @@ export async function sendLastSlot(
 }
 
 /**
+ * The round is over, every answer found. See completeText.
+ *
+ * Whether the round is complete is not re-derived here: the guess that filled
+ * the board already said so, and asking the database a second question would
+ * be a second answer that could disagree with the first.
+ */
+export async function sendRoundComplete(invite: Invite, actor: Actor): Promise<void> {
+  await fanOut(invite.code, actor, completeText(invite), 'complete')
+}
+
+/**
  * A room that had gone quiet is being played again. See resumedText.
  *
  * The decision about WHEN — how long the quiet has to have lasted, and that
@@ -535,7 +571,7 @@ async function fanOut(
   code: string,
   actor: Actor,
   text: { title: string; body: string },
-  kind: 'invite' | 'round' | 'resumed' | 'returned' | 'last-slot' | 'clue' | 'initials',
+  kind: 'invite' | 'round' | 'resumed' | 'returned' | 'last-slot' | 'complete' | 'clue' | 'initials',
 ): Promise<void> {
   if (!pushConfigured()) return
   const devices = audienceExcluding(actor)
