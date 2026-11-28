@@ -298,6 +298,37 @@ export function careerMatchesHint(id: number, hint: string): boolean {
   )
 }
 
+/** The article URL a Wikipedia search result title stands for. */
+export function wikiUrlFor(title: string): string {
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
+}
+
+// ── Articles that are not men's footballers ─────────────────────────────────
+//
+// The permanent half of what a lookup learns, and the only half that deserves
+// to be permanent. `isMensFootballer` reads an article's categories and says
+// actor, or women's international, or neither — a fact about THAT article,
+// true tomorrow as well. It used to be filed against the name somebody
+// shouted, which is shared by many players and is therefore evidence about
+// none of them. See migration 0123.
+
+/** Remember that this article is not a man who played association football. */
+export function rejectArticle(url: string, reason: string, raw?: string): void {
+  sqlite
+    .prepare(
+      `INSERT INTO wikipedia_rejections (url, reason, raw) VALUES (?, ?, ?)
+       ON CONFLICT (url) DO NOTHING`,
+    )
+    .run(url, reason, raw ?? null)
+}
+
+/** Have we already established that this article is not one of ours? */
+export function articleRejected(url: string): boolean {
+  return (
+    sqlite.prepare('SELECT 1 FROM wikipedia_rejections WHERE url = ? LIMIT 1').get(url) != null
+  )
+}
+
 export async function resolveOrCreateFootballer(
   name: string,
   clubHint: string,
@@ -325,6 +356,11 @@ export async function resolveOrCreateFootballer(
   const titles: string[] = []
   for (const q of [`${name} footballer`, `${name} ${clubHint}`, name]) {
     for (const title of await wikiSearch(q)) {
+      // Dropped BEFORE the five-candidate budget below is spent, not inside
+      // it: an article we have already judged is not a man who played
+      // association football must not cost the real player his place in the
+      // shortlist. "Carrasco" reaches Yannick fifth, behind a singer.
+      if (articleRejected(wikiUrlFor(title))) continue
       if (titleMatchesName(title, nameParts) && !titles.includes(title)) titles.push(title)
     }
     await sleep(120)
@@ -347,7 +383,7 @@ export async function resolveOrCreateFootballer(
   let fallback: number | null = existing
 
   for (const title of titles.slice(0, 5)) {
-    const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
+    const wikiUrl = wikiUrlFor(title)
 
     // Somebody already here citing this exact article is this player, however
     // little the typed text looked like their name. The check above only sees

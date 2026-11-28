@@ -16,7 +16,7 @@ import {
 import { isPlaceExactly, matchesName, matchesPlace, norm, surnameOf } from './nameMatch.ts'
 import { parseAliases } from './general.ts'
 import { reduceEvents, type BoardState, type ReplayEvent, type TakenHint } from './boardReplay.ts'
-import { resolveOrCreateFootballer, careerMatchesHint } from './playerImport.ts'
+import { resolveOrCreateFootballer, careerMatchesHint, rejectArticle } from './playerImport.ts'
 import { moderateMessage } from './moderation.ts'
 
 // Private multiplayer rooms. See migrations 0087-0089 for the data model and
@@ -1059,7 +1059,7 @@ export function submitGuess(
     if (known == null) {
       // Nobody has heard of them. Look them up on its own, in the background,
       // after this answer has gone back — nothing waits on Wikipedia.
-      checking = learnUnknownName(raw)
+      checking = learnUnknownName(raw, instanceId)
     } else {
       // The database DOES know them, and they are not on this board. If they
       // belong on it, put them there now and answer the guess as the hit it
@@ -1409,54 +1409,76 @@ function knownPlayersNamed(raw: string): Candidate[] {
 
 // ── Unknown names ───────────────────────────────────────────────────────────
 
-// Look a name up in the background, once ever, and never make anyone wait.
+// Look a name up in the background, and never make anyone wait.
 //
 // This fires AFTER the guess has been answered, so nothing in the round waits
 // on Wikipedia — the thing the plan rightly forbids is BLOCKING on a scrape
 // mid-round, not learning from one. It cannot disturb the game either: the
 // round's answers were frozen at kickoff, so a player added now can only ever
-// show up in the NEXT round.
+// show up in the NEXT round, or through reshuffleForPlayer.
 //
-// Deduped across the whole database by normalised name, so a name is attempted
-// once and never again — including the ones that turn out not to be players.
-// Otherwise every repetition of a nonsense guess is another Wikipedia search.
+// It is deduped because it is expensive: three Wikipedia searches, up to five
+// article scrapes and a category check, on the container that is also running
+// the game. In a party game people shout nonsense constantly, so a name has
+// to cost one lookup rather than one per shout.
+//
+// What it is NOT is permanent. It used to be — a name was attempted once and
+// never again, forever, globally — and that is wrong twice over, because the
+// thing being remembered is a name and a name is shared. One article judged
+// not-a-footballer wrote off every namesake; worse, one article judged
+// correctly locked every OTHER player of that name out of the database for
+// good, which looked like a success. Three guards now, none of them forever:
+// the burst, the round, and the question. See migration 0123.
 /// Returns whether a lookup was actually queued, so the guess that triggered
 /// it can say "checking" rather than "never heard of them" — a name that is
 /// about to be looked up may yet turn out to belong on the board.
-export function learnUnknownName(raw: string): boolean {
+export function learnUnknownName(raw: string, instanceId: number): boolean {
   const normalized = norm(raw)
   // Not worth a network round trip: a couple of characters cannot identify
   // anybody, and the resolver would only guess.
   if (normalized.length < 4) return false
 
-  // Skip a name we have already resolved, a name we have REJECTED, and a name
-  // we failed on recently.
-  //
-  // Rejected is permanent on purpose. It means the lookup worked and the
-  // answer was no — an actor, a women's international, somebody real who
-  // cannot be on this board — and no amount of repeating the guess changes
-  // that. Only an outright failure gets another go.
-  //
-  // Not failed-ever: the first version blacklisted on any failure, so a
-  // lookup that died halfway — a crash, a deploy, Wikipedia having a moment —
-  // poisoned that name permanently and no amount of guessing it again would
-  // ever try once more. An hour is long enough that repeating a nonsense
-  // guess costs nothing and short enough that a real player is not lost.
-  const skip = sqlite
+  // Already queued, or being looked up as we speak. This is the burst the
+  // dedup was really written for — four people shouting the same name at one
+  // board — and it is the only guard that has to be exact, because the row
+  // below is still `pending` while the lookup runs.
+  if (inFlight.has(normalized)) return false
+
+  // This round has already had its look. Asking twice cannot help: the
+  // answers were frozen at kickoff, and the one thing a second lookup could
+  // change — reshuffleForPlayer putting a newly learned player on the board —
+  // already happened, or already declined to.
+  const triedHere = sqlite
     .prepare(
       `SELECT 1 FROM game_guess_reviews
-       WHERE raw_norm = ?
-         AND (status = 'resolved'
-              OR status = 'rejected'
-              OR (status = 'unresolved' AND created_at > datetime('now', '-1 hour')))
-       LIMIT 1`,
+       WHERE raw_norm = ? AND instance_id = ? AND status <> 'pending' LIMIT 1`,
     )
-    .get(normalized)
-  if (skip) return false
+    .get(normalized, instanceId)
+  if (triedHere) return false
+
+  // Another round asking the SAME QUESTION, recently enough that the answer
+  // cannot have changed. The question is the name plus the hint the round
+  // gives Wikipedia, because that is what the search actually receives:
+  // "Carrasco" on an Atlético board and "Carrasco" on a Chelsea board are
+  // different queries with different right answers, and a cooldown that
+  // cannot tell them apart is the bug this replaced — see migration 0123.
+  //
+  // Nothing here is permanent. A name is not evidence about a person; only
+  // an article is, and those are blacklisted by URL in wikipedia_rejections.
+  const hint = hintForInstance(instanceId)
+  const recent = sqlite
+    .prepare(
+      `SELECT DISTINCT instance_id AS id FROM game_guess_reviews
+       WHERE raw_norm = ? AND status <> 'pending'
+         AND created_at > datetime('now', ?)`,
+    )
+    .all(normalized, `-${LOOKUP_COOLDOWN_MINUTES} minutes`) as { id: number }[]
+  if (recent.some((r) => hintForInstance(r.id) === hint)) return false
 
   // Queued, not fired. Four people guessing wildly used to start four
   // scrapes at once, each one a run of Wikipedia fetches and a parse, on a
   // container that is also running the game.
+  inFlight.add(normalized)
   learnQueue.push({ raw, normalized })
   void drainLearnQueue()
   return true
@@ -1574,8 +1596,11 @@ export function hintForInstance(instanceId: number): string {
  * being unable to prove it for an hour — on exactly the names that exposed
  * the bug — is the wrong way round.
  *
- * Only `unresolved`. `rejected` means the lookup worked and the answer was no;
- * restarting the server does not make somebody a footballer.
+ * Only `unresolved`. A `resolved` row is a lookup that worked, and clearing
+ * it would buy a repeat of a search that already succeeded; its own cooldown
+ * expires soon enough. Nothing is permanent here any more — the one verdict
+ * that outlives a deploy is a rejected ARTICLE, in wikipedia_rejections,
+ * which a restart has no opinion about either.
  */
 export function clearLookupCooldowns(): void {
   const { changes } = sqlite
@@ -1586,6 +1611,15 @@ export function clearLookupCooldowns(): void {
 
 const learnQueue: { raw: string; normalized: string }[] = []
 let learning = false
+
+/// Names queued or in the resolver right now. The review row is still
+/// `pending` for the whole of that, so the database cannot answer this.
+const inFlight = new Set<string>()
+
+/// How long the same question gets the same answer for. Long enough that a
+/// round full of shouting costs one lookup, short enough that a player is
+/// never lost — which is the entire lesson of 0119 and 0123.
+const LOOKUP_COOLDOWN_MINUTES = 60
 
 async function drainLearnQueue(): Promise<void> {
   if (learning) return
@@ -1624,23 +1658,26 @@ async function drainLearnQueue(): Promise<void> {
             )
             id = null
             created = false
-            // 'no' is permanent, 'unknown' is an hour. The two used to be the
-            // same `false`, so one timed-out category fetch blacklisted a real
-            // player for good — and because a rejection is never retried, no
-            // amount of shouting the name again would ever look once more.
-            // Giles Barnes, a Jamaica international with a hundred-odd
-            // Championship appearances, went in and straight back out this
-            // way and could not be guessed onto any board afterwards.
+            // The permanent record goes against the ARTICLE, which is what
+            // was actually judged. An actor will still be an actor tomorrow,
+            // so there is no reason to pay for that search twice — but the
+            // name somebody shouted is shared by every namesake on the site,
+            // and writing the verdict there wrote off all of them. Yannick
+            // Carrasco, 198 Atlético appearances, lost to a board of Atlético
+            // wingers that way. See migration 0123.
             //
-            // An actor will still be an actor tomorrow, so there is no reason
-            // to pay for that search twice. Wikipedia being down says nothing
-            // about the person at all.
+            // 'unknown' records nothing at all: Wikipedia being down says
+            // nothing about the person, and the name's own cooldown is the
+            // whole of the protection it deserves.
+            if (verdict === 'no' && wiki) {
+              rejectArticle(wiki, 'not a male association footballer', next.raw)
+            }
             sqlite
               .prepare(
-                `UPDATE game_guess_reviews SET status = ?
+                `UPDATE game_guess_reviews SET status = 'unresolved'
                  WHERE raw_norm = ? AND status = 'pending'`,
               )
-              .run(verdict === 'no' ? 'rejected' : 'unresolved', next.normalized)
+              .run(next.normalized)
             continue
           }
         }
@@ -1718,6 +1755,11 @@ async function drainLearnQueue(): Promise<void> {
         }
       } catch (err) {
         console.error(`[reviews] background lookup failed for "${next.raw}":`, err)
+      } finally {
+        // Whatever happened — resolved, discarded, thrown, or `continue`d
+        // past — the name is no longer in the resolver, so the next person
+        // to shout it is subject to the database's rules and not this set.
+        inFlight.delete(next.normalized)
       }
     }
   } finally {
